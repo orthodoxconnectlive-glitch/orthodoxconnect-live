@@ -1,0 +1,73 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  .font-serif-coptic {
+    font-family: 'Cinzel', Georgia, serif;
+  }
+}
+
+/* Theme Ancient / Parchment Mode */
+.theme-ancient {
+  --bg-main: #eddcb9;
+  --bg-card: #f6ebd6;
+  --bg-card-alt: #e6d3ab;
+  --border-gold: #c5a059;
+  --border-gold-dark: #a8833c;
+  --text-primary: #3d2b18;
+  --text-muted: #7c5f3d;
+  --accent-gold: #a8833c;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+}
+
+.theme-ancient .card-ancient {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-gold);
+  box-shadow: 0 4px 12px rgba(92, 71, 45, 0.08);
+}
+
+.theme-ancient .card-double-border {
+  background-color: var(--bg-card);
+  border: 2px solid var(--border-gold);
+  outline: 1px solid var(--border-gold-dark);
+  outline-offset: -4px;
+}
+
+/* Theme Dark Mode */
+.theme-dark, .dark {
+  --bg-main: #0f0c09;
+  --bg-card: #1c1611;
+  --bg-card-alt: #282019;
+  --border-gold: #8b6b4a;
+  --border-gold-dark: #d4af37;
+  --text-primary: #f5ebd9;
+  --text-muted: #a89379;
+  --accent-gold: #d4af37;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+}
+
+.theme-dark .card-ancient, .dark .card-ancient {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-gold);
+}
+
+/* Smooth transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 150ms;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-marquee {
+  animation: marquee 12s linear infinite;
+}

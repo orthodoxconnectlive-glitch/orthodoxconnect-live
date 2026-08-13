@@ -91,6 +91,8 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     if (isPlaying) {
       video.pause();
     } else {
+      // Mark element as explicitly user-initiated for the global prototype guard
+      video.dataset.userInitiated = 'true';
       // Pause all other media in the feed and app
       pauseAllMedia(video);
       setActiveMediaId(elementMediaId);

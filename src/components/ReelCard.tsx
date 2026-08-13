@@ -196,6 +196,8 @@ export const ReelCard: React.FC<ReelCardProps> = ({
       setTapFeedback('pause');
       setTimeout(() => setTapFeedback(null), 800);
     } else {
+      // Mark element as explicitly user-initiated for global prototype guard
+      video.dataset.userInitiated = 'true';
       // Pause all other media in the DOM and reset their currentTime
       pauseAllMedia(video);
       setActiveMediaId(elementMediaId);

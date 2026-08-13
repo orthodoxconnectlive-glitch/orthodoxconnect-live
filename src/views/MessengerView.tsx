@@ -1033,6 +1033,9 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                         autoPlay={false}
                         preload="none"
                         muted={true}
+                        onPointerDown={(e) => {
+                          e.currentTarget.dataset.userInitiated = 'true';
+                        }}
                         className="mt-2 rounded-xl max-h-60 w-full object-contain bg-black"
                       />
                     )}
@@ -1047,6 +1050,9 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                           controls
                           autoPlay={false}
                           preload="none"
+                          onPointerDown={(e) => {
+                            e.currentTarget.dataset.userInitiated = 'true';
+                          }}
                           className="w-full h-8"
                         />
                       </div>

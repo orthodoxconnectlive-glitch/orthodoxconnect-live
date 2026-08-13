@@ -212,6 +212,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
             <div className="relative w-full h-full bg-black">
               <video
                 ref={videoPreviewRef}
+                data-user-initiated="true"
                 autoPlay
                 playsInline
                 muted

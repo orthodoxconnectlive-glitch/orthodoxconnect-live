@@ -150,6 +150,7 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
               {/* Local Video Stream */}
               <video
                 ref={localVideoRef}
+                data-user-initiated="true"
                 autoPlay
                 playsInline
                 muted

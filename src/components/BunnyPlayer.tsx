@@ -193,6 +193,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
         <div className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
           <video
             ref={webcamRef}
+            data-user-initiated="true"
             autoPlay
             playsInline
             muted

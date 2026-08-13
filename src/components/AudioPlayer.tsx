@@ -99,6 +99,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     if (isPlaying) {
       audio.pause();
     } else {
+      // Mark element as explicitly user-initiated for global prototype guard
+      audio.dataset.userInitiated = 'true';
       // Pause all other playing media across the feed and app
       pauseAllMedia(audio);
       setActiveMediaId(elementMediaId);

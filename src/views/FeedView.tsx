@@ -512,6 +512,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                   autoPlay={false}
                   preload="none"
                   muted={true}
+                  onPointerDown={(e) => {
+                    e.currentTarget.dataset.userInitiated = 'true';
+                  }}
                   onError={(e) => {
                     console.warn('[FeedView] Preview video error:', e);
                   }}

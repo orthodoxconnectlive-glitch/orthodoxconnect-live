@@ -257,6 +257,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   autoPlay={false}
                   preload="none"
                   muted={true}
+                  onPointerDown={(e) => {
+                    e.currentTarget.dataset.userInitiated = 'true';
+                  }}
                   className="rounded-2xl max-h-72 w-full object-cover mt-2 border border-[#c5a059] bg-black"
                 />
               )}

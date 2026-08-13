@@ -89,9 +89,12 @@ function AppContent() {
 
       const allMedia = document.querySelectorAll<HTMLMediaElement>('audio, video');
       allMedia.forEach((media) => {
-        if (media !== e.target && !media.paused) {
+        if (media !== e.target) {
           try {
-            media.pause();
+            if (!media.paused) {
+              media.pause();
+            }
+            media.currentTime = 0;
           } catch (err) {
             console.warn('Error pausing media element:', err);
           }

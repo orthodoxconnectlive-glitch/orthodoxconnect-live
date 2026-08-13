@@ -19,9 +19,12 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const pauseAllMedia = useCallback((exceptElement?: HTMLMediaElement | null) => {
     const mediaElements = document.querySelectorAll<HTMLMediaElement>('audio, video');
     mediaElements.forEach((media) => {
-      if (media !== exceptElement && !media.paused) {
+      if (media !== exceptElement) {
         try {
-          media.pause();
+          if (!media.paused) {
+            media.pause();
+          }
+          media.currentTime = 0;
         } catch (err) {
           console.warn('[MediaContext] Error pausing media element:', err);
         }
@@ -35,12 +38,15 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const target = e.target as HTMLMediaElement;
       if (!target || !(target instanceof HTMLMediaElement)) return;
 
-      // Automatically pause all other playing media elements across the DOM
+      // Automatically pause and reset all other playing media elements across the DOM
       const mediaElements = document.querySelectorAll<HTMLMediaElement>('audio, video');
       mediaElements.forEach((media) => {
-        if (media !== target && !media.paused) {
+        if (media !== target) {
           try {
-            media.pause();
+            if (!media.paused) {
+              media.pause();
+            }
+            media.currentTime = 0;
           } catch (err) {
             console.warn('[MediaContext] Error pausing inactive media element:', err);
           }
@@ -49,9 +55,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       // If the playing element has a dataset ID or source, track it as active media
       const mediaId = target.dataset.mediaId || target.id || target.src || null;
-      if (mediaId) {
-        setActiveMediaId(mediaId);
-      }
+      setActiveMediaId(mediaId);
     };
 
     // 'play' event does not bubble, so we must use capture = true

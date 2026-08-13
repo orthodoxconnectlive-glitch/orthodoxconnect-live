@@ -119,7 +119,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
       const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
       allMedia.forEach((media) => {
         try {
-          media.pause();
+          if (!media.paused) {
+            media.pause();
+          }
           media.currentTime = 0;
         } catch (err) {
           console.warn('Error pausing media on Feed unmount:', err);
@@ -127,6 +129,22 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
       });
     };
   }, [feedTab]);
+
+  useEffect(() => {
+    return () => {
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      allMedia.forEach((media) => {
+        try {
+          if (!media.paused) {
+            media.pause();
+          }
+          media.currentTime = 0;
+        } catch (err) {
+          console.warn('Error pausing media on Feed unmount:', err);
+        }
+      });
+    };
+  }, []);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);

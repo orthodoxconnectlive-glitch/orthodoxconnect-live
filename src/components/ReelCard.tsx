@@ -20,6 +20,7 @@ import {
 import { Post } from '../types';
 import { BunnyPlayer } from './BunnyPlayer';
 import { useAuth } from '../context/AuthContext';
+import { useMedia } from '../context/MediaContext';
 import { UserProfileData } from '../views/ProfileView';
 
 export interface ReelComment {
@@ -74,6 +75,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
   onVisibleChange,
 }) => {
   const { profile } = useAuth();
+  const { pauseAllMedia, setActiveMediaId } = useMedia();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -82,6 +84,8 @@ export const ReelCard: React.FC<ReelCardProps> = ({
   const [showHeartAnim, setShowHeartAnim] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
 
+  const elementMediaId = `reel-${reel.id}`;
+
   // 1. Keep videoRef muted state in sync with isUnmuted
   useEffect(() => {
     if (videoRef.current) {
@@ -89,7 +93,36 @@ export const ReelCard: React.FC<ReelCardProps> = ({
     }
   }, [isUnmuted]);
 
-  // 2. IntersectionObserver (threshold: 0.7) - Play ONLY when at least 70% in view & tab is reels
+  // 2. Synchronize playback events
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handlePlay = () => {
+      setIsPlaying(true);
+      setActiveMediaId(elementMediaId);
+    };
+
+    const handlePause = () => {
+      setIsPlaying(false);
+    };
+
+    const handleEnded = () => {
+      setIsPlaying(false);
+    };
+
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
+    video.addEventListener('ended', handleEnded);
+
+    return () => {
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handlePause);
+      video.removeEventListener('ended', handleEnded);
+    };
+  }, [elementMediaId, setActiveMediaId]);
+
+  // 3. IntersectionObserver - strictly track visibility; DO NOT AUTOPLAY ON MOUNT OR SCROLL
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -97,40 +130,17 @@ export const ReelCard: React.FC<ReelCardProps> = ({
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          const activeTab = localStorage.getItem('orthodox_active_tab') || 'reels';
-          const isReelsTab = activeTab === 'reels';
-
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.7 && isReelsTab) {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
             onVisibleChange?.(reel.id, true);
-
-            if (videoRef.current) {
-              // Automatically mute all other video/audio elements across the DOM
-              const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-              allMedia.forEach((m) => {
-                if (m !== videoRef.current && !m.paused) {
-                  try {
-                    m.pause();
-                  } catch (e) {}
-                }
-              });
-
-              videoRef.current.muted = !isUnmuted;
-              videoRef.current
-                .play()
-                .then(() => {
-                  setIsPlaying(true);
-                })
-                .catch((err) => {
-                  console.warn('Reel playback prevented:', err);
-                });
-            }
           } else if (!entry.isIntersecting || entry.intersectionRatio < 0.7) {
             onVisibleChange?.(reel.id, false);
 
-            // As soon as a video moves off-screen (less than 70% visible), pause and reset time
+            // As soon as a reel moves off-screen, pause and reset time
             if (videoRef.current) {
               try {
-                videoRef.current.pause();
+                if (!videoRef.current.paused) {
+                  videoRef.current.pause();
+                }
                 videoRef.current.currentTime = 0;
               } catch (err) {
                 console.warn('Error pausing off-screen reel:', err);
@@ -149,19 +159,42 @@ export const ReelCard: React.FC<ReelCardProps> = ({
       observer.disconnect();
       if (videoRef.current) {
         try {
-          videoRef.current.pause();
+          if (!videoRef.current.paused) {
+            videoRef.current.pause();
+          }
           videoRef.current.currentTime = 0;
         } catch (e) {}
       }
     };
-  }, [reel.id, isUnmuted, onVisibleChange]);
+  }, [reel.id, onVisibleChange]);
 
-  // 3. Tap to toggle mute & ensure only one video has audio
-  const handleTapVideo = () => {
-    onToggleMute(reel.id);
-    const nextMuted = isUnmuted; // if currently unmuted, next is muted
-    setTapFeedback(nextMuted ? 'mute' : 'unmute');
-    setTimeout(() => setTapFeedback(null), 800);
+  // 4. Tap to toggle Play / Pause (explicit user interaction)
+  const handleTogglePlay = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isPlaying) {
+      video.pause();
+      setIsPlaying(false);
+      setTapFeedback('pause');
+      setTimeout(() => setTapFeedback(null), 800);
+    } else {
+      // Pause all other media in the DOM and reset their currentTime
+      pauseAllMedia(video);
+      setActiveMediaId(elementMediaId);
+      video.muted = !isUnmuted;
+      video
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+          setTapFeedback('play');
+          setTimeout(() => setTapFeedback(null), 800);
+        })
+        .catch((err) => {
+          console.warn('Reel playback was prevented:', err);
+        });
+    }
   };
 
   const handleDoubleTapVideo = () => {
@@ -200,7 +233,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
     >
       {/* Background Video Player */}
       <div
-        onClick={handleTapVideo}
+        onClick={() => handleTogglePlay()}
         onDoubleClick={handleDoubleTapVideo}
         className="absolute inset-0 z-0 cursor-pointer"
       >
@@ -215,15 +248,39 @@ export const ReelCard: React.FC<ReelCardProps> = ({
         ) : (
           <video
             ref={videoRef}
+            data-media-id={elementMediaId}
             src={reel.video}
             controls={false}
             autoPlay={false}
-            muted={true}
+            muted={!isUnmuted}
             playsInline
             loop
-            preload="metadata"
+            preload="none"
             className="w-full h-full object-cover bg-black"
           />
+        )}
+
+        {/* Prominent Play Overlay when Paused */}
+        {!isPlaying && (
+          <div
+            onClick={(e) => handleTogglePlay(e)}
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 hover:bg-black/30 transition-all cursor-pointer group/play"
+          >
+            <div className="relative flex items-center justify-center">
+              <div className="absolute w-20 h-20 rounded-full bg-[#c5a059]/30 animate-ping opacity-60 pointer-events-none" />
+              <button
+                type="button"
+                className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-[#c5a059] to-[#8f6e30] hover:from-[#e6d3ab] hover:to-[#c5a059] text-[#1c130c] shadow-2xl flex items-center justify-center border-2 border-[#f5ebd9] transition-transform transform group-hover/play:scale-110 active:scale-95 cursor-pointer"
+                title="Play Reel"
+                aria-label="Play Reel"
+              >
+                <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-current ml-1 text-[#1c130c]" />
+              </button>
+            </div>
+            <div className="mt-3 px-3 py-1 rounded-full bg-[#3d2b18]/90 backdrop-blur-md border border-[#c5a059]/50 text-[#f5ebd9] text-[11px] font-serif font-bold uppercase tracking-wider shadow-lg">
+              Tap to Play
+            </div>
+          </div>
         )}
 
         {/* Animated Tap Overlay Feedback Icon */}

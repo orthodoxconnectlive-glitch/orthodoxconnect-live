@@ -80,11 +80,27 @@ export const ReelCard: React.FC<ReelCardProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const [tapFeedback, setTapFeedback] = useState<'play' | 'pause' | 'mute' | 'unmute' | null>(null);
   const [showHeartAnim, setShowHeartAnim] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
 
   const elementMediaId = `reel-${reel.id}`;
+  const bunnyCdnHost = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
+
+  // Reset error when reel or video changes
+  useEffect(() => {
+    setHasError(false);
+    setIsPlaying(false);
+  }, [reel.id, reel.video]);
+
+  // Graceful error handler: Stop playback and set error state without calling .play()
+  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    console.warn('[ReelCard] Video playback error for reel:', reel.id, e);
+    setHasError(true);
+    setIsPlaying(false);
+    // Crucial: DO NOT trigger .play() inside onError
+  };
 
   // 1. Keep videoRef muted state in sync with isUnmuted
   useEffect(() => {
@@ -215,7 +231,10 @@ export const ReelCard: React.FC<ReelCardProps> = ({
   const isBunnyUrl =
     reel.video?.includes('bunnycdn.com') ||
     reel.video?.includes('iframe.mediadelivery.net') ||
-    reel.video?.includes('mediadelivery.net');
+    reel.video?.includes('mediadelivery.net') ||
+    reel.video?.includes(bunnyCdnHost) ||
+    reel.video?.includes('b-cdn.net') ||
+    reel.video?.includes('bunnyinfra.net');
 
   const canDelete =
     profile?.id === reel.authorId ||
@@ -233,11 +252,34 @@ export const ReelCard: React.FC<ReelCardProps> = ({
     >
       {/* Background Video Player */}
       <div
-        onClick={() => handleTogglePlay()}
+        onClick={() => !hasError && handleTogglePlay()}
         onDoubleClick={handleDoubleTapVideo}
         className="absolute inset-0 z-0 cursor-pointer"
       >
-        {isBunnyUrl ? (
+        {hasError ? (
+          <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#1c130c]">
+            <div className="w-14 h-14 rounded-full bg-red-950/80 border border-red-500/40 flex items-center justify-center mb-3 text-red-400 shadow-inner">
+              <X className="w-7 h-7" />
+            </div>
+            <h4 className="text-[#f5ebd9] font-serif font-bold text-sm mb-1 uppercase tracking-wider">
+              Reel Playback Unavailable
+            </h4>
+            <p className="text-[#eedcb5]/70 text-xs max-w-xs font-serif mb-4">
+              The media source for this reel could not be loaded or is in an unsupported format.
+            </p>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setHasError(false);
+                setIsPlaying(false);
+              }}
+              className="px-4 py-2 rounded-xl bg-[#3d2b18] hover:bg-[#c5a059] text-[#c5a059] hover:text-[#1c130c] font-serif font-bold text-xs uppercase tracking-wider transition-colors border border-[#c5a059]/40 cursor-pointer shadow-md"
+            >
+              Retry
+            </button>
+          </div>
+        ) : isBunnyUrl ? (
           <BunnyPlayer
             videoUrl={reel.video}
             title={reel.text}
@@ -256,12 +298,13 @@ export const ReelCard: React.FC<ReelCardProps> = ({
             playsInline
             loop
             preload="none"
+            onError={handleVideoError}
             className="w-full h-full object-cover bg-black"
           />
         )}
 
         {/* Prominent Play Overlay when Paused */}
-        {!isPlaying && (
+        {!isPlaying && !hasError && (
           <div
             onClick={(e) => handleTogglePlay(e)}
             className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 hover:bg-black/30 transition-all cursor-pointer group/play"

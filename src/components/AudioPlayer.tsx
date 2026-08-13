@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, Music, Disc } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Music, AlertCircle, RefreshCw } from 'lucide-react';
 import { useMedia } from '../context/MediaContext';
 
 interface AudioPlayerProps {
@@ -25,9 +25,17 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const [totalDuration, setTotalDuration] = useState<number>(duration || 0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(1);
+  const [hasError, setHasError] = useState<boolean>(false);
   const { pauseAllMedia, setActiveMediaId } = useMedia();
 
   const elementMediaId = mediaId || `audio-${audioUrl}`;
+
+  // Reset error when URL changes
+  useEffect(() => {
+    setHasError(false);
+    setIsPlaying(false);
+    setCurrentTime(0);
+  }, [audioUrl]);
 
   // Keep state synchronized with native audio events
   useEffect(() => {
@@ -73,9 +81,18 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     };
   }, [elementMediaId, setActiveMediaId]);
 
+  // Graceful error handler: Stop playback and set error state without calling .play()
+  const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
+    console.warn('[AudioPlayer] Audio loading error:', e);
+    setHasError(true);
+    setIsPlaying(false);
+    // Crucial: DO NOT call .play() inside onError handler
+  };
+
   // Handle explicit Play / Pause user tap
   const handleTogglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (hasError) return;
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -137,90 +154,111 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         autoPlay={false}
         preload="none"
         muted={isMuted}
+        onError={handleAudioError}
       />
 
-      <div className="flex items-center gap-3.5">
-        {/* Explicit Play / Pause Button with Orthodox Gold Theme */}
-        <button
-          type="button"
-          onClick={handleTogglePlay}
-          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 shadow-md cursor-pointer shrink-0 border ${
-            isPlaying
-              ? 'bg-gradient-to-br from-[#c5a059] to-[#8f6e30] text-[#1c130c] border-[#f5ebd9]'
-              : 'bg-gradient-to-br from-[#8f6e30] to-[#5a4220] hover:from-[#c5a059] hover:to-[#8f6e30] text-[#f5ebd9] border-[#c5a059]/60'
-          }`}
-          title={isPlaying ? 'Pause Audio' : 'Play Audio'}
-          aria-label={isPlaying ? 'Pause Audio' : 'Play Audio'}
-        >
-          {isPlaying ? (
-            <Pause className="w-5 h-5 fill-current" />
-          ) : (
-            <Play className="w-5 h-5 fill-current ml-0.5" />
-          )}
-        </button>
+      {hasError ? (
+        <div className="flex items-center justify-between gap-3 text-xs text-[#eedcb5]/80 font-serif">
+          <div className="flex items-center gap-2 text-red-400">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>Audio stream unavailable</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setHasError(false);
+              setIsPlaying(false);
+            }}
+            className="px-2.5 py-1 rounded-lg bg-[#3d2b18] hover:bg-[#c5a059] text-[#c5a059] hover:text-[#1c130c] text-[10px] font-serif font-bold uppercase transition-colors border border-[#c5a059]/30 flex items-center gap-1 cursor-pointer"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>Retry</span>
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3.5">
+          {/* Explicit Play / Pause Button with Orthodox Gold Theme */}
+          <button
+            type="button"
+            onClick={handleTogglePlay}
+            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all transform hover:scale-105 active:scale-95 shadow-md cursor-pointer shrink-0 border ${
+              isPlaying
+                ? 'bg-gradient-to-br from-[#c5a059] to-[#8f6e30] text-[#1c130c] border-[#f5ebd9]'
+                : 'bg-gradient-to-br from-[#8f6e30] to-[#5a4220] hover:from-[#c5a059] hover:to-[#8f6e30] text-[#f5ebd9] border-[#c5a059]/60'
+            }`}
+            title={isPlaying ? 'Pause Audio' : 'Play Audio'}
+            aria-label={isPlaying ? 'Pause Audio' : 'Play Audio'}
+          >
+            {isPlaying ? (
+              <Pause className="w-5 h-5 fill-current" />
+            ) : (
+              <Play className="w-5 h-5 fill-current ml-0.5" />
+            )}
+          </button>
 
-        {/* Track Details & Visualizer Bar */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Music className={`w-3.5 h-3.5 text-[#c5a059] shrink-0 ${isPlaying ? 'animate-bounce' : ''}`} />
-              <span className="text-xs font-serif font-bold text-[#f5ebd9] truncate">
-                {title}
+          {/* Track Details & Visualizer Bar */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Music className={`w-3.5 h-3.5 text-[#c5a059] shrink-0 ${isPlaying ? 'animate-bounce' : ''}`} />
+                <span className="text-xs font-serif font-bold text-[#f5ebd9] truncate">
+                  {title}
+                </span>
+              </div>
+              {authorName && (
+                <span className="text-[10px] text-[#c5a059] font-serif uppercase tracking-wider shrink-0">
+                  {authorName}
+                </span>
+              )}
+            </div>
+
+            {/* Scrubbable Progress Bar */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono text-[#eedcb5]/80 w-8 text-right">
+                {formatTime(currentTime)}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={totalDuration || 100}
+                value={currentTime}
+                onChange={handleSeek}
+                className="flex-1 h-1.5 bg-[#1c130c] rounded-lg appearance-none cursor-pointer accent-[#c5a059]"
+                title="Seek audio track"
+              />
+              <span className="text-[10px] font-mono text-[#eedcb5]/80 w-8">
+                {formatTime(totalDuration)}
               </span>
             </div>
-            {authorName && (
-              <span className="text-[10px] text-[#c5a059] font-serif uppercase tracking-wider shrink-0">
-                {authorName}
-              </span>
-            )}
           </div>
 
-          {/* Scrubbable Progress Bar */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono text-[#eedcb5]/80 w-8 text-right">
-              {formatTime(currentTime)}
-            </span>
+          {/* Volume / Mute Control */}
+          <div className="hidden sm:flex items-center gap-1.5 pl-2 border-l border-[#c5a059]/20 shrink-0">
+            <button
+              type="button"
+              onClick={handleToggleMute}
+              className="p-1 text-[#eedcb5]/80 hover:text-[#c5a059] transition-colors cursor-pointer"
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted || volume === 0 ? (
+                <VolumeX className="w-4 h-4 text-red-400" />
+              ) : (
+                <Volume2 className="w-4 h-4" />
+              )}
+            </button>
             <input
               type="range"
               min={0}
-              max={totalDuration || 100}
-              value={currentTime}
-              onChange={handleSeek}
-              className="flex-1 h-1.5 bg-[#1c130c] rounded-lg appearance-none cursor-pointer accent-[#c5a059]"
-              title="Seek audio track"
+              max={1}
+              step={0.05}
+              value={isMuted ? 0 : volume}
+              onChange={handleVolumeChange}
+              className="w-14 h-1 bg-[#1c130c] rounded-lg appearance-none cursor-pointer accent-[#c5a059]"
+              title="Adjust volume"
             />
-            <span className="text-[10px] font-mono text-[#eedcb5]/80 w-8">
-              {formatTime(totalDuration)}
-            </span>
           </div>
         </div>
-
-        {/* Volume / Mute Control */}
-        <div className="hidden sm:flex items-center gap-1.5 pl-2 border-l border-[#c5a059]/20 shrink-0">
-          <button
-            type="button"
-            onClick={handleToggleMute}
-            className="p-1 text-[#eedcb5]/80 hover:text-[#c5a059] transition-colors cursor-pointer"
-            title={isMuted ? 'Unmute' : 'Mute'}
-          >
-            {isMuted || volume === 0 ? (
-              <VolumeX className="w-4 h-4 text-red-400" />
-            ) : (
-              <Volume2 className="w-4 h-4" />
-            )}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={isMuted ? 0 : volume}
-            onChange={handleVolumeChange}
-            className="w-14 h-1 bg-[#1c130c] rounded-lg appearance-none cursor-pointer accent-[#c5a059]"
-            title="Adjust volume"
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 };

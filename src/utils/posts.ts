@@ -3,7 +3,7 @@ import { Post } from '../types';
 import { addNotification } from './notifications';
 
 // Bunny Stream video links (Library ID: 713265)
-export const BUNNY_STREAM_BASE = 'https://video.bunnycdn.com/play/713265';
+export const BUNNY_STREAM_BASE = `https://${import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net'}`;
 export const SEED_VIDEOS = [
   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',

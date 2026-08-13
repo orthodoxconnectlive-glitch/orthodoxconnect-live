@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Eye, Radio, Sparkles, Square, Camera, AlertCircle } from 'lucide-react';
+import { Eye, Radio, Sparkles, Square, Camera, AlertCircle, RefreshCw, Film } from 'lucide-react';
 import { addNotification } from '../utils/notifications';
 
 interface BunnyPlayerProps {
@@ -32,13 +32,20 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
   const [hasBlessingRequested, setHasBlessingRequested] = useState<boolean>(false);
   const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [hasError, setHasError] = useState<boolean>(false);
 
   const webcamRef = useRef<HTMLVideoElement | null>(null);
 
-  // Bunny Stream CDN Library ID: 713265
+  // Bunny Stream Library & CDN Host
   const bunnyLibraryId = '713265';
+  const bunnyCdnHost = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 
   const activeStream = mediaStream || localCameraStream;
+
+  // Reset error state when videoUrl changes
+  useEffect(() => {
+    setHasError(false);
+  }, [videoUrl]);
 
   // Attach MediaStream to video element whenever activeStream or ref changes
   useEffect(() => {
@@ -65,7 +72,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
       });
       setLocalCameraStream(stream);
     } catch (err: any) {
-      console.warn('Local player webcam error:', err);
+      console.warn('[BunnyPlayer] Local player webcam error:', err);
       setCameraError(err?.message || 'Unable to access camera or microphone.');
     }
   };
@@ -80,30 +87,49 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
     }
   };
 
-  // Determine stream embed type
+  // Graceful error handler: STOP playback and set error state without calling .play()
+  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    console.warn('[BunnyPlayer] Video stream loading error:', e);
+    setHasError(true);
+  };
+
+  // Determine stream embed type & sanitize URLs (strictly eliminating bunnyinfra.net)
   let embedSrc = '';
-  let isDirectVideo = false;
+  let directSrc = '';
   let isFallbackDummyUrl = false;
 
   if (videoUrl) {
-    const trimmed = videoUrl.trim();
+    let sanitized = videoUrl.trim();
+    // Replace any legacy or broken bunnyinfra.net URLs with canonical Bunny CDN Host or embed endpoint
+    if (sanitized.includes('bunnyinfra.net')) {
+      sanitized = sanitized.replace(/([a-zA-Z0-9_-]+)\.bunnyinfra\.net/g, bunnyCdnHost);
+    }
+
     if (
-      trimmed === 'webcam-feed' ||
-      trimmed.includes('preview-stream') ||
-      trimmed.includes('vespers-stream') ||
-      trimmed.includes('chanting-stream')
+      sanitized === 'webcam-feed' ||
+      sanitized.includes('preview-stream') ||
+      sanitized.includes('vespers-stream') ||
+      sanitized.includes('chanting-stream')
     ) {
       isFallbackDummyUrl = true;
-    } else if (
-      trimmed.includes('iframe.mediadelivery.net') ||
-      trimmed.includes('bunnycdn.com') ||
-      trimmed.includes('b-cdn.net')
-    ) {
-      embedSrc = trimmed;
-    } else if (/^[0-9a-fA-F-]{10,}$/.test(trimmed)) {
-      embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${trimmed}`;
-    } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      isDirectVideo = true;
+    } else if (sanitized.includes('iframe.mediadelivery.net')) {
+      embedSrc = sanitized;
+    } else if (sanitized.includes(bunnyCdnHost) || sanitized.includes('b-cdn.net')) {
+      // If it contains a video file extension, play directly; otherwise treat as embed or GUID
+      if (/\.(mp4|m3u8|webm|mov)(\?.*)?$/i.test(sanitized)) {
+        directSrc = sanitized;
+      } else {
+        const guidMatch = sanitized.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F-]{12,})/);
+        if (guidMatch) {
+          embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${guidMatch[1]}`;
+        } else {
+          embedSrc = sanitized;
+        }
+      }
+    } else if (/^[0-9a-fA-F-]{10,}$/.test(sanitized)) {
+      embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${sanitized}`;
+    } else if (sanitized.startsWith('http://') || sanitized.startsWith('https://') || sanitized.startsWith('blob:') || sanitized.startsWith('data:')) {
+      directSrc = sanitized;
     } else {
       isFallbackDummyUrl = true;
     }
@@ -129,6 +155,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
         {/* End Broadcast Button */}
         {(isUserBroadcasting || activeStream || onEndBroadcast) && (
           <button
+            type="button"
             onClick={handleEndLocalWebcam}
             className="pointer-events-auto px-4 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center gap-2 shadow-2xl transition-all transform hover:scale-105 cursor-pointer border border-red-400/50"
             title="Finish stream and stop device camera/mic"
@@ -140,7 +167,28 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
       </div>
 
       {/* Video Display Content */}
-      {activeStream ? (
+      {hasError ? (
+        /* Graceful Error Fallback: Stops play loops and displays helpful status */
+        <div className="relative w-full aspect-video bg-[#1c130c] flex flex-col items-center justify-center p-6 text-center border-b border-[#c5a059]/20">
+          <div className="w-12 h-12 rounded-full bg-red-950/80 border border-red-500/40 flex items-center justify-center mb-2.5 text-red-400 shadow-inner">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <h4 className="text-[#f5ebd9] font-serif font-bold text-sm mb-1">
+            Media Stream Unavailable
+          </h4>
+          <p className="text-[#eedcb5]/70 text-xs max-w-sm mb-3 font-serif">
+            This video or live stream could not be loaded from Bunny CDN. The link may have expired or is currently offline.
+          </p>
+          <button
+            type="button"
+            onClick={() => setHasError(false)}
+            className="px-3.5 py-1.5 rounded-xl bg-[#3d2b18] hover:bg-[#c5a059] text-[#c5a059] hover:text-[#1c130c] font-serif font-bold text-xs flex items-center gap-1.5 transition-colors border border-[#c5a059]/40 cursor-pointer shadow-md"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Retry Connection</span>
+          </button>
+        </div>
+      ) : activeStream ? (
         /* Render Active Webcam / Microphone Media Stream */
         <div className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
           <video
@@ -155,7 +203,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
           </div>
         </div>
       ) : embedSrc ? (
-        /* Render Bunny Stream Embed iframe */
+        /* Render Bunny Stream Embed iframe (canonical iframe.mediadelivery.net endpoint) */
         <div className="relative w-full aspect-video bg-black">
           <iframe
             src={embedSrc}
@@ -166,18 +214,19 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             title={title || 'Bunny Stream Live Video'}
           />
         </div>
-      ) : isDirectVideo ? (
-        /* Render Direct Video Source */
+      ) : directSrc ? (
+        /* Render Direct Video Source with strict autoplay blocker and error trap */
         <div className="relative w-full aspect-video bg-black flex items-center justify-center">
           <video
             data-media-id={videoUrl || 'bunny-direct-video'}
-            src={videoUrl}
+            src={directSrc}
             poster={posterUrl}
             controls
             playsInline
-            autoPlay={autoplay}
+            autoPlay={false}
             preload="none"
             muted={muted}
+            onError={handleVideoError}
             className="w-full h-full max-h-[600px] object-contain"
           />
         </div>
@@ -190,7 +239,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
           <h4 className="text-amber-100 font-serif font-bold text-lg mb-1">
             {title || 'Parish Divine Service Broadcast'}
           </h4>
-          <p className="text-stone-400 text-xs max-w-md mb-4">
+          <p className="text-stone-400 text-xs max-w-md mb-4 font-serif">
             No external Bunny stream link attached. Click below to launch your device camera and stream live directly to your parish.
           </p>
 
@@ -202,8 +251,9 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
           )}
 
           <button
+            type="button"
             onClick={handleStartLocalWebcam}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold text-xs flex items-center gap-2 shadow-xl transition-all transform hover:scale-105 cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold text-xs flex items-center gap-2 shadow-xl transition-all transform hover:scale-105 cursor-pointer font-serif uppercase tracking-wider"
           >
             <Radio className="w-4 h-4" />
             <span>Launch Device Webcam Stream</span>
@@ -218,6 +268,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             <Sparkles className="w-4 h-4 text-amber-400" /> Ask for priest blessing during divine service
           </span>
           <button
+            type="button"
             onClick={() => {
               const nextState = !hasBlessingRequested;
               setHasBlessingRequested(nextState);
@@ -231,7 +282,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
                 });
               }
             }}
-            className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer font-serif ${
               hasBlessingRequested
                 ? 'bg-amber-500 text-stone-950 font-bold'
                 : 'bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-500/20'
@@ -244,4 +295,3 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
     </div>
   );
 };
-

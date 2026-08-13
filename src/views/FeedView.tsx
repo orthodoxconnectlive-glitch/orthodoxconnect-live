@@ -512,6 +512,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                   autoPlay={false}
                   preload="none"
                   muted={true}
+                  onError={(e) => {
+                    console.warn('[FeedView] Preview video error:', e);
+                  }}
                   className="w-full h-auto max-h-80 rounded-xl object-contain bg-black"
                 />
                 <div className="absolute top-2 right-2 z-10 flex items-center gap-2">

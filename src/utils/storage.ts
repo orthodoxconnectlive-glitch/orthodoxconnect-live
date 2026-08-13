@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase';
 
 export const BUNNY_LIBRARY_ID = '713265';
 export const BUNNY_API_KEY = '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
-export const BUNNY_CDN_HOSTNAME = 'vz-840ad26e-6fe.b-cdn.net';
+export const BUNNY_CDN_HOSTNAME = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 
 /**
  * Uploads a video file directly to Bunny Stream REST API.

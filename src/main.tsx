@@ -17,22 +17,19 @@ if (typeof window !== 'undefined') {
     };
   })(HTMLMediaElement.prototype.play);
 
-  const silenceAll = () => {
-    document.querySelectorAll<HTMLMediaElement>('audio, video').forEach((m) => {
-      try {
-        m.pause();
-        m.currentTime = 0;
-        m.muted = true;
-      } catch (e) {
-        // Ignore
-      }
+  window.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll<HTMLMediaElement>('audio, video').forEach((media) => {
+      media.pause();
+      media.muted = true;
     });
-  };
+  });
 
-  if (document.readyState === 'loading') {
-    window.addEventListener('DOMContentLoaded', silenceAll);
-  } else {
-    silenceAll();
+  // Also execute immediately in case DOM is already interactive/complete
+  if (document.readyState !== 'loading') {
+    document.querySelectorAll<HTMLMediaElement>('audio, video').forEach((media) => {
+      media.pause();
+      media.muted = true;
+    });
   }
 }
 

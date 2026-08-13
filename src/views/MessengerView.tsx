@@ -1021,7 +1021,8 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                           data-media-id={`msg-audio-${msg.id}`}
                           src={msg.audio_url}
                           controls
-                          preload="metadata"
+                          autoPlay={false}
+                          preload="none"
                           className="w-full h-8"
                         />
                       </div>

@@ -740,7 +740,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                       controls
                       playsInline
                       autoPlay={false}
-                      preload="metadata"
+                      preload="none"
                       className="w-full h-auto max-h-[500px] rounded-2xl object-contain bg-black"
                     />
                   )}

@@ -50,6 +50,25 @@ function AppContent() {
     }
   }, [currentView]);
 
+  // Root level single active media listener
+  useEffect(() => {
+    const handlePlay = (e: Event) => {
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('audio, video');
+      allMedia.forEach((media) => {
+        if (media !== e.target && !media.paused) {
+          try {
+            media.pause();
+          } catch (err) {
+            console.warn('Error pausing media element:', err);
+          }
+        }
+      });
+    };
+
+    document.addEventListener('play', handlePlay, true);
+    return () => document.removeEventListener('play', handlePlay, true);
+  }, []);
+
   // Check URL params for referral invite link /invite?ref=xyz
   useEffect(() => {
     const path = window.location.pathname;

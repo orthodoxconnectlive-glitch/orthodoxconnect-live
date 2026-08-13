@@ -10,14 +10,21 @@ const supabaseAnonKey =
   (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_ANON_KEY : undefined) ||
   '';
 
-if (!supabaseUrl || !supabaseAnonKey || supabaseAnonKey.endsWith('.placeholder')) {
-  console.error(
-    'Missing or invalid Supabase URL or Anon Key in environment variables. Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.'
+export const isSupabaseConfigured = Boolean(
+  supabaseUrl &&
+  supabaseAnonKey &&
+  !supabaseAnonKey.endsWith('.placeholder') &&
+  supabaseAnonKey.length > 10
+);
+
+if (!isSupabaseConfigured) {
+  console.warn(
+    'Supabase URL or Anon Key not configured or placeholder. Running with graceful offline/local fallback.'
   );
 }
 
 export const SUPABASE_URL = supabaseUrl;
-export const SUPABASE_ANON_KEY = supabaseAnonKey;
+export const SUPABASE_ANON_KEY = supabaseAnonKey || 'anon-key-fallback';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -25,4 +32,5 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     autoRefreshToken: true,
   },
 });
+
 

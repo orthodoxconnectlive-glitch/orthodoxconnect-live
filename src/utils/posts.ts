@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Post } from '../types';
 import { addNotification } from './notifications';
 
@@ -122,6 +122,11 @@ export async function loadPosts(
   groupId?: string,
   options?: { limit?: number; offset?: number }
 ): Promise<{ posts: Post[]; error: any }> {
+  const localPosts = getLocalSavedPosts().filter((p) => !groupId || p.groupId === groupId);
+  if (!isSupabaseConfigured) {
+    return { posts: localPosts, error: null };
+  }
+
   const limit = options?.limit ?? 10;
   const offset = options?.offset ?? 0;
 
@@ -139,20 +144,27 @@ export async function loadPosts(
     const { data, error } = await query;
 
     if (error) {
-      console.error('Supabase fetch error:', error);
-      return { posts: [], error };
+      console.warn('Posts fetch notice:', error.message || error);
+      return { posts: localPosts, error: null };
     }
 
     if (data) {
       const dbPosts = data.map(mapRowToPost);
-      return { posts: dbPosts, error: null };
+      // Combine with local posts if any
+      const combined = [...dbPosts];
+      localPosts.forEach((lp) => {
+        if (!combined.some((p) => p.id === lp.id)) {
+          combined.push(lp);
+        }
+      });
+      return { posts: combined, error: null };
     }
   } catch (err: any) {
-    console.error('Supabase fetch error:', err);
-    return { posts: [], error: err };
+    console.warn('Posts fetch notice:', err?.message || err);
+    return { posts: localPosts, error: null };
   }
 
-  return { posts: [], error: null };
+  return { posts: localPosts, error: null };
 }
 
 /**
@@ -160,6 +172,13 @@ export async function loadPosts(
   * Fetches posts written by a specific author directly from Supabase
   */
 export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
+  const localPosts = getLocalSavedPosts().filter(
+    (p) => p.authorId === authorId || p.authorName.toLowerCase().includes(authorId.toLowerCase())
+  );
+  if (!isSupabaseConfigured) {
+    return localPosts;
+  }
+
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authorId);
     let query = supabase.from('posts').select('*');
@@ -173,18 +192,18 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
     const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Supabase fetch error:', error);
-      return [];
+      console.warn('Author posts fetch notice:', error.message || error);
+      return localPosts;
     }
 
     if (data) {
       return data.map(mapRowToPost);
     }
   } catch (err) {
-    console.error('Supabase fetch error:', err);
+    console.warn('Author posts fetch notice:', err);
   }
 
-  return [];
+  return localPosts;
 }
 
 /**
@@ -192,6 +211,11 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
   * Fetches short-form video posts where video is not null directly from Supabase
   */
 export async function loadReels(): Promise<Post[]> {
+  const localReels = getLocalSavedPosts().filter((p) => !!p.video);
+  if (!isSupabaseConfigured) {
+    return localReels;
+  }
+
   try {
     const { data: reelsData, error: reelsError } = await supabase
       .from('posts_reels')
@@ -202,7 +226,7 @@ export async function loadReels(): Promise<Post[]> {
       return reelsData.map(mapRowToPost);
     }
     if (reelsError) {
-      console.error('Supabase fetch error:', reelsError);
+      console.warn('Reels fetch notice:', reelsError.message || reelsError);
     }
 
     const { data: postsData, error: postsError } = await supabase
@@ -211,17 +235,17 @@ export async function loadReels(): Promise<Post[]> {
       .or('video.not.is.null,video_url.not.is.null')
       .order('created_at', { ascending: false });
 
-    if (!postsError && postsData) {
+    if (!postsError && postsData && postsData.length > 0) {
       return postsData.map(mapRowToPost);
     }
     if (postsError) {
-      console.error('Supabase fetch error:', postsError);
+      console.warn('Posts video fetch notice:', postsError.message || postsError);
     }
   } catch (err) {
-    console.error('Supabase fetch error:', err);
+    console.warn('Reels fetch notice:', err);
   }
 
-  return [];
+  return localReels;
 }
 
 /**
@@ -250,6 +274,19 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   // Cache locally immediately so post is immediately persistent
   saveLocalPostToCache(newPost);
 
+  if (!isSupabaseConfigured) {
+    addNotification({
+      userId: 'all',
+      type: 'mention',
+      title: `New Post from ${newPost.authorName}`,
+      body: newPost.text ? (newPost.text.length > 80 ? newPost.text.slice(0, 80) + '...' : newPost.text) : 'Shared a new reflection.',
+      senderName: newPost.authorName,
+      senderAvatar: newPost.authorAvatar,
+      link: 'feed',
+    });
+    return newPost;
+  }
+
   const dbPayload = {
     content: newPost.text,
     author_name: newPost.authorName,
@@ -275,17 +312,17 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
         created_at: newPost.createdAt,
       }]);
       if (reelsErr) {
-        console.error('Supabase fetch error:', reelsErr);
+        console.warn('Reels insert note:', reelsErr.message || reelsErr);
       }
     } catch (reelsErr) {
-      console.error('Supabase fetch error:', reelsErr);
+      console.warn('Reels insert notice:', reelsErr);
     }
   }
 
   try {
     const { data, error } = await supabase.from('posts').insert([dbPayload]).select();
     if (error) {
-      console.error('Supabase fetch error:', error);
+      console.warn('Posts insert note:', error.message || error);
     } else if (data && data.length > 0) {
       const saved = mapRowToPost(data[0]);
       if (!saved.image && newPost.image) saved.image = newPost.image;
@@ -305,7 +342,7 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
       return saved;
     }
   } catch (err) {
-    console.error('Supabase fetch error:', err);
+    console.warn('Posts insert notice:', err);
   }
 
   return newPost;
@@ -315,6 +352,11 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   * Mandatory Export: loadPost(postId)
   */
 export async function loadPost(postId: string): Promise<Post | null> {
+  const localFound = getLocalSavedPosts().find((p) => p.id === postId);
+  if (localFound) return localFound;
+
+  if (!isSupabaseConfigured) return null;
+
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
     if (!isUuid) return null;
@@ -326,14 +368,14 @@ export async function loadPost(postId: string): Promise<Post | null> {
       .single();
 
     if (error) {
-      console.error('Supabase fetch error:', error);
+      console.warn('Load single post note:', error.message || error);
     }
 
     if (!error && data) {
       return mapRowToPost(data);
     }
   } catch (err) {
-    console.error('Supabase fetch error:', err);
+    console.warn('Load single post notice:', err);
   }
 
   return null;
@@ -345,15 +387,15 @@ export async function loadPost(postId: string): Promise<Post | null> {
 export async function deletePost(postId: string): Promise<boolean> {
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
-    if (!isUuid) return true;
+    if (!isUuid || !isSupabaseConfigured) return true;
 
     const { error: reelsErr } = await supabase.from('posts_reels').delete().eq('id', postId);
-    if (reelsErr) console.error('Supabase fetch error:', reelsErr);
+    if (reelsErr) console.warn('Delete reel note:', reelsErr.message || reelsErr);
 
     const { error: postsErr } = await supabase.from('posts').delete().eq('id', postId);
-    if (postsErr) console.error('Supabase fetch error:', postsErr);
+    if (postsErr) console.warn('Delete post note:', postsErr.message || postsErr);
   } catch (err) {
-    console.error('Supabase fetch error:', err);
+    console.warn('Delete post notice:', err);
   }
 
   return true;

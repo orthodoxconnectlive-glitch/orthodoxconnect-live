@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { UserProfile, UserRole } from '../types';
 
 interface AuthContextType {
@@ -28,39 +28,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Fetch or upsert user profile from Supabase profiles table
   const fetchProfile = async (userId: string, emailStr?: string) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+      if (isSupabaseConfigured) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
 
-      if (error) {
-        console.error('Supabase fetch error:', error);
-      }
-
-      if (!error && data) {
-        const userEmail = (data.email || emailStr || '').toLowerCase();
-        const isSuperAdmin = userEmail === 'orthodoxconnect.live@gmail.com';
-        const assignedRole: UserRole = isSuperAdmin ? 'super_admin' : ((data.role as UserRole) || 'user');
-
-        setProfile({
-          id: data.id,
-          email: data.email || emailStr || '',
-          full_name: data.full_name || (emailStr ? emailStr.split('@')[0] : 'Parishioner'),
-          parish: data.parish || 'Orthodox Church',
-          bio: data.bio || 'Orthodox Christian seeking fellowship.',
-          avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-          role: assignedRole,
-          created_at: data.created_at || data.updated_at || new Date().toISOString(),
-        });
-
-        if (isSuperAdmin && data.role !== 'super_admin') {
-          supabase.from('profiles').update({ role: 'super_admin' }).eq('id', data.id).then();
+        if (error) {
+          console.warn('Profile fetch notice:', error.message || error);
         }
-        return;
+
+        if (!error && data) {
+          const userEmail = (data.email || emailStr || '').toLowerCase();
+          const isSuperAdmin = userEmail === 'orthodoxconnect.live@gmail.com';
+          const assignedRole: UserRole = isSuperAdmin ? 'super_admin' : ((data.role as UserRole) || 'user');
+
+          setProfile({
+            id: data.id,
+            email: data.email || emailStr || '',
+            full_name: data.full_name || (emailStr ? emailStr.split('@')[0] : 'Parishioner'),
+            parish: data.parish || 'Orthodox Church',
+            bio: data.bio || 'Orthodox Christian seeking fellowship.',
+            avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+            role: assignedRole,
+            created_at: data.created_at || data.updated_at || new Date().toISOString(),
+          });
+
+          if (isSuperAdmin && data.role !== 'super_admin') {
+            supabase.from('profiles').update({ role: 'super_admin' }).eq('id', data.id).then();
+          }
+          return;
+        }
       }
 
-      // If profile does not exist yet in table, build default from user email/id
+      // If profile does not exist yet in table or offline, build default from user email/id
       const userEmail = (emailStr || '').toLowerCase();
       const isSuperAdmin = userEmail === 'orthodoxconnect.live@gmail.com';
       const defaultProf: UserProfile = {
@@ -75,31 +77,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setProfile(defaultProf);
 
-      // Attempt upserting to database
-      const { error: upsertErr } = await supabase.from('profiles').upsert([
-        {
-          id: userId,
-          email: defaultProf.email,
-          full_name: defaultProf.full_name,
-          parish: defaultProf.parish,
-          bio: defaultProf.bio,
-          avatar_url: defaultProf.avatar_url,
-          role: defaultProf.role,
-        },
-      ]);
-      if (upsertErr) {
-        console.error('Supabase fetch error:', upsertErr);
+      // Attempt upserting to database if configured
+      if (isSupabaseConfigured) {
+        const { error: upsertErr } = await supabase.from('profiles').upsert([
+          {
+            id: userId,
+            email: defaultProf.email,
+            full_name: defaultProf.full_name,
+            parish: defaultProf.parish,
+            bio: defaultProf.bio,
+            avatar_url: defaultProf.avatar_url,
+            role: defaultProf.role,
+          },
+        ]);
+        if (upsertErr) {
+          console.warn('Profile upsert note:', upsertErr.message || upsertErr);
+        }
       }
     } catch (err) {
-      console.error('Supabase fetch error:', err);
+      console.warn('Profile handling notice:', err);
     }
   };
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setUser(null);
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
     // Check initial auth session via supabase.auth.getUser()
     supabase.auth.getUser().then(({ data: { user: currentUser }, error }) => {
       if (error) {
-        console.error('Supabase fetch error:', error);
+        console.warn('Supabase session check:', error.message || error);
       }
       if (currentUser) {
         setUser(currentUser);
@@ -111,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       setLoading(false);
     }).catch((err) => {
-      console.error('Supabase fetch error:', err);
+      console.warn('Supabase session note:', err?.message || err);
       setUser(null);
       setProfile(null);
       setLoading(false);
@@ -130,7 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => {
-      authListener.subscription.unsubscribe();
+      authListener.subscription?.unsubscribe?.();
     };
   }, []);
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MessageSquare, Circle, ChevronRight, User } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { UserProfileData } from '../views/ProfileView';
 
 interface ActiveChatUser {
@@ -28,6 +28,11 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
 
   useEffect(() => {
     async function fetchRealUsers() {
+      if (!isSupabaseConfigured) {
+        setUsers([]);
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         let query = supabase
@@ -43,7 +48,7 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
         const { data, error } = await query;
 
         if (error) {
-          console.error('Supabase fetch error:', error);
+          console.warn('Active users fetch notice:', error.message || error);
         }
 
         if (!error && data) {

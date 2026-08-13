@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Sparkles, X, ChevronLeft, ChevronRight, Send, Image as ImageIcon, Church } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Story, loadStories, saveStory } from '../utils/stories';
 import { useAuth } from '../context/AuthContext';
 import { UserProfileData } from '../views/ProfileView';
@@ -30,6 +30,10 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
   useEffect(() => {
     async function fetchRealStories() {
       const local = loadStories();
+      if (!isSupabaseConfigured) {
+        setStories(local);
+        return;
+      }
       try {
         const { data, error } = await supabase
           .from('stories')
@@ -37,7 +41,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
           .order('created_at', { ascending: false });
 
         if (error) {
-          console.error('Supabase fetch error:', error);
+          console.warn('Stories fetch note:', error.message || error);
           setStories(local);
         } else if (data && data.length > 0) {
           const mapped: Story[] = data.map((d: any) => ({
@@ -63,7 +67,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
           setStories(local);
         }
       } catch (e) {
-        console.error('Supabase fetch error:', e);
+        console.warn('Stories fetch notice:', e);
         setStories(local);
       }
     }
@@ -103,23 +107,25 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
       caption: caption.trim(),
     });
 
-    try {
-      const { error } = await supabase.from('stories').insert([
-        {
-          id: created.id,
-          author_name: created.authorName,
-          author_avatar: created.authorAvatar,
-          author_parish: created.authorParish,
-          image_url: created.imageUrl,
-          caption: created.caption,
-          author_id: profile?.id,
-        },
-      ]);
-      if (error) {
-        console.error('Supabase fetch error:', error);
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('stories').insert([
+          {
+            id: created.id,
+            author_name: created.authorName,
+            author_avatar: created.authorAvatar,
+            author_parish: created.authorParish,
+            image_url: created.imageUrl,
+            caption: created.caption,
+            author_id: profile?.id,
+          },
+        ]);
+        if (error) {
+          console.warn('Stories insert note:', error.message || error);
+        }
+      } catch (err) {
+        console.warn('Stories insert notice:', err);
       }
-    } catch (err) {
-      console.error('Supabase fetch error:', err);
     }
 
     setStories([created, ...stories]);

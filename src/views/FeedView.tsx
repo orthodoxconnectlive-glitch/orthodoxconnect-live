@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import {
   Image,
   Video,
@@ -135,6 +135,13 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
   const fetchPosts = async () => {
     setLoading(true);
     try {
+      if (!isSupabaseConfigured) {
+        const { posts: localLoaded } = await loadPosts(undefined, { limit: 10 });
+        setSupabaseError(null);
+        setPosts(localLoaded || []);
+        return;
+      }
+
       // Run notifications, online user status, and feed queries in parallel with error boundaries
       const [feedResult] = await Promise.all([
         loadPosts(undefined, { limit: 10 }),
@@ -142,7 +149,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
           try {
             return await supabase.from('notifications').select('*').limit(5);
           } catch (err) {
-            console.error('Supabase fetch error:', err);
+            console.warn('Notifications query notice:', err);
             return { data: null, error: err };
           }
         })(),
@@ -150,7 +157,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
           try {
             return await supabase.from('profiles').select('id, full_name, parish, avatar_url').limit(10);
           } catch (err) {
-            console.error('Supabase fetch error:', err);
+            console.warn('Profiles query notice:', err);
             return { data: null, error: err };
           }
         })(),
@@ -159,8 +166,8 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
       const { posts: loaded, error } = feedResult;
 
       if (error) {
-        console.error('Supabase fetch error:', error);
-        setSupabaseError(typeof error === 'string' ? error : (error.message || 'Error loading posts from Supabase'));
+        console.warn('Feed fetch note:', error);
+        setSupabaseError(typeof error === 'string' ? error : (error.message || 'Error loading posts'));
         setPosts([]);
       } else {
         setSupabaseError(null);
@@ -188,9 +195,10 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         setFollowedMap(fMap);
       }
     } catch (err: any) {
-      console.error('Supabase fetch error:', err);
-      setSupabaseError(err?.message || 'Error fetching posts from Supabase');
-      setPosts([]);
+      console.warn('Feed catch notice:', err);
+      setSupabaseError(null);
+      const { posts: fallbackPosts } = await loadPosts(undefined, { limit: 10 });
+      setPosts(fallbackPosts || []);
     } finally {
       // Ensure loading state is ALWAYS cleared in finally block
       setLoading(false);

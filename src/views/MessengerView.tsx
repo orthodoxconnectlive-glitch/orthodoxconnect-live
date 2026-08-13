@@ -29,7 +29,7 @@ import {
   ArrowLeft,
   MessageCircle,
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { addNotification } from '../utils/notifications';
 import { Message, CallState } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -176,6 +176,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
 
   useEffect(() => {
     async function loadRealContacts() {
+      if (!isSupabaseConfigured) return;
       try {
         // 1. Fetch profiles table with full_name and parish
         let query = supabase
@@ -189,7 +190,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
         const { data: profilesData, error: profilesError } = await query;
 
         if (profilesError) {
-          console.error('Supabase fetch error:', profilesError);
+          console.warn('Profiles load note:', profilesError.message || profilesError);
         }
 
         // 2. Fetch active messages to identify contacts user has chatted with
@@ -256,7 +257,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
 
   // Fetch individual profile details when activeContact has a raw UUID or default name
   useEffect(() => {
-    if (!activeContact?.id) return;
+    if (!activeContact?.id || !isSupabaseConfigured) return;
 
     if (
       !activeContact.full_name &&
@@ -275,7 +276,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
             .maybeSingle();
 
           if (error) {
-            console.error('Supabase fetch error:', error);
+            console.warn('Single profile load note:', error.message || error);
           }
 
           if (data && !error) {

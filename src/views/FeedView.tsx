@@ -154,8 +154,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
   const fetchPosts = async () => {
     setLoading(true);
     try {
+      console.log('[FeedView] Fetching posts on mount (SELECT * FROM posts ORDER BY created_at DESC)...');
       if (!isSupabaseConfigured) {
-        const { posts: localLoaded } = await loadPosts(undefined, { limit: 10 });
+        const { posts: localLoaded } = await loadPosts(undefined, { limit: 25 });
         setSupabaseError(null);
         setPosts(localLoaded || []);
         return;
@@ -163,7 +164,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
 
       // Run notifications, online user status, and feed queries in parallel with error boundaries
       const [feedResult] = await Promise.all([
-        loadPosts(undefined, { limit: 10 }),
+        loadPosts(undefined, { limit: 25 }),
         (async () => {
           try {
             return await supabase.from('notifications').select('*').limit(5);
@@ -185,38 +186,38 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
       const { posts: loaded, error } = feedResult;
 
       if (error) {
-        console.warn('Feed fetch note:', error);
+        console.error('[FeedView] Feed fetch error:', error);
         setSupabaseError(typeof error === 'string' ? error : (error.message || 'Error loading posts'));
-        setPosts([]);
       } else {
         setSupabaseError(null);
-        const activePosts = loaded || [];
-        const likesMap = loadLocalLikesMap();
-        
-        // Apply local saved likes
-        const postsWithLikes = activePosts.map((p) => {
-          if (likesMap[p.id] !== undefined) {
-            return {
-              ...p,
-              isLiked: likesMap[p.id],
-            };
-          }
-          return p;
-        });
-
-        setPosts(postsWithLikes);
-
-        // Initialize follow status map for authors
-        const fMap: Record<string, boolean> = {};
-        postsWithLikes.forEach((p) => {
-          fMap[p.authorName] = isFollowing(p.authorName);
-        });
-        setFollowedMap(fMap);
       }
+
+      const activePosts = loaded || [];
+      const likesMap = loadLocalLikesMap();
+      
+      // Apply local saved likes
+      const postsWithLikes = activePosts.map((p) => {
+        if (likesMap[p.id] !== undefined) {
+          return {
+            ...p,
+            isLiked: likesMap[p.id],
+          };
+        }
+        return p;
+      });
+
+      setPosts(postsWithLikes);
+
+      // Initialize follow status map for authors
+      const fMap: Record<string, boolean> = {};
+      postsWithLikes.forEach((p) => {
+        fMap[p.authorName] = isFollowing(p.authorName);
+      });
+      setFollowedMap(fMap);
     } catch (err: any) {
-      console.warn('Feed catch notice:', err);
+      console.error('[FeedView] Feed fetch catch exception:', err);
       setSupabaseError(null);
-      const { posts: fallbackPosts } = await loadPosts(undefined, { limit: 10 });
+      const { posts: fallbackPosts } = await loadPosts(undefined, { limit: 25 });
       setPosts(fallbackPosts || []);
     } finally {
       // Ensure loading state is ALWAYS cleared in finally block
@@ -272,23 +273,31 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
     if (!newPostText.trim() && !imageUrl && !videoUrl) return;
 
     setIsSubmitting(true);
+    console.log('[FeedView] Initiating post creation and database insert...');
 
-    const created = await savePost({
-      text: newPostText.trim(),
-      authorName: profile?.full_name || 'Orthodox Parishioner',
-      authorParish: profile?.parish || 'Orthodox Church',
-      authorAvatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-      authorId: profile?.id,
-      image: imageUrl || undefined,
-      video: videoUrl || undefined,
-    });
+    try {
+      const created = await savePost({
+        text: newPostText.trim(),
+        authorName: profile?.full_name || 'Orthodox Parishioner',
+        authorParish: profile?.parish || 'Orthodox Church',
+        authorAvatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        authorId: profile?.id,
+        image: imageUrl || undefined,
+        video: videoUrl || undefined,
+      });
 
-    setPosts([created, ...posts]);
-    setNewPostText('');
-    setImageUrl('');
-    setVideoUrl('');
-    setIsSubmitting(false);
-    triggerToast('Reflection published to parish feed!');
+      console.log('[FeedView] Post created successfully with ID:', created.id);
+      setPosts((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
+      setNewPostText('');
+      setImageUrl('');
+      setVideoUrl('');
+      triggerToast('Reflection published to parish feed!');
+    } catch (err: any) {
+      console.error('[FeedView] Post submission error:', err);
+      triggerToast('Error submitting post: ' + (err?.message || 'Database error'));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleToggleLike = (postId: string) => {

@@ -96,10 +96,14 @@ export function getLocalSavedPosts(): Post[] {
 export function saveLocalPostToCache(post: Post) {
   try {
     const existing = getLocalSavedPosts();
-    const updated = [post, ...existing.filter((p) => p.id !== post.id)];
-    localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(updated));
+    // Filter out duplicates by id or exact match
+    const filtered = existing.filter(
+      (p) => p.id !== post.id && !(p.text === post.text && p.createdAt === post.createdAt)
+    );
+    const updated = [post, ...filtered];
+    localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(updated.slice(0, 100)));
   } catch (e) {
-    console.warn('Error saving local post to cache:', e);
+    console.warn('[Post Cache] Error saving local post to cache:', e);
   }
 }
 
@@ -130,10 +134,11 @@ export async function loadPosts(
     return { posts: localPosts, error: null };
   }
 
-  const limit = options?.limit ?? 10;
+  const limit = options?.limit ?? 25;
   const offset = options?.offset ?? 0;
 
   try {
+    console.log('[Supabase] Fetching posts: SELECT * FROM posts ORDER BY created_at DESC');
     let query = supabase
       .from('posts')
       .select('*')
@@ -147,24 +152,29 @@ export async function loadPosts(
     const { data, error } = await query;
 
     if (error) {
-      console.warn('Posts fetch notice:', error.message || error);
-      return { posts: localPosts, error: null };
+      console.error('[Supabase loadPosts error]:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+      return { posts: localPosts, error };
     }
 
     if (data) {
       const dbPosts = data.map(mapRowToPost);
-      // Combine with local posts if any
+      // Combine with local cached posts (for offline/instant optimism)
       const combined = [...dbPosts];
       localPosts.forEach((lp) => {
-        if (!combined.some((p) => p.id === lp.id)) {
+        if (!combined.some((p) => p.id === lp.id || (p.text === lp.text && p.createdAt === lp.createdAt))) {
           combined.push(lp);
         }
       });
       return { posts: combined, error: null };
     }
   } catch (err: any) {
-    console.warn('Posts fetch notice:', err?.message || err);
-    return { posts: localPosts, error: null };
+    console.error('[Supabase loadPosts exception]:', err?.message || err);
+    return { posts: localPosts, error: err };
   }
 
   return { posts: localPosts, error: null };
@@ -258,6 +268,10 @@ export const loadReels = loadVideos;
   * Inserts a post directly into Supabase and dispatches real-time notification
   */
 export async function savePost(postPartial: Partial<Post>): Promise<Post> {
+  const isUuid =
+    postPartial.authorId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postPartial.authorId);
+
   const newPost: Post = {
     id: postPartial.id || 'post-' + Date.now(),
     text: postPartial.text || '',
@@ -276,10 +290,11 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     reshareKind: postPartial.reshareKind,
   };
 
-  // Cache locally immediately so post is immediately persistent
+  // Cache locally immediately for optimistic UI & offline resilience
   saveLocalPostToCache(newPost);
 
   if (!isSupabaseConfigured) {
+    console.info('[Post Persistence] Supabase not configured. Saved to local persistent cache.');
     addNotification({
       userId: 'all',
       type: 'mention',
@@ -292,12 +307,12 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     return newPost;
   }
 
-  const dbPayload = {
+  const dbPayload: Record<string, any> = {
     content: newPost.text,
     author_name: newPost.authorName,
     author_parish: newPost.authorParish,
     author_avatar: newPost.authorAvatar,
-    author_id: newPost.authorId,
+    author_id: isUuid ? newPost.authorId : null,
     image_url: newPost.image || null,
     video: newPost.video || null,
     video_url: newPost.video || null,
@@ -312,26 +327,68 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
         author_name: newPost.authorName,
         author_parish: newPost.authorParish,
         author_avatar: newPost.authorAvatar,
-        author_id: newPost.authorId,
+        author_id: isUuid ? newPost.authorId : null,
         video_url: newPost.video,
         created_at: newPost.createdAt,
       }]);
       if (reelsErr) {
-        console.warn('Reels insert note:', reelsErr.message || reelsErr);
+        console.error('[Supabase posts_reels Insert Error]:', {
+          message: reelsErr.message,
+          details: reelsErr.details,
+          hint: reelsErr.hint,
+          code: reelsErr.code,
+        });
       }
-    } catch (reelsErr) {
-      console.warn('Reels insert notice:', reelsErr);
+    } catch (reelsErr: any) {
+      console.error('[Supabase posts_reels Exception]:', reelsErr?.message || reelsErr);
     }
   }
 
   try {
+    console.log('[Supabase] Executing direct database insert into "posts":', dbPayload);
     const { data, error } = await supabase.from('posts').insert([dbPayload]).select();
+
     if (error) {
-      console.warn('Posts insert note:', error.message || error);
+      console.error('[Supabase Post Insert Error]:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
+
+      // If missing column error, try minimal payload fallback
+      if (error.code === '42703' || error.message?.includes('column')) {
+        console.warn('[Supabase] Column mismatch detected, attempting simplified insert fallback...');
+        const fallbackPayload: Record<string, any> = {
+          content: newPost.text,
+          image_url: newPost.image || null,
+          video_url: newPost.video || null,
+          created_at: newPost.createdAt,
+        };
+        if (isUuid) fallbackPayload.author_id = newPost.authorId;
+
+        const { data: fbData, error: fbError } = await supabase
+          .from('posts')
+          .insert([fallbackPayload])
+          .select();
+
+        if (fbError) {
+          console.error('[Supabase Fallback Insert Error]:', fbError);
+        } else if (fbData && fbData.length > 0) {
+          const savedFallback = mapRowToPost(fbData[0]);
+          if (!savedFallback.image && newPost.image) savedFallback.image = newPost.image;
+          if (!savedFallback.video && newPost.video) savedFallback.video = newPost.video;
+          saveLocalPostToCache(savedFallback);
+          return savedFallback;
+        }
+      }
     } else if (data && data.length > 0) {
       const saved = mapRowToPost(data[0]);
       if (!saved.image && newPost.image) saved.image = newPost.image;
       if (!saved.video && newPost.video) saved.video = newPost.video;
+
+      console.log('[Supabase] Post persisted successfully to database with ID:', saved.id);
+      saveLocalPostToCache(saved);
 
       // Trigger real notification record in Supabase notifications table
       addNotification({
@@ -346,8 +403,8 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
 
       return saved;
     }
-  } catch (err) {
-    console.warn('Posts insert notice:', err);
+  } catch (err: any) {
+    console.error('[Supabase Post Insert Exception]:', err?.message || err);
   }
 
   return newPost;

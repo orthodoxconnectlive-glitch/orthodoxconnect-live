@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { MediaProvider } from './context/MediaContext';
@@ -61,9 +61,32 @@ function AppContent() {
     });
   }, [currentView]);
 
+  // Global Initial Mute & Pause Hook on initial mount
+  useLayoutEffect(() => {
+    const silenceAll = () => {
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      allMedia.forEach((media) => {
+        try {
+          media.pause();
+          media.currentTime = 0;
+          media.muted = true; // force silent default on mount
+        } catch (err) {
+          console.warn('Error silencing media on mount:', err);
+        }
+      });
+    };
+    silenceAll();
+  }, []);
+
   // Root level single active media listener
   useEffect(() => {
     const handlePlay = (e: Event) => {
+      const target = e.target as HTMLMediaElement;
+      if (target && target instanceof HTMLMediaElement) {
+        // Unmute target element upon explicit user play interaction
+        target.muted = false;
+      }
+
       const allMedia = document.querySelectorAll<HTMLMediaElement>('audio, video');
       allMedia.forEach((media) => {
         if (media !== e.target && !media.paused) {

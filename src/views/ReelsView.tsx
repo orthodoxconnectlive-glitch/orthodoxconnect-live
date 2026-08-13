@@ -48,7 +48,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
   const [activeReelId, setActiveReelId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // TikTok interactions state
   const [followedAuthors, setFollowedAuthors] = useState<Record<string, boolean>>({});
@@ -397,7 +397,23 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
             >
               {/* Background Video Player */}
               <div
-                onClick={() => setIsPlaying(!isPlaying)}
+                onClick={() => {
+                  const nextPlaying = !isPlaying;
+                  setIsPlaying(nextPlaying);
+                  if (nextPlaying) {
+                    setIsMuted(false);
+                    const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+                    allMedia.forEach((media) => {
+                      if (media !== document.querySelector(`#reel-item-${reel.id} video`)) {
+                        try {
+                          media.pause();
+                        } catch (err) {
+                          console.warn('Error pausing inactive media:', err);
+                        }
+                      }
+                    });
+                  }
+                }}
                 onDoubleClick={() => handleDoubleTapVideo(reel.id)}
                 className="absolute inset-0 z-0 cursor-pointer"
               >
@@ -405,16 +421,18 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
                   <BunnyPlayer
                     videoUrl={reel.video}
                     title={reel.text}
-                    autoplay={isActive && isPlaying}
+                    autoplay={false}
                     className="w-full h-full object-cover"
                   />
                 ) : (
                   <video
                     src={reel.video}
                     controls
-                    autoPlay={isActive && isPlaying}
+                    autoPlay={false}
                     playsInline
                     loop
+                    muted={isMuted}
+                    preload="metadata"
                     className="w-full h-full object-cover bg-black"
                   />
                 )}

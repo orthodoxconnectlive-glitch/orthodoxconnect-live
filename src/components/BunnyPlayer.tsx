@@ -145,7 +145,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             ref={webcamRef}
             autoPlay
             playsInline
-            muted={false}
+            muted
             className="w-full h-full object-cover transform scale-x-[-1]"
           />
           <div className="absolute bottom-4 left-4 z-10 px-3 py-1 rounded-lg bg-stone-950/80 backdrop-blur border border-amber-500/40 text-amber-200 text-xs font-mono">

@@ -168,6 +168,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
         /* Render Direct Video Source */
         <div className="relative w-full aspect-video bg-black flex items-center justify-center">
           <video
+            data-media-id={videoUrl || 'bunny-direct-video'}
             src={videoUrl}
             poster={posterUrl}
             controls

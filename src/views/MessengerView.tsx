@@ -1003,8 +1003,12 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                     {/* Video Attachment */}
                     {msg.video_url && (
                       <video
+                        data-media-id={`msg-video-${msg.id}`}
                         src={msg.video_url}
                         controls
+                        playsInline
+                        autoPlay={false}
+                        preload="metadata"
                         className="mt-2 rounded-xl max-h-60 w-full object-contain bg-black"
                       />
                     )}
@@ -1013,7 +1017,13 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                     {msg.audio_url && (
                       <div className="mt-2 p-2 rounded-xl bg-black/10 dark:bg-black/30 flex items-center gap-2">
                         <Volume2 className="w-4 h-4 shrink-0 text-current" />
-                        <audio src={msg.audio_url} controls className="w-full h-8" />
+                        <audio
+                          data-media-id={`msg-audio-${msg.id}`}
+                          src={msg.audio_url}
+                          controls
+                          preload="metadata"
+                          className="w-full h-8"
+                        />
                       </div>
                     )}
 

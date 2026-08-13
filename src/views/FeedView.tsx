@@ -452,8 +452,12 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
             <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
               <div className="relative max-h-80 overflow-hidden rounded-xl bg-black flex items-center justify-center">
                 <video
+                  data-media-id="new-post-video-preview"
                   src={videoUrl}
                   controls
+                  playsInline
+                  autoPlay={false}
+                  preload="metadata"
                   className="w-full h-auto max-h-80 rounded-xl object-contain bg-black"
                 />
                 <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
@@ -731,9 +735,12 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                     <BunnyPlayer videoUrl={post.video} title={post.text} />
                   ) : (
                     <video
+                      data-media-id={`post-video-${post.id}`}
                       src={post.video}
                       controls
                       playsInline
+                      autoPlay={false}
+                      preload="metadata"
                       className="w-full h-auto max-h-[500px] rounded-2xl object-contain bg-black"
                     />
                   )}

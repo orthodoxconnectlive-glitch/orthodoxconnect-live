@@ -250,9 +250,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
               {post.video && (
                 <video
+                  data-media-id={`profile-post-video-${post.id}`}
                   src={post.video}
                   controls
                   playsInline
+                  autoPlay={false}
+                  preload="metadata"
                   className="rounded-2xl max-h-72 w-full object-cover mt-2 border border-[#c5a059] bg-black"
                 />
               )}

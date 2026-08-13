@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { MediaProvider } from './context/MediaContext';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { ActiveChatsPanel } from './components/ActiveChatsPanel';
@@ -195,7 +196,9 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <AppRoot />
+        <MediaProvider>
+          <AppRoot />
+        </MediaProvider>
       </AuthProvider>
     </ThemeProvider>
   );

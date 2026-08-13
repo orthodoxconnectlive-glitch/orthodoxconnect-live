@@ -451,7 +451,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
       {/* Continuous Vertical Snap Scrollable Reels Feed Container */}
       <div
         ref={scrollContainerRef}
-        className="h-screen overflow-y-scroll snap-y snap-mandatory scroll-smooth space-y-4 no-scrollbar pr-1 pb-24"
+        className="h-screen w-full overflow-y-scroll snap-y snap-mandatory scroll-smooth no-scrollbar pr-1 pb-24 space-y-4"
       >
         {reels.map((reel) => {
           const isActive = activeReelId === reel.id;
@@ -466,7 +466,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
               key={reel.id}
               id={`reel-item-${reel.id}`}
               data-reel-id={reel.id}
-              className="reel-snap-item w-full h-screen max-h-screen snap-start snap-always shrink-0 relative rounded-3xl bg-black border-2 border-[#c5a059] overflow-hidden shadow-2xl flex flex-col justify-between group select-none"
+              className="reel-snap-item h-screen w-full snap-start snap-always relative flex items-center justify-center bg-black rounded-3xl border-2 border-[#c5a059] overflow-hidden shadow-2xl flex-col justify-between group select-none"
             >
               {/* Background Video Player */}
               <div

@@ -135,26 +135,40 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
   const fetchPosts = async () => {
     setLoading(true);
     try {
-      // Run notifications, online user status, and feed queries in parallel using Promise.all()
+      // Run notifications, online user status, and feed queries in parallel with error boundaries
       const [feedResult] = await Promise.all([
         loadPosts(undefined, { limit: 10 }),
-        supabase.from('notifications').select('id, user_id, read').limit(5),
-        supabase.from('profiles').select('id, full_name, parish, avatar_url').limit(10),
+        (async () => {
+          try {
+            return await supabase.from('notifications').select('id, user_id, read').limit(5);
+          } catch (err) {
+            console.error('Supabase fetch error:', err);
+            return { data: null, error: err };
+          }
+        })(),
+        (async () => {
+          try {
+            return await supabase.from('profiles').select('id, full_name, parish, avatar_url').limit(10);
+          } catch (err) {
+            console.error('Supabase fetch error:', err);
+            return { data: null, error: err };
+          }
+        })(),
       ]);
 
       const { posts: loaded, error } = feedResult;
 
       if (error) {
-        const errorMsg = typeof error === 'string' ? error : (error.message || JSON.stringify(error));
-        console.error('[ALL PARISH FEED] Supabase error:', error);
-        setSupabaseError(errorMsg);
+        console.error('Supabase fetch error:', error);
+        setSupabaseError(typeof error === 'string' ? error : (error.message || 'Error loading posts from Supabase'));
         setPosts([]);
       } else {
         setSupabaseError(null);
+        const activePosts = loaded || [];
         const likesMap = loadLocalLikesMap();
         
         // Apply local saved likes
-        const postsWithLikes = (loaded || []).map((p) => {
+        const postsWithLikes = activePosts.map((p) => {
           if (likesMap[p.id] !== undefined) {
             return {
               ...p,
@@ -164,19 +178,18 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
           return p;
         });
 
-        console.log('[ALL PARISH FEED] fetchPosts loaded posts count:', postsWithLikes.length);
         setPosts(postsWithLikes);
 
         // Initialize follow status map for authors
         const fMap: Record<string, boolean> = {};
-        (loaded || []).forEach((p) => {
+        postsWithLikes.forEach((p) => {
           fMap[p.authorName] = isFollowing(p.authorName);
         });
         setFollowedMap(fMap);
       }
     } catch (err: any) {
-      console.error('[ALL PARISH FEED] Error fetching posts:', err);
-      setSupabaseError(err?.message || 'Error loading posts from Supabase');
+      console.error('Supabase fetch error:', err);
+      setSupabaseError(err?.message || 'Error fetching posts from Supabase');
       setPosts([]);
     } finally {
       // Ensure loading state is ALWAYS cleared in finally block

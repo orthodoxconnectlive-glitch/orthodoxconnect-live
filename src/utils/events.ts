@@ -107,7 +107,7 @@ export async function saveEvent(newEventData: Partial<EventItem>): Promise<Event
 
     addNotification({
       userId: 'all',
-      type: 'eventInvite',
+      type: 'event_invite',
       title: `New Parish Event: ${created.title}`,
       body: `${created.date} at ${created.time} • ${created.parish}`,
       senderName: created.hostName,

@@ -78,6 +78,28 @@ export function saveLocalReelCommentsMap(map: Record<string, any[]>) {
   }
 }
 
+const SAVED_LOCAL_POSTS_KEY = 'orthodox_local_saved_posts_v1';
+
+export function getLocalSavedPosts(): Post[] {
+  try {
+    const raw = localStorage.getItem(SAVED_LOCAL_POSTS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn('Error reading local saved posts:', e);
+  }
+  return [];
+}
+
+export function saveLocalPostToCache(post: Post) {
+  try {
+    const existing = getLocalSavedPosts();
+    const updated = [post, ...existing.filter((p) => p.id !== post.id)];
+    localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(updated));
+  } catch (e) {
+    console.warn('Error saving local post to cache:', e);
+  }
+}
+
 export function loadLocalLikesMap(): Record<string, boolean> {
   try {
     const saved = localStorage.getItem(SAVED_LIKES_KEY);
@@ -96,10 +118,6 @@ export function saveLocalLikesMap(map: Record<string, boolean>) {
   }
 }
 
-/**
-  * Mandatory Export: loadPosts(groupId?, options?)
-  * Fetches main feed posts directly from Supabase posts table
-  */
 export async function loadPosts(
   groupId?: string,
   options?: { limit?: number; offset?: number }
@@ -121,7 +139,7 @@ export async function loadPosts(
     let { data, error } = await query;
 
     if (error) {
-      console.warn('[loadPosts] Error with specific columns query, retrying fallback select:', error.message);
+      console.error('Supabase fetch error:', error);
       let fallbackQuery = supabase
         .from('posts')
         .select('*')
@@ -135,18 +153,18 @@ export async function loadPosts(
       const res = await fallbackQuery;
       data = res.data;
       error = res.error;
-    }
-
-    if (error) {
-      return { posts: [], error };
+      if (error) {
+        console.error('Supabase fetch error:', error);
+        return { posts: [], error };
+      }
     }
 
     if (data) {
-      const posts = data.map(mapRowToPost);
-      return { posts, error: null };
+      const dbPosts = data.map(mapRowToPost);
+      return { posts: dbPosts, error: null };
     }
   } catch (err: any) {
-    console.error('[loadPosts] Exception:', err);
+    console.error('Supabase fetch error:', err);
     return { posts: [], error: err };
   }
 
@@ -171,6 +189,7 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
     let { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
+      console.error('Supabase fetch error:', error);
       let fallbackQuery = supabase.from('posts').select('*');
       if (isUuid) {
         fallbackQuery = fallbackQuery.or(`author_id.eq.${authorId},author_name.ilike.%${authorId}%`);
@@ -183,17 +202,15 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
     }
 
     if (error) {
-      console.error('[Supabase loadPostsByAuthor] Error:', error);
+      console.error('Supabase fetch error:', error);
       return [];
     }
 
     if (data) {
-      const result = data.map(mapRowToPost);
-      console.log(`[Supabase loadPostsByAuthor] Count for ${authorId}:`, result.length);
-      return result;
+      return data.map(mapRowToPost);
     }
   } catch (err) {
-    console.error('[Supabase loadPostsByAuthor] Exception:', err);
+    console.error('Supabase fetch error:', err);
   }
 
   return [];
@@ -205,7 +222,6 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
   */
 export async function loadReels(): Promise<Post[]> {
   try {
-    // Try querying posts_reels table first
     const { data: reelsData, error: reelsError } = await supabase
       .from('posts_reels')
       .select('*')
@@ -214,8 +230,10 @@ export async function loadReels(): Promise<Post[]> {
     if (!reelsError && reelsData && reelsData.length > 0) {
       return reelsData.map(mapRowToPost);
     }
+    if (reelsError) {
+      console.error('Supabase fetch error:', reelsError);
+    }
 
-    // Fallback to posts table where video or video_url is not null
     const { data: postsData, error: postsError } = await supabase
       .from('posts')
       .select('*, profiles(*)')
@@ -225,8 +243,11 @@ export async function loadReels(): Promise<Post[]> {
     if (!postsError && postsData) {
       return postsData.map(mapRowToPost);
     }
+    if (postsError) {
+      console.error('Supabase fetch error:', postsError);
+    }
   } catch (err) {
-    console.warn('Supabase loadReels error:', err);
+    console.error('Supabase fetch error:', err);
   }
 
   return [];
@@ -255,6 +276,9 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     reshareKind: postPartial.reshareKind,
   };
 
+  // Cache locally immediately so post is immediately persistent
+  saveLocalPostToCache(newPost);
+
   const dbPayload = {
     content: newPost.text,
     author_name: newPost.authorName,
@@ -270,7 +294,7 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
 
   if (newPost.video) {
     try {
-      await supabase.from('posts_reels').insert([{
+      const { error: reelsErr } = await supabase.from('posts_reels').insert([{
         content: newPost.text,
         author_name: newPost.authorName,
         author_parish: newPost.authorParish,
@@ -279,15 +303,18 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
         video_url: newPost.video,
         created_at: newPost.createdAt,
       }]);
+      if (reelsErr) {
+        console.error('Supabase fetch error:', reelsErr);
+      }
     } catch (reelsErr) {
-      console.warn('Note: posts_reels insert notice:', reelsErr);
+      console.error('Supabase fetch error:', reelsErr);
     }
   }
 
   try {
     const { data, error } = await supabase.from('posts').insert([dbPayload]).select();
     if (error) {
-      console.error('[savePost] Supabase insert error:', error);
+      console.error('Supabase fetch error:', error);
     } else if (data && data.length > 0) {
       const saved = mapRowToPost(data[0]);
       if (!saved.image && newPost.image) saved.image = newPost.image;
@@ -307,7 +334,7 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
       return saved;
     }
   } catch (err) {
-    console.error('[savePost] Exception:', err);
+    console.error('Supabase fetch error:', err);
   }
 
   return newPost;
@@ -324,11 +351,15 @@ export async function loadPost(postId: string): Promise<Post | null> {
       .eq('id', postId)
       .single();
 
+    if (error) {
+      console.error('Supabase fetch error:', error);
+    }
+
     if (!error && data) {
       return mapRowToPost(data);
     }
   } catch (err) {
-    console.warn('loadPost error:', err);
+    console.error('Supabase fetch error:', err);
   }
 
   return null;
@@ -339,10 +370,13 @@ export async function loadPost(postId: string): Promise<Post | null> {
   */
 export async function deletePost(postId: string): Promise<boolean> {
   try {
-    await supabase.from('posts_reels').delete().eq('id', postId);
-    await supabase.from('posts').delete().eq('id', postId);
+    const { error: reelsErr } = await supabase.from('posts_reels').delete().eq('id', postId);
+    if (reelsErr) console.error('Supabase fetch error:', reelsErr);
+
+    const { error: postsErr } = await supabase.from('posts').delete().eq('id', postId);
+    if (postsErr) console.error('Supabase fetch error:', postsErr);
   } catch (err) {
-    console.warn('deletePost error:', err);
+    console.error('Supabase fetch error:', err);
   }
 
   return true;

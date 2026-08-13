@@ -38,7 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   unreadMessagesCount,
   unreadNotificationsCount,
 }) => {
-  const { profile } = useAuth();
+  const { profile, openAuthModal } = useAuth();
   const { theme, setTheme, language, setLanguage, t } = useTheme();
   const [realUnreadNotifs, setRealUnreadNotifs] = useState(0);
   const [realUnreadMsgs, setRealUnreadMsgs] = useState(0);
@@ -143,7 +143,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* User Profile Header Card */}
-        {profile && (
+        {profile ? (
           <button
             onClick={() => onNavigate('profile')}
             className="w-full flex items-center gap-3 p-2.5 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] hover:bg-[#e6d3ab] transition-all text-left mb-3 group cursor-pointer border-2 border-[#c5a059] dark:border-[#8b6b4a] shadow-md"
@@ -166,6 +166,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {profile.role.toUpperCase()}
               </span>
             )}
+          </button>
+        ) : (
+          <button
+            onClick={() => openAuthModal()}
+            className="w-full flex items-center justify-center gap-2 p-2.5 rounded-2xl bg-[#a8833c] hover:bg-[#8f6e30] text-white transition-all mb-3 text-center cursor-pointer shadow-md font-serif font-bold text-xs uppercase tracking-wider border-2 border-[#c5a059]"
+          >
+            <User className="w-4 h-4" />
+            <span>Sign In / Guest</span>
           </button>
         )}
 

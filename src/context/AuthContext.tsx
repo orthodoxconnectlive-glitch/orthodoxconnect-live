@@ -34,6 +34,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId)
         .single();
 
+      if (error) {
+        console.error('Supabase fetch error:', error);
+      }
+
       if (!error && data) {
         const userEmail = (data.email || emailStr || '').toLowerCase();
         const isSuperAdmin = userEmail === 'orthodoxconnect.live@gmail.com';
@@ -72,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProfile(defaultProf);
 
       // Attempt upserting to database
-      await supabase.from('profiles').upsert([
+      const { error: upsertErr } = await supabase.from('profiles').upsert([
         {
           id: userId,
           email: defaultProf.email,
@@ -83,22 +87,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: defaultProf.role,
         },
       ]);
+      if (upsertErr) {
+        console.error('Supabase fetch error:', upsertErr);
+      }
     } catch (err) {
-      console.warn('Profile fetch error, using local state profile:', err);
+      console.error('Supabase fetch error:', err);
     }
   };
 
   useEffect(() => {
-    // Check initial auth session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
-        fetchProfile(session.user.id, session.user.email);
+    // Check initial auth session via supabase.auth.getUser()
+    supabase.auth.getUser().then(({ data: { user: currentUser }, error }) => {
+      if (error) {
+        console.error('Supabase fetch error:', error);
+      }
+      if (currentUser) {
+        setUser(currentUser);
+        fetchProfile(currentUser.id, currentUser.email);
       } else {
         setUser(null);
         setProfile(null);
         localStorage.removeItem('orthodox_user_profile');
       }
+      setLoading(false);
+    }).catch((err) => {
+      console.error('Supabase fetch error:', err);
+      setUser(null);
+      setProfile(null);
       setLoading(false);
     });
 

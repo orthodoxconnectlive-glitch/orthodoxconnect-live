@@ -101,6 +101,19 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
 
   useEffect(() => {
     fetchReels();
+
+    return () => {
+      // Pause all media and reset currentTime when switching away from Reels tab or unmounting
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      allMedia.forEach((media) => {
+        try {
+          media.pause();
+          media.currentTime = 0;
+        } catch (err) {
+          console.warn('Error pausing media on Reels unmount:', err);
+        }
+      });
+    };
   }, []);
 
   // Intersection Observer to detect which reel is currently in view during scrolling

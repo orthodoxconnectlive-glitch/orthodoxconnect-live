@@ -48,6 +48,17 @@ function AppContent() {
     } catch (e) {
       console.warn('LocalStorage active tab save error:', e);
     }
+
+    // Pause all media and reset position on view/tab change
+    const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+    allMedia.forEach((media) => {
+      try {
+        media.pause();
+        media.currentTime = 0;
+      } catch (err) {
+        console.warn('Error pausing media on view change:', err);
+      }
+    });
   }, [currentView]);
 
   // Root level single active media listener

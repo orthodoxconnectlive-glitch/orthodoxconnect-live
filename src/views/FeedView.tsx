@@ -112,6 +112,21 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
     };
   }, []);
 
+  // Pause all media elements when sub-tab changes or FeedView unmounts
+  useEffect(() => {
+    return () => {
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      allMedia.forEach((media) => {
+        try {
+          media.pause();
+          media.currentTime = 0;
+        } catch (err) {
+          console.warn('Error pausing media on Feed unmount:', err);
+        }
+      });
+    };
+  }, [feedTab]);
+
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);

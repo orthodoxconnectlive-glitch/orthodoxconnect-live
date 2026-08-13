@@ -34,6 +34,8 @@ export interface VideoComment {
 
 interface VideoCardProps {
   video: Post;
+  isPlaying: boolean;
+  onTogglePlay: (e?: React.MouseEvent) => void;
   onSelectUser?: (userData: UserProfileData) => void;
   onOpenMessengerWithUser?: (contactId?: string) => void;
   liked: boolean;
@@ -53,6 +55,8 @@ interface VideoCardProps {
 
 export const VideoCard: React.FC<VideoCardProps> = ({
   video,
+  isPlaying,
+  onTogglePlay,
   onSelectUser,
   onOpenMessengerWithUser,
   liked,
@@ -74,8 +78,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Strict initial playback defaults: Always paused and muted
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  // Strict initial playback defaults: Always paused and muted on mount
   const [hasStarted, setHasStarted] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
@@ -92,7 +95,27 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     video.video?.includes('b-cdn.net') ||
     video.video?.includes('bunnyinfra.net');
 
-  // Strict unmount cleanup: Stop video playback and clear source
+  // Enforce Mute and Pause in VideoCard listening to isPlaying prop
+  useEffect(() => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.dataset.userInitiated = 'true';
+        videoRef.current.muted = false;
+        setIsMuted(false);
+        setHasStarted(true);
+        setActiveMediaId(elementMediaId);
+        videoRef.current.play().catch((err) => {
+          console.warn('[VideoCard] Play error:', err);
+        });
+      } else {
+        videoRef.current.pause();
+        videoRef.current.muted = true;
+        setIsMuted(true);
+      }
+    }
+  }, [isPlaying, elementMediaId, setActiveMediaId]);
+
+  // Strict unmount cleanup: Stop video playback, reset currentTime, and clear source
   useEffect(() => {
     return () => {
       if (videoRef.current) {
@@ -112,62 +135,28 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     const vid = videoRef.current;
     if (!vid) return;
 
-    const handlePlay = () => {
-      setIsPlaying(true);
-      setHasStarted(true);
-      setActiveMediaId(elementMediaId);
-    };
-
-    const handlePause = () => {
-      setIsPlaying(false);
-    };
-
     const handleEnded = () => {
-      setIsPlaying(false);
+      if (isPlaying) {
+        onTogglePlay();
+      }
     };
 
-    vid.addEventListener('play', handlePlay);
-    vid.addEventListener('pause', handlePause);
     vid.addEventListener('ended', handleEnded);
 
     return () => {
-      vid.removeEventListener('play', handlePlay);
-      vid.removeEventListener('pause', handlePause);
       vid.removeEventListener('ended', handleEnded);
     };
-  }, [elementMediaId, setActiveMediaId]);
+  }, [isPlaying, onTogglePlay]);
 
-  // Explicit Play action handler: Pauses other media before starting
+  // Explicit Play action handler: Delegates to parent onTogglePlay
   const handleExplicitPlay = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (hasError) return;
-    const vid = videoRef.current;
-    if (!vid) return;
-
-    if (isPlaying) {
-      vid.pause();
-      setIsPlaying(false);
-    } else {
-      // Mark as explicitly user-initiated for global prototype guard
-      vid.dataset.userInitiated = 'true';
-      // Automatically pause any other video currently playing
-      pauseAllMedia(vid);
-      setActiveMediaId(elementMediaId);
-
-      // Unmute on explicit user play
-      vid.muted = false;
-      setIsMuted(false);
-
-      vid
-        .play()
-        .then(() => {
-          setIsPlaying(true);
-          setHasStarted(true);
-        })
-        .catch((err) => {
-          console.warn('[VideoCard] Playback was prevented:', err);
-        });
+    if (!isPlaying && videoRef.current) {
+      videoRef.current.dataset.userInitiated = 'true';
+      pauseAllMedia(videoRef.current);
     }
+    onTogglePlay(e);
   };
 
   const handleToggleMute = (e: React.MouseEvent) => {
@@ -329,7 +318,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               type="button"
               onClick={() => {
                 setHasError(false);
-                setIsPlaying(false);
+                if (isPlaying) onTogglePlay();
               }}
               className="px-3.5 py-1.5 rounded-xl bg-[#3d2b18] hover:bg-[#c5a059] text-[#c5a059] hover:text-[#1c130c] font-serif font-bold text-xs uppercase tracking-wider transition-colors border border-[#c5a059]/40 cursor-pointer shadow-md flex items-center gap-1.5"
             >
@@ -362,7 +351,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               onError={(e) => {
                 console.warn('[VideoCard] Video error:', e);
                 setHasError(true);
-                setIsPlaying(false);
+                if (isPlaying) onTogglePlay();
               }}
               className="w-full h-full object-contain bg-black cursor-pointer"
             />

@@ -41,6 +41,9 @@ export const VideosView: React.FC<VideosViewProps> = ({
   const [openCommentVideoId, setOpenCommentVideoId] = useState<string | null>(null);
   const [videoCommentsMap, setVideoCommentsMap] = useState<Record<string, VideoComment[]>>({});
 
+  // Active playing video state for strict exclusive playback
+  const [activePlayingId, setActivePlayingId] = useState<string | null>(null);
+
   // Strict Tab Isolation & Total Unmount Cleanup
   useEffect(() => {
     return () => {
@@ -304,6 +307,10 @@ export const VideosView: React.FC<VideosViewProps> = ({
             <VideoCard
               key={video.id}
               video={video}
+              isPlaying={activePlayingId === video.id}
+              onTogglePlay={() =>
+                setActivePlayingId(activePlayingId === video.id ? null : video.id)
+              }
               onSelectUser={onSelectUser}
               onOpenMessengerWithUser={onOpenMessengerWithUser}
               liked={!!likedMap[video.id]}

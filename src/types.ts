@@ -20,6 +20,9 @@ export interface Post {
   authorId?: string;
   image?: string; // Mapped from 'image_url'
   video?: string; // Mapped from 'video' (Bunny Stream URL)
+  audio?: string; // Mapped from 'audio' or 'audio_url'
+  audioUrl?: string;
+  broadcastUrl?: string;
   createdAt: string; // Mapped from 'created_at'
   groupId?: string; // Mapped from 'group_id'
   likesCount?: number;

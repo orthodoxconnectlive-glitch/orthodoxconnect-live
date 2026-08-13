@@ -176,6 +176,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             controls
             playsInline
             autoPlay={autoplay}
+            preload="none"
             muted={muted}
             className="w-full h-full max-h-[600px] object-contain"
           />

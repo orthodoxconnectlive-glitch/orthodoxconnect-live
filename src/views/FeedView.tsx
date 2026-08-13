@@ -43,6 +43,7 @@ import { BunnyPlayer } from '../components/BunnyPlayer';
 import { ReshareModal } from '../components/ReshareModal';
 import { ReportContentModal } from '../components/ReportContentModal';
 import { StoriesBar } from '../components/StoriesBar';
+import { PostCard } from '../components/PostCard';
 import { UserProfileData } from './ProfileView';
 
 interface FeedViewProps {
@@ -304,8 +305,8 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
     );
   };
 
-  const handleAddComment = (postId: string) => {
-    const text = commentInput.trim();
+  const handleAddComment = (postId: string, commentText: string) => {
+    const text = commentText.trim();
     if (!text) return;
 
     const targetPost = posts.find((p) => p.id === postId);
@@ -332,8 +333,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
       senderAvatar: profile?.avatar_url,
       link: 'feed',
     });
-
-    setCommentInput('');
   };
 
   const handleDelete = async (postId: string) => {
@@ -493,7 +492,8 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                   controls
                   playsInline
                   autoPlay={false}
-                  preload="metadata"
+                  preload="none"
+                  muted={true}
                   className="w-full h-auto max-h-80 rounded-xl object-contain bg-black"
                 />
                 <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
@@ -613,302 +613,38 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
           </div>
         ) : (
           filteredPosts.map((post) => (
-            <div
+            <PostCard
               key={post.id}
-              className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-5 shadow-lg transition-all"
-            >
-              {/* Reshare Header Notice */}
-              {post.reshareKind && (
-                <div className="flex items-center gap-1.5 text-xs text-[#d4af37] font-bold mb-3 pb-2 border-b border-[#d4af37]/20">
-                  <Repeat className="w-3.5 h-3.5" />
-                  <span>
-                    {post.reshareKind === 'quote' ? 'Quoted Post' : 'Reshared to Fellowship Feed'}
-                  </span>
-                </div>
-              )}
-
-              {/* Author Header (Matching Photo 2 + Follow Button) */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="relative cursor-pointer hover:opacity-80 transition-opacity"
-                    onClick={() =>
-                      onSelectUser?.({
-                        id: post.authorId,
-                        name: post.authorName,
-                        avatar: post.authorAvatar,
-                        parish: post.authorParish,
-                      })
+              post={post}
+              currentProfile={
+                profile
+                  ? {
+                      id: profile.id,
+                      email: profile.email || '',
+                      full_name: profile.full_name || '',
+                      parish: profile.parish || '',
+                      bio: profile.bio,
+                      avatar_url: profile.avatar_url,
+                      role: (profile.role as any) || 'user',
+                      created_at: profile.created_at,
                     }
-                  >
-                    <img
-                      src={post.authorAvatar}
-                      alt={post.authorName}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-[#c5a059]"
-                    />
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#3d2b18] text-[#c5a059] flex items-center justify-center text-[10px] font-bold border border-[#c5a059]">
-                      ☨
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4
-                        className="font-serif-coptic font-bold text-xs sm:text-sm text-[#3d2b18] dark:text-[#f5ebd9] uppercase tracking-wider cursor-pointer hover:underline hover:text-[#c5a059] transition-colors"
-                        onClick={() =>
-                          onSelectUser?.({
-                            id: post.authorId,
-                            name: post.authorName,
-                            avatar: post.authorAvatar,
-                            parish: post.authorParish,
-                          })
-                        }
-                      >
-                        {post.authorName}
-                      </h4>
-
-                      {/* Follow / Following Button */}
-                      {profile?.full_name?.toLowerCase() !== post.authorName.toLowerCase() && (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => handleToggleFollowUser(post.authorName)}
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
-                              followedMap[post.authorName]
-                                ? 'bg-[#eedcb5] dark:bg-[#282019] text-[#7c5f3d] border border-[#c5a059]'
-                                : 'bg-[#a8833c] hover:bg-[#8f6e30] text-white shadow-sm'
-                            }`}
-                          >
-                            {followedMap[post.authorName] ? (
-                              <>
-                                <UserCheck className="w-3 h-3 text-[#a8833c]" />
-                                <span>{t('following')}</span>
-                              </>
-                            ) : (
-                              <>
-                                <UserPlus className="w-3 h-3" />
-                                <span>{t('follow')}</span>
-                              </>
-                            )}
-                          </button>
-
-                          {onOpenMessengerWithUser && (
-                            <button
-                              onClick={() => onOpenMessengerWithUser(post.authorId || post.authorName)}
-                              className="px-2.5 py-0.5 rounded-full text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 bg-[#3d2b18] dark:bg-[#282019] text-[#c5a059] hover:bg-[#a8833c] hover:text-white border border-[#c5a059] transition-all cursor-pointer shadow-sm"
-                              title="Send 1-to-1 message"
-                            >
-                              <MessageSquare className="w-3 h-3" />
-                              <span>Message</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      <TimeAgo
-                        date={post.createdAt}
-                        prefix="· "
-                        className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-wider font-semibold"
-                      />
-                    </div>
-                    <p className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-wider mt-0.5 font-semibold">
-                      — RECORDED LIVE BROADCAST
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() =>
-                      handleOpenReport(
-                        'post',
-                        post.id,
-                        post.authorName,
-                        post.text || 'Post Media Content'
-                      )
-                    }
-                    className="p-1.5 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#e6d3ab] transition-colors cursor-pointer"
-                    title="Flag / Report Content"
-                  >
-                    <Flag className="w-3.5 h-3.5" />
-                  </button>
-
-                  {(profile?.id === post.authorId || profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com') && (
-                    <button
-                      onClick={() => handleDelete(post.id)}
-                      className="p-1.5 rounded-lg text-[#7c5f3d] hover:text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
-                      title="Delete Post"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Text Content */}
-              {post.text && (
-                <p className="text-xs text-[#3d2b18] dark:text-[#f5ebd9] font-serif leading-relaxed mb-3 whitespace-pre-wrap">
-                  {post.text}
-                </p>
-              )}
-
-              {/* Image Media */}
-              {post.image && (
-                <div className="rounded-2xl overflow-hidden mb-3 border-2 border-[#c5a059]/40 bg-[#3d2b18]/10 w-full max-h-[500px] flex items-center justify-center shadow-inner">
-                  <img
-                    src={post.image}
-                    alt="Post content photo"
-                    className="w-full h-auto max-h-[500px] object-cover rounded-2xl"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Video Media (HTML5 Player / Bunny Stream) */}
-              {post.video && (
-                <div className="rounded-2xl overflow-hidden mb-3 border-2 border-[#c5a059]/40 bg-black w-full max-h-[500px] flex items-center justify-center shadow-inner">
-                  {post.video.includes('bunnycdn.com') || post.video.includes('iframe.mediadelivery.net') || post.video.includes('mediadelivery.net') ? (
-                    <BunnyPlayer videoUrl={post.video} title={post.text} />
-                  ) : (
-                    <video
-                      data-media-id={`post-video-${post.id}`}
-                      src={post.video}
-                      controls
-                      playsInline
-                      autoPlay={false}
-                      preload="none"
-                      className="w-full h-auto max-h-[500px] rounded-2xl object-contain bg-black"
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* Quoted Sub-Post */}
-              {post.quotedPost && (
-                <div className="p-3 mb-3 rounded-xl bg-[#f5f2ed] border border-[#d4af37]/30 text-xs space-y-1">
-                  <div
-                    className="flex items-center gap-2 cursor-pointer hover:opacity-80"
-                    onClick={() =>
-                      onSelectUser?.({
-                        name: post.quotedPost!.authorName,
-                        avatar: post.quotedPost!.authorAvatar,
-                        parish: post.quotedPost!.authorParish,
-                      })
-                    }
-                  >
-                    <img
-                      src={post.quotedPost.authorAvatar}
-                      alt={post.quotedPost.authorName}
-                      className="w-5 h-5 rounded-full object-cover border border-[#d4af37]"
-                    />
-                    <span className="font-bold text-[#5a4632] hover:underline">{post.quotedPost.authorName}</span>
-                    <span className="text-[10px] text-[#8b6b4a]">• {post.quotedPost.authorParish}</span>
-                  </div>
-                  <p className="text-[#2c2c2c] italic pl-7">"{post.quotedPost.text}"</p>
-                </div>
-              )}
-
-              {/* Action Toolbar */}
-              <div className="flex items-center justify-between pt-3 border-t border-[#d4af37]/20 text-xs">
-                <button
-                  onClick={() => handleToggleLike(post.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-colors cursor-pointer ${
-                    post.isLiked
-                      ? 'bg-red-100 text-red-600 font-bold border border-red-200'
-                      : 'text-[#8b6b4a] hover:text-red-600 hover:bg-[#f1ebd7]'
-                  }`}
-                >
-                  <Heart className={`w-4 h-4 ${post.isLiked ? 'fill-current text-red-600' : ''}`} />
-                  <span>{post.likesCount || 0}</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveCommentPostId(activeCommentPostId === post.id ? null : post.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[#8b6b4a] hover:text-[#5a4632] hover:bg-[#f1ebd7] transition-colors cursor-pointer"
-                >
-                  <MessageCircle className="w-4 h-4 text-[#d4af37]" />
-                  <span>{post.commentsCount || 0}</span>
-                </button>
-
-                <button
-                  onClick={() => setReshareTargetPost(post)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[#8b6b4a] hover:text-[#5a4632] hover:bg-[#f1ebd7] transition-colors cursor-pointer"
-                >
-                  <Repeat className="w-4 h-4 text-[#d4af37]" />
-                  <span>{post.resharesCount || 0}</span>
-                </button>
-
-                {onOpenMessengerWithUser && (
-                  <button
-                    onClick={() => onOpenMessengerWithUser(post.authorId || post.authorName)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[#8b6b4a] hover:text-[#3d2b18] hover:bg-[#f1ebd7] transition-colors cursor-pointer font-serif font-semibold"
-                    title="Direct Message 1-on-1"
-                  >
-                    <MessageSquare className="w-4 h-4 text-[#a8833c]" />
-                    <span className="hidden sm:inline">Message</span>
-                  </button>
-                )}
-
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(`https://orthodoxconnect.live/post/${post.id}`);
-                  }}
-                  className="p-1.5 text-[#8b6b4a] hover:text-[#5a4632] hover:bg-[#f1ebd7] rounded-xl transition-colors cursor-pointer"
-                  title="Copy link"
-                >
-                  <Share2 className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Comments Drawer */}
-              {activeCommentPostId === post.id && (
-                <div className="mt-3 pt-3 border-t border-[#d4af37]/20 space-y-2">
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                    {(commentsMap[post.id] || []).map((cText, idx) => (
-                      <div
-                        key={idx}
-                        className="p-2 rounded-lg bg-[#f5f2ed] border border-[#d4af37]/20 text-[11px] text-[#2c2c2c] flex items-center justify-between"
-                      >
-                        <div>
-                          <span className="font-bold text-[#5a4632] mr-2">Orthodox Member:</span>
-                          {cText}
-                        </div>
-                        <button
-                          onClick={() =>
-                            handleOpenReport(
-                              'comment',
-                              `comment-${post.id}-${idx}`,
-                              'Orthodox Member',
-                              cText
-                            )
-                          }
-                          className="text-[#8b6b4a] hover:text-amber-700 p-1"
-                          title="Report Comment"
-                        >
-                          <Flag className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex gap-2 pt-1">
-                    <input
-                      type="text"
-                      value={commentInput}
-                      onChange={(e) => setCommentInput(e.target.value)}
-                      placeholder="Write a spiritual reflection or comment..."
-                      className="flex-1 p-2 rounded-xl bg-[#f5f2ed] border border-[#d4af37]/30 text-xs text-[#2c2c2c] focus:outline-none focus:border-[#d4af37]"
-                    />
-                    <button
-                      onClick={() => handleAddComment(post.id)}
-                      className="px-3 py-1.5 bg-[#d4af37] hover:bg-[#b89528] text-white font-bold text-xs rounded-xl cursor-pointer"
-                    >
-                      Comment
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+                  : null
+              }
+              onSelectUser={onSelectUser}
+              onOpenMessengerWithUser={onOpenMessengerWithUser}
+              onToggleFollow={handleToggleFollowUser}
+              isFollowed={Boolean(followedMap[post.authorName])}
+              onToggleLike={handleToggleLike}
+              onDeletePost={handleDelete}
+              onOpenReport={handleOpenReport}
+              onReshare={(p) => setReshareTargetPost(p)}
+              comments={commentsMap[post.id] || []}
+              isCommentsOpen={activeCommentPostId === post.id}
+              onToggleComments={() =>
+                setActiveCommentPostId(activeCommentPostId === post.id ? null : post.id)
+              }
+              onAddComment={handleAddComment}
+            />
           ))
         )}
       </div>

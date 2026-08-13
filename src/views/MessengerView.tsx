@@ -1031,7 +1031,8 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                         controls
                         playsInline
                         autoPlay={false}
-                        preload="metadata"
+                        preload="none"
+                        muted={true}
                         className="mt-2 rounded-xl max-h-60 w-full object-contain bg-black"
                       />
                     )}

@@ -4,16 +4,12 @@ import {
   Upload,
   Sparkles,
   Search,
-  RefreshCw,
-  Video,
   CheckCircle,
   ChevronUp,
   ChevronDown,
   X,
   Plus,
-  Flame,
-  Hash,
-  Compass,
+  Video,
 } from 'lucide-react';
 import { Post } from '../types';
 import { loadVideos, deletePost, savePost } from '../utils/posts';
@@ -68,13 +64,13 @@ export const VideosView: React.FC<VideosViewProps> = ({
   const [openCommentVideoId, setOpenCommentVideoId] = useState<string | null>(null);
   const [videoCommentsMap, setVideoCommentsMap] = useState<Record<string, VideoComment[]>>({});
 
-  // Active playing video state (TikTok auto-play on snap scroll)
+  // Active playing video state
   const [activePlayingId, setActivePlayingId] = useState<string | null>(null);
 
   // Feed container ref for snap scrolling
   const feedContainerRef = useRef<HTMLDivElement>(null);
 
-  // Strict Tab Isolation & Total Unmount Cleanup
+  // Unmount Cleanup: Pause all media when navigating away
   useEffect(() => {
     return () => {
       const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
@@ -89,9 +85,25 @@ export const VideosView: React.FC<VideosViewProps> = ({
     };
   }, []);
 
-  // Fetch videos from persistent database
+  // Fetch videos on mount with 1.5s timeout safeguard
   useEffect(() => {
-    fetchVideosList();
+    let isMounted = true;
+
+    const timer = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 1500);
+
+    const runFetch = async () => {
+      await fetchVideosList();
+      if (isMounted) setLoading(false);
+    };
+
+    runFetch();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, []);
 
   const fetchVideosList = async () => {
@@ -99,12 +111,10 @@ export const VideosView: React.FC<VideosViewProps> = ({
     const loadedVideos = await loadVideos();
     setVideos(loadedVideos);
 
-    // Set first video as active playing video
     if (loadedVideos.length > 0 && !activePlayingId) {
       setActivePlayingId(loadedVideos[0].id);
     }
 
-    // Read cached likes and comments
     let savedLikes: Record<string, boolean> = {};
     let savedComments: Record<string, VideoComment[]> = {};
     try {
@@ -238,7 +248,6 @@ export const VideosView: React.FC<VideosViewProps> = ({
       setUploadCaption('');
       triggerToast('New Orthodox Video published to feed!');
 
-      // Scroll to top
       if (feedContainerRef.current) {
         feedContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -328,20 +337,16 @@ export const VideosView: React.FC<VideosViewProps> = ({
     triggerToast(`Filtering by ${tag}`);
   };
 
-  // Filter videos by tab, search query, and selected hashtag
   const filteredVideos = useMemo(() => {
     return videos.filter((v) => {
-      // Tab filter
       if (activeTab === 'following' && !followedAuthors[v.authorName]) {
         return false;
       }
 
-      // Hashtag filter
       if (selectedHashtag && !v.text?.toLowerCase().includes(selectedHashtag.toLowerCase())) {
         return false;
       }
 
-      // Search query filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -357,30 +362,26 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
   return (
     <div className="w-full flex flex-col items-center relative select-none pb-4">
-      {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#1c1611]/95 border-2 border-[#c5a059] text-[#f5ebd9] text-xs font-serif uppercase tracking-wider font-bold shadow-2xl animate-fade-in flex items-center gap-2">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#1c1611]/95 border-2 border-[#c5a059] text-[#f5ebd9] text-xs font-serif uppercase tracking-wider font-bold shadow-2xl flex items-center gap-2">
           <CheckCircle className="w-4 h-4 text-[#c5a059]" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Main TikTok Container Frame */}
+      {/* Frame Container */}
       <div className="relative w-full max-w-[420px] h-[calc(100vh-6.5rem)] min-h-[580px] max-h-[860px] bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-[#c5a059]/40 flex flex-col">
-        {/* TikTok Top Floating Header (Following | For You + Search & Upload buttons) */}
+        {/* Floating Top Bar */}
         <div className="absolute top-0 inset-x-0 z-40 px-4 py-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between text-white pointer-events-auto">
-          {/* Search Toggle */}
           <button
             type="button"
             onClick={() => setIsSearchOpen(!isSearchOpen)}
             className="p-2 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md border border-white/20 text-[#f5ebd9] cursor-pointer transition-transform active:scale-95"
             title="Search Videos"
-            aria-label="Search Videos"
           >
             <Search className="w-4 h-4" />
           </button>
 
-          {/* Centered Tab Switcher */}
           <div className="flex items-center gap-4 font-serif">
             <button
               type="button"
@@ -409,21 +410,19 @@ export const VideosView: React.FC<VideosViewProps> = ({
             </button>
           </div>
 
-          {/* Upload (+) Button */}
           <button
             type="button"
             onClick={() => setIsUploadModalOpen(true)}
             className="p-2 rounded-full bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] cursor-pointer transition-transform active:scale-95 shadow-md flex items-center justify-center font-bold"
-            title="Upload Orthodox Video"
-            aria-label="Upload Video"
+            title="Upload Video"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
           </button>
         </div>
 
-        {/* Expandable Top Search / Hashtag Bar */}
+        {/* Search & Hashtag Bar */}
         {isSearchOpen && (
-          <div className="absolute top-14 inset-x-3 z-40 bg-[#1c1611]/95 backdrop-blur-xl border border-[#c5a059] rounded-2xl p-3 shadow-2xl space-y-2 animate-fade-in text-[#f5ebd9]">
+          <div className="absolute top-14 inset-x-3 z-40 bg-[#1c1611]/95 backdrop-blur-xl border border-[#c5a059] rounded-2xl p-3 shadow-2xl space-y-2 text-[#f5ebd9]">
             <div className="relative flex items-center">
               <Search className="w-4 h-4 text-[#c5a059] absolute left-3" />
               <input
@@ -444,8 +443,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
               )}
             </div>
 
-            {/* Popular Hashtags */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
+            <div className="flex items-center gap-1.5 overflow-x-auto pt-1">
               {POPULAR_HASHTAGS.map((tag) => (
                 <button
                   key={tag}
@@ -477,7 +475,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
           </div>
         )}
 
-        {/* Video Feed Snap-Scroll Container */}
+        {/* Video Snap Feed */}
         {loading ? (
           <div className="w-full h-full flex flex-col items-center justify-center text-[#f5ebd9] space-y-3 bg-[#1c1611]">
             <Sparkles className="w-10 h-10 text-[#c5a059] animate-spin" />
@@ -509,7 +507,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
         ) : (
           <div
             ref={feedContainerRef}
-            className="w-full h-full snap-y snap-mandatory overflow-y-scroll no-scrollbar relative"
+            className="w-full h-full snap-y snap-mandatory overflow-y-scroll relative"
           >
             {filteredVideos.map((video) => (
               <VideoCard
@@ -543,32 +541,30 @@ export const VideosView: React.FC<VideosViewProps> = ({
         )}
       </div>
 
-      {/* Desktop Quick Next/Previous Floating Buttons */}
+      {/* Desktop Next/Prev Controls */}
       <div className="hidden lg:flex fixed right-8 top-1/2 -translate-y-1/2 flex-col gap-3 z-40">
         <button
           type="button"
           onClick={handleScrollPrev}
-          className="w-11 h-11 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#1c1611] shadow-xl flex items-center justify-center transition-all cursor-pointer active:scale-90"
-          title="Previous Video (Up Arrow)"
-          aria-label="Previous Video"
+          className="w-11 h-11 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#1c1611] shadow-xl flex items-center justify-center transition-all cursor-pointer"
+          title="Previous Video"
         >
           <ChevronUp className="w-6 h-6 stroke-[2.5]" />
         </button>
         <button
           type="button"
           onClick={handleScrollNext}
-          className="w-11 h-11 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#1c1611] shadow-xl flex items-center justify-center transition-all cursor-pointer active:scale-90"
-          title="Next Video (Down Arrow)"
-          aria-label="Next Video"
+          className="w-11 h-11 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#1c1611] shadow-xl flex items-center justify-center transition-all cursor-pointer"
+          title="Next Video"
         >
           <ChevronDown className="w-6 h-6 stroke-[2.5]" />
         </button>
       </div>
 
-      {/* Upload Video Modal Drawer */}
+      {/* Upload Video Modal */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#1c1611] border-2 border-[#c5a059] rounded-3xl max-w-md w-full p-6 text-[#f5ebd9] shadow-2xl relative space-y-4 animate-fade-in">
+          <div className="bg-[#1c1611] border-2 border-[#c5a059] rounded-3xl max-w-md w-full p-6 text-[#f5ebd9] shadow-2xl relative space-y-4">
             <div className="flex items-center justify-between border-b border-[#c5a059]/30 pb-3">
               <div className="flex items-center gap-2">
                 <Video className="w-5 h-5 text-[#c5a059]" />
@@ -586,7 +582,6 @@ export const VideosView: React.FC<VideosViewProps> = ({
             </div>
 
             <form onSubmit={handleVideoUploadSubmit} className="space-y-4">
-              {/* File Input */}
               <div className="border-2 border-dashed border-[#c5a059]/50 rounded-2xl p-6 text-center hover:border-[#c5a059] transition-colors bg-[#282019]/50">
                 <Upload className="w-10 h-10 text-[#c5a059] mx-auto mb-2" />
                 <p className="text-xs font-serif text-[#f5ebd9] font-bold mb-1">
@@ -595,7 +590,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
                 <p className="text-[11px] text-[#a89379] font-serif mb-3">
                   Supports MP4, WebM, MOV directly streamed to Bunny CDN
                 </p>
-                <label className="px-4 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase tracking-wider cursor-pointer inline-block shadow-md">
+                <label className="px-4 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase cursor-pointer inline-block shadow-md">
                   <span>{uploadFile ? 'Change Video' : 'Browse Files'}</span>
                   <input
                     type="file"
@@ -608,7 +603,6 @@ export const VideosView: React.FC<VideosViewProps> = ({
                 </label>
               </div>
 
-              {/* Caption Input */}
               <div>
                 <label className="block text-xs font-serif text-[#c5a059] uppercase tracking-wider font-bold mb-1">
                   Description & Hashtags
@@ -617,12 +611,11 @@ export const VideosView: React.FC<VideosViewProps> = ({
                   rows={3}
                   value={uploadCaption}
                   onChange={(e) => setUploadCaption(e.target.value)}
-                  placeholder="Share the liturgical occasion, sermon quote, or reflection (e.g., #Orthodox #Liturgy #JesusPrayer)..."
-                  className="w-full bg-[#282019] border border-[#c5a059] rounded-xl p-3 text-xs text-[#f5ebd9] placeholder-[#a89379] focus:outline-none focus:ring-1 focus:ring-[#c5a059]"
+                  placeholder="Share reflection details (e.g., #Orthodox #Liturgy #JesusPrayer)..."
+                  className="w-full bg-[#282019] border border-[#c5a059] rounded-xl p-3 text-xs text-[#f5ebd9] placeholder-[#a89379] focus:outline-none"
                 />
               </div>
 
-              {/* Submit Button */}
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
@@ -634,7 +627,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
                 <button
                   type="submit"
                   disabled={!uploadFile || isUploading}
-                  className="flex-1 py-2.5 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase disabled:opacity-40 cursor-pointer shadow-lg transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase disabled:opacity-40 cursor-pointer shadow-lg flex items-center justify-center gap-2"
                 >
                   {isUploading ? (
                     <>

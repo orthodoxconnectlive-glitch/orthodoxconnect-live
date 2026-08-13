@@ -18,6 +18,7 @@ import {
   X,
   Send,
   Play,
+  Pause,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -49,6 +50,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
   const [loading, setLoading] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [tapFeedback, setTapFeedback] = useState<'play' | 'pause' | 'mute' | 'unmute' | null>(null);
 
   // TikTok interactions state
   const [followedAuthors, setFollowedAuthors] = useState<Record<string, boolean>>({});
@@ -116,7 +118,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     };
   }, []);
 
-  // Intersection Observer to detect which reel is currently in view during scrolling
+  // Intersection Observer to detect which reel is currently in view during scrolling (0.8 threshold)
   useEffect(() => {
     if (reels.length === 0) return;
 
@@ -127,16 +129,27 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-            const id = entry.target.getAttribute('data-reel-id');
+          const id = entry.target.getAttribute('data-reel-id');
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.8) {
             if (id) {
               setActiveReelId(id);
               setIsPlaying(true);
             }
+          } else if (!entry.isIntersecting || entry.intersectionRatio < 0.8) {
+            // Immediately pause and reset playback position when Leaving visibility
+            const videoEl = entry.target.querySelector('video');
+            if (videoEl) {
+              try {
+                videoEl.pause();
+                videoEl.currentTime = 0;
+              } catch (err) {
+                console.warn('Error pausing scrolled-out video:', err);
+              }
+            }
           }
         });
       },
-      { threshold: 0.5 }
+      { threshold: 0.8 }
     );
 
     const elements = document.querySelectorAll('.reel-snap-item');
@@ -144,6 +157,66 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
 
     return () => observer.disconnect();
   }, [reels]);
+
+  // Effect to automatically start playing the active reel video
+  useEffect(() => {
+    if (!activeReelId) return;
+
+    const activeVideo = document.querySelector<HTMLVideoElement>(`#reel-item-${activeReelId} video`);
+    if (activeVideo) {
+      // Pause all other media across the DOM
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      allMedia.forEach((media) => {
+        if (media !== activeVideo) {
+          try {
+            media.pause();
+          } catch (e) {}
+        }
+      });
+
+      activeVideo.muted = isMuted;
+      activeVideo.play().catch((err) => {
+        console.warn('Autoplay prevented:', err);
+      });
+      setIsPlaying(true);
+    }
+  }, [activeReelId, isMuted]);
+
+  const handleTapReelVideo = (reelId: string) => {
+    const videoEl = document.querySelector<HTMLVideoElement>(`#reel-item-${reelId} video`);
+    if (videoEl) {
+      if (videoEl.paused) {
+        // Pause all other media
+        document.querySelectorAll<HTMLMediaElement>('video, audio').forEach((m) => {
+          if (m !== videoEl) {
+            try {
+              m.pause();
+            } catch (e) {}
+          }
+        });
+        videoEl.muted = isMuted;
+        videoEl.play().catch((err) => console.warn('Play error:', err));
+        setIsPlaying(true);
+        setTapFeedback('play');
+      } else {
+        videoEl.pause();
+        setIsPlaying(false);
+        setTapFeedback('pause');
+      }
+      setTimeout(() => setTapFeedback(null), 800);
+    } else {
+      setIsPlaying((prev) => !prev);
+      setTapFeedback(!isPlaying ? 'play' : 'pause');
+      setTimeout(() => setTapFeedback(null), 800);
+    }
+  };
+
+  const handleToggleMute = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    setTapFeedback(nextMuted ? 'mute' : 'unmute');
+    setTimeout(() => setTapFeedback(null), 800);
+  };
 
   // Keyboard Up/Down navigation
   useEffect(() => {
@@ -363,7 +436,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
             />
           </label>
           <button
-            onClick={() => setIsMuted(!isMuted)}
+            onClick={handleToggleMute}
             className="p-1.5 rounded-xl bg-[#282019] border border-[#c5a059] text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white transition-colors cursor-pointer"
             title={isMuted ? 'Unmute audio' : 'Mute audio'}
           >
@@ -375,10 +448,10 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
         </div>
       </div>
 
-      {/* Continuous Vertical Scrollable Reels Feed Container */}
+      {/* Continuous Vertical Snap Scrollable Reels Feed Container */}
       <div
         ref={scrollContainerRef}
-        className="h-[calc(100vh-10rem)] min-h-[600px] overflow-y-auto snap-y snap-mandatory scroll-smooth space-y-6 pr-1 no-scrollbar"
+        className="h-screen overflow-y-scroll snap-y snap-mandatory scroll-smooth space-y-4 no-scrollbar pr-1 pb-24"
       >
         {reels.map((reel) => {
           const isActive = activeReelId === reel.id;
@@ -393,27 +466,11 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
               key={reel.id}
               id={`reel-item-${reel.id}`}
               data-reel-id={reel.id}
-              className="reel-snap-item w-full h-[calc(100vh-11rem)] min-h-[580px] max-h-[760px] snap-start snap-always shrink-0 relative rounded-3xl bg-black border-2 border-[#c5a059] overflow-hidden shadow-2xl flex flex-col justify-between group select-none"
+              className="reel-snap-item w-full h-screen max-h-screen snap-start snap-always shrink-0 relative rounded-3xl bg-black border-2 border-[#c5a059] overflow-hidden shadow-2xl flex flex-col justify-between group select-none"
             >
               {/* Background Video Player */}
               <div
-                onClick={() => {
-                  const nextPlaying = !isPlaying;
-                  setIsPlaying(nextPlaying);
-                  if (nextPlaying) {
-                    setIsMuted(false);
-                    const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-                    allMedia.forEach((media) => {
-                      if (media !== document.querySelector(`#reel-item-${reel.id} video`)) {
-                        try {
-                          media.pause();
-                        } catch (err) {
-                          console.warn('Error pausing inactive media:', err);
-                        }
-                      }
-                    });
-                  }
-                }}
+                onClick={() => handleTapReelVideo(reel.id)}
                 onDoubleClick={() => handleDoubleTapVideo(reel.id)}
                 className="absolute inset-0 z-0 cursor-pointer"
               >
@@ -422,12 +479,13 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
                     videoUrl={reel.video}
                     title={reel.text}
                     autoplay={false}
+                    muted={isMuted}
                     className="w-full h-full object-cover"
                   />
                 ) : (
                   <video
                     src={reel.video}
-                    controls
+                    controls={false}
                     autoPlay={false}
                     playsInline
                     loop
@@ -437,8 +495,20 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
                   />
                 )}
 
-                {/* Pause overlay icon */}
-                {isActive && !isPlaying && (
+                {/* Animated Tap Overlay Feedback Icon */}
+                {tapFeedback && isActive && (
+                  <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-black/20">
+                    <div className="w-20 h-20 rounded-full bg-[#c5a059]/90 text-[#1c1611] flex items-center justify-center shadow-2xl animate-ping">
+                      {tapFeedback === 'play' && <Play className="w-10 h-10 fill-current ml-1" />}
+                      {tapFeedback === 'pause' && <Pause className="w-10 h-10 fill-current" />}
+                      {tapFeedback === 'mute' && <VolumeX className="w-10 h-10" />}
+                      {tapFeedback === 'unmute' && <Volume2 className="w-10 h-10" />}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pause Overlay Icon */}
+                {isActive && !isPlaying && !tapFeedback && (
                   <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
                     <div className="w-16 h-16 rounded-full bg-[#c5a059] text-[#3d2b18] flex items-center justify-center shadow-2xl animate-pulse">
                       <Play className="w-8 h-8 fill-current ml-1" />

@@ -11,6 +11,7 @@ interface BunnyPlayerProps {
   viewerCount?: number;
   className?: string;
   autoplay?: boolean;
+  muted?: boolean;
   isUserBroadcasting?: boolean;
   onEndBroadcast?: () => void;
 }
@@ -24,6 +25,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
   viewerCount = 142,
   className = '',
   autoplay = false,
+  muted = false,
   isUserBroadcasting = false,
   onEndBroadcast,
 }) => {
@@ -174,6 +176,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             controls
             playsInline
             autoPlay={autoplay}
+            muted={muted}
             className="w-full h-full max-h-[600px] object-contain"
           />
         </div>

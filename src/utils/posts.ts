@@ -210,10 +210,10 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
 }
 
 /**
-  * Mandatory Export: loadReels()
-  * Fetches short-form video posts where video is not null directly from Supabase
+  * Mandatory Export: loadVideos() / loadReels()
+  * Fetches video posts where video is not null directly from Supabase
   */
-export async function loadReels(): Promise<Post[]> {
+export async function loadVideos(): Promise<Post[]> {
   const localReels = getLocalSavedPosts().filter((p) => !!p.video);
   if (!isSupabaseConfigured) {
     return localReels;
@@ -229,7 +229,7 @@ export async function loadReels(): Promise<Post[]> {
       return reelsData.map(mapRowToPost);
     }
     if (reelsError) {
-      console.warn('Reels fetch notice:', reelsError.message || reelsError);
+      console.warn('Videos fetch notice:', reelsError.message || reelsError);
     }
 
     const { data: postsData, error: postsError } = await supabase
@@ -245,11 +245,13 @@ export async function loadReels(): Promise<Post[]> {
       console.warn('Posts video fetch notice:', postsError.message || postsError);
     }
   } catch (err) {
-    console.warn('Reels fetch notice:', err);
+    console.warn('Videos fetch notice:', err);
   }
 
   return localReels;
 }
+
+export const loadReels = loadVideos;
 
 /**
   * Mandatory Export: savePost(post)

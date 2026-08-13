@@ -107,14 +107,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const subTabs = [
     { id: 'feed', icon: Rss, label: t('feed') },
-    { id: 'reels', icon: Film, label: t('reels') },
+    { id: 'videos', icon: Film, label: t('videos') },
     { id: 'myNetwork', icon: Users, label: t('myNetwork') },
     { id: 'calendar', icon: Calendar, label: t('calendar') },
   ];
 
   const drawerMenuItems = [
     { id: 'feed', label: t('feed'), icon: Rss, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30' },
-    { id: 'reels', label: t('reels'), icon: Film, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/30', badge: 'NEW' },
+    { id: 'videos', label: t('videos'), icon: Film, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/30' },
     { id: 'live', label: t('goLive'), icon: Radio, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isLive: true },
     { id: 'myNetwork', label: t('myNetwork'), icon: Users, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30' },
     { id: 'messages', label: t('messages'), icon: MessageSquare, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', count: unreadMessageCount },

@@ -12,7 +12,7 @@ import { AuthModal } from './components/AuthModal';
 import { AuthPage } from './components/AuthPage';
 
 import { FeedView } from './views/FeedView';
-import { ReelsView } from './views/ReelsView';
+import { VideosView } from './views/VideosView';
 import { LiveBroadcastView } from './views/LiveBroadcastView';
 import { GroupRoomsView } from './views/GroupRoomsView';
 import { MessengerView } from './views/MessengerView';
@@ -137,8 +137,9 @@ function AppContent() {
     switch (currentView) {
       case 'feed':
         return <FeedView onSelectUser={handleSelectUser} onOpenMessengerWithUser={handleOpenMessengerWithUser} />;
+      case 'videos':
       case 'reels':
-        return <ReelsView onSelectUser={handleSelectUser} onOpenMessengerWithUser={handleOpenMessengerWithUser} />;
+        return <VideosView onSelectUser={handleSelectUser} onOpenMessengerWithUser={handleOpenMessengerWithUser} />;
       case 'live':
         return <LiveBroadcastView />;
       case 'myNetwork':

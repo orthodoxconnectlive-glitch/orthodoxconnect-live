@@ -10,12 +10,17 @@ export const SEED_VIDEOS = [
   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
 ];
 
-// Helper to convert Supabase row object to frontend Post model
+/**
+ * Helper to convert Supabase row object to frontend Post model
+ */
 export function mapRowToPost(row: any): Post {
   const profile = row.profiles || row.profile;
   const authorName = profile?.full_name || profile?.fullName || row.author_name || row.authorName || 'Orthodox Member';
   const authorParish = profile?.parish || row.author_parish || row.authorParish || 'Parish Community';
   const authorAvatar = profile?.avatar_url || profile?.avatarUrl || row.author_avatar || row.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
+
+  const media = row.media_url || row.image_url || row.video_url || row.image || row.video;
+  const isVideo = media?.includes('bunnynet') || media?.endsWith('.mp4') || media?.includes('videos-bucket');
 
   return {
     id: String(row.id),
@@ -23,9 +28,9 @@ export function mapRowToPost(row: any): Post {
     authorName,
     authorParish,
     authorAvatar,
-    authorId: row.author_id || row.authorId || profile?.id,
-    image: row.image_url || row.image || undefined,
-    video: row.video_url || row.video || undefined,
+    authorId: row.user_id || row.author_id || row.authorId || profile?.id,
+    image: isVideo ? undefined : media,
+    video: isVideo ? media : undefined,
     audio: row.audio_url || row.audio || row.audioUrl || undefined,
     audioUrl: row.audio_url || row.audio || row.audioUrl || undefined,
     broadcastUrl: row.broadcast_url || row.broadcastUrl || undefined,
@@ -96,7 +101,6 @@ export function getLocalSavedPosts(): Post[] {
 export function saveLocalPostToCache(post: Post) {
   try {
     const existing = getLocalSavedPosts();
-    // Filter out duplicates by id or exact match
     const filtered = existing.filter(
       (p) => p.id !== post.id && !(p.text === post.text && p.createdAt === post.createdAt)
     );
@@ -163,7 +167,6 @@ export async function loadPosts(
 
     if (data) {
       const dbPosts = data.map(mapRowToPost);
-      // Combine with local cached posts (for offline/instant optimism)
       const combined = [...dbPosts];
       localPosts.forEach((lp) => {
         if (!combined.some((p) => p.id === lp.id || (p.text === lp.text && p.createdAt === lp.createdAt))) {
@@ -180,10 +183,6 @@ export async function loadPosts(
   return { posts: localPosts, error: null };
 }
 
-/**
-  * Mandatory Export: loadPostsByAuthor(authorId)
-  * Fetches posts written by a specific author directly from Supabase
-  */
 export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
   const localPosts = getLocalSavedPosts().filter(
     (p) => p.authorId === authorId || p.authorName.toLowerCase().includes(authorId.toLowerCase())
@@ -197,7 +196,7 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
     let query = supabase.from('posts').select('*');
 
     if (isUuid) {
-      query = query.or(`author_id.eq.${authorId},author_name.ilike.%${authorId}%`);
+      query = query.eq('user_id', authorId);
     } else {
       query = query.ilike('author_name', `%${authorId}%`);
     }
@@ -222,7 +221,7 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
 export const DEFAULT_ORTHODOX_VIDEOS: Post[] = [
   {
     id: 'orthodox-reel-1',
-    text: 'The Divine Liturgy & the Light of Christ at St. Anthony Monastery. Blessed Sunday everyone! #Orthodox #Christianity #Liturgy #Byzantine #JesusPrayer #MountAthos',
+    text: 'The Divine Liturgy & the Light of Christ at St. Anthony Monastery. Blessed Sunday everyone! #Orthodox #Christianity #Liturgy',
     authorName: 'Fr. Athanasios',
     authorParish: "St. Anthony's Monastery",
     authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
@@ -233,38 +232,8 @@ export const DEFAULT_ORTHODOX_VIDEOS: Post[] = [
     commentsCount: 88,
     resharesCount: 312,
   },
-  {
-    id: 'orthodox-reel-2',
-    text: 'A profound reflection on the Jesus Prayer: "Lord Jesus Christ, Son of God, have mercy on me, a sinner." #JesusPrayer #Hesychasm #Orthodox #Prayer #SpiritualLife #Saints',
-    authorName: 'Orthodox Connect',
-    authorParish: 'Holy Trinity Cathedral',
-    authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-    video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-    image: 'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&q=80&w=800',
-    createdAt: new Date(Date.now() - 3600000 * 6).toISOString(),
-    likesCount: 2850,
-    commentsCount: 142,
-    resharesCount: 520,
-  },
-  {
-    id: 'orthodox-reel-3',
-    text: 'Paschal Vigil and the Resurrection Light: "Christ is Risen from the dead, trampling down death by death!" ☨ #Pascha #Resurrection #Orthodox #ChristIsRisen #Orthodoxy',
-    authorName: 'Deacon Mark',
-    authorParish: 'Annunciation Orthodox Church',
-    authorAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-    video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-    image: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800',
-    createdAt: new Date(Date.now() - 3600000 * 12).toISOString(),
-    likesCount: 960,
-    commentsCount: 45,
-    resharesCount: 180,
-  },
 ];
 
-/**
-  * Mandatory Export: loadVideos() / loadReels()
-  * Fetches video posts where video is not null directly from Supabase
-  */
 export async function loadVideos(): Promise<Post[]> {
   const localReels = getLocalSavedPosts().filter((p) => !!p.video);
   if (!isSupabaseConfigured) {
@@ -272,29 +241,14 @@ export async function loadVideos(): Promise<Post[]> {
   }
 
   try {
-    const { data: reelsData, error: reelsError } = await supabase
-      .from('posts_reels')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (!reelsError && reelsData && reelsData.length > 0) {
-      return reelsData.map(mapRowToPost);
-    }
-    if (reelsError) {
-      console.warn('Videos fetch notice:', reelsError.message || reelsError);
-    }
-
     const { data: postsData, error: postsError } = await supabase
       .from('posts')
       .select('*')
-      .or('video.not.is.null,video_url.not.is.null')
+      .not('media_url', 'is', null)
       .order('created_at', { ascending: false });
 
     if (!postsError && postsData && postsData.length > 0) {
-      return postsData.map(mapRowToPost);
-    }
-    if (postsError) {
-      console.warn('Posts video fetch notice:', postsError.message || postsError);
+      return postsData.map(mapRowToPost).filter((p) => !!p.video);
     }
   } catch (err) {
     console.warn('Videos fetch notice:', err);
@@ -306,9 +260,8 @@ export async function loadVideos(): Promise<Post[]> {
 export const loadReels = loadVideos;
 
 /**
-  * Mandatory Export: savePost(post)
-  * Inserts a post directly into Supabase and dispatches real-time notification
-  */
+ * Inserts a post directly into Supabase adhering strictly to database schema
+ */
 export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   const isUuid =
     postPartial.authorId &&
@@ -332,107 +285,33 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     reshareKind: postPartial.reshareKind,
   };
 
-  // Cache locally immediately for optimistic UI & offline resilience
   saveLocalPostToCache(newPost);
 
   if (!isSupabaseConfigured) {
-    console.info('[Post Persistence] Supabase not configured. Saved to local persistent cache.');
-    addNotification({
-      userId: 'all',
-      type: 'mention',
-      title: `New Post from ${newPost.authorName}`,
-      body: newPost.text ? (newPost.text.length > 80 ? newPost.text.slice(0, 80) + '...' : newPost.text) : 'Shared a new reflection.',
-      senderName: newPost.authorName,
-      senderAvatar: newPost.authorAvatar,
-      link: 'feed',
-    });
     return newPost;
   }
 
+  // Exact Supabase Database Payload Matching Table Schema
   const dbPayload: Record<string, any> = {
     content: newPost.text,
-    author_name: newPost.authorName,
-    author_parish: newPost.authorParish,
-    author_avatar: newPost.authorAvatar,
-    author_id: isUuid ? newPost.authorId : null,
-    image_url: newPost.image || null,
-    video: newPost.video || null,
-    video_url: newPost.video || null,
-    group_id: newPost.groupId || null,
+    user_id: isUuid ? newPost.authorId : null,
+    media_url: newPost.image || newPost.video || null,
     created_at: newPost.createdAt,
   };
-
-  if (newPost.video) {
-    try {
-      const { error: reelsErr } = await supabase.from('posts_reels').insert([{
-        content: newPost.text,
-        author_name: newPost.authorName,
-        author_parish: newPost.authorParish,
-        author_avatar: newPost.authorAvatar,
-        author_id: isUuid ? newPost.authorId : null,
-        video_url: newPost.video,
-        created_at: newPost.createdAt,
-      }]);
-      if (reelsErr) {
-        console.error('[Supabase posts_reels Insert Error]:', {
-          message: reelsErr.message,
-          details: reelsErr.details,
-          hint: reelsErr.hint,
-          code: reelsErr.code,
-        });
-      }
-    } catch (reelsErr: any) {
-      console.error('[Supabase posts_reels Exception]:', reelsErr?.message || reelsErr);
-    }
-  }
 
   try {
     console.log('[Supabase] Executing direct database insert into "posts":', dbPayload);
     const { data, error } = await supabase.from('posts').insert([dbPayload]).select();
 
     if (error) {
-      console.error('[Supabase Post Insert Error]:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
-
-      // If missing column error, try minimal payload fallback
-      if (error.code === '42703' || error.message?.includes('column')) {
-        console.warn('[Supabase] Column mismatch detected, attempting simplified insert fallback...');
-        const fallbackPayload: Record<string, any> = {
-          content: newPost.text,
-          image_url: newPost.image || null,
-          video_url: newPost.video || null,
-          created_at: newPost.createdAt,
-        };
-        if (isUuid) fallbackPayload.author_id = newPost.authorId;
-
-        const { data: fbData, error: fbError } = await supabase
-          .from('posts')
-          .insert([fallbackPayload])
-          .select();
-
-        if (fbError) {
-          console.error('[Supabase Fallback Insert Error]:', fbError);
-        } else if (fbData && fbData.length > 0) {
-          const savedFallback = mapRowToPost(fbData[0]);
-          if (!savedFallback.image && newPost.image) savedFallback.image = newPost.image;
-          if (!savedFallback.video && newPost.video) savedFallback.video = newPost.video;
-          saveLocalPostToCache(savedFallback);
-          return savedFallback;
-        }
-      }
+      console.error('[Supabase Post Insert Error]:', error);
     } else if (data && data.length > 0) {
       const saved = mapRowToPost(data[0]);
-      if (!saved.image && newPost.image) saved.image = newPost.image;
-      if (!saved.video && newPost.video) saved.video = newPost.video;
-
-      console.log('[Supabase] Post persisted successfully to database with ID:', saved.id);
+      saved.authorName = newPost.authorName;
+      saved.authorAvatar = newPost.authorAvatar;
+      saved.authorParish = newPost.authorParish;
       saveLocalPostToCache(saved);
 
-      // Trigger real notification record in Supabase notifications table
       addNotification({
         userId: 'all',
         type: 'mention',
@@ -452,9 +331,6 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   return newPost;
 }
 
-/**
-  * Mandatory Export: loadPost(postId)
-  */
 export async function loadPost(postId: string): Promise<Post | null> {
   const localFound = getLocalSavedPosts().find((p) => p.id === postId);
   if (localFound) return localFound;
@@ -471,10 +347,6 @@ export async function loadPost(postId: string): Promise<Post | null> {
       .eq('id', postId)
       .single();
 
-    if (error) {
-      console.warn('Load single post note:', error.message || error);
-    }
-
     if (!error && data) {
       return mapRowToPost(data);
     }
@@ -485,16 +357,10 @@ export async function loadPost(postId: string): Promise<Post | null> {
   return null;
 }
 
-/**
-  * Mandatory Export: deletePost(postId)
-  */
 export async function deletePost(postId: string): Promise<boolean> {
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
     if (!isUuid || !isSupabaseConfigured) return true;
-
-    const { error: reelsErr } = await supabase.from('posts_reels').delete().eq('id', postId);
-    if (reelsErr) console.warn('Delete reel note:', reelsErr.message || reelsErr);
 
     const { error: postsErr } = await supabase.from('posts').delete().eq('id', postId);
     if (postsErr) console.warn('Delete post note:', postsErr.message || postsErr);
@@ -505,10 +371,6 @@ export async function deletePost(postId: string): Promise<boolean> {
   return true;
 }
 
-/**
-  * Mandatory Export: createReshare(postId, kind, quote)
-  * Handles post reshares and quote posts
-  */
 export async function createReshare(
   postId: string,
   kind: 'reshare' | 'quote',
@@ -536,4 +398,3 @@ export async function createReshare(
 
   return await savePost(resharePost);
 }
-

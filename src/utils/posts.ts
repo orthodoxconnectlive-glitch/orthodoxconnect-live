@@ -105,7 +105,7 @@ export function saveLocalPostToCache(post: Post) {
       (p) => p.id !== post.id && !(p.text === post.text && p.createdAt === post.createdAt)
     );
     const updated = [post, ...filtered];
-    localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(updated.slice(0, 100)));
+    localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(updated.slice(0, 50)));
   } catch (e) {
     console.warn('[Post Cache] Error saving local post to cache:', e);
   }
@@ -129,6 +129,9 @@ export function saveLocalLikesMap(map: Record<string, boolean>) {
   }
 }
 
+/**
+ * Fast Load Posts Function using direct table joining
+ */
 export async function loadPosts(
   groupId?: string,
   options?: { limit?: number; offset?: number }
@@ -138,14 +141,21 @@ export async function loadPosts(
     return { posts: localPosts, error: null };
   }
 
-  const limit = options?.limit ?? 25;
+  const limit = options?.limit ?? 15; // Fast small batch
   const offset = options?.offset ?? 0;
 
   try {
-    console.log('[Supabase] Fetching posts: SELECT * FROM posts ORDER BY created_at DESC');
+    // High performance query: fetches posts AND profiles together in 1 round trip
     let query = supabase
       .from('posts')
-      .select('*')
+      .select(`
+        *,
+        profiles:user_id (
+          full_name,
+          parish,
+          avatar_url
+        )
+      `)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -156,24 +166,13 @@ export async function loadPosts(
     const { data, error } = await query;
 
     if (error) {
-      console.error('[Supabase loadPosts error]:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      });
+      console.error('[Supabase loadPosts error]:', error.message);
       return { posts: localPosts, error };
     }
 
     if (data) {
       const dbPosts = data.map(mapRowToPost);
-      const combined = [...dbPosts];
-      localPosts.forEach((lp) => {
-        if (!combined.some((p) => p.id === lp.id || (p.text === lp.text && p.createdAt === lp.createdAt))) {
-          combined.push(lp);
-        }
-      });
-      return { posts: combined, error: null };
+      return { posts: dbPosts, error: null };
     }
   } catch (err: any) {
     console.error('[Supabase loadPosts exception]:', err?.message || err);
@@ -193,7 +192,16 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
 
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authorId);
-    let query = supabase.from('posts').select('*');
+    let query = supabase
+      .from('posts')
+      .select(`
+        *,
+        profiles:user_id (
+          full_name,
+          parish,
+          avatar_url
+        )
+      `);
 
     if (isUuid) {
       query = query.eq('user_id', authorId);
@@ -243,9 +251,17 @@ export async function loadVideos(): Promise<Post[]> {
   try {
     const { data: postsData, error: postsError } = await supabase
       .from('posts')
-      .select('*')
+      .select(`
+        *,
+        profiles:user_id (
+          full_name,
+          parish,
+          avatar_url
+        )
+      `)
       .not('media_url', 'is', null)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(15);
 
     if (!postsError && postsData && postsData.length > 0) {
       return postsData.map(mapRowToPost).filter((p) => !!p.video);
@@ -291,7 +307,6 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     return newPost;
   }
 
-  // Exact Supabase Database Payload Matching Table Schema
   const dbPayload: Record<string, any> = {
     content: newPost.text,
     user_id: isUuid ? newPost.authorId : null,
@@ -343,7 +358,14 @@ export async function loadPost(postId: string): Promise<Post | null> {
 
     const { data, error } = await supabase
       .from('posts')
-      .select('*')
+      .select(`
+        *,
+        profiles:user_id (
+          full_name,
+          parish,
+          avatar_url
+        )
+      `)
       .eq('id', postId)
       .single();
 

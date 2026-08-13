@@ -33,8 +33,8 @@ export interface ReelComment {
 
 interface ReelCardProps {
   reel: Post;
-  isUnmuted: boolean;
-  onToggleMute: (reelId: string) => void;
+  isUnmuted?: boolean;
+  onToggleMute?: (reelId: string) => void;
   onSelectUser?: (userData: UserProfileData) => void;
   onOpenMessengerWithUser?: (contactId?: string) => void;
   liked: boolean;
@@ -50,12 +50,11 @@ interface ReelCardProps {
   onToggleCommentOpen: (reelId: string) => void;
   onAddComment: (reelId: string, text: string) => void;
   onShare: (reel: Post) => void;
-  onVisibleChange?: (reelId: string, isVisible: boolean) => void;
 }
 
 export const ReelCard: React.FC<ReelCardProps> = ({
   reel,
-  isUnmuted,
+  isUnmuted = false,
   onToggleMute,
   onSelectUser,
   onOpenMessengerWithUser,
@@ -72,44 +71,57 @@ export const ReelCard: React.FC<ReelCardProps> = ({
   onToggleCommentOpen,
   onAddComment,
   onShare,
-  onVisibleChange,
 }) => {
   const { profile } = useAuth();
   const { pauseAllMedia, setActiveMediaId } = useMedia();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [hasError, setHasError] = useState(false);
+  // Strict default: Always start paused and muted
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isAudioMuted, setIsAudioMuted] = useState<boolean>(!isUnmuted);
+  const [hasError, setHasError] = useState<boolean>(false);
   const [tapFeedback, setTapFeedback] = useState<'play' | 'pause' | 'mute' | 'unmute' | null>(null);
-  const [showHeartAnim, setShowHeartAnim] = useState(false);
-  const [newCommentText, setNewCommentText] = useState('');
+  const [showHeartAnim, setShowHeartAnim] = useState<boolean>(false);
+  const [newCommentText, setNewCommentText] = useState<string>('');
 
   const elementMediaId = `reel-${reel.id}`;
   const bunnyCdnHost = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 
-  // Reset error when reel or video changes
+  // Strict unmount cleanup: Stop playback, reset time, clear src, and silence all media
   useEffect(() => {
-    setHasError(false);
-    setIsPlaying(false);
-  }, [reel.id, reel.video]);
+    return () => {
+      if (videoRef.current) {
+        try {
+          videoRef.current.pause();
+          videoRef.current.currentTime = 0;
+          videoRef.current.src = '';
+        } catch (e) {
+          // ignore
+        }
+      }
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      allMedia.forEach((m) => {
+        try {
+          m.pause();
+          m.currentTime = 0;
+          m.src = '';
+        } catch (e) {
+          // ignore
+        }
+      });
+    };
+  }, []);
 
-  // Graceful error handler: Stop playback and set error state without calling .play()
-  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    console.warn('[ReelCard] Video playback error for reel:', reel.id, e);
-    setHasError(true);
-    setIsPlaying(false);
-    // Crucial: DO NOT trigger .play() inside onError
-  };
-
-  // 1. Keep videoRef muted state in sync with isUnmuted
+  // Sync mute state if parent passes isUnmuted
   useEffect(() => {
+    setIsAudioMuted(!isUnmuted);
     if (videoRef.current) {
       videoRef.current.muted = !isUnmuted;
     }
   }, [isUnmuted]);
 
-  // 2. Synchronize playback events
+  // Synchronize playback events
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -138,53 +150,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
     };
   }, [elementMediaId, setActiveMediaId]);
 
-  // 3. IntersectionObserver - strictly track visibility; DO NOT AUTOPLAY ON MOUNT OR SCROLL
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
-            onVisibleChange?.(reel.id, true);
-          } else if (!entry.isIntersecting || entry.intersectionRatio < 0.7) {
-            onVisibleChange?.(reel.id, false);
-
-            // As soon as a reel moves off-screen, pause and reset time
-            if (videoRef.current) {
-              try {
-                if (!videoRef.current.paused) {
-                  videoRef.current.pause();
-                }
-                videoRef.current.currentTime = 0;
-              } catch (err) {
-                console.warn('Error pausing off-screen reel:', err);
-              }
-              setIsPlaying(false);
-            }
-          }
-        });
-      },
-      { threshold: 0.7 }
-    );
-
-    observer.observe(container);
-
-    return () => {
-      observer.disconnect();
-      if (videoRef.current) {
-        try {
-          if (!videoRef.current.paused) {
-            videoRef.current.pause();
-          }
-          videoRef.current.currentTime = 0;
-        } catch (e) {}
-      }
-    };
-  }, [reel.id, onVisibleChange]);
-
-  // 4. Tap to toggle Play / Pause (explicit user interaction)
+  // Explicit user tap to Play / Pause and unmute sound
   const handleTogglePlay = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const video = videoRef.current;
@@ -198,10 +164,14 @@ export const ReelCard: React.FC<ReelCardProps> = ({
     } else {
       // Mark element as explicitly user-initiated for global prototype guard
       video.dataset.userInitiated = 'true';
-      // Pause all other media in the DOM and reset their currentTime
+      // Pause all other media in the DOM
       pauseAllMedia(video);
       setActiveMediaId(elementMediaId);
-      video.muted = !isUnmuted;
+      // Unmute on explicit user tap
+      video.muted = false;
+      setIsAudioMuted(false);
+      onToggleMute?.(reel.id);
+
       video
         .play()
         .then(() => {
@@ -210,9 +180,24 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           setTimeout(() => setTapFeedback(null), 800);
         })
         .catch((err) => {
-          console.warn('Reel playback was prevented:', err);
+          console.warn('[ReelCard] Playback was prevented:', err);
         });
     }
+  };
+
+  const handleToggleMuteBtn = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const nextMuted = !isAudioMuted;
+    setIsAudioMuted(nextMuted);
+    if (videoRef.current) {
+      videoRef.current.muted = nextMuted;
+      if (!nextMuted) {
+        videoRef.current.dataset.userInitiated = 'true';
+      }
+    }
+    onToggleMute?.(reel.id);
+    setTapFeedback(nextMuted ? 'mute' : 'unmute');
+    setTimeout(() => setTapFeedback(null), 800);
   };
 
   const handleDoubleTapVideo = () => {
@@ -250,13 +235,13 @@ export const ReelCard: React.FC<ReelCardProps> = ({
       ref={containerRef}
       id={`reel-item-${reel.id}`}
       data-reel-id={reel.id}
-      className="reel-snap-item h-screen w-full snap-start snap-always relative flex items-center justify-center bg-black rounded-3xl border-2 border-[#c5a059] overflow-hidden shadow-2xl flex-col justify-between group select-none"
+      className="relative w-full h-[78vh] sm:h-[82vh] max-h-[750px] flex flex-col justify-between bg-black rounded-3xl border-2 border-[#c5a059] overflow-hidden shadow-2xl group select-none"
     >
-      {/* Background Video Player */}
+      {/* Background Video Player Container */}
       <div
         onClick={() => !hasError && handleTogglePlay()}
         onDoubleClick={handleDoubleTapVideo}
-        className="absolute inset-0 z-0 cursor-pointer"
+        className="absolute inset-0 z-0 cursor-pointer flex items-center justify-center bg-black"
       >
         {hasError ? (
           <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#1c130c]">
@@ -267,7 +252,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
               Reel Playback Unavailable
             </h4>
             <p className="text-[#eedcb5]/70 text-xs max-w-xs font-serif mb-4">
-              The media source for this reel could not be loaded or is in an unsupported format.
+              The media source for this reel could not be loaded or is offline.
             </p>
             <button
               type="button"
@@ -286,7 +271,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
             videoUrl={reel.video}
             title={reel.text}
             autoplay={false}
-            muted={!isUnmuted}
+            muted={isAudioMuted}
             className="w-full h-full object-cover"
           />
         ) : (
@@ -296,34 +281,39 @@ export const ReelCard: React.FC<ReelCardProps> = ({
             src={reel.video}
             controls={false}
             autoPlay={false}
-            muted={!isUnmuted}
+            muted={isAudioMuted}
             playsInline
             loop
             preload="none"
-            onError={handleVideoError}
+            onError={(e) => {
+              console.warn('[ReelCard] Video error:', e);
+              setHasError(true);
+              setIsPlaying(false);
+            }}
             className="w-full h-full object-cover bg-black"
           />
         )}
 
-        {/* Prominent Play Overlay when Paused */}
+        {/* Prominent "TAP TO PLAY" Overlay when Paused */}
         {!isPlaying && !hasError && (
           <div
             onClick={(e) => handleTogglePlay(e)}
-            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 hover:bg-black/30 transition-all cursor-pointer group/play"
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/45 hover:bg-black/35 transition-all cursor-pointer group/play"
           >
             <div className="relative flex items-center justify-center">
-              <div className="absolute w-20 h-20 rounded-full bg-[#c5a059]/30 animate-ping opacity-60 pointer-events-none" />
+              <div className="absolute w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#c5a059]/30 animate-ping opacity-75 pointer-events-none" />
               <button
                 type="button"
                 className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-[#c5a059] to-[#8f6e30] hover:from-[#e6d3ab] hover:to-[#c5a059] text-[#1c130c] shadow-2xl flex items-center justify-center border-2 border-[#f5ebd9] transition-transform transform group-hover/play:scale-110 active:scale-95 cursor-pointer"
-                title="Play Reel"
-                aria-label="Play Reel"
+                title="Tap to Play Reel"
+                aria-label="Tap to Play Reel"
               >
                 <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-current ml-1 text-[#1c130c]" />
               </button>
             </div>
-            <div className="mt-3 px-3 py-1 rounded-full bg-[#3d2b18]/90 backdrop-blur-md border border-[#c5a059]/50 text-[#f5ebd9] text-[11px] font-serif font-bold uppercase tracking-wider shadow-lg">
-              Tap to Play
+            <div className="mt-4 px-4 py-1.5 rounded-full bg-[#3d2b18]/95 backdrop-blur-md border border-[#c5a059]/60 text-[#f5ebd9] text-xs font-serif font-bold uppercase tracking-wider shadow-2xl flex items-center gap-2">
+              <Play className="w-3.5 h-3.5 fill-current text-[#c5a059]" />
+              <span>TAP TO PLAY</span>
             </div>
           </div>
         )}
@@ -348,22 +338,20 @@ export const ReelCard: React.FC<ReelCardProps> = ({
         )}
       </div>
 
-      {/* Top Floating Badge & Mute Indicator */}
+      {/* Top Floating Badge & Mute Toggle */}
       <div className="relative z-20 p-4 w-full flex items-center justify-between pointer-events-none">
-        <span className="px-3 py-1 rounded-full bg-[#1c1611]/80 backdrop-blur-md text-[#c5a059] text-[10px] font-serif uppercase tracking-wider font-bold border border-[#c5a059] flex items-center gap-1.5 shadow-md">
+        <span className="px-3 py-1 rounded-full bg-[#1c1611]/85 backdrop-blur-md text-[#c5a059] text-[10px] font-serif uppercase tracking-wider font-bold border border-[#c5a059] flex items-center gap-1.5 shadow-md">
           <Church className="w-3.5 h-3.5 text-[#c5a059]" />
           {reel.authorParish || 'Orthodox Parish'}
         </span>
 
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleMute(reel.id);
-          }}
-          className="pointer-events-auto p-2 rounded-full bg-[#1c1611]/80 backdrop-blur-md border border-[#c5a059] text-[#f5ebd9] hover:bg-[#c5a059] hover:text-[#1c1611] transition-all cursor-pointer shadow-lg"
-          title={isUnmuted ? 'Mute' : 'Unmute'}
+          type="button"
+          onClick={handleToggleMuteBtn}
+          className="pointer-events-auto p-2 rounded-full bg-[#1c1611]/85 backdrop-blur-md border border-[#c5a059] text-[#f5ebd9] hover:bg-[#c5a059] hover:text-[#1c1611] transition-all cursor-pointer shadow-lg"
+          title={isAudioMuted ? 'Unmute' : 'Mute'}
         >
-          {isUnmuted ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-amber-300" />}
+          {isAudioMuted ? <VolumeX className="w-4 h-4 text-amber-300" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
         </button>
       </div>
 
@@ -388,6 +376,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
               className="w-10 h-10 rounded-full border-2 border-[#c5a059] object-cover shadow-lg"
             />
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleFollow(reel.authorName);
@@ -429,7 +418,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           </span>
         </p>
 
-        {/* TikTok Audio Marquee Bar */}
+        {/* Audio Track Indicator */}
         <div className="flex items-center gap-2 pt-1">
           <Music className="w-3.5 h-3.5 text-[#c5a059] animate-bounce" />
           <div className="overflow-hidden w-48 text-[10px] text-[#f5ebd9] whitespace-nowrap font-serif uppercase tracking-wider">
@@ -440,10 +429,11 @@ export const ReelCard: React.FC<ReelCardProps> = ({
         </div>
       </div>
 
-      {/* Floating Right Action Stack (TikTok Style) */}
-      <div className="absolute right-3 bottom-12 z-30 flex flex-col items-center gap-4 text-white">
+      {/* Floating Right Action Stack */}
+      <div className="absolute right-3 bottom-12 z-30 flex flex-col items-center gap-3.5 text-white">
         {/* Like Button */}
         <button
+          type="button"
           onClick={() => onToggleLike(reel.id)}
           className="flex flex-col items-center gap-1 group cursor-pointer"
         >
@@ -463,6 +453,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
 
         {/* Comment Drawer Button */}
         <button
+          type="button"
           onClick={() => onToggleCommentOpen(reel.id)}
           className="flex flex-col items-center gap-1 group cursor-pointer"
         >
@@ -477,9 +468,10 @@ export const ReelCard: React.FC<ReelCardProps> = ({
         {/* Direct Message 1-on-1 Button */}
         {onOpenMessengerWithUser && (
           <button
+            type="button"
             onClick={() => onOpenMessengerWithUser(reel.authorId || reel.authorName)}
             className="flex flex-col items-center gap-1 group cursor-pointer"
-            title="Send Direct 1-to-1 Message"
+            title="Send Direct Message"
           >
             <div className="p-3 rounded-full bg-[#1c1611]/80 backdrop-blur-md border border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#3d2b18] transition-all">
               <MessageSquare className="w-5 h-5" />
@@ -490,6 +482,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
 
         {/* Save / Bookmark Button */}
         <button
+          type="button"
           onClick={() => onToggleSave(reel.id)}
           className="flex flex-col items-center gap-1 group cursor-pointer"
         >
@@ -507,6 +500,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
 
         {/* Share Button */}
         <button
+          type="button"
           onClick={() => onShare(reel)}
           className="flex flex-col items-center gap-1 group cursor-pointer"
         >
@@ -519,6 +513,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
         {/* Delete Reel Button for Admins or Author */}
         {canDelete && (
           <button
+            type="button"
             onClick={() => onDeleteReel(reel.id)}
             className="flex flex-col items-center gap-1 group cursor-pointer"
             title="Delete Reel"
@@ -530,8 +525,8 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           </button>
         )}
 
-        {/* TikTok Spinning Vinyl Disc */}
-        <div className="mt-2 w-10 h-10 rounded-full bg-[#1c1611] p-1 border-2 border-[#c5a059] shadow-2xl animate-spin">
+        {/* Disc Icon */}
+        <div className="mt-1 w-9 h-9 rounded-full bg-[#1c1611] p-1 border-2 border-[#c5a059] shadow-2xl animate-spin">
           <img
             src={reel.authorAvatar}
             alt="Disc"
@@ -540,7 +535,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
         </div>
       </div>
 
-      {/* TikTok Slide-up Comment Drawer for this Reel */}
+      {/* Slide-up Comment Drawer for this Reel */}
       {isCommentOpen && (
         <div className="absolute inset-x-0 bottom-0 z-40 h-[65%] bg-[#1c1611]/95 backdrop-blur-2xl rounded-t-3xl border-t-2 border-[#c5a059] p-4 flex flex-col justify-between shadow-2xl animate-slide-up">
           {/* Drawer Header */}
@@ -552,6 +547,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
               </h3>
             </div>
             <button
+              type="button"
               onClick={() => onToggleCommentOpen(reel.id)}
               className="p-1 rounded-full text-[#f5ebd9] hover:bg-[#282019] transition-colors cursor-pointer"
             >

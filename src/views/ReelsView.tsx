@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Sparkles,
   ChevronDown,
   ChevronUp,
-  Volume2,
-  VolumeX,
   Upload,
 } from 'lucide-react';
 import { Post } from '../types';
@@ -22,12 +20,11 @@ interface ReelsViewProps {
 export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessengerWithUser }) => {
   const { profile } = useAuth();
   const [reels, setReels] = useState<Post[]>([]);
-  const [activeReelId, setActiveReelId] = useState<string>('');
-  const [unmutedReelId, setUnmutedReelId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isUploading, setIsUploading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
 
-  // TikTok interactions state
+  // Social interactions state
   const [followedAuthors, setFollowedAuthors] = useState<Record<string, boolean>>({});
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
@@ -38,23 +35,27 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
   const [openCommentReelId, setOpenCommentReelId] = useState<string | null>(null);
   const [reelCommentsMap, setReelCommentsMap] = useState<Record<string, ReelComment[]>>({});
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // Touch and wheel interaction refs for gesture navigation
+  const touchStartY = useRef<number>(0);
+  const isNavigatingRef = useRef<boolean>(false);
 
-  // Requirement 4: Cleanup effect to stop and reset all media on unmount
+  // Total Tab Isolation & Strict Unmount Cleanup
   useEffect(() => {
     return () => {
       const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-      allMedia.forEach((media) => {
+      allMedia.forEach((m) => {
         try {
-          media.pause();
-          media.currentTime = 0;
-        } catch (err) {
-          console.warn('Error pausing media on unmount:', err);
+          m.pause();
+          m.currentTime = 0;
+          m.src = '';
+        } catch (e) {
+          // ignore
         }
       });
     };
   }, []);
 
+  // Fetch reels from persistent storage
   useEffect(() => {
     fetchReels();
   }, []);
@@ -63,10 +64,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     setLoading(true);
     const loadedReels = await loadReels();
     setReels(loadedReels);
-
-    if (loadedReels.length > 0) {
-      setActiveReelId(loadedReels[0].id);
-    }
+    setActiveIndex(0);
 
     // Load saved likes and comments from localStorage
     let savedLikes: Record<string, boolean> = {};
@@ -94,50 +92,6 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     setLikeCounts(initialLikesCount);
     setReelCommentsMap(initialComments);
     setLoading(false);
-  };
-
-  // Requirement 3: Global Sound Control (only ONE unmuted video at a time)
-  const handleToggleMuteReel = (reelId: string) => {
-    if (unmutedReelId === reelId) {
-      // Mute this reel
-      setUnmutedReelId(null);
-      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-      allMedia.forEach((m) => {
-        m.muted = true;
-      });
-    } else {
-      // Unmute this reel and automatically mute all other media
-      setUnmutedReelId(reelId);
-      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-      allMedia.forEach((m) => {
-        const parentCard = m.closest(`#reel-item-${reelId}`);
-        if (parentCard) {
-          m.muted = false;
-        } else {
-          m.muted = true;
-        }
-      });
-    }
-  };
-
-  const handleToggleGlobalMute = () => {
-    if (unmutedReelId) {
-      setUnmutedReelId(null);
-      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-      allMedia.forEach((m) => {
-        m.muted = true;
-      });
-    } else if (activeReelId) {
-      handleToggleMuteReel(activeReelId);
-    } else if (reels[0]) {
-      handleToggleMuteReel(reels[0].id);
-    }
-  };
-
-  const handleVisibleChange = (reelId: string, isVisible: boolean) => {
-    if (isVisible) {
-      setActiveReelId(reelId);
-    }
   };
 
   const triggerToast = (msg: string) => {
@@ -169,8 +123,8 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
       });
 
       setReels((prev) => [newReel, ...prev]);
-      setActiveReelId(newReel.id);
-      triggerToast('New Orthodox Reel uploaded via Bunny Stream!');
+      setActiveIndex(0);
+      triggerToast('New Orthodox Reel uploaded!');
     } catch (err) {
       console.error('Reel upload error:', err);
       triggerToast('Upload failed. Please try again.');
@@ -180,14 +134,84 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     }
   };
 
-  const scrollToReelIndex = (index: number) => {
-    if (index >= 0 && index < reels.length) {
-      const targetReel = reels[index];
-      const el = document.getElementById(`reel-item-${targetReel.id}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setActiveReelId(targetReel.id);
+  const navigateToReel = useCallback(
+    (newIndex: number) => {
+      if (newIndex >= 0 && newIndex < reels.length) {
+        // Silence and cleanup all existing media before switching
+        const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+        allMedia.forEach((m) => {
+          try {
+            m.pause();
+            m.currentTime = 0;
+          } catch (e) {}
+        });
+        setOpenCommentReelId(null);
+        setActiveIndex(newIndex);
       }
+    },
+    [reels.length]
+  );
+
+  const handleNextReel = useCallback(() => {
+    if (activeIndex < reels.length - 1) {
+      navigateToReel(activeIndex + 1);
+    }
+  }, [activeIndex, reels.length, navigateToReel]);
+
+  const handlePrevReel = useCallback(() => {
+    if (activeIndex > 0) {
+      navigateToReel(activeIndex - 1);
+    }
+  }, [activeIndex, navigateToReel]);
+
+  // Keyboard navigation: Up/Down arrow keys
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (openCommentReelId) return;
+      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+        e.preventDefault();
+        handleNextReel();
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault();
+        handlePrevReel();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleNextReel, handlePrevReel, openCommentReelId]);
+
+  // Touch gestures (swipe up for next, swipe down for prev)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (openCommentReelId) return;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diff = touchStartY.current - touchEndY;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) {
+        handleNextReel();
+      } else {
+        handlePrevReel();
+      }
+    }
+  };
+
+  // Wheel gestures (with debounce lock to prevent skipping multiple reels)
+  const handleWheel = (e: React.WheelEvent) => {
+    if (openCommentReelId) return;
+    if (isNavigatingRef.current) return;
+    if (Math.abs(e.deltaY) > 40) {
+      isNavigatingRef.current = true;
+      if (e.deltaY > 0) {
+        handleNextReel();
+      } else {
+        handlePrevReel();
+      }
+      setTimeout(() => {
+        isNavigatingRef.current = false;
+      }, 500);
     }
   };
 
@@ -228,7 +252,11 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
   const handleDeleteReel = async (reelId: string) => {
     if (window.confirm('Are you sure you want to delete this reel?')) {
       await deletePost(reelId);
-      setReels((prev) => prev.filter((r) => r.id !== reelId));
+      const nextReels = reels.filter((r) => r.id !== reelId);
+      setReels(nextReels);
+      if (activeIndex >= nextReels.length) {
+        setActiveIndex(Math.max(0, nextReels.length - 1));
+      }
       triggerToast('Reel deleted successfully.');
     }
   };
@@ -264,37 +292,12 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     });
   };
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (openCommentReelId) return;
-
-      const activeIndex = reels.findIndex((r) => r.id === activeReelId);
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (activeIndex < reels.length - 1) {
-          scrollToReelIndex(activeIndex + 1);
-        }
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (activeIndex > 0) {
-          scrollToReelIndex(activeIndex - 1);
-        }
-      } else if (e.key === 'm' || e.key === 'M') {
-        e.preventDefault();
-        handleToggleGlobalMute();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeReelId, reels, openCommentReelId, unmutedReelId]);
-
   if (loading) {
     return (
       <div className="min-h-[550px] flex flex-col items-center justify-center p-8 bg-[#1c1611] rounded-3xl border-2 border-[#c5a059]">
         <Sparkles className="w-10 h-10 text-[#c5a059] animate-spin mb-3" />
         <span className="text-xs text-[#f5ebd9] font-serif uppercase tracking-wider font-bold">
-          Loading Orthodox Reels Feed...
+          Loading Orthodox Reels...
         </span>
       </div>
     );
@@ -308,10 +311,23 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     );
   }
 
-  const activeIndex = Math.max(0, reels.findIndex((r) => r.id === activeReelId));
+  // Pure Single-Active-Item Engine: Render ONLY the single active reel
+  const currentReel = reels[activeIndex];
+  if (!currentReel) return null;
+
+  const isLiked = !!likedMap[currentReel.id];
+  const isSaved = !!savedMap[currentReel.id];
+  const isFollowed = !!followedAuthors[currentReel.authorName];
+  const activeComments = reelCommentsMap[currentReel.id] || [];
+  const isCommentOpen = openCommentReelId === currentReel.id;
 
   return (
-    <div className="max-w-md mx-auto space-y-3 relative">
+    <div
+      className="max-w-md mx-auto space-y-3 relative"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onWheel={handleWheel}
+    >
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#1c1611]/95 border-2 border-[#c5a059] text-[#f5ebd9] text-xs font-serif uppercase tracking-wider font-bold shadow-2xl animate-fade-in flex items-center gap-2">
@@ -342,77 +358,55 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
               className="hidden"
             />
           </label>
-          <button
-            onClick={handleToggleGlobalMute}
-            className="p-1.5 rounded-xl bg-[#282019] border border-[#c5a059] text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white transition-colors cursor-pointer"
-            title={unmutedReelId ? 'Mute audio' : 'Unmute audio'}
-          >
-            {unmutedReelId ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4" />}
-          </button>
-          <span className="text-[10px] font-serif font-bold text-[#c5a059] bg-[#282019] px-2.5 py-1 rounded-full border border-[#c5a059]">
+          <span className="text-[11px] font-serif font-bold text-[#c5a059] bg-[#282019] px-3 py-1 rounded-full border border-[#c5a059]">
             {activeIndex + 1} / {reels.length}
           </span>
         </div>
       </div>
 
-      {/* Continuous Vertical Snap Scrollable Reels Feed Container */}
-      <div
-        ref={scrollContainerRef}
-        className="h-screen w-full overflow-y-scroll snap-y snap-mandatory scroll-smooth no-scrollbar pr-1 pb-24 space-y-4"
-      >
-        {reels.map((reel) => {
-          const isUnmuted = unmutedReelId === reel.id;
-          const isLiked = !!likedMap[reel.id];
-          const isSaved = !!savedMap[reel.id];
-          const isFollowed = !!followedAuthors[reel.authorName];
-          const activeComments = reelCommentsMap[reel.id] || [];
-          const isCommentOpen = openCommentReelId === reel.id;
-
-          return (
-            <ReelCard
-              key={reel.id}
-              reel={reel}
-              isUnmuted={isUnmuted}
-              onToggleMute={handleToggleMuteReel}
-              onSelectUser={onSelectUser}
-              onOpenMessengerWithUser={onOpenMessengerWithUser}
-              liked={isLiked}
-              likeCount={likeCounts[reel.id] || 0}
-              onToggleLike={handleToggleLike}
-              saved={isSaved}
-              onToggleSave={handleToggleSave}
-              isFollowed={isFollowed}
-              onToggleFollow={handleToggleFollow}
-              onDeleteReel={handleDeleteReel}
-              comments={activeComments}
-              isCommentOpen={isCommentOpen}
-              onToggleCommentOpen={(id) => setOpenCommentReelId(openCommentReelId === id ? null : id)}
-              onAddComment={handleAddComment}
-              onShare={handleShare}
-              onVisibleChange={handleVisibleChange}
-            />
-          );
-        })}
+      {/* Single Active Reel Container: ONLY this single reel exists in DOM */}
+      <div className="w-full relative">
+        <ReelCard
+          key={currentReel.id}
+          reel={currentReel}
+          onSelectUser={onSelectUser}
+          onOpenMessengerWithUser={onOpenMessengerWithUser}
+          liked={isLiked}
+          likeCount={likeCounts[currentReel.id] || 0}
+          onToggleLike={handleToggleLike}
+          saved={isSaved}
+          onToggleSave={handleToggleSave}
+          isFollowed={isFollowed}
+          onToggleFollow={handleToggleFollow}
+          onDeleteReel={handleDeleteReel}
+          comments={activeComments}
+          isCommentOpen={isCommentOpen}
+          onToggleCommentOpen={(id) => setOpenCommentReelId(openCommentReelId === id ? null : id)}
+          onAddComment={handleAddComment}
+          onShare={handleShare}
+        />
       </div>
 
-      {/* Reel Up/Down Floating Nav Buttons */}
+      {/* Reel Up/Down Navigation Controls */}
       <div className="flex items-center justify-between p-3 rounded-2xl bg-[#1c1611] border-2 border-[#c5a059] shadow-lg">
         <button
-          onClick={() => scrollToReelIndex(activeIndex - 1)}
+          type="button"
+          onClick={handlePrevReel}
           disabled={activeIndex <= 0}
-          className="px-4 py-2 rounded-xl bg-[#282019] hover:bg-[#c5a059] text-[#f5ebd9] hover:text-white text-xs font-serif uppercase tracking-wider font-bold flex items-center gap-1.5 disabled:opacity-30 cursor-pointer transition-all border border-[#c5a059]"
+          className="px-4 py-2 rounded-xl bg-[#282019] hover:bg-[#c5a059] text-[#f5ebd9] hover:text-[#1c1611] text-xs font-serif uppercase tracking-wider font-bold flex items-center gap-1.5 disabled:opacity-30 cursor-pointer transition-all border border-[#c5a059]"
         >
           <ChevronUp className="w-4 h-4" /> Previous Reel
         </button>
 
         <span className="text-[10px] text-[#c5a059] font-serif uppercase tracking-wider hidden sm:inline">
-          Scroll or use ↑/↓ keys
+          Swipe, wheel, or use ↑/↓ keys
         </span>
 
         <button
-          onClick={() => scrollToReelIndex(activeIndex + 1)}
+          type="button"
+          onClick={handleNextReel}
           disabled={activeIndex >= reels.length - 1}
-          className="px-4 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-white text-xs font-serif uppercase tracking-wider font-bold flex items-center gap-1.5 disabled:opacity-30 cursor-pointer transition-all shadow-md"
+          className="px-4 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] text-xs font-serif uppercase tracking-wider font-bold flex items-center gap-1.5 disabled:opacity-30 cursor-pointer transition-all shadow-md"
         >
           Next Reel <ChevronDown className="w-4 h-4" />
         </button>

@@ -26,7 +26,6 @@ import { addNotification } from '../utils/notifications';
 import { TimeAgo } from '../components/TimeAgo';
 import {
   loadPosts,
-  savePost,
   deletePost,
   BUNNY_STREAM_BASE,
   SEED_VIDEOS,
@@ -39,7 +38,6 @@ import { uploadMediaFile, uploadVideoToBunnyStream } from '../utils/storage';
 import { isFollowing, toggleFollow } from '../utils/follows';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { BunnyPlayer } from '../components/BunnyPlayer';
 import { ReshareModal } from '../components/ReshareModal';
 import { ReportContentModal } from '../components/ReportContentModal';
 import { StoriesBar } from '../components/StoriesBar';
@@ -73,7 +71,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
 
   // Comments drawer / modal state
   const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
-  const [commentInput, setCommentInput] = useState('');
   const [commentsMap, setCommentsMap] = useState<Record<string, string[]>>(() => loadLocalPostCommentsMap());
 
   // Reshare modal state
@@ -130,22 +127,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
     };
   }, [feedTab]);
 
-  useEffect(() => {
-    return () => {
-      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-      allMedia.forEach((media) => {
-        try {
-          if (!media.paused) {
-            media.pause();
-          }
-          media.currentTime = 0;
-        } catch (err) {
-          console.warn('Error pausing media on Feed unmount:', err);
-        }
-      });
-    };
-  }, []);
-
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
@@ -154,7 +135,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
   const fetchPosts = async () => {
     setLoading(true);
     try {
-      console.log('[FeedView] Fetching posts on mount (SELECT * FROM posts ORDER BY created_at DESC)...');
+      console.log('[FeedView] Fetching posts on mount...');
       if (!isSupabaseConfigured) {
         const { posts: localLoaded } = await loadPosts(undefined, { limit: 25 });
         setSupabaseError(null);
@@ -162,28 +143,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         return;
       }
 
-      // Run notifications, online user status, and feed queries in parallel with error boundaries
-      const [feedResult] = await Promise.all([
-        loadPosts(undefined, { limit: 25 }),
-        (async () => {
-          try {
-            return await supabase.from('notifications').select('*').limit(5);
-          } catch (err) {
-            console.warn('Notifications query notice:', err);
-            return { data: null, error: err };
-          }
-        })(),
-        (async () => {
-          try {
-            return await supabase.from('profiles').select('id, full_name, parish, avatar_url').limit(10);
-          } catch (err) {
-            console.warn('Profiles query notice:', err);
-            return { data: null, error: err };
-          }
-        })(),
-      ]);
-
-      const { posts: loaded, error } = feedResult;
+      const { posts: loaded, error } = await loadPosts(undefined, { limit: 25 });
 
       if (error) {
         console.error('[FeedView] Feed fetch error:', error);
@@ -195,7 +155,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
       const activePosts = loaded || [];
       const likesMap = loadLocalLikesMap();
       
-      // Apply local saved likes
       const postsWithLikes = activePosts.map((p) => {
         if (likesMap[p.id] !== undefined) {
           return {
@@ -208,7 +167,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
 
       setPosts(postsWithLikes);
 
-      // Initialize follow status map for authors
       const fMap: Record<string, boolean> = {};
       postsWithLikes.forEach((p) => {
         fMap[p.authorName] = isFollowing(p.authorName);
@@ -220,7 +178,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
       const { posts: fallbackPosts } = await loadPosts(undefined, { limit: 25 });
       setPosts(fallbackPosts || []);
     } finally {
-      // Ensure loading state is ALWAYS cleared in finally block
       setLoading(false);
     }
   };
@@ -233,9 +190,13 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         return;
       }
       triggerToast('Uploading photo...');
-      const url = await uploadMediaFile(file, 'post-photos');
-      setImageUrl(url);
-      triggerToast('Photo attached!');
+      try {
+        const url = await uploadMediaFile(file, 'post-photos');
+        setImageUrl(url);
+        triggerToast('Photo attached!');
+      } catch (err: any) {
+        triggerToast('Failed to upload photo: ' + (err.message || 'Error'));
+      }
     }
     e.target.value = '';
   };
@@ -247,10 +208,14 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         triggerToast('Please select a valid video file.');
         return;
       }
-      triggerToast('Uploading video directly to Bunny Stream CDN...');
-      const url = await uploadVideoToBunnyStream(file, newPostText || file.name);
-      setVideoUrl(url);
-      triggerToast('Bunny Stream Video attached!');
+      triggerToast('Uploading video to Bunny Stream CDN...');
+      try {
+        const url = await uploadVideoToBunnyStream(file, newPostText || file.name);
+        setVideoUrl(url);
+        triggerToast('Video attached!');
+      } catch (err: any) {
+        triggerToast('Failed to upload video: ' + (err.message || 'Error'));
+      }
     }
     e.target.value = '';
   };
@@ -268,6 +233,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
     );
   };
 
+  // Fixed Post Creation Handler
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPostText.trim() && !imageUrl && !videoUrl) return;
@@ -276,18 +242,49 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
     console.log('[FeedView] Initiating post creation and database insert...');
 
     try {
-      const created = await savePost({
-        text: newPostText.trim(),
+      const currentUserId = profile?.id;
+      if (!currentUserId) {
+        throw new Error('You must be logged in to share a post.');
+      }
+
+      const media = imageUrl || videoUrl || null;
+
+      // Insert directly matching Supabase schema: user_id, content, media_url
+      const { data, error } = await supabase
+        .from('posts')
+        .insert([
+          {
+            user_id: currentUserId,
+            content: newPostText.trim(),
+            media_url: media,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      console.log('[FeedView] Post created successfully with ID:', data.id);
+
+      const createdPost: Post = {
+        id: data.id,
+        text: data.content,
         authorName: profile?.full_name || 'Orthodox Parishioner',
         authorParish: profile?.parish || 'Orthodox Church',
-        authorAvatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-        authorId: profile?.id,
+        authorAvatar:
+          profile?.avatar_url ||
+          'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        authorId: currentUserId,
         image: imageUrl || undefined,
         video: videoUrl || undefined,
-      });
+        createdAt: data.created_at || new Date().toISOString(),
+        likesCount: 0,
+        commentsCount: 0,
+      };
 
-      console.log('[FeedView] Post created successfully with ID:', created.id);
-      setPosts((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
+      setPosts((prev) => [createdPost, ...prev]);
       setNewPostText('');
       setImageUrl('');
       setVideoUrl('');
@@ -393,7 +390,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
 
   return (
     <div className="space-y-6">
-      {/* Toast notification message */}
       {toastMessage && (
         <div className="fixed top-20 right-6 z-50 px-4 py-2.5 rounded-2xl bg-[#3d2b18] text-[#f5ebd9] border-2 border-[#c5a059] shadow-2xl font-serif text-xs flex items-center gap-2 animate-bounce">
           <Check className="w-4 h-4 text-[#c5a059]" />
@@ -401,7 +397,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         </div>
       )}
 
-      {/* Supabase Error Banner */}
       {supabaseError && (
         <div className="p-4 rounded-2xl bg-red-100 dark:bg-red-950/80 border-2 border-red-500/50 text-red-900 dark:text-red-200 text-xs flex items-center justify-between shadow-md">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -421,10 +416,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         </div>
       )}
 
-      {/* Stories Bar Component */}
       <StoriesBar onSelectUser={onSelectUser} />
 
-      {/* Post Creation Box (Facebook Style Direct Upload) */}
+      {/* Post Creation Form */}
       <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg">
         <form onSubmit={handleCreatePost} className="space-y-3">
           <div className="flex items-center gap-3">
@@ -458,7 +452,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
             </div>
           </div>
 
-          {/* Hidden File Picker Inputs */}
           <input
             ref={fileInputRef}
             type="file"
@@ -474,7 +467,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
             className="hidden"
           />
 
-          {/* Facebook-style Local Photo Preview */}
           {imageUrl && (
             <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
               <div className="relative max-h-80 overflow-hidden rounded-xl bg-black/20 flex items-center justify-center">
@@ -488,7 +480,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="px-2.5 py-1.5 rounded-full bg-[#3d2b18]/90 text-[#c5a059] hover:bg-[#3d2b18] hover:text-white transition-all shadow-md text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer border border-[#c5a059]/50"
-                    title="Replace Photo"
                   >
                     <Upload className="w-3.5 h-3.5" />
                     <span>Replace</span>
@@ -497,36 +488,21 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                     type="button"
                     onClick={() => setImageUrl('')}
                     className="p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-[#c5a059]/50"
-                    title="Remove Photo"
                   >
                     <X className="w-4 h-4" />
                   </button>
-                </div>
-                <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-[#3d2b18]/80 text-[#c5a059] text-[10px] font-serif font-bold uppercase tracking-wider backdrop-blur-sm border border-[#c5a059]/30">
-                  Photo Attached
                 </div>
               </div>
             </div>
           )}
 
-          {/* Facebook-style Local Video Preview */}
           {videoUrl && (
             <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
               <div className="relative max-h-80 overflow-hidden rounded-xl bg-black flex items-center justify-center">
                 <video
-                  data-media-id="new-post-video-preview"
                   src={videoUrl}
                   controls
                   playsInline
-                  autoPlay={false}
-                  preload="none"
-                  muted={true}
-                  onPointerDown={(e) => {
-                    e.currentTarget.dataset.userInitiated = 'true';
-                  }}
-                  onError={(e) => {
-                    console.warn('[FeedView] Preview video error:', e);
-                  }}
                   className="w-full h-auto max-h-80 rounded-xl object-contain bg-black"
                 />
                 <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
@@ -534,7 +510,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                     type="button"
                     onClick={() => videoFileInputRef.current?.click()}
                     className="px-2.5 py-1.5 rounded-full bg-[#3d2b18]/90 text-[#c5a059] hover:bg-[#3d2b18] hover:text-white transition-all shadow-md text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer border border-[#c5a059]/50"
-                    title="Replace Video"
                   >
                     <Upload className="w-3.5 h-3.5" />
                     <span>Replace</span>
@@ -543,14 +518,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                     type="button"
                     onClick={() => setVideoUrl('')}
                     className="p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-[#c5a059]/50"
-                    title="Remove Video"
                   >
                     <X className="w-4 h-4" />
                   </button>
-                </div>
-                <div className="absolute bottom-2 left-2 z-10 px-2.5 py-1 rounded-lg bg-[#3d2b18]/80 text-[#c5a059] text-[10px] font-serif font-bold uppercase tracking-wider backdrop-blur-sm border border-[#c5a059]/30 flex items-center gap-1">
-                  <Video className="w-3.5 h-3.5 text-[#c5a059]" />
-                  <span>Video Attached</span>
                 </div>
               </div>
             </div>
@@ -562,7 +532,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#eedcb5] dark:hover:bg-[#282019]"
-                title="Select photo from PC or gallery"
               >
                 <Image className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                 <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
@@ -574,7 +543,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                 type="button"
                 onClick={() => videoFileInputRef.current?.click()}
                 className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#eedcb5] dark:hover:bg-[#282019]"
-                title="Select video from PC or gallery"
               >
                 <Video className="w-4 h-4 text-[#a8833c]" />
                 <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
@@ -595,7 +563,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         </form>
       </div>
 
-      {/* Feed Mode Switcher (ALL POSTS vs FOLLOWING) */}
+      {/* Feed Tabs */}
       <div className="flex items-center justify-between bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] p-1.5 rounded-2xl shadow-md font-serif text-xs">
         <button
           onClick={() => setFeedTab('all')}
@@ -634,15 +602,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                 ? "You aren't following anyone with active posts yet."
                 : 'No posts found in the parish feed.'}
             </p>
-            {feedTab === 'following' ? (
-              <p className="text-[11px] text-[#a8833c]">
-                Switch to "All Parish Feed" to discover and follow other parish members!
-              </p>
-            ) : (
-              <p className="text-[11px] text-[#a8833c]">
-                Be the first to share a reflection, announcement, or prayer request above!
-              </p>
-            )}
           </div>
         ) : (
           filteredPosts.map((post) => (
@@ -682,7 +641,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         )}
       </div>
 
-      {/* Reshare Modal */}
       <ReshareModal
         post={reshareTargetPost}
         isOpen={Boolean(reshareTargetPost)}
@@ -690,7 +648,6 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         onReshareCreated={(newPost) => setPosts([newPost, ...posts])}
       />
 
-      {/* Content Flagging & Reporting Modal */}
       <ReportContentModal
         isOpen={reportModalData.isOpen}
         onClose={() => setReportModalData((prev) => ({ ...prev, isOpen: false }))}
@@ -702,4 +659,3 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
     </div>
   );
 };
-

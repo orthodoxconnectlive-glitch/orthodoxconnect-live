@@ -2,17 +2,11 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Post } from '../types';
 import { addNotification } from './notifications';
 
-// Bunny Stream configuration
-export const BUNNY_LIBRARY_ID = '713265';
-export const BUNNY_API_KEY = '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
+// Bunny Stream Credentials
+export const BUNNY_LIBRARY_ID = import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
+export const BUNNY_API_KEY = import.meta.env.VITE_BUNNY_API_KEY || '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
 export const BUNNY_CDN_HOSTNAME = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 export const BUNNY_STREAM_BASE = `https://${BUNNY_CDN_HOSTNAME}`;
-
-export const SEED_VIDEOS = [
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-];
 
 /**
  * Helper to convert Supabase row object to frontend Post model
@@ -24,7 +18,7 @@ export function mapRowToPost(row: any, profileMap?: Record<string, any>): Post {
   const authorAvatar = profile?.avatar_url || profile?.avatarUrl || row.author_avatar || row.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
 
   const media = row.media_url || row.image_url || row.video_url || row.image || row.video;
-  const isVideo = media?.includes('bunnynet') || media?.includes('mediadelivery.net') || media?.endsWith('.mp4') || media?.includes('videos-bucket');
+  const isVideo = media?.includes('bunnynet') || media?.includes('mediadelivery.net') || media?.includes('b-cdn.net') || media?.endsWith('.mp4');
 
   return {
     id: String(row.id),
@@ -134,7 +128,7 @@ export function saveLocalLikesMap(map: Record<string, boolean>) {
 }
 
 /**
- * Fast Load Posts Function with safe batch profile resolution
+ * Fast Load Posts Function using direct table query and batch profiles
  */
 export async function loadPosts(
   groupId?: string,
@@ -229,22 +223,6 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
   return localPosts;
 }
 
-export const DEFAULT_ORTHODOX_VIDEOS: Post[] = [
-  {
-    id: 'orthodox-reel-1',
-    text: 'The Divine Liturgy & the Light of Christ at St. Anthony Monastery. Blessed Sunday everyone! #Orthodox #Christianity #Liturgy',
-    authorName: 'Fr. Athanasios',
-    authorParish: "St. Anthony's Monastery",
-    authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-    video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    image: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800',
-    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    likesCount: 1420,
-    commentsCount: 88,
-    resharesCount: 312,
-  },
-];
-
 /**
  * Fetches videos directly from Bunny Stream REST API Library
  */
@@ -285,10 +263,9 @@ export async function loadVideos(): Promise<Post[]> {
     console.warn('Bunny Stream API fetch error:', err);
   }
 
-  // Fallback to local saved posts or default videos
   const localPosts = getLocalSavedPosts();
   const localReels = localPosts.filter((p) => !!p.video);
-  return localReels.length > 0 ? localReels : DEFAULT_ORTHODOX_VIDEOS;
+  return localReels;
 }
 
 export const loadReels = loadVideos;

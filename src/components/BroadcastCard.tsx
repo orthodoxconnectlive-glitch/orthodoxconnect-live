@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Radio, Video, Volume2, VolumeX, Maximize, AlertCircle, RefreshCw } from 'lucide-react';
+import { Play, Radio, Video, Volume2, VolumeX, Maximize, AlertCircle, RefreshCw } from 'lucide-react';
 import { useMedia } from '../context/MediaContext';
 import { BunnyPlayer } from './BunnyPlayer';
 
@@ -44,12 +44,34 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     videoUrl.includes('b-cdn.net') ||
     videoUrl.includes('bunnyinfra.net');
 
-  // Reset error when URL changes
+  // Reset error & playback state when URL changes
   useEffect(() => {
     setHasError(false);
     setIsPlaying(false);
     setHasStarted(false);
+    setIsMuted(true);
   }, [videoUrl]);
+
+  // Clean up stream connection and mute/pause all audio/video elements on unmount
+  useEffect(() => {
+    return () => {
+      // Stop HLS/WebRTC/Bunny Stream connections
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.src = '';
+      }
+      // Mute and pause any audio/video elements inside the broadcast view
+      const media = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      media.forEach((m) => {
+        try {
+          m.pause();
+          m.src = '';
+        } catch (e) {
+          // ignore cleanup errors
+        }
+      });
+    };
+  }, []);
 
   // Synchronize state with video element events
   useEffect(() => {
@@ -91,7 +113,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     if (isPlaying) {
       video.pause();
     } else {
-      // Mark element as explicitly user-initiated for the global prototype guard
+      // Mark element as explicitly user-initiated for global prototype guard
       video.dataset.userInitiated = 'true';
       // Pause all other media in the feed and app
       pauseAllMedia(video);
@@ -107,7 +129,6 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     console.warn('[BroadcastCard] Video loading error:', e);
     setHasError(true);
     setIsPlaying(false);
-    // Crucial: DO NOT call .play() inside onError handler
   };
 
   const handleToggleMute = (e: React.MouseEvent) => {
@@ -116,6 +137,24 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
     videoRef.current.muted = nextMuted;
+    if (!nextMuted) {
+      videoRef.current.dataset.userInitiated = 'true';
+    }
+  };
+
+  const handleUnmuteLiveStream = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!videoRef.current) return;
+    setIsMuted(false);
+    videoRef.current.muted = false;
+    videoRef.current.dataset.userInitiated = 'true';
+    if (!isPlaying) {
+      pauseAllMedia(videoRef.current);
+      setActiveMediaId(elementMediaId);
+      videoRef.current.play().catch((err) => {
+        console.warn('[BroadcastCard] Play on unmute prevented:', err);
+      });
+    }
   };
 
   const handleToggleFullscreen = (e: React.MouseEvent) => {
@@ -237,6 +276,21 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               </div>
             )}
           </div>
+
+          {/* Unmute Live Stream Button Overlay: Displays when live stream is muted and playing/started */}
+          {isLive && isMuted && hasStarted && (
+            <div className="absolute bottom-4 left-4 z-30">
+              <button
+                type="button"
+                onClick={handleUnmuteLiveStream}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#c5a059] to-[#8f6e30] hover:from-[#e6d3ab] hover:to-[#c5a059] text-[#1c130c] font-serif font-bold text-xs flex items-center gap-2 shadow-2xl transition-all transform hover:scale-105 active:scale-95 cursor-pointer border border-[#f5ebd9]"
+                title="Click to enable live stream audio"
+              >
+                <VolumeX className="w-4 h-4 text-red-900" />
+                <span>Unmute Live Stream</span>
+              </button>
+            </div>
+          )}
 
           {/* Explicit Large Center Play Button Overlay when Paused / Not Started */}
           {!isPlaying && (

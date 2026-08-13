@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Radio, Eye, PlusCircle, Heart, Share2, Flame, CheckCircle, Square } from 'lucide-react';
 import { BunnyPlayer } from '../components/BunnyPlayer';
 import { ParishLiveChat } from '../components/ParishLiveChat';
@@ -72,6 +72,39 @@ export const LiveBroadcastView: React.FC = () => {
   // Active Broadcast State
   const [activeWebcamStream, setActiveWebcamStream] = useState<MediaStream | null>(null);
   const [isUserBroadcasting, setIsUserBroadcasting] = useState<boolean>(false);
+  const playerRef = useRef<HTMLVideoElement | null>(null);
+
+  // Unmount cleanup: Stop HLS/WebRTC/Bunny Stream connections and silence all media
+  useEffect(() => {
+    return () => {
+      // Stop HLS/WebRTC/Bunny Stream connections
+      if (playerRef.current) {
+        try {
+          playerRef.current.pause();
+          playerRef.current.src = '';
+        } catch (e) {
+          // ignore
+        }
+      }
+      if (activeWebcamStream) {
+        try {
+          activeWebcamStream.getTracks().forEach((track) => track.stop());
+        } catch (e) {
+          // ignore
+        }
+      }
+      // Mute and pause any audio elements inside the broadcast view
+      const media = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      media.forEach((m) => {
+        try {
+          m.pause();
+          m.src = '';
+        } catch (e) {
+          // ignore
+        }
+      });
+    };
+  }, [activeWebcamStream]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);

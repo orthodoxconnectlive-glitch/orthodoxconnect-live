@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Eye, Radio, Sparkles, Square, Camera, AlertCircle, RefreshCw, Film } from 'lucide-react';
+import { Eye, Radio, Sparkles, Square, Camera, AlertCircle, RefreshCw, Volume2, VolumeX } from 'lucide-react';
 import { addNotification } from '../utils/notifications';
 
 interface BunnyPlayerProps {
@@ -33,8 +33,10 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
   const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [hasError, setHasError] = useState<boolean>(false);
+  const [isAudioMuted, setIsAudioMuted] = useState<boolean>(true);
 
   const webcamRef = useRef<HTMLVideoElement | null>(null);
+  const directVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // Bunny Stream Library & CDN Host
   const bunnyLibraryId = '713265';
@@ -42,10 +44,44 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
 
   const activeStream = mediaStream || localCameraStream;
 
-  // Reset error state when videoUrl changes
+  // Reset error & mute state when videoUrl changes
   useEffect(() => {
     setHasError(false);
+    setIsAudioMuted(true);
   }, [videoUrl]);
+
+  // Clean up streams & media connections on unmount
+  useEffect(() => {
+    return () => {
+      if (webcamRef.current) {
+        try {
+          webcamRef.current.pause();
+          webcamRef.current.srcObject = null;
+        } catch (e) {
+          // ignore
+        }
+      }
+      if (directVideoRef.current) {
+        try {
+          directVideoRef.current.pause();
+          directVideoRef.current.src = '';
+        } catch (e) {
+          // ignore
+        }
+      }
+      if (localCameraStream) {
+        localCameraStream.getTracks().forEach((track) => track.stop());
+      }
+      const media = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      media.forEach((m) => {
+        try {
+          m.pause();
+        } catch (e) {
+          // ignore
+        }
+      });
+    };
+  }, [localCameraStream]);
 
   // Attach MediaStream to video element whenever activeStream or ref changes
   useEffect(() => {
@@ -53,15 +89,6 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
       webcamRef.current.srcObject = activeStream;
     }
   }, [activeStream]);
-
-  // Clean up local camera stream if enabled inside BunnyPlayer
-  useEffect(() => {
-    return () => {
-      if (localCameraStream) {
-        localCameraStream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, [localCameraStream]);
 
   const handleStartLocalWebcam = async () => {
     setCameraError(null);
@@ -87,6 +114,19 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
     }
   };
 
+  const handleUnmuteAudio = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsAudioMuted(false);
+    if (directVideoRef.current) {
+      directVideoRef.current.muted = false;
+      directVideoRef.current.dataset.userInitiated = 'true';
+    }
+    if (webcamRef.current) {
+      webcamRef.current.muted = false;
+      webcamRef.current.dataset.userInitiated = 'true';
+    }
+  };
+
   // Graceful error handler: STOP playback and set error state without calling .play()
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
     console.warn('[BunnyPlayer] Video stream loading error:', e);
@@ -100,7 +140,6 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
 
   if (videoUrl) {
     let sanitized = videoUrl.trim();
-    // Replace any legacy or broken bunnyinfra.net URLs with canonical Bunny CDN Host or embed endpoint
     if (sanitized.includes('bunnyinfra.net')) {
       sanitized = sanitized.replace(/([a-zA-Z0-9_-]+)\.bunnyinfra\.net/g, bunnyCdnHost);
     }
@@ -115,7 +154,6 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
     } else if (sanitized.includes('iframe.mediadelivery.net')) {
       embedSrc = sanitized;
     } else if (sanitized.includes(bunnyCdnHost) || sanitized.includes('b-cdn.net')) {
-      // If it contains a video file extension, play directly; otherwise treat as embed or GUID
       if (/\.(mp4|m3u8|webm|mov)(\?.*)?$/i.test(sanitized)) {
         directSrc = sanitized;
       } else {
@@ -196,7 +234,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             data-user-initiated="true"
             autoPlay
             playsInline
-            muted
+            muted={isAudioMuted}
             className="w-full h-full object-cover transform scale-x-[-1]"
           />
           <div className="absolute bottom-4 left-4 z-10 px-3 py-1 rounded-lg bg-stone-950/80 backdrop-blur border border-amber-500/40 text-amber-200 text-xs font-mono">
@@ -210,7 +248,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             src={embedSrc}
             loading="lazy"
             className="w-full h-full border-0"
-            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+            allow="accelerometer; gyroscope; encrypted-media; picture-in-picture;"
             allowFullScreen
             title={title || 'Bunny Stream Live Video'}
           />
@@ -219,6 +257,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
         /* Render Direct Video Source with strict autoplay blocker and error trap */
         <div className="relative w-full aspect-video bg-black flex items-center justify-center">
           <video
+            ref={directVideoRef}
             data-media-id={videoUrl || 'bunny-direct-video'}
             src={directSrc}
             poster={posterUrl}
@@ -226,10 +265,25 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             playsInline
             autoPlay={false}
             preload="none"
-            muted={muted}
+            muted={isAudioMuted}
             onError={handleVideoError}
             className="w-full h-full max-h-[600px] object-contain"
           />
+
+          {/* Unmute Live Stream Overlay */}
+          {isLive && isAudioMuted && (
+            <div className="absolute bottom-4 left-4 z-30">
+              <button
+                type="button"
+                onClick={handleUnmuteAudio}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#c5a059] to-[#8f6e30] hover:from-[#e6d3ab] hover:to-[#c5a059] text-[#1c130c] font-serif font-bold text-xs flex items-center gap-2 shadow-2xl transition-all transform hover:scale-105 active:scale-95 cursor-pointer border border-[#f5ebd9]"
+                title="Click to enable audio"
+              >
+                <VolumeX className="w-4 h-4 text-red-900" />
+                <span>Unmute Live Stream</span>
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         /* Fallback: Device Camera Feed / Interactive Live Feed Launcher */

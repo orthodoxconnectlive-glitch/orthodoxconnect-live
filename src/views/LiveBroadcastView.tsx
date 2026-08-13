@@ -74,13 +74,14 @@ export const LiveBroadcastView: React.FC = () => {
   const [isUserBroadcasting, setIsUserBroadcasting] = useState<boolean>(false);
   const playerRef = useRef<HTMLVideoElement | null>(null);
 
-  // Unmount cleanup: Stop HLS/WebRTC/Bunny Stream connections and silence all media
+  // Unmount cleanup: Hard Disconnect Live Stream on Tab Switch & silence all media
   useEffect(() => {
     return () => {
       // Stop HLS/WebRTC/Bunny Stream connections
       if (playerRef.current) {
         try {
           playerRef.current.pause();
+          playerRef.current.srcObject = null;
           playerRef.current.src = '';
         } catch (e) {
           // ignore
@@ -93,12 +94,25 @@ export const LiveBroadcastView: React.FC = () => {
           // ignore
         }
       }
-      // Mute and pause any audio elements inside the broadcast view
+      // Hard disconnect & clear all audio and video elements
       const media = document.querySelectorAll<HTMLMediaElement>('video, audio');
       media.forEach((m) => {
         try {
           m.pause();
+          m.muted = true;
           m.src = '';
+          m.srcObject = null;
+        } catch (e) {
+          // ignore
+        }
+      });
+      // Clear iframe streams
+      const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe');
+      iframes.forEach((ifr) => {
+        try {
+          if (ifr.src.includes('mediadelivery.net') || ifr.src.includes('bunny')) {
+            ifr.src = 'about:blank';
+          }
         } catch (e) {
           // ignore
         }
@@ -182,15 +196,28 @@ export const LiveBroadcastView: React.FC = () => {
 
   const handleEndBroadcast = () => {
     if (activeWebcamStream) {
-      activeWebcamStream.getTracks().forEach((track) => track.stop());
+      try {
+        activeWebcamStream.getTracks().forEach((track) => track.stop());
+      } catch (e) {
+        // ignore
+      }
       setActiveWebcamStream(null);
     }
     setIsUserBroadcasting(false);
 
-    // Update active stream live status
-    setStreams((prev) =>
-      prev.map((s) => (s.id === activeStreamId ? { ...s, isLive: false } : s))
-    );
+    // Update active stream live status and persist
+    setStreams((prev) => {
+      const updated = prev.map((s) => (s.id === activeStreamId ? { ...s, isLive: false } : s));
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    // If currently on a custom webcam broadcast stream, reset to an official active parish stream
+    if (activeStream.videoUrl === 'webcam-feed' || activeStream.priestName.includes('You')) {
+      setActiveStreamId(INITIAL_STREAMS[0].id);
+    }
 
     showToast('⏹️ Live Broadcast finished. Camera & microphone stopped.');
   };
@@ -282,7 +309,8 @@ export const LiveBroadcastView: React.FC = () => {
             title={activeStream.title}
             isLive={activeStream.isLive}
             viewerCount={activeStream.viewers}
-            autoplay={true}
+            autoplay={false}
+            muted={true}
             isUserBroadcasting={isUserBroadcasting}
             onEndBroadcast={handleEndBroadcast}
           />

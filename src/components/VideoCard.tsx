@@ -53,6 +53,8 @@ interface VideoCardProps {
   onShare: (video: Post) => void;
 }
 
+const DEFAULT_POSTER = 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800';
+
 export const VideoCard: React.FC<VideoCardProps> = ({
   video,
   isPlaying,
@@ -85,6 +87,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const [newCommentText, setNewCommentText] = useState<string>('');
 
   const elementMediaId = `video-${video.id}`;
+  const bunnyLibraryId = import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
   const bunnyCdnHost = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 
   const isBunnyEmbed =
@@ -94,6 +97,23 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     video.video?.includes(bunnyCdnHost) ||
     video.video?.includes('b-cdn.net') ||
     video.video?.includes('bunnyinfra.net');
+
+  // Compute canonical Bunny embed URL
+  const getBunnyEmbedSrc = () => {
+    if (!video.video) return null;
+    const raw = video.video.trim();
+    if (raw.includes('iframe.mediadelivery.net/embed/')) {
+      const base = raw.split('?')[0];
+      return `${base}?autoplay=${isPlaying}&muted=${isMuted}`;
+    }
+    const guidMatch = raw.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F-]{10,})/);
+    if (guidMatch) {
+      return `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${guidMatch[1]}?autoplay=${isPlaying}&muted=${isMuted}`;
+    }
+    return null;
+  };
+
+  const bunnyEmbedUrl = isBunnyEmbed ? getBunnyEmbedSrc() : null;
 
   // Enforce Mute and Pause in VideoCard listening to isPlaying prop
   useEffect(() => {
@@ -112,6 +132,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         videoRef.current.muted = true;
         setIsMuted(true);
       }
+    } else if (isPlaying) {
+      setIsMuted(false);
+      setHasStarted(true);
+      setActiveMediaId(elementMediaId);
     }
   }, [isPlaying, elementMediaId, setActiveMediaId]);
 
@@ -152,9 +176,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const handleExplicitPlay = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (hasError) return;
-    if (!isPlaying && videoRef.current) {
-      videoRef.current.dataset.userInitiated = 'true';
-      pauseAllMedia(videoRef.current);
+    if (!isPlaying) {
+      if (videoRef.current) {
+        videoRef.current.dataset.userInitiated = 'true';
+        pauseAllMedia(videoRef.current);
+      } else {
+        pauseAllMedia();
+      }
     }
     onTogglePlay(e);
   };
@@ -198,6 +226,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     profile?.role === 'owner' ||
     profile?.role === 'super_admin' ||
     profile?.email === 'orthodoxconnect.live@gmail.com';
+
+  const posterImage = video.image || DEFAULT_POSTER;
 
   return (
     <div
@@ -304,45 +334,58 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       {/* Main Video Player Container */}
       <div className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
         {hasError ? (
-          <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#1c130c]">
-            <div className="w-12 h-12 rounded-full bg-red-950/80 border border-red-500/40 flex items-center justify-center mb-2.5 text-red-400">
-              <AlertCircle className="w-6 h-6" />
+          /* Graceful 403 / Load Error Fallback Card with Thumbnail */
+          <div className="relative w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#1c130c] overflow-hidden">
+            <img
+              src={posterImage}
+              alt="Video Thumbnail"
+              className="absolute inset-0 w-full h-full object-cover opacity-20 filter blur-xs"
+            />
+            <div className="relative z-10 flex flex-col items-center">
+              <div className="w-12 h-12 rounded-full bg-red-950/80 border border-red-500/40 flex items-center justify-center mb-2.5 text-red-400 shadow-inner">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <h4 className="text-[#f5ebd9] font-serif font-bold text-sm mb-1 uppercase tracking-wider">
+                Stream Unavailable
+              </h4>
+              <p className="text-[#eedcb5]/70 text-xs max-w-xs font-serif mb-3">
+                This video stream could not be loaded or is currently offline.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setHasError(false);
+                  if (isPlaying) onTogglePlay();
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-[#3d2b18] hover:bg-[#c5a059] text-[#c5a059] hover:text-[#1c130c] font-serif font-bold text-xs uppercase tracking-wider transition-colors border border-[#c5a059]/40 cursor-pointer shadow-md flex items-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry Connection</span>
+              </button>
             </div>
-            <h4 className="text-[#f5ebd9] font-serif font-bold text-sm mb-1 uppercase tracking-wider">
-              Video Playback Unavailable
-            </h4>
-            <p className="text-[#eedcb5]/70 text-xs max-w-xs font-serif mb-3">
-              The video source could not be loaded or is currently offline.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setHasError(false);
-                if (isPlaying) onTogglePlay();
-              }}
-              className="px-3.5 py-1.5 rounded-xl bg-[#3d2b18] hover:bg-[#c5a059] text-[#c5a059] hover:text-[#1c130c] font-serif font-bold text-xs uppercase tracking-wider transition-colors border border-[#c5a059]/40 cursor-pointer shadow-md flex items-center gap-1.5"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Retry</span>
-            </button>
           </div>
-        ) : isBunnyEmbed ? (
-          <BunnyPlayer
-            videoUrl={video.video}
-            title={video.text}
-            autoplay={false}
-            muted={isMuted}
-            className="w-full h-full object-cover"
-          />
+        ) : isBunnyEmbed && bunnyEmbedUrl && isPlaying ? (
+          /* Active Bunny Stream iframe embed */
+          <div className="relative w-full h-full bg-black">
+            <iframe
+              src={bunnyEmbedUrl}
+              loading="lazy"
+              className="w-full h-full border-0"
+              allow="accelerometer; gyroscope; encrypted-media; picture-in-picture;"
+              allowFullScreen
+              title={video.text || 'Orthodox Video'}
+              onError={() => setHasError(true)}
+            />
+          </div>
         ) : (
           <>
-            {/* Standard HTML5 Video: Initialized with autoPlay={false}, preload="none", and muted */}
+            {/* Standard HTML5 Video or Poster Overlay */}
             <video
               ref={videoRef}
               data-media-id={elementMediaId}
-              src={video.video}
-              poster={video.image}
-              controls={hasStarted}
+              src={isBunnyEmbed ? undefined : video.video}
+              poster={posterImage}
+              controls={hasStarted && !isBunnyEmbed}
               autoPlay={false}
               preload="none"
               muted={isMuted}
@@ -356,8 +399,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               className="w-full h-full object-contain bg-black cursor-pointer"
             />
 
-            {/* Video Controls Bar Overlay (when started) */}
-            {hasStarted && (
+            {/* Video Controls Bar Overlay (when started for direct videos) */}
+            {hasStarted && isPlaying && !isBunnyEmbed && (
               <div className="absolute top-3 right-3 z-20 flex items-center gap-2 pointer-events-auto">
                 <button
                   type="button"
@@ -378,7 +421,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               </div>
             )}
 
-            {/* Prominent Golden Play Button Overlay when Paused */}
+            {/* Prominent Golden Play Button Overlay when Paused / Not Playing */}
             {!isPlaying && (
               <div
                 onClick={handleExplicitPlay}

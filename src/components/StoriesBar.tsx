@@ -36,7 +36,10 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
+        if (error) {
+          console.error('Supabase fetch error:', error);
+          setStories(local);
+        } else if (data && data.length > 0) {
           const mapped: Story[] = data.map((d: any) => ({
             id: d.id,
             authorName: d.author_name || d.authorName || 'Parish Member',
@@ -60,6 +63,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
           setStories(local);
         }
       } catch (e) {
+        console.error('Supabase fetch error:', e);
         setStories(local);
       }
     }
@@ -100,7 +104,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
     });
 
     try {
-      await supabase.from('stories').insert([
+      const { error } = await supabase.from('stories').insert([
         {
           id: created.id,
           author_name: created.authorName,
@@ -111,8 +115,11 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
           author_id: profile?.id,
         },
       ]);
+      if (error) {
+        console.error('Supabase fetch error:', error);
+      }
     } catch (err) {
-      console.warn('Notice saving story to database:', err);
+      console.error('Supabase fetch error:', err);
     }
 
     setStories([created, ...stories]);

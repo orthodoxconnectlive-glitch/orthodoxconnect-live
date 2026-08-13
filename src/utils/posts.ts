@@ -128,7 +128,7 @@ export async function loadPosts(
   try {
     let query = supabase
       .from('posts')
-      .select('id, content, text, author_id, author_name, author_parish, author_avatar, image_url, video_url, created_at, group_id, likes_count, comments_count, reshares_count, profiles(id, full_name, username, parish, avatar_url)')
+      .select('*')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -136,27 +136,11 @@ export async function loadPosts(
       query = query.eq('group_id', groupId);
     }
 
-    let { data, error } = await query;
+    const { data, error } = await query;
 
     if (error) {
       console.error('Supabase fetch error:', error);
-      let fallbackQuery = supabase
-        .from('posts')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (groupId) {
-        fallbackQuery = fallbackQuery.eq('group_id', groupId);
-      }
-
-      const res = await fallbackQuery;
-      data = res.data;
-      error = res.error;
-      if (error) {
-        console.error('Supabase fetch error:', error);
-        return { posts: [], error };
-      }
+      return { posts: [], error };
     }
 
     if (data) {
@@ -178,7 +162,7 @@ export async function loadPosts(
 export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authorId);
-    let query = supabase.from('posts').select('*, profiles(*)');
+    let query = supabase.from('posts').select('*');
 
     if (isUuid) {
       query = query.or(`author_id.eq.${authorId},author_name.ilike.%${authorId}%`);
@@ -186,20 +170,7 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
       query = query.ilike('author_name', `%${authorId}%`);
     }
 
-    let { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Supabase fetch error:', error);
-      let fallbackQuery = supabase.from('posts').select('*');
-      if (isUuid) {
-        fallbackQuery = fallbackQuery.or(`author_id.eq.${authorId},author_name.ilike.%${authorId}%`);
-      } else {
-        fallbackQuery = fallbackQuery.ilike('author_name', `%${authorId}%`);
-      }
-      const fallback = await fallbackQuery.order('created_at', { ascending: false });
-      data = fallback.data;
-      error = fallback.error;
-    }
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       console.error('Supabase fetch error:', error);
@@ -236,7 +207,7 @@ export async function loadReels(): Promise<Post[]> {
 
     const { data: postsData, error: postsError } = await supabase
       .from('posts')
-      .select('*, profiles(*)')
+      .select('*')
       .or('video.not.is.null,video_url.not.is.null')
       .order('created_at', { ascending: false });
 
@@ -347,7 +318,7 @@ export async function loadPost(postId: string): Promise<Post | null> {
   try {
     const { data, error } = await supabase
       .from('posts')
-      .select('*, profiles(*)')
+      .select('*')
       .eq('id', postId)
       .single();
 

@@ -140,7 +140,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         loadPosts(undefined, { limit: 10 }),
         (async () => {
           try {
-            return await supabase.from('notifications').select('id, user_id, read').limit(5);
+            return await supabase.from('notifications').select('*').limit(5);
           } catch (err) {
             console.error('Supabase fetch error:', err);
             return { data: null, error: err };

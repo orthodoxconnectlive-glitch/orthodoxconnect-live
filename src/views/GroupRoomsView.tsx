@@ -107,11 +107,15 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, parish, avatar_url, bio, is_ai, email')
+        .select('id, full_name, parish, avatar_url, bio, email')
         .order('created_at', { ascending: false });
 
+      if (error) {
+        console.error('Supabase fetch error:', error);
+      }
+
       if (!error && data) {
-        const real = data.filter((p) => !p.is_ai && (!p.email || !p.email.endsWith('@example.com')));
+        const real = data.filter((p) => !p.email || !p.email.endsWith('@example.com'));
         const mapped: ParishMember[] = real.map((p) => ({
           id: p.id,
           name: p.full_name || 'Parish Member',
@@ -124,7 +128,7 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
         setMembersList(mapped);
       }
     } catch (err) {
-      console.warn('Error fetching members in GroupRoomsView:', err);
+      console.error('Supabase fetch error:', err);
     }
   };
 

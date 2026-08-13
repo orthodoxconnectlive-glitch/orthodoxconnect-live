@@ -146,7 +146,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
           title: streamPayload.title,
           host_parish: streamPayload.host_parish,
           media_url: streamPayload.media_url,
-          priest_name: profile?.full_name || profile?.username || 'Priest / Host',
+          priest_name: profile?.full_name || 'Priest / Host',
           is_live: true,
           created_at: new Date().toISOString(),
         },

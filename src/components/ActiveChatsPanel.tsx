@@ -32,18 +32,19 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
         setLoading(true);
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, full_name, username, parish, avatar_url, is_ai, email')
+          .select('id, full_name, parish, avatar_url, email')
           .neq('id', currentProfile?.id || '')
           .order('created_at', { ascending: false })
           .limit(10);
 
-        if (!error && data) {
-          // Filter out any AI accounts
-          const realProfiles = data.filter((p) => !p.is_ai);
+        if (error) {
+          console.error('Supabase fetch error:', error);
+        }
 
-          const mappedUsers: ActiveChatUser[] = realProfiles.map((p) => ({
+        if (!error && data) {
+          const mappedUsers: ActiveChatUser[] = data.map((p) => ({
             id: p.id,
-            name: p.full_name || p.username || 'Parish Member',
+            name: p.full_name || 'Parish Member',
             parish: p.parish || 'Orthodox Church',
             avatar:
               p.avatar_url ||

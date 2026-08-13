@@ -177,12 +177,16 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   useEffect(() => {
     async function loadRealContacts() {
       try {
-        // 1. Fetch profiles table with full_name and username
+        // 1. Fetch profiles table with full_name and parish
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
-          .select('id, full_name, username, parish, avatar_url, is_ai, email')
+          .select('id, full_name, parish, avatar_url, email')
           .neq('id', profile?.id || '')
           .order('created_at', { ascending: false });
+
+        if (profilesError) {
+          console.error('Supabase fetch error:', profilesError);
+        }
 
         // 2. Fetch active messages to identify contacts user has chatted with
         const activePartnerIds = new Set<string>();
@@ -204,14 +208,12 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
         }
 
         if (!profilesError && profilesData) {
-          const real = profilesData.filter((p) => !p.is_ai);
-          const mapped: ChatContact[] = real.map((p) => {
+          const mapped: ChatContact[] = profilesData.map((p) => {
             const displayName = getContactDisplayName(p);
             return {
               id: p.id,
               name: displayName,
               full_name: p.full_name || undefined,
-              username: p.username || undefined,
               parish: p.parish || 'Orthodox Church',
               avatar: p.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
               isOnline: true,
@@ -261,9 +263,13 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
           const cleanId = activeContact!.id.replace(/^auth-/, '');
           const { data, error } = await supabase
             .from('profiles')
-            .select('id, full_name, username, parish, avatar_url')
+            .select('id, full_name, parish, avatar_url, email')
             .eq('id', cleanId)
             .maybeSingle();
+
+          if (error) {
+            console.error('Supabase fetch error:', error);
+          }
 
           if (data && !error) {
             const realName = getContactDisplayName(data);
@@ -273,7 +279,6 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                     ...prev,
                     name: realName,
                     full_name: data.full_name || undefined,
-                    username: data.username || undefined,
                     parish: data.parish || prev.parish,
                     avatar: data.avatar_url || prev.avatar,
                   }
@@ -287,7 +292,6 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                       ...c,
                       name: realName,
                       full_name: data.full_name || undefined,
-                      username: data.username || undefined,
                       parish: data.parish || c.parish,
                       avatar: data.avatar_url || c.avatar,
                     }

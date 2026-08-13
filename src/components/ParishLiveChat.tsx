@@ -78,7 +78,7 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
     const textToSend = (customText || inputText).trim();
     if (!textToSend) return;
 
-    const authorName = profile?.full_name || profile?.username || 'Parish Member';
+    const authorName = profile?.full_name || 'Parish Member';
 
     const newMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
@@ -94,7 +94,7 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
   };
 
   const handleRequestBlessing = () => {
-    const authorName = profile?.full_name || profile?.username || 'Parish Member';
+    const authorName = profile?.full_name || 'Parish Member';
 
     const blessingMessage: ChatMessage = {
       id: `msg-${Date.now()}`,

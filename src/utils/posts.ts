@@ -219,6 +219,48 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
   return localPosts;
 }
 
+export const DEFAULT_ORTHODOX_VIDEOS: Post[] = [
+  {
+    id: 'orthodox-reel-1',
+    text: 'The Divine Liturgy & the Light of Christ at St. Anthony Monastery. Blessed Sunday everyone! #Orthodox #Christianity #Liturgy #Byzantine #JesusPrayer #MountAthos',
+    authorName: 'Fr. Athanasios',
+    authorParish: "St. Anthony's Monastery",
+    authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+    video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    image: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800',
+    createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+    likesCount: 1420,
+    commentsCount: 88,
+    resharesCount: 312,
+  },
+  {
+    id: 'orthodox-reel-2',
+    text: 'A profound reflection on the Jesus Prayer: "Lord Jesus Christ, Son of God, have mercy on me, a sinner." #JesusPrayer #Hesychasm #Orthodox #Prayer #SpiritualLife #Saints',
+    authorName: 'Orthodox Connect',
+    authorParish: 'Holy Trinity Cathedral',
+    authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+    video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+    image: 'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&q=80&w=800',
+    createdAt: new Date(Date.now() - 3600000 * 6).toISOString(),
+    likesCount: 2850,
+    commentsCount: 142,
+    resharesCount: 520,
+  },
+  {
+    id: 'orthodox-reel-3',
+    text: 'Paschal Vigil and the Resurrection Light: "Christ is Risen from the dead, trampling down death by death!" ☨ #Pascha #Resurrection #Orthodox #ChristIsRisen #Orthodoxy',
+    authorName: 'Deacon Mark',
+    authorParish: 'Annunciation Orthodox Church',
+    authorAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+    video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+    image: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800',
+    createdAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+    likesCount: 960,
+    commentsCount: 45,
+    resharesCount: 180,
+  },
+];
+
 /**
   * Mandatory Export: loadVideos() / loadReels()
   * Fetches video posts where video is not null directly from Supabase
@@ -226,7 +268,7 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
 export async function loadVideos(): Promise<Post[]> {
   const localReels = getLocalSavedPosts().filter((p) => !!p.video);
   if (!isSupabaseConfigured) {
-    return localReels;
+    return localReels.length > 0 ? localReels : DEFAULT_ORTHODOX_VIDEOS;
   }
 
   try {
@@ -258,7 +300,7 @@ export async function loadVideos(): Promise<Post[]> {
     console.warn('Videos fetch notice:', err);
   }
 
-  return localReels;
+  return localReels.length > 0 ? localReels : DEFAULT_ORTHODOX_VIDEOS;
 }
 
 export const loadReels = loadVideos;

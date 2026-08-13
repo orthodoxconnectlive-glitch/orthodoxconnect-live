@@ -13,8 +13,8 @@ export const SEED_VIDEOS = [
 /**
  * Helper to convert Supabase row object to frontend Post model
  */
-export function mapRowToPost(row: any): Post {
-  const profile = row.profiles || row.profile;
+export function mapRowToPost(row: any, profileMap?: Record<string, any>): Post {
+  const profile = profileMap?.[row.user_id] || row.profiles || row.profile;
   const authorName = profile?.full_name || profile?.fullName || row.author_name || row.authorName || 'Orthodox Member';
   const authorParish = profile?.parish || row.author_parish || row.authorParish || 'Parish Community';
   const authorAvatar = profile?.avatar_url || profile?.avatarUrl || row.author_avatar || row.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
@@ -41,7 +41,7 @@ export function mapRowToPost(row: any): Post {
     resharesCount: row.reshares_count ?? row.resharesCount ?? 0,
     isLiked: row.is_liked ?? false,
     isReshared: row.is_reshared ?? false,
-    quotedPost: row.quoted_post ? mapRowToPost(row.quoted_post) : null,
+    quotedPost: row.quoted_post ? mapRowToPost(row.quoted_post, profileMap) : null,
     reshareKind: row.reshare_kind || undefined,
   };
 }
@@ -130,7 +130,7 @@ export function saveLocalLikesMap(map: Record<string, boolean>) {
 }
 
 /**
- * Fast Load Posts Function using direct table joining
+ * Fast & Safe Load Posts Function (No relational locks)
  */
 export async function loadPosts(
   groupId?: string,
@@ -141,21 +141,13 @@ export async function loadPosts(
     return { posts: localPosts, error: null };
   }
 
-  const limit = options?.limit ?? 15; // Fast small batch
+  const limit = options?.limit ?? 15;
   const offset = options?.offset ?? 0;
 
   try {
-    // High performance query: fetches posts AND profiles together in 1 round trip
     let query = supabase
       .from('posts')
-      .select(`
-        *,
-        profiles:user_id (
-          full_name,
-          parish,
-          avatar_url
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -170,8 +162,25 @@ export async function loadPosts(
       return { posts: localPosts, error };
     }
 
-    if (data) {
-      const dbPosts = data.map(mapRowToPost);
+    if (data && data.length > 0) {
+      // Fetch author profiles in a fast batch query
+      const userIds = Array.from(new Set(data.map((p) => p.user_id).filter(Boolean)));
+      let profileMap: Record<string, any> = {};
+
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, parish, avatar_url')
+          .in('id', userIds);
+
+        if (profiles) {
+          profiles.forEach((prof) => {
+            profileMap[prof.id] = prof;
+          });
+        }
+      }
+
+      const dbPosts = data.map((row) => mapRowToPost(row, profileMap));
       return { posts: dbPosts, error: null };
     }
   } catch (err: any) {
@@ -192,16 +201,7 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
 
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authorId);
-    let query = supabase
-      .from('posts')
-      .select(`
-        *,
-        profiles:user_id (
-          full_name,
-          parish,
-          avatar_url
-        )
-      `);
+    let query = supabase.from('posts').select('*');
 
     if (isUuid) {
       query = query.eq('user_id', authorId);
@@ -217,7 +217,7 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
     }
 
     if (data) {
-      return data.map(mapRowToPost);
+      return data.map((row) => mapRowToPost(row));
     }
   } catch (err) {
     console.warn('Author posts fetch notice:', err);
@@ -251,20 +251,13 @@ export async function loadVideos(): Promise<Post[]> {
   try {
     const { data: postsData, error: postsError } = await supabase
       .from('posts')
-      .select(`
-        *,
-        profiles:user_id (
-          full_name,
-          parish,
-          avatar_url
-        )
-      `)
+      .select('*')
       .not('media_url', 'is', null)
       .order('created_at', { ascending: false })
       .limit(15);
 
     if (!postsError && postsData && postsData.length > 0) {
-      return postsData.map(mapRowToPost).filter((p) => !!p.video);
+      return postsData.map((row) => mapRowToPost(row)).filter((p) => !!p.video);
     }
   } catch (err) {
     console.warn('Videos fetch notice:', err);
@@ -358,14 +351,7 @@ export async function loadPost(postId: string): Promise<Post | null> {
 
     const { data, error } = await supabase
       .from('posts')
-      .select(`
-        *,
-        profiles:user_id (
-          full_name,
-          parish,
-          avatar_url
-        )
-      `)
+      .select('*')
       .eq('id', postId)
       .single();
 

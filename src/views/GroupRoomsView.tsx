@@ -107,8 +107,7 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, parish, avatar_url, bio, email')
-        .order('created_at', { ascending: false });
+        .select('id, full_name, parish, avatar_url, bio, email');
 
       if (error) {
         console.error('Supabase fetch error:', error);

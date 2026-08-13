@@ -25,7 +25,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
   viewerCount = 142,
   className = '',
   autoplay = false,
-  muted = false,
+  muted = true,
   isUserBroadcasting = false,
   onEndBroadcast,
 }) => {

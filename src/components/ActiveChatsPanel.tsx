@@ -30,12 +30,17 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
     async function fetchRealUsers() {
       try {
         setLoading(true);
-        const { data, error } = await supabase
+        let query = supabase
           .from('profiles')
           .select('id, full_name, parish, avatar_url, email')
-          .neq('id', currentProfile?.id || '')
-          .order('created_at', { ascending: false })
           .limit(10);
+
+        const currentId = currentProfile?.id?.replace(/^auth-/, '');
+        if (currentId && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(currentId)) {
+          query = query.neq('id', currentId);
+        }
+
+        const { data, error } = await query;
 
         if (error) {
           console.error('Supabase fetch error:', error);

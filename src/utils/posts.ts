@@ -316,6 +316,9 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   */
 export async function loadPost(postId: string): Promise<Post | null> {
   try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
+    if (!isUuid) return null;
+
     const { data, error } = await supabase
       .from('posts')
       .select('*')
@@ -341,6 +344,9 @@ export async function loadPost(postId: string): Promise<Post | null> {
   */
 export async function deletePost(postId: string): Promise<boolean> {
   try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
+    if (!isUuid) return true;
+
     const { error: reelsErr } = await supabase.from('posts_reels').delete().eq('id', postId);
     if (reelsErr) console.error('Supabase fetch error:', reelsErr);
 

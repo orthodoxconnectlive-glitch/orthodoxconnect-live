@@ -51,7 +51,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           bio: data.bio || 'Orthodox Christian seeking fellowship.',
           avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
           role: assignedRole,
-          created_at: data.created_at,
+          created_at: data.created_at || data.updated_at || new Date().toISOString(),
         });
 
         if (isSuperAdmin && data.role !== 'super_admin') {

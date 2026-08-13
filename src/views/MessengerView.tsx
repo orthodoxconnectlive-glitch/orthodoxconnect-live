@@ -178,11 +178,15 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     async function loadRealContacts() {
       try {
         // 1. Fetch profiles table with full_name and parish
-        const { data: profilesData, error: profilesError } = await supabase
+        let query = supabase
           .from('profiles')
-          .select('id, full_name, parish, avatar_url, email')
-          .neq('id', profile?.id || '')
-          .order('created_at', { ascending: false });
+          .select('id, full_name, parish, avatar_url, email');
+
+        if (profile?.id && isUUIDString(profile.id)) {
+          query = query.neq('id', profile.id.replace(/^auth-/, ''));
+        }
+
+        const { data: profilesData, error: profilesError } = await query;
 
         if (profilesError) {
           console.error('Supabase fetch error:', profilesError);
@@ -190,17 +194,18 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
 
         // 2. Fetch active messages to identify contacts user has chatted with
         const activePartnerIds = new Set<string>();
-        if (profile?.id) {
+        if (profile?.id && isUUIDString(profile.id)) {
+          const myCleanId = profile.id.replace(/^auth-/, '');
           const { data: msgsData } = await supabase
             .from('messages')
             .select('sender_id, receiver_id, created_at')
-            .or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`)
+            .or(`sender_id.eq.${myCleanId},receiver_id.eq.${myCleanId}`)
             .order('created_at', { ascending: false });
 
           if (msgsData) {
             msgsData.forEach((m) => {
-              const partnerId = m.sender_id === profile.id ? m.receiver_id : m.sender_id;
-              if (partnerId && partnerId !== profile.id) {
+              const partnerId = m.sender_id === myCleanId ? m.receiver_id : m.sender_id;
+              if (partnerId && partnerId !== myCleanId) {
                 activePartnerIds.add(partnerId);
               }
             });
@@ -261,6 +266,8 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
       async function fetchSingleProfile() {
         try {
           const cleanId = activeContact!.id.replace(/^auth-/, '');
+          if (!isUUIDString(cleanId)) return;
+
           const { data, error } = await supabase
             .from('profiles')
             .select('id, full_name, parish, avatar_url, email')
@@ -462,11 +469,17 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     const localMsgs = loadLocalMessagesForContact(activeContact.id);
     setMessages(localMsgs);
 
+    const cleanContactId = activeContact.id.replace(/^auth-/, '');
+    if (!isUUIDString(cleanContactId)) {
+      setIsMessagesLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .or(`sender_id.eq.${activeContact.id},receiver_id.eq.${activeContact.id}`)
+        .or(`sender_id.eq.${cleanContactId},receiver_id.eq.${cleanContactId}`)
         .order('created_at', { ascending: true });
 
       if (!error && data && data.length > 0) {
@@ -536,30 +549,35 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
       )
     );
 
-    try {
-      await supabase.from('messages').insert([
-        {
-          sender_id: newMsg.sender_id,
-          receiver_id: newMsg.receiver_id,
-          content: newMsg.content,
-          image_url: newMsg.image_url || null,
-          video_url: newMsg.video_url || null,
-        },
-      ]);
+    const cleanSenderId = (profile?.id || '').replace(/^auth-/, '');
+    const cleanReceiverId = activeContact.id.replace(/^auth-/, '');
 
-      // Trigger notification for recipient
-      addNotification({
-        userId: activeContact.id || 'all',
-        type: 'message',
-        title: `Message from ${profile?.full_name || 'Parishioner'}`,
-        body: sendText.trim() || 'Sent an attachment',
-        senderName: profile?.full_name || 'Parishioner',
-        senderAvatar: profile?.avatar_url,
-        link: 'messages',
-      });
-    } catch (err) {
-      console.warn('Message send warning:', err);
+    if (isUUIDString(cleanSenderId) && isUUIDString(cleanReceiverId)) {
+      try {
+        await supabase.from('messages').insert([
+          {
+            sender_id: cleanSenderId,
+            receiver_id: cleanReceiverId,
+            content: newMsg.content,
+            image_url: newMsg.image_url || null,
+            video_url: newMsg.video_url || null,
+          },
+        ]);
+      } catch (err) {
+        console.warn('Supabase message insert error:', err);
+      }
     }
+
+    // Trigger notification for recipient
+    addNotification({
+      userId: activeContact.id || 'all',
+      type: 'message',
+      title: `Message from ${profile?.full_name || 'Parishioner'}`,
+      body: sendText.trim() || 'Sent an attachment',
+      senderName: profile?.full_name || 'Parishioner',
+      senderAvatar: profile?.avatar_url,
+      link: 'messages',
+    });
   };
 
   const handleToggleReaction = (msgId: string, emoji: string) => {

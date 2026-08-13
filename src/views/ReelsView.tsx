@@ -1,42 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Film,
-  Heart,
-  MessageCircle,
-  MessageSquare,
-  Share2,
-  Bookmark,
-  Volume2,
-  VolumeX,
-  Church,
   Sparkles,
   ChevronDown,
   ChevronUp,
-  Plus,
-  Check,
-  Music,
-  X,
-  Send,
-  Play,
-  Pause,
-  Trash2,
+  Volume2,
+  VolumeX,
   Upload,
 } from 'lucide-react';
 import { Post } from '../types';
 import { loadReels, deletePost, savePost } from '../utils/posts';
 import { uploadVideoToBunnyStream } from '../utils/storage';
-import { BunnyPlayer } from '../components/BunnyPlayer';
+import { ReelCard, ReelComment } from '../components/ReelCard';
 import { useAuth } from '../context/AuthContext';
-
 import { UserProfileData } from './ProfileView';
-
-interface ReelComment {
-  id: string;
-  authorName: string;
-  authorAvatar: string;
-  text: string;
-  createdAt: string;
-}
 
 interface ReelsViewProps {
   onSelectUser?: (userData: UserProfileData) => void;
@@ -47,201 +23,41 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
   const { profile } = useAuth();
   const [reels, setReels] = useState<Post[]>([]);
   const [activeReelId, setActiveReelId] = useState<string>('');
+  const [unmutedReelId, setUnmutedReelId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isMuted, setIsMuted] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [tapFeedback, setTapFeedback] = useState<'play' | 'pause' | 'mute' | 'unmute' | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // TikTok interactions state
   const [followedAuthors, setFollowedAuthors] = useState<Record<string, boolean>>({});
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
   const [savedMap, setSavedMap] = useState<Record<string, boolean>>({});
-  const [showHeartAnim, setShowHeartAnim] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Comments drawer state
   const [openCommentReelId, setOpenCommentReelId] = useState<string | null>(null);
   const [reelCommentsMap, setReelCommentsMap] = useState<Record<string, ReelComment[]>>({});
-  const [newCommentText, setNewCommentText] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-
-  const handleVideoUploadSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('video/')) {
-      triggerToast('Please select a valid video file.');
-      return;
-    }
-    try {
-      setIsUploading(true);
-      triggerToast('Uploading reel directly to Bunny Stream CDN...');
-      const iframeUrl = await uploadVideoToBunnyStream(file, file.name);
-
-      const newReel = await savePost({
-        text: file.name.replace(/\.[^/.]+$/, ''),
-        authorName: profile?.full_name || 'Orthodox Parishioner',
-        authorParish: profile?.parish || 'Orthodox Church',
-        authorAvatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-        authorId: profile?.id,
-        video: iframeUrl,
-      });
-
-      setReels((prev) => [newReel, ...prev]);
-      setActiveReelId(newReel.id);
-      triggerToast('New Orthodox Reel uploaded via Bunny Stream!');
-    } catch (err) {
-      console.error('Reel upload error:', err);
-      triggerToast('Upload failed. Please try again.');
-    } finally {
-      setIsUploading(false);
-      e.target.value = '';
-    }
-  };
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Requirement 4: Cleanup effect to stop and reset all media on unmount
   useEffect(() => {
-    fetchReels();
-
     return () => {
-      // Pause all media and reset currentTime when switching away from Reels tab or unmounting
       const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
       allMedia.forEach((media) => {
         try {
           media.pause();
           media.currentTime = 0;
         } catch (err) {
-          console.warn('Error pausing media on Reels unmount:', err);
+          console.warn('Error pausing media on unmount:', err);
         }
       });
     };
   }, []);
 
-  // Intersection Observer to detect which reel is currently in view during scrolling (0.8 threshold)
   useEffect(() => {
-    if (reels.length === 0) return;
-
-    if (!activeReelId && reels[0]) {
-      setActiveReelId(reels[0].id);
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const id = entry.target.getAttribute('data-reel-id');
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.8) {
-            if (id) {
-              setActiveReelId(id);
-              setIsPlaying(true);
-            }
-          } else if (!entry.isIntersecting || entry.intersectionRatio < 0.8) {
-            // Immediately pause and reset playback position when Leaving visibility
-            const videoEl = entry.target.querySelector('video');
-            if (videoEl) {
-              try {
-                videoEl.pause();
-                videoEl.currentTime = 0;
-              } catch (err) {
-                console.warn('Error pausing scrolled-out video:', err);
-              }
-            }
-          }
-        });
-      },
-      { threshold: 0.8 }
-    );
-
-    const elements = document.querySelectorAll('.reel-snap-item');
-    elements.forEach((el) => observer.observe(el));
-
-    return () => observer.disconnect();
-  }, [reels]);
-
-  // Effect to automatically start playing the active reel video
-  useEffect(() => {
-    if (!activeReelId) return;
-
-    const activeVideo = document.querySelector<HTMLVideoElement>(`#reel-item-${activeReelId} video`);
-    if (activeVideo) {
-      // Pause all other media across the DOM
-      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-      allMedia.forEach((media) => {
-        if (media !== activeVideo) {
-          try {
-            media.pause();
-          } catch (e) {}
-        }
-      });
-
-      activeVideo.muted = isMuted;
-      activeVideo.play().catch((err) => {
-        console.warn('Autoplay prevented:', err);
-      });
-      setIsPlaying(true);
-    }
-  }, [activeReelId, isMuted]);
-
-  const handleTapReelVideo = (reelId: string) => {
-    const videoEl = document.querySelector<HTMLVideoElement>(`#reel-item-${reelId} video`);
-    if (videoEl) {
-      if (videoEl.paused) {
-        // Pause all other media
-        document.querySelectorAll<HTMLMediaElement>('video, audio').forEach((m) => {
-          if (m !== videoEl) {
-            try {
-              m.pause();
-            } catch (e) {}
-          }
-        });
-        videoEl.muted = isMuted;
-        videoEl.play().catch((err) => console.warn('Play error:', err));
-        setIsPlaying(true);
-        setTapFeedback('play');
-      } else {
-        videoEl.pause();
-        setIsPlaying(false);
-        setTapFeedback('pause');
-      }
-      setTimeout(() => setTapFeedback(null), 800);
-    } else {
-      setIsPlaying((prev) => !prev);
-      setTapFeedback(!isPlaying ? 'play' : 'pause');
-      setTimeout(() => setTapFeedback(null), 800);
-    }
-  };
-
-  const handleToggleMute = () => {
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
-    setTapFeedback(nextMuted ? 'mute' : 'unmute');
-    setTimeout(() => setTapFeedback(null), 800);
-  };
-
-  // Keyboard Up/Down navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (openCommentReelId) return;
-
-      const activeIndex = reels.findIndex((r) => r.id === activeReelId);
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (activeIndex < reels.length - 1) {
-          scrollToReelIndex(activeIndex + 1);
-        }
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (activeIndex > 0) {
-          scrollToReelIndex(activeIndex - 1);
-        }
-      } else if (e.key === ' ') {
-        e.preventDefault();
-        setIsPlaying((prev) => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeReelId, reels, openCommentReelId]);
+    fetchReels();
+  }, []);
 
   const fetchReels = async () => {
     setLoading(true);
@@ -266,7 +82,6 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
 
     setLikedMap(savedLikes);
 
-    // Initialize counts and default mock comments
     const initialLikesCount: Record<string, number> = {};
     const initialComments: Record<string, ReelComment[]> = {};
 
@@ -281,9 +96,88 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     setLoading(false);
   };
 
+  // Requirement 3: Global Sound Control (only ONE unmuted video at a time)
+  const handleToggleMuteReel = (reelId: string) => {
+    if (unmutedReelId === reelId) {
+      // Mute this reel
+      setUnmutedReelId(null);
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      allMedia.forEach((m) => {
+        m.muted = true;
+      });
+    } else {
+      // Unmute this reel and automatically mute all other media
+      setUnmutedReelId(reelId);
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      allMedia.forEach((m) => {
+        const parentCard = m.closest(`#reel-item-${reelId}`);
+        if (parentCard) {
+          m.muted = false;
+        } else {
+          m.muted = true;
+        }
+      });
+    }
+  };
+
+  const handleToggleGlobalMute = () => {
+    if (unmutedReelId) {
+      setUnmutedReelId(null);
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      allMedia.forEach((m) => {
+        m.muted = true;
+      });
+    } else if (activeReelId) {
+      handleToggleMuteReel(activeReelId);
+    } else if (reels[0]) {
+      handleToggleMuteReel(reels[0].id);
+    }
+  };
+
+  const handleVisibleChange = (reelId: string, isVisible: boolean) => {
+    if (isVisible) {
+      setActiveReelId(reelId);
+    }
+  };
+
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  const handleVideoUploadSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('video/')) {
+      triggerToast('Please select a valid video file.');
+      return;
+    }
+    try {
+      setIsUploading(true);
+      triggerToast('Uploading reel directly to Bunny Stream CDN...');
+      const iframeUrl = await uploadVideoToBunnyStream(file, file.name);
+
+      const newReel = await savePost({
+        text: file.name.replace(/\.[^/.]+$/, ''),
+        authorName: profile?.full_name || 'Orthodox Parishioner',
+        authorParish: profile?.parish || 'Orthodox Church',
+        authorAvatar:
+          profile?.avatar_url ||
+          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+        authorId: profile?.id,
+        video: iframeUrl,
+      });
+
+      setReels((prev) => [newReel, ...prev]);
+      setActiveReelId(newReel.id);
+      triggerToast('New Orthodox Reel uploaded via Bunny Stream!');
+    } catch (err) {
+      console.error('Reel upload error:', err);
+      triggerToast('Upload failed. Please try again.');
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
   };
 
   const scrollToReelIndex = (index: number) => {
@@ -293,7 +187,6 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setActiveReelId(targetReel.id);
-        setIsPlaying(true);
       }
     }
   };
@@ -314,14 +207,6 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
       }));
       return updated;
     });
-  };
-
-  const handleDoubleTapVideo = (reelId: string) => {
-    if (!likedMap[reelId]) {
-      handleToggleLike(reelId);
-    }
-    setShowHeartAnim(reelId);
-    setTimeout(() => setShowHeartAnim(null), 800);
   };
 
   const handleToggleFollow = (authorName: string) => {
@@ -354,15 +239,14 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     triggerToast('Reel link copied to clipboard!');
   };
 
-  const handleAddComment = (e: React.FormEvent, reelId: string) => {
-    e.preventDefault();
-    if (!newCommentText.trim()) return;
-
+  const handleAddComment = (reelId: string, text: string) => {
     const newComment: ReelComment = {
       id: `comment-${Date.now()}`,
       authorName: profile?.full_name || 'Orthodox Parishioner',
-      authorAvatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-      text: newCommentText.trim(),
+      authorAvatar:
+        profile?.avatar_url ||
+        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      text,
       createdAt: 'Just now',
     };
 
@@ -378,9 +262,32 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
       }
       return updated;
     });
-
-    setNewCommentText('');
   };
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (openCommentReelId) return;
+
+      const activeIndex = reels.findIndex((r) => r.id === activeReelId);
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (activeIndex < reels.length - 1) {
+          scrollToReelIndex(activeIndex + 1);
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (activeIndex > 0) {
+          scrollToReelIndex(activeIndex - 1);
+        }
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        handleToggleGlobalMute();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeReelId, reels, openCommentReelId, unmutedReelId]);
 
   if (loading) {
     return (
@@ -436,11 +343,11 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
             />
           </label>
           <button
-            onClick={handleToggleMute}
+            onClick={handleToggleGlobalMute}
             className="p-1.5 rounded-xl bg-[#282019] border border-[#c5a059] text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white transition-colors cursor-pointer"
-            title={isMuted ? 'Unmute audio' : 'Mute audio'}
+            title={unmutedReelId ? 'Mute audio' : 'Unmute audio'}
           >
-            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            {unmutedReelId ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4" />}
           </button>
           <span className="text-[10px] font-serif font-bold text-[#c5a059] bg-[#282019] px-2.5 py-1 rounded-full border border-[#c5a059]">
             {activeIndex + 1} / {reels.length}
@@ -454,7 +361,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
         className="h-screen w-full overflow-y-scroll snap-y snap-mandatory scroll-smooth no-scrollbar pr-1 pb-24 space-y-4"
       >
         {reels.map((reel) => {
-          const isActive = activeReelId === reel.id;
+          const isUnmuted = unmutedReelId === reel.id;
           const isLiked = !!likedMap[reel.id];
           const isSaved = !!savedMap[reel.id];
           const isFollowed = !!followedAuthors[reel.authorName];
@@ -462,318 +369,28 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
           const isCommentOpen = openCommentReelId === reel.id;
 
           return (
-            <div
+            <ReelCard
               key={reel.id}
-              id={`reel-item-${reel.id}`}
-              data-reel-id={reel.id}
-              className="reel-snap-item h-screen w-full snap-start snap-always relative flex items-center justify-center bg-black rounded-3xl border-2 border-[#c5a059] overflow-hidden shadow-2xl flex-col justify-between group select-none"
-            >
-              {/* Background Video Player */}
-              <div
-                onClick={() => handleTapReelVideo(reel.id)}
-                onDoubleClick={() => handleDoubleTapVideo(reel.id)}
-                className="absolute inset-0 z-0 cursor-pointer"
-              >
-                {reel.video?.includes('bunnycdn.com') || reel.video?.includes('iframe.mediadelivery.net') || reel.video?.includes('mediadelivery.net') ? (
-                  <BunnyPlayer
-                    videoUrl={reel.video}
-                    title={reel.text}
-                    autoplay={false}
-                    muted={isMuted}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <video
-                    src={reel.video}
-                    controls={false}
-                    autoPlay={false}
-                    playsInline
-                    loop
-                    muted={isMuted}
-                    preload="metadata"
-                    className="w-full h-full object-cover bg-black"
-                  />
-                )}
-
-                {/* Animated Tap Overlay Feedback Icon */}
-                {tapFeedback && isActive && (
-                  <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-black/20">
-                    <div className="w-20 h-20 rounded-full bg-[#c5a059]/90 text-[#1c1611] flex items-center justify-center shadow-2xl animate-ping">
-                      {tapFeedback === 'play' && <Play className="w-10 h-10 fill-current ml-1" />}
-                      {tapFeedback === 'pause' && <Pause className="w-10 h-10 fill-current" />}
-                      {tapFeedback === 'mute' && <VolumeX className="w-10 h-10" />}
-                      {tapFeedback === 'unmute' && <Volume2 className="w-10 h-10" />}
-                    </div>
-                  </div>
-                )}
-
-                {/* Pause Overlay Icon */}
-                {isActive && !isPlaying && !tapFeedback && (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
-                    <div className="w-16 h-16 rounded-full bg-[#c5a059] text-[#3d2b18] flex items-center justify-center shadow-2xl animate-pulse">
-                      <Play className="w-8 h-8 fill-current ml-1" />
-                    </div>
-                  </div>
-                )}
-
-                {/* Double Tap Heart Animation Overlay */}
-                {showHeartAnim === reel.id && (
-                  <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-                    <Heart className="w-24 h-24 text-red-600 fill-current animate-ping drop-shadow-2xl" />
-                  </div>
-                )}
-              </div>
-
-              {/* Top Floating Badge */}
-              <div className="relative z-20 p-4 flex items-center justify-between pointer-events-none">
-                <span className="px-3 py-1 rounded-full bg-[#1c1611]/80 backdrop-blur-md text-[#c5a059] text-[10px] font-serif uppercase tracking-wider font-bold border border-[#c5a059] flex items-center gap-1.5 shadow-md">
-                  <Church className="w-3.5 h-3.5 text-[#c5a059]" />
-                  {reel.authorParish}
-                </span>
-              </div>
-
-              {/* Bottom Left Info & Audio Overlay */}
-              <div className="relative z-20 p-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent space-y-2 mt-auto">
-                {/* Author Header */}
-                <div className="flex items-center gap-3">
-                  <div
-                    className="relative cursor-pointer hover:opacity-80 transition-opacity"
-                    onClick={() =>
-                      onSelectUser?.({
-                        id: reel.authorId,
-                        name: reel.authorName,
-                        avatar: reel.authorAvatar,
-                        parish: reel.authorParish,
-                      })
-                    }
-                  >
-                    <img
-                      src={reel.authorAvatar}
-                      alt={reel.authorName}
-                      className="w-10 h-10 rounded-full border-2 border-[#c5a059] object-cover shadow-lg"
-                    />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleFollow(reel.authorName);
-                      }}
-                      className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] shadow-md border border-black cursor-pointer transition-transform ${
-                        isFollowed ? 'bg-emerald-600' : 'bg-red-600 hover:scale-110'
-                      }`}
-                      title={isFollowed ? 'Following' : 'Follow Creator'}
-                    >
-                      {isFollowed ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
-                    </button>
-                  </div>
-
-                  <div
-                    className="cursor-pointer hover:underline"
-                    onClick={() =>
-                      onSelectUser?.({
-                        id: reel.authorId,
-                        name: reel.authorName,
-                        avatar: reel.authorAvatar,
-                        parish: reel.authorParish,
-                      })
-                    }
-                  >
-                    <h4 className="font-serif-coptic font-bold text-xs text-[#f5ebd9] uppercase tracking-wider leading-tight">
-                      {reel.authorName}
-                    </h4>
-                    <p className="text-[9px] text-[#c5a059] font-serif uppercase tracking-widest">
-                      @{reel.authorName.toLowerCase().replace(/[^a-z0-9]/g, '')}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Caption & Hashtags */}
-                <p className="text-xs text-[#f5ebd9] line-clamp-3 leading-relaxed font-serif pr-12">
-                  {reel.text}{' '}
-                  <span className="text-[#c5a059] font-bold">
-                    #Orthodox #Faith #Feast #Coptic
-                  </span>
-                </p>
-
-                {/* TikTok Audio Marquee Bar */}
-                <div className="flex items-center gap-2 pt-1">
-                  <Music className="w-3.5 h-3.5 text-[#c5a059] animate-bounce" />
-                  <div className="overflow-hidden w-48 text-[10px] text-[#f5ebd9] whitespace-nowrap font-serif uppercase tracking-wider">
-                    <p className="inline-block animate-marquee">
-                      🎵 Coptic Hymn — Agpeya Midnight Prayer (Original Audio)
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Floating Right Action Stack (TikTok Style) */}
-              <div className="absolute right-3 bottom-12 z-30 flex flex-col items-center gap-4 text-white">
-                {/* Like Button */}
-                <button
-                  onClick={() => handleToggleLike(reel.id)}
-                  className="flex flex-col items-center gap-1 group cursor-pointer"
-                >
-                  <div
-                    className={`p-3 rounded-full backdrop-blur-md border border-[#c5a059] transition-all ${
-                      isLiked
-                        ? 'bg-red-600 text-white scale-110 shadow-lg shadow-red-600/50'
-                        : 'bg-[#1c1611]/80 text-[#c5a059] hover:bg-red-600/30'
-                    }`}
-                  >
-                    <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
-                  </div>
-                  <span className="text-[10px] font-bold text-[#f5ebd9] shadow-sm font-serif">
-                    {likeCounts[reel.id] || 0}
-                  </span>
-                </button>
-
-                {/* Comment Drawer Button */}
-                <button
-                  onClick={() => setOpenCommentReelId(isCommentOpen ? null : reel.id)}
-                  className="flex flex-col items-center gap-1 group cursor-pointer"
-                >
-                  <div className="p-3 rounded-full bg-[#1c1611]/80 backdrop-blur-md border border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#3d2b18] transition-all">
-                    <MessageCircle className="w-5 h-5" />
-                  </div>
-                  <span className="text-[10px] font-bold text-[#f5ebd9] shadow-sm font-serif">
-                    {activeComments.length}
-                  </span>
-                </button>
-
-                {/* Direct Message 1-on-1 Button */}
-                {onOpenMessengerWithUser && (
-                  <button
-                    onClick={() => onOpenMessengerWithUser(reel.authorId || reel.authorName)}
-                    className="flex flex-col items-center gap-1 group cursor-pointer"
-                    title="Send Direct 1-to-1 Message"
-                  >
-                    <div className="p-3 rounded-full bg-[#1c1611]/80 backdrop-blur-md border border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#3d2b18] transition-all">
-                      <MessageSquare className="w-5 h-5" />
-                    </div>
-                    <span className="text-[9px] font-bold text-[#f5ebd9] shadow-sm font-serif uppercase">Chat</span>
-                  </button>
-                )}
-
-                {/* Save / Bookmark Button */}
-                <button
-                  onClick={() => handleToggleSave(reel.id)}
-                  className="flex flex-col items-center gap-1 group cursor-pointer"
-                >
-                  <div
-                    className={`p-3 rounded-full backdrop-blur-md border border-[#c5a059] transition-all ${
-                      isSaved
-                        ? 'bg-[#c5a059] text-[#3d2b18] font-bold scale-110'
-                        : 'bg-[#1c1611]/80 text-[#c5a059] hover:bg-[#c5a059]/30'
-                    }`}
-                  >
-                    <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
-                  </div>
-                  <span className="text-[9px] font-bold text-[#f5ebd9] shadow-sm font-serif uppercase">Save</span>
-                </button>
-
-                {/* Share Button */}
-                <button
-                  onClick={() => handleShare(reel)}
-                  className="flex flex-col items-center gap-1 group cursor-pointer"
-                >
-                  <div className="p-3 rounded-full bg-[#1c1611]/80 backdrop-blur-md border border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#3d2b18] transition-all">
-                    <Share2 className="w-5 h-5" />
-                  </div>
-                  <span className="text-[9px] font-bold text-[#f5ebd9] shadow-sm font-serif uppercase">Share</span>
-                </button>
-
-                {/* Delete Reel Button for Admins or Author */}
-                {(profile?.id === reel.authorId || profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com') && (
-                  <button
-                    onClick={() => handleDeleteReel(reel.id)}
-                    className="flex flex-col items-center gap-1 group cursor-pointer"
-                    title="Delete Reel"
-                  >
-                    <div className="p-3 rounded-full bg-red-900/80 backdrop-blur-md border border-red-500 text-red-300 hover:bg-red-600 hover:text-white transition-all">
-                      <Trash2 className="w-5 h-5" />
-                    </div>
-                    <span className="text-[9px] font-bold text-red-300 shadow-sm font-serif uppercase">Delete</span>
-                  </button>
-                )}
-
-                {/* TikTok Spinning Vinyl Disc */}
-                <div className="mt-2 w-10 h-10 rounded-full bg-[#1c1611] p-1 border-2 border-[#c5a059] shadow-2xl animate-spin">
-                  <img
-                    src={reel.authorAvatar}
-                    alt="Disc"
-                    className="w-full h-full rounded-full object-cover"
-                  />
-                </div>
-              </div>
-
-              {/* TikTok Slide-up Comment Drawer for this Reel */}
-              {isCommentOpen && (
-                <div className="absolute inset-x-0 bottom-0 z-40 h-[65%] bg-[#1c1611]/95 backdrop-blur-2xl rounded-t-3xl border-t-2 border-[#c5a059] p-4 flex flex-col justify-between shadow-2xl animate-slide-up">
-                  {/* Drawer Header */}
-                  <div className="flex items-center justify-between pb-3 border-b border-[#c5a059]/30">
-                    <div className="flex items-center gap-2">
-                      <MessageCircle className="w-4 h-4 text-[#c5a059]" />
-                      <h3 className="font-serif-coptic font-bold text-xs text-[#f5ebd9] uppercase tracking-wider">
-                        Comments ({activeComments.length})
-                      </h3>
-                    </div>
-                    <button
-                      onClick={() => setOpenCommentReelId(null)}
-                      className="p-1 rounded-full text-[#f5ebd9] hover:bg-[#282019] transition-colors cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Comments Scrollable List */}
-                  <div className="flex-1 overflow-y-auto my-3 space-y-3 pr-1 text-xs no-scrollbar">
-                    {activeComments.length === 0 ? (
-                      <p className="text-[#a89379] text-center py-6 text-[11px] font-serif uppercase">
-                        No comments yet. Encourage this reel!
-                      </p>
-                    ) : (
-                      activeComments.map((c) => (
-                        <div key={c.id} className="flex gap-2.5 items-start">
-                          <img
-                            src={c.authorAvatar}
-                            alt={c.authorName}
-                            className="w-7 h-7 rounded-full object-cover border border-[#c5a059] shrink-0 mt-0.5"
-                          />
-                          <div className="flex-1 bg-[#282019] rounded-2xl p-2.5 border border-[#c5a059]/40">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="font-serif font-bold text-[#c5a059] text-[11px] uppercase tracking-wider">
-                                {c.authorName}
-                              </span>
-                              <span className="text-[9px] text-[#a89379] font-serif">
-                                {c.createdAt}
-                              </span>
-                            </div>
-                            <p className="text-[#f5ebd9] leading-normal text-[11px] font-serif">{c.text}</p>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Comment Form Input */}
-                  <form onSubmit={(e) => handleAddComment(e, reel.id)} className="flex gap-2 pt-2 border-t border-[#c5a059]/30">
-                    <input
-                      type="text"
-                      value={newCommentText}
-                      onChange={(e) => setNewCommentText(e.target.value)}
-                      placeholder="Add a spiritual comment..."
-                      className="flex-1 bg-[#282019] border border-[#c5a059] rounded-xl px-3 py-2 text-xs text-[#f5ebd9] placeholder-[#a89379] focus:outline-none"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!newCommentText.trim()}
-                      className="px-3.5 py-2 bg-[#c5a059] hover:bg-[#a8833c] text-white rounded-xl font-bold text-xs flex items-center justify-center disabled:opacity-40 cursor-pointer transition-colors"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                    </button>
-                  </form>
-                </div>
-              )}
-            </div>
+              reel={reel}
+              isUnmuted={isUnmuted}
+              onToggleMute={handleToggleMuteReel}
+              onSelectUser={onSelectUser}
+              onOpenMessengerWithUser={onOpenMessengerWithUser}
+              liked={isLiked}
+              likeCount={likeCounts[reel.id] || 0}
+              onToggleLike={handleToggleLike}
+              saved={isSaved}
+              onToggleSave={handleToggleSave}
+              isFollowed={isFollowed}
+              onToggleFollow={handleToggleFollow}
+              onDeleteReel={handleDeleteReel}
+              comments={activeComments}
+              isCommentOpen={isCommentOpen}
+              onToggleCommentOpen={(id) => setOpenCommentReelId(openCommentReelId === id ? null : id)}
+              onAddComment={handleAddComment}
+              onShare={handleShare}
+              onVisibleChange={handleVisibleChange}
+            />
           );
         })}
       </div>

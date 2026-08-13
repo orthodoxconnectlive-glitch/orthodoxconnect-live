@@ -90,8 +90,7 @@ export const AdminPanelView: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*');
 
       if (!error && data && data.length > 0) {
         loadedUsers = data.map((d: any) => ({
@@ -220,7 +219,6 @@ export const AdminPanelView: React.FC = () => {
           parish,
           role,
           avatar_url: newMemberObj.avatar_url,
-          created_at: newMemberObj.created_at,
         },
       ]);
       showToast(`Added ${name} to parish directory.`);

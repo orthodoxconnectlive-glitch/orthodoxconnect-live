@@ -2,8 +2,12 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Post } from '../types';
 import { addNotification } from './notifications';
 
-// Bunny Stream video links (Library ID: 713265)
-export const BUNNY_STREAM_BASE = `https://${import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net'}`;
+// Bunny Stream configuration
+export const BUNNY_LIBRARY_ID = '713265';
+export const BUNNY_API_KEY = '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
+export const BUNNY_CDN_HOSTNAME = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
+export const BUNNY_STREAM_BASE = `https://${BUNNY_CDN_HOSTNAME}`;
+
 export const SEED_VIDEOS = [
   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
@@ -20,7 +24,7 @@ export function mapRowToPost(row: any, profileMap?: Record<string, any>): Post {
   const authorAvatar = profile?.avatar_url || profile?.avatarUrl || row.author_avatar || row.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
 
   const media = row.media_url || row.image_url || row.video_url || row.image || row.video;
-  const isVideo = media?.includes('bunnynet') || media?.endsWith('.mp4') || media?.includes('videos-bucket');
+  const isVideo = media?.includes('bunnynet') || media?.includes('mediadelivery.net') || media?.endsWith('.mp4') || media?.includes('videos-bucket');
 
   return {
     id: String(row.id),
@@ -130,7 +134,7 @@ export function saveLocalLikesMap(map: Record<string, boolean>) {
 }
 
 /**
- * Fast & Safe Load Posts Function (No relational locks)
+ * Fast Load Posts Function with safe batch profile resolution
  */
 export async function loadPosts(
   groupId?: string,
@@ -163,7 +167,6 @@ export async function loadPosts(
     }
 
     if (data && data.length > 0) {
-      // Fetch author profiles in a fast batch query
       const userIds = Array.from(new Set(data.map((p) => p.user_id).filter(Boolean)));
       let profileMap: Record<string, any> = {};
 
@@ -242,27 +245,49 @@ export const DEFAULT_ORTHODOX_VIDEOS: Post[] = [
   },
 ];
 
+/**
+ * Fetches videos directly from Bunny Stream REST API Library
+ */
 export async function loadVideos(): Promise<Post[]> {
-  const localReels = getLocalSavedPosts().filter((p) => !!p.video);
-  if (!isSupabaseConfigured) {
-    return localReels.length > 0 ? localReels : DEFAULT_ORTHODOX_VIDEOS;
-  }
-
   try {
-    const { data: postsData, error: postsError } = await supabase
-      .from('posts')
-      .select('*')
-      .not('media_url', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(15);
+    const res = await fetch(
+      `https://video.mediadelivery.net/library/${BUNNY_LIBRARY_ID}/videos?page=1&itemsPerPage=50&orderBy=date`,
+      {
+        method: 'GET',
+        headers: {
+          AccessKey: BUNNY_API_KEY,
+          accept: 'application/json',
+        },
+      }
+    );
 
-    if (!postsError && postsData && postsData.length > 0) {
-      return postsData.map((row) => mapRowToPost(row)).filter((p) => !!p.video);
+    if (res.ok) {
+      const data = await res.json();
+      const items = data.items || [];
+
+      if (items.length > 0) {
+        return items.map((video: any) => ({
+          id: video.guid,
+          text: video.title ? video.title.replace('.mp4', '') : 'Orthodox Reflection Video',
+          authorName: 'OrthodoxConnect',
+          authorParish: 'Parish Fellowship',
+          authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+          video: `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${video.guid}`,
+          image: `https://${BUNNY_CDN_HOSTNAME}/${video.guid}/thumbnail.jpg`,
+          createdAt: video.dateUploaded || new Date().toISOString(),
+          likesCount: video.views || 0,
+          commentsCount: 0,
+          resharesCount: 0,
+        }));
+      }
     }
   } catch (err) {
-    console.warn('Videos fetch notice:', err);
+    console.warn('Bunny Stream API fetch error:', err);
   }
 
+  // Fallback to local saved posts or default videos
+  const localPosts = getLocalSavedPosts();
+  const localReels = localPosts.filter((p) => !!p.video);
   return localReels.length > 0 ? localReels : DEFAULT_ORTHODOX_VIDEOS;
 }
 

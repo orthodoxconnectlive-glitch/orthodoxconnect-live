@@ -46,7 +46,8 @@ export function mapRowToPost(row: any, profileMap?: Record<string, any>): Post {
   const authorParish = profile?.parish || row.author_parish || row.authorParish || 'Parish Community';
   const authorAvatar = profile?.avatar_url || profile?.avatarUrl || row.author_avatar || row.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
 
-  const rawMedia = row.media_url || row.video_url || row.image_url || row.image || row.video || '';
+  // Robust check across all possible column names in Supabase
+  const rawMedia = row.media_url || row.video_url || row.image_url || row.video || row.image || '';
   const isVideo =
     rawMedia.includes('bunnynet') ||
     rawMedia.includes('mediadelivery.net') ||
@@ -253,7 +254,7 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
 }
 
 /**
- * Load Vertical Videos Feed
+ * Load Vertical Videos Feed with guaranteed fallback streams
  */
 export async function loadVideos(): Promise<Post[]> {
   const sampleVideos: Post[] = [
@@ -286,12 +287,18 @@ export async function loadVideos(): Promise<Post[]> {
   ];
 
   const localPosts = getLocalSavedPosts();
-  const localReels = localPosts.filter((p) => !!p.video);
+  // Ensure local posts with videos get assigned a valid stream fallback if missing
+  const localReels = localPosts
+    .filter((p) => !!p.video || (p.image && p.image.includes('.mp4')))
+    .map((p) => ({
+      ...p,
+      video: p.video && p.video.startsWith('http') ? p.video : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+    }));
 
-  const combined = [...sampleVideos];
-  localReels.forEach((lp) => {
-    if (!combined.some((v) => v.id === lp.id || (v.text === lp.text && v.createdAt === lp.createdAt))) {
-      combined.unshift(lp);
+  const combined = [...localReels];
+  sampleVideos.forEach((sv) => {
+    if (!combined.some((v) => v.id === sv.id)) {
+      combined.push(sv);
     }
   });
 
@@ -313,7 +320,7 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     authorAvatar: postPartial.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
     authorId: postPartial.authorId,
     image: postPartial.image,
-    video: postPartial.video,
+    video: postPartial.video || (postPartial.image && postPartial.image.endsWith('.mp4') ? postPartial.image : undefined),
     createdAt: postPartial.createdAt || new Date().toISOString(),
     groupId: postPartial.groupId,
     likesCount: postPartial.likesCount || 0,
@@ -332,7 +339,8 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   const dbPayload: Record<string, any> = {
     content: newPost.text,
     user_id: isUuid ? newPost.authorId : null,
-    media_url: newPost.image || newPost.video || null,
+    media_url: newPost.video || newPost.image || null,
+    video_url: newPost.video || null,
     created_at: newPost.createdAt,
   };
 

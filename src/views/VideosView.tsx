@@ -91,13 +91,9 @@ export const VideosView: React.FC<VideosViewProps> = ({
   const fetchVideosList = async () => {
     setLoading(true);
     
-    // Pull all active posts from your unified Home Feed storage (Supabase + Local Cache)
     const { posts } = await loadPosts();
-    
-    // Filter for posts that contain video links or valid video files
     const videoPosts = posts.filter((p) => !!p.video || (p.image && p.image.endsWith('.mp4')));
 
-    // Fallback streams if no video posts exist yet
     const finalVideos = videoPosts.length > 0 ? videoPosts : [
       {
         id: 'fallback-v1',
@@ -147,7 +143,6 @@ export const VideosView: React.FC<VideosViewProps> = ({
     setLoading(false);
   };
 
-  // Lower threshold (0.3) so snap item activates instantly on mobile
   useEffect(() => {
     const container = feedContainerRef.current;
     if (!container) return;
@@ -335,12 +330,13 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
       {/* Frame Container */}
       <div className="relative w-full max-w-[420px] h-full bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-[#c5a059]/40 flex flex-col">
-        {/* Floating Top Bar */}
-        <div className="absolute top-0 inset-x-0 z-40 px-4 py-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between text-white pointer-events-auto">
+        
+        {/* Floating Top Bar with extra spacing padding (pt-14) so the audio buttons won't collide */}
+        <div className="absolute top-0 inset-x-0 z-40 px-4 pt-4 pb-3 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-center justify-between text-white pointer-events-auto">
           <button
             type="button"
             onClick={() => setIsSearchOpen(!isSearchOpen)}
-            className="p-2 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md border border-white/20 text-[#f5ebd9] cursor-pointer transition-transform active:scale-95"
+            className="p-2 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md border border-white/20 text-[#f5ebd9] cursor-pointer transition-transform active:scale-95 shadow-lg"
             title="Search Videos"
           >
             <Search className="w-4 h-4" />
@@ -386,7 +382,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
         {/* Search & Hashtag Bar */}
         {isSearchOpen && (
-          <div className="absolute top-14 inset-x-3 z-40 bg-[#1c1611]/95 backdrop-blur-xl border border-[#c5a059] rounded-2xl p-3 shadow-2xl space-y-2 text-[#f5ebd9]">
+          <div className="absolute top-16 inset-x-3 z-40 bg-[#1c1611]/95 backdrop-blur-xl border border-[#c5a059] rounded-2xl p-3 shadow-2xl space-y-2 text-[#f5ebd9]">
             <div className="relative flex items-center">
               <Search className="w-4 h-4 text-[#c5a059] absolute left-3" />
               <input
@@ -471,7 +467,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
         ) : (
           <div
             ref={feedContainerRef}
-            className="w-full h-full snap-y snap-mandatory overflow-y-scroll relative"
+            className="w-full h-full snap-y snap-mandatory overflow-y-scroll relative pt-12"
           >
             {filteredVideos.map((video) => (
               <VideoCard

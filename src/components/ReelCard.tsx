@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Heart,
   MessageCircle,
@@ -85,35 +85,64 @@ export const ReelCard: React.FC<ReelCardProps> = ({
   const [newCommentText, setNewCommentText] = useState<string>('');
 
   const elementMediaId = `reel-${reel.id}`;
-  const bunnyCdnHost = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
+  const libraryId = import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
+  const bunnyCdnHost = (import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net')
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '');
 
-  // Normalize raw video string to ensure it's playable
-  let rawVideoUrl = reel.video || reel.image || '';
-  if (rawVideoUrl && !rawVideoUrl.startsWith('http') && rawVideoUrl.length > 3) {
-    rawVideoUrl = `https://${bunnyCdnHost}/${rawVideoUrl}/play_720p.mp4`;
-  }
-  // Fallback if empty
-  if (!rawVideoUrl || rawVideoUrl.length < 5) {
-    rawVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
-  }
+  // Normalized video URL and Bunny GUID extractor
+  const videoSource = useMemo(() => {
+    const raw = reel.video || reel.image || '';
+    if (!raw || typeof raw !== 'string') return { url: '', isBunny: false, iframeUrl: '' };
 
-  // Strict unmount cleanup
+    const trimmed = raw.trim();
+    const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/i;
+    const match = trimmed.match(guidRegex);
+    const guid = match ? match[1] : null;
+
+    const isBunny =
+      trimmed.includes('bunnycdn.com') ||
+      trimmed.includes('b-cdn.net') ||
+      trimmed.includes('mediadelivery.net') ||
+      trimmed.includes('bunnyinfra.net') ||
+      (guid !== null && !trimmed.startsWith('http') && !trimmed.startsWith('data:') && !trimmed.startsWith('blob:'));
+
+    if (isBunny && guid) {
+      return {
+        url: `https://${bunnyCdnHost}/${guid}/play_720p.mp4`,
+        isBunny: true,
+        iframeUrl: `https://iframe.mediadelivery.net/embed/${libraryId}/${guid}?autoplay=true&loop=true&muted=${isAudioMuted ? 'true' : 'false'}`,
+      };
+    }
+
+    return {
+      url: trimmed.length > 5 ? trimmed : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+      isBunny: false,
+      iframeUrl: '',
+    };
+  }, [reel.video, reel.image, bunnyCdnHost, libraryId, isAudioMuted]);
+
+  // Unmount cleanup
   useEffect(() => {
     return () => {
       if (videoRef.current) {
         try {
           videoRef.current.pause();
           videoRef.current.currentTime = 0;
-          videoRef.current.src = '';
+          videoRef.current.removeAttribute('src');
+          videoRef.current.load();
         } catch (e) {}
       }
     };
   }, []);
 
+  // Sync mute state changes from props
   useEffect(() => {
-    setIsAudioMuted(!isUnmuted);
+    const muted = !isUnmuted;
+    setIsAudioMuted(muted);
     if (videoRef.current) {
-      videoRef.current.muted = !isUnmuted;
+      videoRef.current.muted = muted;
+      videoRef.current.volume = muted ? 0 : 1.0;
     }
   }, [isUnmuted]);
 
@@ -154,9 +183,10 @@ export const ReelCard: React.FC<ReelCardProps> = ({
       video.dataset.userInitiated = 'true';
       pauseAllMedia(video);
       setActiveMediaId(elementMediaId);
-      video.muted = false;
-      setIsAudioMuted(false);
-      onToggleMute?.(reel.id);
+
+      // Keep user's chosen audio mute status intact
+      video.muted = isAudioMuted;
+      video.volume = isAudioMuted ? 0 : 1.0;
 
       video
         .play()
@@ -166,7 +196,11 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           setTimeout(() => setTapFeedback(null), 800);
         })
         .catch((err) => {
-          console.warn('[ReelCard] Playback prevented:', err);
+          console.warn('[ReelCard] Playback blocked, retrying muted:', err);
+          video.muted = true;
+          video.volume = 0;
+          setIsAudioMuted(true);
+          video.play().catch((e) => console.warn('[ReelCard] Second play attempt failed:', e));
         });
     }
   };
@@ -175,9 +209,13 @@ export const ReelCard: React.FC<ReelCardProps> = ({
     e.stopPropagation();
     const nextMuted = !isAudioMuted;
     setIsAudioMuted(nextMuted);
+
     if (videoRef.current) {
       videoRef.current.muted = nextMuted;
-      if (!nextMuted) videoRef.current.dataset.userInitiated = 'true';
+      videoRef.current.volume = nextMuted ? 0 : 1.0;
+      if (!nextMuted && videoRef.current.paused) {
+        videoRef.current.play().catch((err) => console.warn('[ReelCard] Audio unmute play error:', err));
+      }
     }
     onToggleMute?.(reel.id);
     setTapFeedback(nextMuted ? 'mute' : 'unmute');
@@ -198,14 +236,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
     onAddComment(reel.id, newCommentText.trim());
     setNewCommentText('');
   };
-
-  const isBunnyUrl =
-    rawVideoUrl.includes('bunnycdn.com') ||
-    rawVideoUrl.includes('iframe.mediadelivery.net') ||
-    rawVideoUrl.includes('mediadelivery.net') ||
-    rawVideoUrl.includes(bunnyCdnHost) ||
-    rawVideoUrl.includes('b-cdn.net') ||
-    rawVideoUrl.includes('bunnyinfra.net');
 
   const canDelete =
     profile?.id === reel.authorId ||
@@ -250,11 +280,11 @@ export const ReelCard: React.FC<ReelCardProps> = ({
               Retry
             </button>
           </div>
-        ) : isBunnyUrl && !rawVideoUrl.endsWith('.mp4') ? (
+        ) : videoSource.isBunny && !videoSource.url.endsWith('.mp4') ? (
           <BunnyPlayer
-            videoUrl={rawVideoUrl}
+            videoUrl={videoSource.url}
             title={reel.text}
-            autoplay={false}
+            autoplay={isPlaying}
             muted={isAudioMuted}
             className="w-full h-full object-cover"
           />
@@ -262,11 +292,14 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           <video
             ref={videoRef}
             data-media-id={elementMediaId}
-            src={rawVideoUrl}
+            src={videoSource.url}
             controls={false}
             autoPlay={false}
             muted={isAudioMuted}
+            // @ts-ignore
             playsInline
+            webkit-playsinline="true"
+            x5-playsinline="true"
             loop
             preload="auto"
             onError={(e) => {
@@ -331,9 +364,25 @@ export const ReelCard: React.FC<ReelCardProps> = ({
         <button
           type="button"
           onClick={handleToggleMuteBtn}
-          className="pointer-events-auto p-2 rounded-full bg-[#1c1611]/85 backdrop-blur-md border border-[#c5a059] text-[#f5ebd9] hover:bg-[#c5a059] hover:text-[#1c1611] transition-all cursor-pointer shadow-lg"
+          className={`pointer-events-auto px-3 py-1.5 rounded-full backdrop-blur-md border text-xs font-serif font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 shadow-2xl cursor-pointer ${
+            isAudioMuted
+              ? 'bg-black/75 border-red-500/70 text-red-300 hover:bg-black/90 hover:border-red-400'
+              : 'bg-black/75 border-[#c5a059] text-[#c5a059] hover:bg-black/90 hover:border-[#e6d3ab]'
+          }`}
+          title={isAudioMuted ? 'Tap to Unmute Audio' : 'Tap to Mute Audio'}
+          aria-label="Toggle Sound"
         >
-          {isAudioMuted ? <VolumeX className="w-4 h-4 text-amber-300" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+          {isAudioMuted ? (
+            <>
+              <VolumeX className="w-4 h-4 text-red-400 shrink-0" />
+              <span className="text-[10px] tracking-wider text-red-300 font-sans font-bold">MUTE</span>
+            </>
+          ) : (
+            <>
+              <Volume2 className="w-4 h-4 text-[#c5a059] shrink-0" />
+              <span className="text-[10px] tracking-wider text-[#f5ebd9] font-sans font-bold">AUDIO ON</span>
+            </>
+          )}
         </button>
       </div>
 
@@ -381,7 +430,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
               })
             }
           >
-            <h4 className="font-serif-coptic font-bold text-xs text-[#f5ebd9] uppercase tracking-wider leading-tight">
+            <h4 className="font-serif font-bold text-xs text-[#f5ebd9] uppercase tracking-wider leading-tight">
               {reel.authorName}
             </h4>
             <p className="text-[9px] text-[#c5a059] font-serif uppercase tracking-widest">
@@ -510,7 +559,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           <div className="flex items-center justify-between pb-3 border-b border-[#c5a059]/30">
             <div className="flex items-center gap-2">
               <MessageCircle className="w-4 h-4 text-[#c5a059]" />
-              <h3 className="font-serif-coptic font-bold text-xs text-[#f5ebd9] uppercase tracking-wider">
+              <h3 className="font-serif font-bold text-xs text-[#f5ebd9] uppercase tracking-wider">
                 Comments ({comments.length})
               </h3>
             </div>

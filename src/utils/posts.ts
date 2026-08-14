@@ -8,7 +8,7 @@ export const BUNNY_API_KEY = import.meta.env.VITE_BUNNY_API_KEY || '615dab8d-458
 export const BUNNY_CDN_HOSTNAME = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 export const BUNNY_STREAM_BASE = `https://${BUNNY_CDN_HOSTNAME}`;
 
-// Guaranteed Seed Posts so the feed is NEVER empty
+// Guaranteed Seed Posts so feed is never empty
 export const INITIAL_SEED_POSTS: Post[] = [
   {
     id: 'seed-post-1',
@@ -46,8 +46,15 @@ export function mapRowToPost(row: any, profileMap?: Record<string, any>): Post {
   const authorParish = profile?.parish || row.author_parish || row.authorParish || 'Parish Community';
   const authorAvatar = profile?.avatar_url || profile?.avatarUrl || row.author_avatar || row.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
 
-  const media = row.media_url || row.image_url || row.video_url || row.image || row.video;
-  const isVideo = media?.includes('bunnynet') || media?.includes('mediadelivery.net') || media?.includes('b-cdn.net') || media?.endsWith('.mp4');
+  const rawMedia = row.media_url || row.video_url || row.image_url || row.video || row.image || '';
+  const isVideo =
+    rawMedia.includes('bunnynet') ||
+    rawMedia.includes('mediadelivery.net') ||
+    rawMedia.includes('b-cdn.net') ||
+    rawMedia.includes('googleapis.com') ||
+    rawMedia.endsWith('.mp4') ||
+    rawMedia.endsWith('.mov') ||
+    rawMedia.endsWith('.webm');
 
   return {
     id: String(row.id),
@@ -56,8 +63,8 @@ export function mapRowToPost(row: any, profileMap?: Record<string, any>): Post {
     authorParish,
     authorAvatar,
     authorId: row.user_id || row.author_id || row.authorId || profile?.id,
-    image: isVideo ? undefined : media,
-    video: isVideo ? media : undefined,
+    image: isVideo ? undefined : (rawMedia || undefined),
+    video: isVideo ? rawMedia : undefined,
     audio: row.audio_url || row.audio || row.audioUrl || undefined,
     audioUrl: row.audio_url || row.audio || row.audioUrl || undefined,
     broadcastUrl: row.broadcast_url || row.broadcastUrl || undefined,
@@ -131,7 +138,6 @@ export async function loadPosts(
     const { data, error } = await query;
 
     if (error || !data || data.length === 0) {
-      // Always fallback to initial posts if DB is empty or fails
       return { posts: localPosts, error: error || null };
     }
 
@@ -153,7 +159,6 @@ export async function loadPosts(
 
     const dbPosts = data.map((row) => mapRowToPost(row, profileMap));
     
-    // Merge DB posts with seed posts so feed is never zero
     const merged = [...dbPosts];
     localPosts.forEach((lp) => {
       if (!merged.some((p) => p.id === lp.id)) merged.push(lp);
@@ -194,53 +199,46 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
  * Load Vertical Videos Feed
  */
 export async function loadVideos(): Promise<Post[]> {
-  let bunnyVideos: Post[] = [];
-
-  try {
-    const res = await fetch(
-      `https://video.mediadelivery.net/library/${BUNNY_LIBRARY_ID}/videos?page=1&itemsPerPage=50&orderBy=date`,
-      {
-        method: 'GET',
-        headers: {
-          AccessKey: BUNNY_API_KEY,
-          accept: 'application/json',
-        },
-      }
-    );
-
-    if (res.ok) {
-      const data = await res.json();
-      const items = data.items || [];
-
-      if (items.length > 0) {
-        bunnyVideos = items.map((video: any) => ({
-          id: video.guid,
-          text: video.title ? video.title.replace('.mp4', '') : 'Orthodox Reflection Video',
-          authorName: 'OrthodoxConnect',
-          authorParish: 'Parish Fellowship',
-          authorAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-          video: `https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4`,
-          image: `https://${BUNNY_CDN_HOSTNAME}/${video.guid}/thumbnail.jpg`,
-          createdAt: video.dateUploaded || new Date().toISOString(),
-          likesCount: video.views || 18,
-          commentsCount: 0,
-          resharesCount: 0,
-        }));
-      }
-    }
-  } catch (err) {}
+  const sampleVideos: Post[] = [
+    {
+      id: 'v-101',
+      text: 'Orthodox Spiritual Reflection & Liturgical Song ☨',
+      authorName: 'OrthodoxConnect',
+      authorParish: 'Parish Fellowship',
+      authorAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+      image: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800',
+      createdAt: new Date().toISOString(),
+      likesCount: 25,
+      commentsCount: 2,
+      resharesCount: 0,
+    },
+    {
+      id: 'v-102',
+      text: '"I Come to You" — English-Coptic Spiritual Song',
+      authorName: 'Fr. Athanasios',
+      authorParish: 'St. George Cathedral',
+      authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+      image: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800',
+      createdAt: new Date().toISOString(),
+      likesCount: 42,
+      commentsCount: 5,
+      resharesCount: 1,
+    },
+  ];
 
   const localPosts = getLocalSavedPosts();
   const localReels = localPosts.filter((p) => !!p.video);
 
-  const combined = [...bunnyVideos];
+  const combined = [...sampleVideos];
   localReels.forEach((lp) => {
     if (!combined.some((v) => v.id === lp.id || (v.text === lp.text && v.createdAt === lp.createdAt))) {
-      combined.push(lp);
+      combined.unshift(lp);
     }
   });
 
-  return combined.length > 0 ? combined : INITIAL_SEED_POSTS;
+  return combined;
 }
 
 export const loadReels = loadVideos;
@@ -253,7 +251,7 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   const newPost: Post = {
     id: postPartial.id || 'post-' + Date.now(),
     text: postPartial.text || '',
-    authorName: postPartial.authorName || 'Orthodox Visitor',
+    authorName: postPartial.authorName || 'Orthodox Member',
     authorParish: postPartial.authorParish || 'Parish Community',
     authorAvatar: postPartial.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
     authorId: postPartial.authorId,
@@ -308,6 +306,30 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   return newPost;
 }
 
+export async function loadPost(postId: string): Promise<Post | null> {
+  const localFound = getLocalSavedPosts().find((p) => p.id === postId);
+  if (localFound) return localFound;
+
+  if (!isSupabaseConfigured) return null;
+
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postId);
+    if (!isUuid) return null;
+
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*')
+      .eq('id', postId)
+      .single();
+
+    if (!error && data) {
+      return mapRowToPost(data);
+    }
+  } catch (err) {}
+
+  return null;
+}
+
 export async function deletePost(postId: string): Promise<boolean> {
   try {
     const existing = getLocalSavedPosts().filter((p) => p.id !== postId);
@@ -319,4 +341,32 @@ export async function deletePost(postId: string): Promise<boolean> {
   } catch (e) {}
 
   return true;
+}
+
+export async function createReshare(
+  postId: string,
+  kind: 'reshare' | 'quote',
+  quote?: string
+): Promise<Post> {
+  const originalPost = await loadPost(postId);
+
+  if (originalPost) {
+    originalPost.resharesCount = (originalPost.resharesCount || 0) + 1;
+  }
+
+  const resharePost: Post = {
+    id: 'reshare-' + Date.now(),
+    text: quote || (kind === 'reshare' ? `Reshared from ${originalPost?.authorName || 'Parishioner'}` : ''),
+    authorName: 'Orthodox Member',
+    authorParish: 'St. George Cathedral',
+    authorAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+    createdAt: new Date().toISOString(),
+    quotedPost: originalPost,
+    reshareKind: kind,
+    likesCount: 0,
+    commentsCount: 0,
+    resharesCount: 0,
+  };
+
+  return await savePost(resharePost);
 }

@@ -5,14 +5,12 @@ import {
   Sparkles,
   Search,
   CheckCircle,
-  ChevronUp,
-  ChevronDown,
   X,
   Plus,
   Video,
 } from 'lucide-react';
 import { Post } from '../types';
-import { loadVideos, deletePost, savePost } from '../utils/posts';
+import { loadPosts, deletePost, savePost } from '../utils/posts';
 import { uploadVideoToBunnyStream } from '../utils/storage';
 import { VideoCard, VideoComment } from '../components/VideoCard';
 import { useAuth } from '../context/AuthContext';
@@ -78,10 +76,6 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
   useEffect(() => {
     let isMounted = true;
-    const timer = setTimeout(() => {
-      if (isMounted) setLoading(false);
-    }, 1500);
-
     const runFetch = async () => {
       await fetchVideosList();
       if (isMounted) setLoading(false);
@@ -91,17 +85,39 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
     return () => {
       isMounted = false;
-      clearTimeout(timer);
     };
   }, []);
 
   const fetchVideosList = async () => {
     setLoading(true);
-    const loadedVideos = await loadVideos();
-    setVideos(loadedVideos);
+    
+    // Pull all active posts from your unified Home Feed storage (Supabase + Local Cache)
+    const { posts } = await loadPosts();
+    
+    // Filter for posts that contain video links or valid video files
+    const videoPosts = posts.filter((p) => !!p.video || (p.image && p.image.endsWith('.mp4')));
 
-    if (loadedVideos.length > 0 && !activePlayingId) {
-      setActivePlayingId(loadedVideos[0].id);
+    // Fallback streams if no video posts exist yet
+    const finalVideos = videoPosts.length > 0 ? videoPosts : [
+      {
+        id: 'fallback-v1',
+        text: 'Orthodox Spiritual Reflection & Liturgical Song ☨',
+        authorName: 'OrthodoxConnect',
+        authorParish: 'Parish Fellowship',
+        authorAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+        video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+        image: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800',
+        createdAt: new Date().toISOString(),
+        likesCount: 25,
+        commentsCount: 2,
+        resharesCount: 0,
+      }
+    ];
+
+    setVideos(finalVideos);
+
+    if (finalVideos.length > 0 && !activePlayingId) {
+      setActivePlayingId(finalVideos[0].id);
     }
 
     let savedLikes: Record<string, boolean> = {};
@@ -120,7 +136,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
     const initialLikesCount: Record<string, number> = {};
     const initialComments: Record<string, VideoComment[]> = {};
 
-    loadedVideos.forEach((v) => {
+    finalVideos.forEach((v) => {
       const baseLikes = v.likesCount || 0;
       initialLikesCount[v.id] = savedLikes[v.id] ? baseLikes + 1 : baseLikes;
       initialComments[v.id] = savedComments[v.id] || [];
@@ -164,24 +180,6 @@ export const VideosView: React.FC<VideosViewProps> = ({
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
-  };
-
-  const handleScrollNext = () => {
-    if (!feedContainerRef.current) return;
-    const { scrollTop, clientHeight } = feedContainerRef.current;
-    feedContainerRef.current.scrollTo({
-      top: scrollTop + clientHeight,
-      behavior: 'smooth',
-    });
-  };
-
-  const handleScrollPrev = () => {
-    if (!feedContainerRef.current) return;
-    const { scrollTop, clientHeight } = feedContainerRef.current;
-    feedContainerRef.current.scrollTo({
-      top: Math.max(0, scrollTop - clientHeight),
-      behavior: 'smooth',
-    });
   };
 
   const handleVideoUploadSubmit = async (e: React.FormEvent) => {

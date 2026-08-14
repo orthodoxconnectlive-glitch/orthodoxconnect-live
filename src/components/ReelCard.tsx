@@ -77,7 +77,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Strict default: Always start paused and muted
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isAudioMuted, setIsAudioMuted] = useState<boolean>(!isUnmuted);
   const [hasError, setHasError] = useState<boolean>(false);
@@ -88,7 +87,17 @@ export const ReelCard: React.FC<ReelCardProps> = ({
   const elementMediaId = `reel-${reel.id}`;
   const bunnyCdnHost = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 
-  // Strict unmount cleanup: Stop playback, reset time, clear src, and silence all media
+  // Normalize raw video string to ensure it's playable
+  let rawVideoUrl = reel.video || reel.image || '';
+  if (rawVideoUrl && !rawVideoUrl.startsWith('http') && rawVideoUrl.length > 3) {
+    rawVideoUrl = `https://${bunnyCdnHost}/${rawVideoUrl}/play_720p.mp4`;
+  }
+  // Fallback if empty
+  if (!rawVideoUrl || rawVideoUrl.length < 5) {
+    rawVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+  }
+
+  // Strict unmount cleanup
   useEffect(() => {
     return () => {
       if (videoRef.current) {
@@ -96,24 +105,11 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           videoRef.current.pause();
           videoRef.current.currentTime = 0;
           videoRef.current.src = '';
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       }
-      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-      allMedia.forEach((m) => {
-        try {
-          m.pause();
-          m.currentTime = 0;
-          m.src = '';
-        } catch (e) {
-          // ignore
-        }
-      });
     };
   }, []);
 
-  // Sync mute state if parent passes isUnmuted
   useEffect(() => {
     setIsAudioMuted(!isUnmuted);
     if (videoRef.current) {
@@ -121,7 +117,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
     }
   }, [isUnmuted]);
 
-  // Synchronize playback events
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -131,13 +126,8 @@ export const ReelCard: React.FC<ReelCardProps> = ({
       setActiveMediaId(elementMediaId);
     };
 
-    const handlePause = () => {
-      setIsPlaying(false);
-    };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-    };
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => setIsPlaying(false);
 
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
@@ -150,7 +140,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
     };
   }, [elementMediaId, setActiveMediaId]);
 
-  // Explicit user tap to Play / Pause and unmute sound
   const handleTogglePlay = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const video = videoRef.current;
@@ -162,12 +151,9 @@ export const ReelCard: React.FC<ReelCardProps> = ({
       setTapFeedback('pause');
       setTimeout(() => setTapFeedback(null), 800);
     } else {
-      // Mark element as explicitly user-initiated for global prototype guard
       video.dataset.userInitiated = 'true';
-      // Pause all other media in the DOM
       pauseAllMedia(video);
       setActiveMediaId(elementMediaId);
-      // Unmute on explicit user tap
       video.muted = false;
       setIsAudioMuted(false);
       onToggleMute?.(reel.id);
@@ -180,7 +166,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           setTimeout(() => setTapFeedback(null), 800);
         })
         .catch((err) => {
-          console.warn('[ReelCard] Playback was prevented:', err);
+          console.warn('[ReelCard] Playback prevented:', err);
         });
     }
   };
@@ -191,9 +177,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
     setIsAudioMuted(nextMuted);
     if (videoRef.current) {
       videoRef.current.muted = nextMuted;
-      if (!nextMuted) {
-        videoRef.current.dataset.userInitiated = 'true';
-      }
+      if (!nextMuted) videoRef.current.dataset.userInitiated = 'true';
     }
     onToggleMute?.(reel.id);
     setTapFeedback(nextMuted ? 'mute' : 'unmute');
@@ -216,12 +200,12 @@ export const ReelCard: React.FC<ReelCardProps> = ({
   };
 
   const isBunnyUrl =
-    reel.video?.includes('bunnycdn.com') ||
-    reel.video?.includes('iframe.mediadelivery.net') ||
-    reel.video?.includes('mediadelivery.net') ||
-    reel.video?.includes(bunnyCdnHost) ||
-    reel.video?.includes('b-cdn.net') ||
-    reel.video?.includes('bunnyinfra.net');
+    rawVideoUrl.includes('bunnycdn.com') ||
+    rawVideoUrl.includes('iframe.mediadelivery.net') ||
+    rawVideoUrl.includes('mediadelivery.net') ||
+    rawVideoUrl.includes(bunnyCdnHost) ||
+    rawVideoUrl.includes('b-cdn.net') ||
+    rawVideoUrl.includes('bunnyinfra.net');
 
   const canDelete =
     profile?.id === reel.authorId ||
@@ -249,10 +233,10 @@ export const ReelCard: React.FC<ReelCardProps> = ({
               <X className="w-7 h-7" />
             </div>
             <h4 className="text-[#f5ebd9] font-serif font-bold text-sm mb-1 uppercase tracking-wider">
-              Reel Playback Unavailable
+              Playback Unavailable
             </h4>
             <p className="text-[#eedcb5]/70 text-xs max-w-xs font-serif mb-4">
-              The media source for this reel could not be loaded or is offline.
+              The media source for this video could not be loaded or is offline.
             </p>
             <button
               type="button"
@@ -266,9 +250,9 @@ export const ReelCard: React.FC<ReelCardProps> = ({
               Retry
             </button>
           </div>
-        ) : isBunnyUrl ? (
+        ) : isBunnyUrl && !rawVideoUrl.endsWith('.mp4') ? (
           <BunnyPlayer
-            videoUrl={reel.video}
+            videoUrl={rawVideoUrl}
             title={reel.text}
             autoplay={false}
             muted={isAudioMuted}
@@ -278,15 +262,15 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           <video
             ref={videoRef}
             data-media-id={elementMediaId}
-            src={reel.video}
+            src={rawVideoUrl}
             controls={false}
             autoPlay={false}
             muted={isAudioMuted}
             playsInline
             loop
-            preload="none"
+            preload="auto"
             onError={(e) => {
-              console.warn('[ReelCard] Video error:', e);
+              console.warn('[ReelCard] Video element error:', e);
               setHasError(true);
               setIsPlaying(false);
             }}
@@ -294,7 +278,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           />
         )}
 
-        {/* Prominent "TAP TO PLAY" Overlay when Paused */}
+        {/* Prominent Play Overlay */}
         {!isPlaying && !hasError && (
           <div
             onClick={(e) => handleTogglePlay(e)}
@@ -305,8 +289,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
               <button
                 type="button"
                 className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-[#c5a059] to-[#8f6e30] hover:from-[#e6d3ab] hover:to-[#c5a059] text-[#1c130c] shadow-2xl flex items-center justify-center border-2 border-[#f5ebd9] transition-transform transform group-hover/play:scale-110 active:scale-95 cursor-pointer"
-                title="Tap to Play Reel"
-                aria-label="Tap to Play Reel"
+                title="Tap to Play"
               >
                 <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-current ml-1 text-[#1c130c]" />
               </button>
@@ -318,7 +301,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           </div>
         )}
 
-        {/* Animated Tap Overlay Feedback Icon */}
+        {/* Tap Feedback Animation */}
         {tapFeedback && (
           <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-black/20">
             <div className="w-20 h-20 rounded-full bg-[#c5a059]/90 text-[#1c1611] flex items-center justify-center shadow-2xl animate-ping">
@@ -330,7 +313,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           </div>
         )}
 
-        {/* Double Tap Heart Animation Overlay */}
+        {/* Double Tap Heart */}
         {showHeartAnim && (
           <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
             <Heart className="w-24 h-24 text-red-600 fill-current animate-ping drop-shadow-2xl" />
@@ -349,15 +332,13 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           type="button"
           onClick={handleToggleMuteBtn}
           className="pointer-events-auto p-2 rounded-full bg-[#1c1611]/85 backdrop-blur-md border border-[#c5a059] text-[#f5ebd9] hover:bg-[#c5a059] hover:text-[#1c1611] transition-all cursor-pointer shadow-lg"
-          title={isAudioMuted ? 'Unmute' : 'Mute'}
         >
           {isAudioMuted ? <VolumeX className="w-4 h-4 text-amber-300" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
         </button>
       </div>
 
-      {/* Bottom Left Info & Audio Overlay */}
+      {/* Bottom Info Overlay */}
       <div className="relative z-20 p-4 w-full bg-gradient-to-t from-black/95 via-black/60 to-transparent space-y-2 mt-auto">
-        {/* Author Header */}
         <div className="flex items-center gap-3">
           <div
             className="relative cursor-pointer hover:opacity-80 transition-opacity"
@@ -384,7 +365,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
               className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] shadow-md border border-black cursor-pointer transition-transform ${
                 isFollowed ? 'bg-emerald-600' : 'bg-red-600 hover:scale-110'
               }`}
-              title={isFollowed ? 'Following' : 'Follow Creator'}
             >
               {isFollowed ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
             </button>
@@ -410,7 +390,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           </div>
         </div>
 
-        {/* Caption & Hashtags */}
         <p className="text-xs text-[#f5ebd9] line-clamp-3 leading-relaxed font-serif pr-12">
           {reel.text}{' '}
           <span className="text-[#c5a059] font-bold">
@@ -418,7 +397,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           </span>
         </p>
 
-        {/* Audio Track Indicator */}
         <div className="flex items-center gap-2 pt-1">
           <Music className="w-3.5 h-3.5 text-[#c5a059] animate-bounce" />
           <div className="overflow-hidden w-48 text-[10px] text-[#f5ebd9] whitespace-nowrap font-serif uppercase tracking-wider">
@@ -431,7 +409,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
 
       {/* Floating Right Action Stack */}
       <div className="absolute right-3 bottom-12 z-30 flex flex-col items-center gap-3.5 text-white">
-        {/* Like Button */}
         <button
           type="button"
           onClick={() => onToggleLike(reel.id)}
@@ -451,7 +428,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           </span>
         </button>
 
-        {/* Comment Drawer Button */}
         <button
           type="button"
           onClick={() => onToggleCommentOpen(reel.id)}
@@ -465,13 +441,11 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           </span>
         </button>
 
-        {/* Direct Message 1-on-1 Button */}
         {onOpenMessengerWithUser && (
           <button
             type="button"
             onClick={() => onOpenMessengerWithUser(reel.authorId || reel.authorName)}
             className="flex flex-col items-center gap-1 group cursor-pointer"
-            title="Send Direct Message"
           >
             <div className="p-3 rounded-full bg-[#1c1611]/80 backdrop-blur-md border border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#3d2b18] transition-all">
               <MessageSquare className="w-5 h-5" />
@@ -480,7 +454,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           </button>
         )}
 
-        {/* Save / Bookmark Button */}
         <button
           type="button"
           onClick={() => onToggleSave(reel.id)}
@@ -498,7 +471,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           <span className="text-[9px] font-bold text-[#f5ebd9] shadow-sm font-serif uppercase">Save</span>
         </button>
 
-        {/* Share Button */}
         <button
           type="button"
           onClick={() => onShare(reel)}
@@ -510,13 +482,11 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           <span className="text-[9px] font-bold text-[#f5ebd9] shadow-sm font-serif uppercase">Share</span>
         </button>
 
-        {/* Delete Reel Button for Admins or Author */}
         {canDelete && (
           <button
             type="button"
             onClick={() => onDeleteReel(reel.id)}
             className="flex flex-col items-center gap-1 group cursor-pointer"
-            title="Delete Reel"
           >
             <div className="p-3 rounded-full bg-red-900/80 backdrop-blur-md border border-red-500 text-red-300 hover:bg-red-600 hover:text-white transition-all">
               <Trash2 className="w-5 h-5" />
@@ -525,7 +495,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
           </button>
         )}
 
-        {/* Disc Icon */}
         <div className="mt-1 w-9 h-9 rounded-full bg-[#1c1611] p-1 border-2 border-[#c5a059] shadow-2xl animate-spin">
           <img
             src={reel.authorAvatar}
@@ -535,10 +504,9 @@ export const ReelCard: React.FC<ReelCardProps> = ({
         </div>
       </div>
 
-      {/* Slide-up Comment Drawer for this Reel */}
+      {/* Slide-up Comment Drawer */}
       {isCommentOpen && (
         <div className="absolute inset-x-0 bottom-0 z-40 h-[65%] bg-[#1c1611]/95 backdrop-blur-2xl rounded-t-3xl border-t-2 border-[#c5a059] p-4 flex flex-col justify-between shadow-2xl animate-slide-up">
-          {/* Drawer Header */}
           <div className="flex items-center justify-between pb-3 border-b border-[#c5a059]/30">
             <div className="flex items-center gap-2">
               <MessageCircle className="w-4 h-4 text-[#c5a059]" />
@@ -555,11 +523,10 @@ export const ReelCard: React.FC<ReelCardProps> = ({
             </button>
           </div>
 
-          {/* Comments Scrollable List */}
           <div className="flex-1 overflow-y-auto my-3 space-y-3 pr-1 text-xs no-scrollbar">
             {comments.length === 0 ? (
               <p className="text-[#a89379] text-center py-6 text-[11px] font-serif uppercase">
-                No comments yet. Encourage this reel!
+                No comments yet. Encourage this video!
               </p>
             ) : (
               comments.map((c) => (
@@ -585,7 +552,6 @@ export const ReelCard: React.FC<ReelCardProps> = ({
             )}
           </div>
 
-          {/* Comment Form Input */}
           <form onSubmit={handleCommentSubmit} className="flex gap-2 pt-2 border-t border-[#c5a059]/30">
             <input
               type="text"

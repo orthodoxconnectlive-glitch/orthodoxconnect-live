@@ -18,7 +18,6 @@ import {
   Check,
   Maximize,
   Music,
-  Disc,
   Sparkles,
   CheckCircle2,
 } from 'lucide-react';
@@ -104,7 +103,6 @@ export function normalizeVideoSource(
     const iframeUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${guid}`;
     const thumbnailUrl = `https://${cdnHost}/${guid}/thumbnail.jpg`;
 
-    // If source is explicitly an iframe embed URL
     const isEmbedOnly = trimmed.includes('iframe.mediadelivery.net/embed/');
 
     return {
@@ -117,7 +115,6 @@ export function normalizeVideoSource(
     };
   }
 
-  // Standard web video URL (MP4, WebM, MOV, S3, Supabase, Google Storage)
   return {
     isBunny: false,
     guid: null,
@@ -133,7 +130,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   isPlaying,
   onTogglePlay,
   onSelectUser,
-  onOpenMessengerWithUser,
   liked,
   likeCount,
   onToggleLike,
@@ -162,17 +158,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const [doubleTapHearts, setDoubleTapHearts] = useState<{ id: number; x: number; y: number }[]>([]);
   const [progress, setProgress] = useState<number>(0);
   const [isCaptionExpanded, setIsCaptionExpanded] = useState<boolean>(false);
-  const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
   const lastTapRef = useRef<number>(0);
   const elementMediaId = `video-${video.id}`;
 
-  // Normalized video source attributes
   const videoMeta = useMemo(() => {
     return normalizeVideoSource(video.video);
   }, [video.video]);
 
-  // Determine final poster image (custom image > Bunny Stream auto thumbnail > default poster)
   const posterImage = useMemo(() => {
     if (video.image && video.image.trim()) return video.image;
     if (videoMeta.thumbnailUrl && videoMeta.thumbnailUrl !== DEFAULT_POSTER) {
@@ -181,7 +174,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     return DEFAULT_POSTER;
   }, [video.image, videoMeta.thumbnailUrl]);
 
-  // Construct iframe embed URL with active play/mute query params
   const iframeSrc = useMemo(() => {
     if (!videoMeta.iframeUrl) return null;
     const autoplayVal = isPlaying ? 'true' : 'false';
@@ -189,7 +181,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     return `${videoMeta.iframeUrl}?autoplay=${autoplayVal}&muted=${mutedVal}&loop=true&preload=true&responsive=true`;
   }, [videoMeta.iframeUrl, isPlaying, isGlobalMuted]);
 
-  // Sync HTML5 Video Play / Pause & Mute with global mute persistence
+  // Sync HTML5 Video Play / Pause, Volume & Mute
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid || useIframeFallback) {
@@ -200,15 +192,17 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     if (isPlaying) {
       vid.muted = isGlobalMuted;
       vid.defaultMuted = isGlobalMuted;
+      vid.volume = isGlobalMuted ? 0 : 1.0;
       setActiveMediaId(elementMediaId);
 
       const playPromise = vid.play();
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
-          // If browser policy prevents unmuted autoplay, retry immediately in muted mode
           if (err.name === 'NotAllowedError') {
-            console.warn('[VideoCard] Autoplay prevented, falling back to muted playback');
+            console.warn('[VideoCard] Autoplay prevented with sound, trying muted playback');
             vid.muted = true;
+            vid.volume = 0;
+            setIsGlobalMuted(true);
             vid.play().catch((e: any) => {
               console.warn('[VideoCard] Muted playback retry failed:', e?.message || String(e));
             });
@@ -220,7 +214,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     } else {
       vid.pause();
     }
-  }, [isPlaying, isGlobalMuted, elementMediaId, setActiveMediaId, useIframeFallback]);
+  }, [isPlaying, isGlobalMuted, elementMediaId, setActiveMediaId, useIframeFallback, setIsGlobalMuted]);
 
   // Video progress tracking
   useEffect(() => {
@@ -249,17 +243,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           videoRef.current.removeAttribute('src');
           videoRef.current.load();
         } catch (e) {
-          // ignore cleanup errors
+          // ignore
         }
       }
     };
   }, []);
 
-  // Handle direct HTML5 video element error (switch to Bunny iframe or display retry)
   const handleVideoError = (_e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
     console.warn('[VideoCard] HTML5 Video playback error for video ID:', video.id);
     if (videoMeta.isBunny && videoMeta.iframeUrl && !useIframeFallback) {
-      // Automatically fallback to Bunny Stream Iframe embed
       setUseIframeFallback(true);
       setHasError(false);
     } else {
@@ -267,7 +259,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     }
   };
 
-  // Screen Tap / Double Tap Handler (TikTok style)
   const handleScreenClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.closest('form') || target.closest('.no-screen-tap')) {
@@ -278,7 +269,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     const DOUBLE_TAP_DELAY = 300;
 
     if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-      // Double tap -> Like video with animated heart burst
       const rect = containerRef.current?.getBoundingClientRect();
       const x = rect ? e.clientX - rect.left : e.clientX;
       const y = rect ? e.clientY - rect.top : e.clientY;
@@ -294,7 +284,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       }
       lastTapRef.current = 0;
     } else {
-      // Single tap -> Play / Pause toggle
       lastTapRef.current = now;
       setTimeout(() => {
         if (lastTapRef.current === now) {
@@ -309,16 +298,19 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     }
   };
 
+  // Fixed explicit audio unmuting logic
   const handleToggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     const nextMuted = !isGlobalMuted;
     setIsGlobalMuted(nextMuted);
+
     if (videoRef.current) {
       videoRef.current.muted = nextMuted;
-      if (!nextMuted && isPlaying && videoRef.current.paused) {
+      videoRef.current.volume = nextMuted ? 0 : 1.0;
+      if (!nextMuted) {
         videoRef.current.play().catch((err) => {
-          console.warn('[VideoCard] Unmuted playback error:', err);
+          console.warn('[VideoCard] User-unmuted playback error:', err);
         });
       }
     }
@@ -358,7 +350,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
 
   const authorHandle = `@${video.authorName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'orthodox'}`;
 
-  // Helper to render caption with interactive hashtags
   const renderFormattedCaption = (text: string) => {
     if (!text) return null;
     const words = text.split(/(\s+)/);
@@ -381,7 +372,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     });
   };
 
-  // Format large numbers (1.2k, 14.5k)
   const formatCount = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
     if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
@@ -396,7 +386,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       onClick={handleScreenClick}
       className="w-full h-full relative overflow-hidden bg-black select-none flex items-center justify-center snap-start snap-always"
     >
-      {/* 1. Main 9:16 Video Player Surface */}
+      {/* 1. Main Video Surface */}
       {hasError ? (
         <div className="relative w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#1c130c] overflow-hidden">
           <img
@@ -456,19 +446,17 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             playsInline
             webkit-playsinline="true"
             x5-playsinline="true"
-            onLoadedData={() => setIsLoaded(true)}
-            onCanPlay={() => setIsLoaded(true)}
             onError={handleVideoError}
             className="w-full h-full object-cover sm:object-contain bg-black pointer-events-none"
           />
         </div>
       )}
 
-      {/* Dark Vignette Gradients for Legibility (Top and Bottom) */}
+      {/* Dark Vignettes */}
       <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/75 via-black/30 to-transparent pointer-events-none z-10" />
       <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none z-10" />
 
-      {/* 2. Top Right Player Controls (Mute & Fullscreen) - Positioned cleanly below header tabs */}
+      {/* 2. Top Right Player Controls */}
       <div className="absolute top-14 sm:top-16 right-3 sm:right-4 z-30 flex items-center gap-2 pointer-events-auto no-screen-tap">
         <button
           type="button"
@@ -478,7 +466,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               ? 'bg-black/75 border-red-500/70 text-red-300 hover:bg-black/90 hover:border-red-400'
               : 'bg-black/75 border-[#c5a059] text-[#c5a059] hover:bg-black/90 hover:border-[#e6d3ab]'
           }`}
-          title={isGlobalMuted ? 'Tap to Unmute Audio (Applies to all videos)' : 'Tap to Mute Audio (Applies to all videos)'}
+          title={isGlobalMuted ? 'Tap to Unmute Audio' : 'Tap to Mute Audio'}
           aria-label="Toggle Sound"
         >
           {isGlobalMuted ? (
@@ -505,7 +493,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </button>
       </div>
 
-      {/* 3. Center Screen Play/Pause Animated Pulse Indicator */}
+      {/* 3. Center Screen Play/Pause Animated Pulse */}
       {(!isPlaying || showPlayPulse) && (
         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
           <div className="w-20 h-20 rounded-full bg-black/60 backdrop-blur-md border-2 border-[#c5a059] flex items-center justify-center text-[#c5a059] shadow-2xl transition-all scale-100 animate-fade-in">
@@ -518,7 +506,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
       )}
 
-      {/* 4. Double-Tap Floating Heart Burst Animations */}
+      {/* 4. Double-Tap Floating Heart Bursts */}
       {doubleTapHearts.map((heart) => (
         <div
           key={heart.id}
@@ -529,9 +517,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
       ))}
 
-      {/* 5. Right-Side Action Bar (TikTok Style) */}
+      {/* 5. Right-Side Action Bar */}
       <div className="absolute right-2.5 sm:right-4 bottom-16 z-30 flex flex-col items-center gap-4.5 pointer-events-auto">
-        {/* Author Avatar with Red (+) Follow Button */}
         <div className="relative flex flex-col items-center mb-1">
           <div
             onClick={(e) => {
@@ -552,7 +539,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             />
           </div>
 
-          {/* Red (+) Follow Button */}
           <button
             type="button"
             onClick={(e) => {
@@ -571,7 +557,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </button>
         </div>
 
-        {/* Heart / Like Button with Animated Counter */}
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
@@ -592,7 +577,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </span>
         </div>
 
-        {/* Speech Bubble / Comment Button */}
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
@@ -611,7 +595,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </span>
         </div>
 
-        {/* Bookmark / Save Button */}
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
@@ -632,7 +615,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </span>
         </div>
 
-        {/* Share Button with Direct Link Copy */}
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
@@ -651,7 +633,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </span>
         </div>
 
-        {/* Delete Button (if admin/author) */}
         {canDelete && (
           <div className="flex flex-col items-center gap-1">
             <button
@@ -670,9 +651,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         )}
       </div>
 
-      {/* 6. Bottom Overlay: Creator info, caption with clickable hashtags, and audio track bar */}
+      {/* 6. Bottom Creator Information & Audio Details */}
       <div className="absolute bottom-3 left-3 right-16 sm:right-20 z-20 flex flex-col gap-2 text-left pointer-events-auto">
-        {/* Creator Username & Verified Badge */}
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
@@ -691,7 +671,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             <CheckCircle2 className="w-4 h-4 text-[#38bdf8] fill-[#38bdf8] stroke-black" />
           </button>
 
-          {/* Parish Badge */}
           {video.authorParish && (
             <span className="px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-md border border-[#c5a059]/40 text-[#c5a059] text-[10px] font-serif flex items-center gap-1 drop-shadow-md">
               <Church className="w-2.5 h-2.5" />
@@ -700,7 +679,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           )}
         </div>
 
-        {/* Video Caption with Clickable Hashtags */}
         {video.text && (
           <div className="text-xs text-white/95 font-serif leading-relaxed drop-shadow-md max-w-full">
             <p className={isCaptionExpanded ? '' : 'line-clamp-2'}>
@@ -721,18 +699,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </div>
         )}
 
-        {/* Audio Track Bar with Spinning Vinyl Disc */}
         <div className="flex items-center justify-between gap-3 pt-1">
           <div className="flex items-center gap-2 overflow-hidden flex-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 max-w-[240px]">
             <Music className="w-3.5 h-3.5 text-[#c5a059] shrink-0" />
             <div className="overflow-hidden whitespace-nowrap text-[11px] text-white/90 font-serif">
               <span className="inline-block animate-marquee">
-                Original Audio — {video.authorName} • Byzantine Liturgical Chant & Reflection ☨
+                Original Audio — {video.authorName} • Liturgical Reflection ☨
               </span>
             </div>
           </div>
 
-          {/* Spinning Audio Thumbnail Disc */}
           <div className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-neutral-900 via-neutral-800 to-black border-2 border-neutral-700 shadow-xl flex items-center justify-center shrink-0">
             <div
               className={`w-6 h-6 rounded-full overflow-hidden border border-[#c5a059]/60 flex items-center justify-center ${
@@ -745,7 +721,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                 className="w-full h-full object-cover"
               />
             </div>
-            {/* Center vinyl hole */}
             <div className="absolute w-1.5 h-1.5 rounded-full bg-black border border-white/40" />
           </div>
         </div>
@@ -759,17 +734,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         />
       </div>
 
-      {/* 8. Slide-Up Comment Drawer / Bottom Sheet */}
+      {/* 8. Slide-Up Comment Drawer */}
       {isCommentOpen && (
         <div
           onClick={(e) => e.stopPropagation()}
           className="no-screen-tap absolute inset-x-0 bottom-0 max-h-[72%] h-[420px] bg-[#1c1611]/98 backdrop-blur-2xl border-t-2 border-[#c5a059] rounded-t-3xl p-4 z-50 flex flex-col shadow-2xl animate-fade-in text-[#f5ebd9]"
         >
-          {/* Drawer Header */}
           <div className="flex items-center justify-between pb-3 border-b border-[#c5a059]/30">
             <div className="flex items-center gap-2">
               <MessageCircle className="w-4 h-4 text-[#c5a059]" />
-              <h4 className="font-serif-coptic font-bold text-sm text-[#f5ebd9] uppercase tracking-wider">
+              <h4 className="font-serif font-bold text-sm text-[#f5ebd9] uppercase tracking-wider">
                 Comments ({comments.length})
               </h4>
             </div>
@@ -782,7 +756,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             </button>
           </div>
 
-          {/* Quick Spiritual Reaction Chips */}
           <div className="flex items-center gap-2 py-2.5 overflow-x-auto no-scrollbar border-b border-[#c5a059]/20">
             {['☨ Amen', '🙏 Praying', '🕊️ Blessed', '❤️ Glory to God', '✝️ Lord Have Mercy'].map(
               (chip) => (
@@ -798,13 +771,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             )}
           </div>
 
-          {/* Comments Scrollable List */}
           <div className="flex-1 overflow-y-auto space-y-3 py-3 pr-1 text-xs no-scrollbar">
             {comments.length === 0 ? (
               <div className="text-center py-10">
                 <Sparkles className="w-8 h-8 text-[#c5a059]/50 mx-auto mb-2" />
                 <p className="text-[#a89379] font-serif">
-                  Be the first to leave a spiritual comment or reflection on this video!
+                  Be the first to leave a reflection on this video!
                 </p>
               </div>
             ) : (
@@ -829,7 +801,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             )}
           </div>
 
-          {/* Comment Input Form */}
           <form onSubmit={handleCommentSubmit} className="flex gap-2 pt-2.5 border-t border-[#c5a059]/30">
             <input
               type="text"

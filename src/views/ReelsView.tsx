@@ -62,14 +62,10 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
 
   const fetchVideos = async () => {
     setLoading(true);
-    
-    // Pull all active posts from your unified Home Feed storage (Supabase + Local Cache)
+
     const { posts } = await loadPosts();
-    
-    // Filter for items that actually contain video streams or MP4 video files
     const videoReels = posts.filter((p) => !!p.video || (p.image && p.image.endsWith('.mp4')));
 
-    // Fallback streams if no video posts exist yet
     const finalReels = videoReels.length > 0 ? videoReels : [
       {
         id: 'fallback-reel-1',
@@ -89,7 +85,6 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     setReels(finalReels);
     setActiveIndex(0);
 
-    // Load saved likes and comments from localStorage
     let savedLikes: Record<string, boolean> = {};
     let savedComments: Record<string, ReelComment[]> = {};
     try {
@@ -186,7 +181,6 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     }
   }, [activeIndex, navigateToVideo]);
 
-  // Keyboard navigation: Up/Down arrow keys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (openCommentReelId) return;
@@ -202,7 +196,6 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNextVideo, handlePrevVideo, openCommentReelId]);
 
-  // Touch gestures
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
   };
@@ -220,7 +213,6 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
     }
   };
 
-  // Wheel gestures
   const handleWheel = (e: React.WheelEvent) => {
     if (openCommentReelId) return;
     if (isNavigatingRef.current) return;
@@ -344,7 +336,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
 
   return (
     <div
-      className="max-w-md mx-auto space-y-3 relative"
+      className="max-w-md mx-auto space-y-3 relative h-[calc(100dvh-5.5rem)] flex flex-col justify-center select-none"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onWheel={handleWheel}
@@ -358,7 +350,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
       )}
 
       {/* Top Header Controls Bar */}
-      <div className="flex items-center justify-between p-3 rounded-2xl bg-[#1c1611] border-2 border-[#c5a059] shadow-lg text-xs">
+      <div className="flex items-center justify-between p-3 rounded-2xl bg-[#1c1611] border-2 border-[#c5a059] shadow-lg text-xs shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-[#3d2b18] text-[#c5a059] font-bold flex items-center justify-center text-xs">
             ☨
@@ -386,7 +378,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
       </div>
 
       {/* Single Active Video Container */}
-      <div className="w-full relative">
+      <div className="w-full relative flex-1 min-h-0 flex items-center justify-center">
         <ReelCard
           key={currentReel.id}
           reel={currentReel}
@@ -409,7 +401,7 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
       </div>
 
       {/* Navigation Controls */}
-      <div className="flex items-center justify-between p-3 rounded-2xl bg-[#1c1611] border-2 border-[#c5a059] shadow-lg">
+      <div className="flex items-center justify-between p-3 rounded-2xl bg-[#1c1611] border-2 border-[#c5a059] shadow-lg shrink-0">
         <button
           type="button"
           onClick={handlePrevVideo}

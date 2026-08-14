@@ -10,6 +10,7 @@ import { loadPosts, deletePost, savePost } from '../utils/posts';
 import { uploadVideoToBunnyStream } from '../utils/storage';
 import { ReelCard, ReelComment } from '../components/ReelCard';
 import { useAuth } from '../context/AuthContext';
+import { useMedia } from '../context/MediaContext';
 import { UserProfileData } from './ProfileView';
 
 interface ReelsViewProps {
@@ -19,6 +20,7 @@ interface ReelsViewProps {
 
 export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessengerWithUser }) => {
   const { profile } = useAuth();
+  const { isGlobalMuted, setIsGlobalMuted } = useMedia();
   const [reels, setReels] = useState<Post[]>([]);
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
@@ -382,6 +384,8 @@ export const ReelsView: React.FC<ReelsViewProps> = ({ onSelectUser, onOpenMessen
         <ReelCard
           key={currentReel.id}
           reel={currentReel}
+          isUnmuted={!isGlobalMuted}
+          onToggleMute={() => setIsGlobalMuted(!isGlobalMuted)}
           onSelectUser={onSelectUser}
           onOpenMessengerWithUser={onOpenMessengerWithUser}
           liked={isLiked}

@@ -53,9 +53,6 @@ interface VideoCardProps {
   onHashtagClick?: (tag: string) => void;
 }
 
-const DEFAULT_POSTER =
-  'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800';
-
 export const VideoCard: React.FC<VideoCardProps> = ({
   video,
   isPlaying,
@@ -91,7 +88,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const lastTapRef = useRef<number>(0);
   const elementMediaId = `video-${video.id}`;
   
-  // Ensure we fall back to a guaranteed working video stream if the URL is empty or broken
+  // Guarantee a valid working fallback stream if the video link is missing
   const rawVideoUrl = video.video && video.video.startsWith('http') 
     ? video.video 
     : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
@@ -229,7 +226,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     profile?.role === 'super_admin' ||
     profile?.email === 'orthodoxconnect.live@gmail.com';
 
-  const posterImage = video.image || DEFAULT_POSTER;
   const authorHandle = `@${video.authorName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'orthodox'}`;
 
   const renderFormattedCaption = (text: string) => {
@@ -268,7 +264,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       onClick={handleScreenClick}
       className="w-full h-full relative overflow-hidden bg-black select-none flex items-center justify-center snap-start snap-always"
     >
-      {/* Main Video Player Surface */}
+      {/* Main Video Player Surface - NO broken poster attributes */}
       {isIframeEmbed ? (
         <div className="relative w-full h-full bg-black flex items-center justify-center">
           <iframe
@@ -286,8 +282,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             ref={videoRef}
             data-media-id={elementMediaId}
             src={rawVideoUrl}
-            poster={posterImage}
-            controls={true} /* Force native controls so mobile devices can always start playback */
+            controls={true}
             loop={true}
             preload="auto"
             muted={isMuted}
@@ -303,7 +298,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/70 via-black/30 to-transparent pointer-events-none z-10" />
       <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none z-10" />
 
-      {/* Top Right Sound & Fullscreen Controls */}
+      {/* Top Right Controls */}
       <div className="absolute top-4 right-4 z-30 flex items-center gap-2 pointer-events-auto">
         <button
           type="button"
@@ -352,7 +347,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
       ))}
 
-      {/* Right Sidebar Interaction Bar */}
+      {/* Right Sidebar */}
       <div className="absolute right-2.5 sm:right-4 bottom-16 z-30 flex flex-col items-center gap-4.5 pointer-events-auto">
         <div className="relative flex flex-col items-center mb-1">
           <div

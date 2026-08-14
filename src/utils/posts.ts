@@ -38,7 +38,7 @@ export const INITIAL_SEED_POSTS: Post[] = [
 ];
 
 /**
- * Helper to convert Supabase row object to frontend Post model and normalize media URLs
+ * Helper to convert Supabase row object to frontend Post model
  */
 export function mapRowToPost(row: any, profileMap?: Record<string, any>): Post {
   const profile = profileMap?.[row.user_id] || row.profiles || row.profile;
@@ -48,24 +48,13 @@ export function mapRowToPost(row: any, profileMap?: Record<string, any>): Post {
 
   let rawMedia = row.media_url || row.video_url || row.image_url || row.video || row.image || '';
 
-  // Normalize Bunny Stream GUIDs or raw non-http values into working direct MP4 URLs
-  if (rawMedia && typeof rawMedia === 'string') {
-    if (!rawMedia.startsWith('http') && rawMedia.length > 5) {
-      rawMedia = `https://${BUNNY_CDN_HOSTNAME}/${rawMedia}/play_720p.mp4`;
-    } else if (rawMedia.includes('iframe.mediadelivery.net/embed/')) {
-      const parts = rawMedia.split('/');
-      const guid = parts[parts.length - 1];
-      if (guid) {
-        rawMedia = `https://${BUNNY_CDN_HOSTNAME}/${guid}/play_720p.mp4`;
-      }
-    }
-  }
-
+  // If it's a valid http URL, keep it exactly as-is so we don't break existing CDN links
   const isVideo =
     rawMedia.includes('bunnynet') ||
     rawMedia.includes('mediadelivery.net') ||
     rawMedia.includes('b-cdn.net') ||
     rawMedia.includes('googleapis.com') ||
+    rawMedia.includes('gtv-videos-bucket') ||
     rawMedia.endsWith('.mp4') ||
     rawMedia.endsWith('.mov') ||
     rawMedia.endsWith('.webm');
@@ -267,7 +256,7 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
 }
 
 /**
- * Load Vertical Videos Feed with guaranteed stream fallback validation
+ * Load Vertical Videos Feed with working sample streams
  */
 export async function loadVideos(): Promise<Post[]> {
   const sampleVideos: Post[] = [
@@ -297,21 +286,28 @@ export async function loadVideos(): Promise<Post[]> {
       commentsCount: 5,
       resharesCount: 1,
     },
+    {
+      id: 'v-103',
+      text: 'Divine Liturgy Reflection ☨',
+      authorName: 'LUCASAUTOCODE',
+      authorParish: 'Orthodox Church',
+      authorAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoy.mp4',
+      image: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800',
+      createdAt: new Date().toISOString(),
+      likesCount: 19,
+      commentsCount: 1,
+      resharesCount: 0,
+    },
   ];
 
   const localPosts = getLocalSavedPosts();
   const localReels = localPosts
-    .filter((p) => !!p.video || (p.image && (p.image.includes('.mp4') || p.image.includes('b-cdn.net'))))
-    .map((p) => {
-      let targetVideo = p.video || p.image;
-      if (targetVideo && !targetVideo.startsWith('http')) {
-        targetVideo = `https://${BUNNY_CDN_HOSTNAME}/${targetVideo}/play_720p.mp4`;
-      }
-      return {
-        ...p,
-        video: targetVideo && targetVideo.startsWith('http') ? targetVideo : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
-      };
-    });
+    .filter((p) => !!p.video)
+    .map((p) => ({
+      ...p,
+      video: p.video && p.video.startsWith('http') ? p.video : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+    }));
 
   const combined = [...localReels];
   sampleVideos.forEach((sv) => {
@@ -330,11 +326,6 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     postPartial.authorId &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postPartial.authorId);
 
-  let videoUrl = postPartial.video || (postPartial.image && postPartial.image.endsWith('.mp4') ? postPartial.image : undefined);
-  if (videoUrl && !videoUrl.startsWith('http') && videoUrl.length > 3) {
-    videoUrl = `https://${BUNNY_CDN_HOSTNAME}/${videoUrl}/play_720p.mp4`;
-  }
-
   const newPost: Post = {
     id: postPartial.id || 'post-' + Date.now(),
     text: postPartial.text || '',
@@ -343,7 +334,7 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     authorAvatar: postPartial.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
     authorId: postPartial.authorId,
     image: postPartial.image,
-    video: videoUrl,
+    video: postPartial.video || (postPartial.image && postPartial.image.endsWith('.mp4') ? postPartial.image : undefined),
     createdAt: postPartial.createdAt || new Date().toISOString(),
     groupId: postPartial.groupId,
     likesCount: postPartial.likesCount || 0,

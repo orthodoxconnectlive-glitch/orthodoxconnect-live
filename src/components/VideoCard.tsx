@@ -91,7 +91,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   // Robustly handle raw video URLs or Bunny Stream GUIDs
   const bunnyCdnHost = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
   let rawVideoUrl = video.video || video.image || '';
-  
+
   if (rawVideoUrl && !rawVideoUrl.startsWith('http') && rawVideoUrl.length > 3) {
     rawVideoUrl = `https://${bunnyCdnHost}/${rawVideoUrl}/play_720p.mp4`;
   } else if (!rawVideoUrl || rawVideoUrl.length < 5) {
@@ -231,7 +231,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     profile?.role === 'super_admin' ||
     profile?.email === 'orthodoxconnect.live@gmail.com';
 
-  const authorHandle = `@${video.authorName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'orthodox'}`;
+  const authorHandle = `@${video.authorName?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'orthodox'}`;
 
   const renderFormattedCaption = (text: string) => {
     if (!text) return null;
@@ -267,7 +267,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       id={`tiktok-video-${video.id}`}
       data-video-id={video.id}
       onClick={handleScreenClick}
-      className="w-full h-full relative overflow-hidden bg-black select-none flex items-center justify-center snap-start snap-always"
+      className="w-full h-[calc(100dvh-5.5rem)] min-h-[580px] max-h-[820px] relative overflow-hidden bg-black select-none flex items-center justify-center snap-start snap-always rounded-3xl border border-[#c5a059]/30 shadow-2xl my-auto"
     >
       {/* Main Video Player Surface */}
       {isIframeEmbed ? (
@@ -287,20 +287,20 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             ref={videoRef}
             data-media-id={elementMediaId}
             src={rawVideoUrl}
-            controls={true}
+            controls={false}
             loop={true}
             preload="auto"
             muted={isMuted}
             playsInline
             // @ts-ignore
             webkit-playsinline="true"
-            className="w-full h-full object-cover sm:object-contain bg-black cursor-pointer"
+            className="w-full h-full object-cover bg-black cursor-pointer"
           />
         </div>
       )}
 
       {/* Dark Vignette Overlays */}
-      <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/70 via-black/30 to-transparent pointer-events-none z-10" />
+      <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/80 via-black/30 to-transparent pointer-events-none z-10" />
       <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none z-10" />
 
       {/* Top Right Controls */}
@@ -308,20 +308,20 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         <button
           type="button"
           onClick={handleToggleMute}
-          className="w-10 h-10 rounded-full bg-black/55 hover:bg-black/85 backdrop-blur-md border border-white/20 text-[#f5ebd9] flex items-center justify-center transition-transform active:scale-90 shadow-xl cursor-pointer"
+          className="w-10 h-10 rounded-full bg-black/60 hover:bg-black/85 backdrop-blur-md border border-white/20 text-[#f5ebd9] flex items-center justify-center transition-transform active:scale-90 shadow-xl cursor-pointer"
           title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
         >
           {isMuted ? (
-            <VolumeX className="w-5 h-5 text-red-400" />
+            <VolumeX className="w-5 h-5 text-amber-300" />
           ) : (
-            <Volume2 className="w-5 h-5 text-[#c5a059]" />
+            <Volume2 className="w-5 h-5 text-emerald-400" />
           )}
         </button>
 
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="w-10 h-10 rounded-full bg-black/55 hover:bg-black/85 backdrop-blur-md border border-white/20 text-[#f5ebd9] flex items-center justify-center transition-transform active:scale-90 shadow-xl cursor-pointer"
+          className="w-10 h-10 rounded-full bg-black/60 hover:bg-black/85 backdrop-blur-md border border-white/20 text-[#f5ebd9] flex items-center justify-center transition-transform active:scale-90 shadow-xl cursor-pointer"
           title="Fullscreen"
         >
           <Maximize className="w-4 h-4" />
@@ -353,7 +353,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       ))}
 
       {/* Right Sidebar */}
-      <div className="absolute right-2.5 sm:right-4 bottom-16 z-30 flex flex-col items-center gap-4.5 pointer-events-auto">
+      <div className="absolute right-2.5 sm:right-4 bottom-14 z-30 flex flex-col items-center gap-4 pointer-events-auto">
         <div className="relative flex flex-col items-center mb-1">
           <div
             onClick={(e) => {
@@ -365,7 +365,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                 parish: video.authorParish,
               });
             }}
-            className="w-12 h-12 rounded-full border-2 border-[#c5a059] overflow-hidden shadow-2xl cursor-pointer hover:scale-105 transition-transform"
+            className="w-11 h-11 rounded-full border-2 border-[#c5a059] overflow-hidden shadow-2xl cursor-pointer hover:scale-105 transition-transform"
           >
             <img
               src={video.authorAvatar}
@@ -398,13 +398,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               e.stopPropagation();
               onToggleLike(video.id);
             }}
-            className={`w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md flex items-center justify-center transition-transform active:scale-125 cursor-pointer shadow-xl ${
-              liked ? 'text-red-500' : 'text-white hover:text-red-400'
+            className={`w-11 h-11 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-[#c5a059]/40 flex items-center justify-center transition-transform active:scale-125 cursor-pointer shadow-xl ${
+              liked ? 'text-red-500 bg-red-600/20 border-red-500' : 'text-[#f5ebd9] hover:text-red-400'
             }`}
           >
-            <Heart className={`w-7 h-7 transition-colors ${liked ? 'fill-current' : ''}`} />
+            <Heart className={`w-6 h-6 transition-colors ${liked ? 'fill-current' : ''}`} />
           </button>
-          <span className="text-white text-[11px] font-bold tracking-tight drop-shadow-md">
+          <span className="text-[#f5ebd9] text-[11px] font-bold tracking-tight drop-shadow-md font-serif">
             {formatCount(likeCount)}
           </span>
         </div>
@@ -417,11 +417,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               e.stopPropagation();
               onToggleCommentOpen(video.id);
             }}
-            className="w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md flex items-center justify-center text-white hover:text-[#c5a059] transition-transform active:scale-110 cursor-pointer shadow-xl"
+            className="w-11 h-11 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-[#c5a059]/40 flex items-center justify-center text-[#c5a059] hover:text-[#f5ebd9] transition-transform active:scale-110 cursor-pointer shadow-xl"
           >
-            <MessageCircle className="w-7 h-7 fill-white/10" />
+            <MessageCircle className="w-6 h-6" />
           </button>
-          <span className="text-white text-[11px] font-bold tracking-tight drop-shadow-md">
+          <span className="text-[#f5ebd9] text-[11px] font-bold tracking-tight drop-shadow-md font-serif">
             {formatCount(comments.length)}
           </span>
         </div>
@@ -434,13 +434,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               e.stopPropagation();
               onToggleSave(video.id);
             }}
-            className={`w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md flex items-center justify-center transition-transform active:scale-110 cursor-pointer shadow-xl ${
-              saved ? 'text-[#c5a059]' : 'text-white hover:text-[#c5a059]'
+            className={`w-11 h-11 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-[#c5a059]/40 flex items-center justify-center transition-transform active:scale-110 cursor-pointer shadow-xl ${
+              saved ? 'text-[#c5a059] bg-[#c5a059]/20 border-[#c5a059]' : 'text-[#f5ebd9] hover:text-[#c5a059]'
             }`}
           >
-            <Bookmark className={`w-6 h-6 ${saved ? 'fill-current' : ''}`} />
+            <Bookmark className={`w-5 h-5 ${saved ? 'fill-current' : ''}`} />
           </button>
-          <span className="text-white text-[10px] font-bold tracking-tight drop-shadow-md">
+          <span className="text-[#f5ebd9] text-[10px] font-bold tracking-tight drop-shadow-md font-serif">
             {saved ? 'Saved' : 'Save'}
           </span>
         </div>
@@ -453,11 +453,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               e.stopPropagation();
               onShare(video);
             }}
-            className="w-11 h-11 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-md flex items-center justify-center text-white hover:text-[#c5a059] transition-transform active:scale-110 cursor-pointer shadow-xl"
+            className="w-11 h-11 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-[#c5a059]/40 flex items-center justify-center text-[#c5a059] hover:text-[#f5ebd9] transition-transform active:scale-110 cursor-pointer shadow-xl"
           >
-            <Share2 className="w-6 h-6" />
+            <Share2 className="w-5 h-5" />
           </button>
-          <span className="text-white text-[10px] font-bold tracking-tight drop-shadow-md">
+          <span className="text-[#f5ebd9] text-[10px] font-bold tracking-tight drop-shadow-md font-serif">
             Share
           </span>
         </div>
@@ -480,7 +480,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       </div>
 
       {/* Bottom Metadata Overlay */}
-      <div className="absolute bottom-3 left-3 right-16 sm:right-20 z-20 flex flex-col gap-2 text-left pointer-events-auto">
+      <div className="absolute bottom-3 left-3 right-16 sm:right-20 z-20 flex flex-col gap-1.5 text-left pointer-events-auto">
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
@@ -493,14 +493,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                 parish: video.authorParish,
               });
             }}
-            className="flex items-center gap-1.5 font-bold text-sm text-white hover:underline cursor-pointer drop-shadow-md"
+            className="flex items-center gap-1.5 font-bold text-sm text-[#f5ebd9] hover:underline cursor-pointer drop-shadow-md font-serif"
           >
             <span>{authorHandle}</span>
-            <CheckCircle2 className="w-4 h-4 text-[#38bdf8] fill-[#38bdf8] stroke-black" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#38bdf8] fill-[#38bdf8] stroke-black" />
           </button>
 
           {video.authorParish && (
-            <span className="px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-md border border-[#c5a059]/40 text-[#c5a059] text-[10px] font-serif flex items-center gap-1 drop-shadow-md">
+            <span className="px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-[#c5a059]/40 text-[#c5a059] text-[10px] font-serif flex items-center gap-1 drop-shadow-md">
               <Church className="w-2.5 h-2.5" />
               <span className="truncate max-w-[120px]">{video.authorParish}</span>
             </span>
@@ -508,7 +508,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
 
         {video.text && (
-          <div className="text-xs text-white/95 font-serif leading-relaxed drop-shadow-md max-w-full">
+          <div className="text-xs text-[#f5ebd9] font-serif leading-relaxed drop-shadow-md max-w-full pr-2">
             <p className={isCaptionExpanded ? '' : 'line-clamp-2'}>
               {renderFormattedCaption(video.text)}
             </p>
@@ -519,7 +519,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                   e.stopPropagation();
                   setIsCaptionExpanded(!isCaptionExpanded);
                 }}
-                className="text-white/60 hover:text-white text-[11px] font-bold mt-0.5 cursor-pointer block"
+                className="text-[#c5a059] hover:text-white text-[11px] font-bold mt-0.5 cursor-pointer block uppercase tracking-wider"
               >
                 {isCaptionExpanded ? 'less' : 'more'}
               </button>
@@ -527,19 +527,19 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <div className="flex items-center gap-2 overflow-hidden flex-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 max-w-[240px]">
-            <Music className="w-3.5 h-3.5 text-[#c5a059] shrink-0" />
-            <div className="overflow-hidden whitespace-nowrap text-[11px] text-white/90 font-serif">
+        <div className="flex items-center justify-between gap-3 pt-0.5">
+          <div className="flex items-center gap-2 overflow-hidden flex-1 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full border border-[#c5a059]/30 max-w-[240px]">
+            <Music className="w-3.5 h-3.5 text-[#c5a059] shrink-0 animate-bounce" />
+            <div className="overflow-hidden whitespace-nowrap text-[10px] text-[#f5ebd9] font-serif uppercase">
               <span className="inline-block animate-marquee">
                 Original Audio — {video.authorName} • Orthodox Reflection ☨
               </span>
             </div>
           </div>
 
-          <div className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-neutral-900 via-neutral-800 to-black border-2 border-neutral-700 shadow-xl flex items-center justify-center shrink-0">
+          <div className="relative w-8 h-8 rounded-full bg-[#1c1611] border-2 border-[#c5a059] shadow-xl flex items-center justify-center shrink-0">
             <div
-              className={`w-6 h-6 rounded-full overflow-hidden border border-[#c5a059]/60 flex items-center justify-center ${
+              className={`w-6 h-6 rounded-full overflow-hidden flex items-center justify-center ${
                 isPlaying ? 'animate-spin-slow' : ''
               }`}
             >
@@ -549,7 +549,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                 className="w-full h-full object-cover"
               />
             </div>
-            <div className="absolute w-1.5 h-1.5 rounded-full bg-black border border-white/40" />
           </div>
         </div>
       </div>

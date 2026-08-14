@@ -46,7 +46,7 @@ export function mapRowToPost(row: any, profileMap?: Record<string, any>): Post {
   const authorParish = profile?.parish || row.author_parish || row.authorParish || 'Parish Community';
   const authorAvatar = profile?.avatar_url || profile?.avatarUrl || row.author_avatar || row.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
 
-  const rawMedia = row.media_url || row.video_url || row.image_url || row.video || row.image || '';
+  const rawMedia = row.media_url || row.video_url || row.image_url || row.image || row.video || '';
   const isVideo =
     rawMedia.includes('bunnynet') ||
     rawMedia.includes('mediadelivery.net') ||
@@ -80,7 +80,45 @@ export function mapRowToPost(row: any, profileMap?: Record<string, any>): Post {
   };
 }
 
+const SAVED_COMMENTS_KEY = 'orthodox_local_comments_v2';
+const SAVED_LIKES_KEY = 'orthodox_local_likes_v2';
 const SAVED_LOCAL_POSTS_KEY = 'orthodox_local_saved_posts_v1';
+
+export function loadLocalPostCommentsMap(): Record<string, string[]> {
+  try {
+    const saved = localStorage.getItem(SAVED_COMMENTS_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {
+    console.warn('Error loading local comments map:', e);
+  }
+  return {};
+}
+
+export function saveLocalPostCommentsMap(map: Record<string, string[]>) {
+  try {
+    localStorage.setItem(SAVED_COMMENTS_KEY, JSON.stringify(map));
+  } catch (e) {
+    console.warn('Error saving local comments map:', e);
+  }
+}
+
+export function loadLocalLikesMap(): Record<string, boolean> {
+  try {
+    const saved = localStorage.getItem(SAVED_LIKES_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {
+    console.warn('Error loading likes map:', e);
+  }
+  return {};
+}
+
+export function saveLocalLikesMap(map: Record<string, boolean>) {
+  try {
+    localStorage.setItem(SAVED_LIKES_KEY, JSON.stringify(map));
+  } catch (e) {
+    console.warn('Error saving likes map:', e);
+  }
+}
 
 export function getLocalSavedPosts(): Post[] {
   try {
@@ -251,7 +289,7 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   const newPost: Post = {
     id: postPartial.id || 'post-' + Date.now(),
     text: postPartial.text || '',
-    authorName: postPartial.authorName || 'Orthodox Member',
+    authorName: postPartial.authorName || 'Orthodox Visitor',
     authorParish: postPartial.authorParish || 'Parish Community',
     authorAvatar: postPartial.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
     authorId: postPartial.authorId,

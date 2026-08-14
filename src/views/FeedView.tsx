@@ -293,16 +293,19 @@ export const FeedView: React.FC<FeedViewProps> = ({
           currentLikes[postId] = isLiked;
           saveLocalLikesMap(currentLikes);
 
-          if (isLiked) {
-            addNotification({
-              userId: p.authorId || 'all',
-              type: 'system',
-              title: `Reaction from ${profile?.full_name || 'Parishioner'}`,
-              body: `Liked your reflection: "${p.text ? (p.text.length > 50 ? p.text.slice(0, 50) + '...' : p.text) : 'Post'}"`,
-              senderName: profile?.full_name || 'Parishioner',
-              senderAvatar: profile?.avatar_url,
-              link: 'feed',
-            });
+          if (isLiked && p.authorId && profile?.id && p.authorId !== profile.id) {
+            addNotification(
+              {
+                userId: p.authorId,
+                type: 'system',
+                title: `Reaction from ${profile?.full_name || 'Parishioner'}`,
+                body: `Liked your reflection: "${p.text ? (p.text.length > 50 ? p.text.slice(0, 50) + '...' : p.text) : 'Post'}"`,
+                senderName: profile?.full_name || 'Parishioner',
+                senderAvatar: profile?.avatar_url,
+                link: 'feed',
+              },
+              profile.id
+            );
           }
 
           return {
@@ -335,15 +338,20 @@ export const FeedView: React.FC<FeedViewProps> = ({
       prev.map((p) => (p.id === postId ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p))
     );
 
-    addNotification({
-      userId: targetPost?.authorId || 'all',
-      type: 'mention',
-      title: `New comment from ${profile?.full_name || 'Parishioner'}`,
-      body: text,
-      senderName: profile?.full_name || 'Parishioner',
-      senderAvatar: profile?.avatar_url,
-      link: 'feed',
-    });
+    if (targetPost?.authorId && profile?.id && targetPost.authorId !== profile.id) {
+      addNotification(
+        {
+          userId: targetPost.authorId,
+          type: 'mention',
+          title: `New comment from ${profile?.full_name || 'Parishioner'}`,
+          body: text,
+          senderName: profile?.full_name || 'Parishioner',
+          senderAvatar: profile?.avatar_url,
+          link: 'feed',
+        },
+        profile.id
+      );
+    }
   };
 
   const handleDelete = async (postId: string) => {

@@ -353,13 +353,17 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
               const nextState = !hasBlessingRequested;
               setHasBlessingRequested(nextState);
               if (nextState) {
-                addNotification({
-                  userId: 'all',
-                  type: 'system',
-                  title: 'Priest Blessing Requested',
-                  body: 'A parishioner requested a priest blessing during live service.',
-                  link: 'live',
-                });
+                addNotification(
+                  {
+                    userId: 'all',
+                    type: 'system',
+                    title: 'Priest Blessing Requested',
+                    body: 'A parishioner requested a priest blessing during live service.',
+                    link: 'live',
+                    senderName: 'Parishioner',
+                  },
+                  'self'
+                );
               }
             }}
             className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer font-serif ${

@@ -11,9 +11,40 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   emailAlerts: false,
 };
 
-const LOCAL_NOTIFS_STORAGE_KEY = 'orthodox_notifications_cache_v4';
-const READ_NOTIF_IDS_KEY = 'orthodox_read_notif_ids_v4';
-const DELETED_NOTIF_IDS_KEY = 'orthodox_deleted_notif_ids_v4';
+const LOCAL_NOTIFS_STORAGE_KEY = 'orthodox_notifications_cache_v5';
+const READ_NOTIF_IDS_KEY = 'orthodox_read_notif_ids_v5';
+const DELETED_NOTIF_IDS_KEY = 'orthodox_deleted_notif_ids_v5';
+
+export function getCurrentUserId(): string | null {
+  try {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('orthodox_current_user_id');
+      if (stored) return stored;
+      const rawProf = localStorage.getItem('orthodox_user_profile');
+      if (rawProf) {
+        const parsed = JSON.parse(rawProf);
+        if (parsed?.id) return String(parsed.id);
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+  return null;
+}
+
+export function setCurrentUserId(userId?: string | null): void {
+  try {
+    if (typeof window !== 'undefined') {
+      if (userId) {
+        localStorage.setItem('orthodox_current_user_id', userId);
+      } else {
+        localStorage.removeItem('orthodox_current_user_id');
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+}
 
 // Cross-tab broadcast channel for instant real-time sync across tabs
 let notifChannel: BroadcastChannel | null = null;
@@ -21,9 +52,19 @@ try {
   if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
     notifChannel = new BroadcastChannel('orthodox_notifications_channel');
     notifChannel.onmessage = (event) => {
+      const currentId = getCurrentUserId();
       if (event.data?.type === 'NEW_NOTIFICATION') {
-        window.dispatchEvent(new CustomEvent('orthodox:new_notification', { detail: event.data.item }));
-        window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
+        const item: NotificationItem = event.data.item;
+        const targetUserId = event.data.targetUserId;
+        // Only process and alert if this notification is for this user or broadcast
+        if (!targetUserId || targetUserId === 'all' || (currentId && targetUserId === currentId)) {
+          // If the item was sent by someone else, play sound & alert
+          if (item.senderName !== event.data.actorName) {
+            soundSynth.playNotificationChime();
+          }
+          window.dispatchEvent(new CustomEvent('orthodox:new_notification', { detail: item }));
+          window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
+        }
       } else if (event.data?.type === 'NOTIFICATIONS_UPDATED') {
         window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
       }
@@ -80,34 +121,6 @@ function saveDeletedNotifIds(ids: Set<string>): void {
   }
 }
 
-// Initial default seed notifications for fresh profiles
-const DEFAULT_INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 'notif-welcome-1',
-    userId: 'all',
-    type: 'system',
-    title: 'Welcome to OrthodoxConnect',
-    body: 'Christ is in our midst! Connect with parishioners, share reflections, and join live liturgical broadcasts.',
-    link: 'feed',
-    isRead: false,
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    senderName: 'Parish Council',
-    senderAvatar: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=200',
-  },
-  {
-    id: 'notif-event-1',
-    userId: 'all',
-    type: 'event_invite',
-    title: 'Feast Day Liturgy & Agaipe Meal',
-    body: 'Join the Divine Liturgy tomorrow at 9:00 AM followed by our community fellowship lunch.',
-    link: 'calendar',
-    isRead: false,
-    createdAt: new Date(Date.now() - 7200000).toISOString(),
-    senderName: 'Father Spyridon',
-    senderAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-  },
-];
-
 export function getLocalNotifications(): NotificationItem[] {
   const readIds = getReadNotifIds();
   const deletedIds = getDeletedNotifIds();
@@ -118,7 +131,7 @@ export function getLocalNotifications(): NotificationItem[] {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed
-          .filter((item) => !deletedIds.has(item.id))
+          .filter((item) => !deletedIds.has(item.id) && !item.id.startsWith('notif-welcome-') && !item.id.startsWith('notif-event-'))
           .map((item) => ({
             ...item,
             isRead: readIds.has(item.id) ? true : Boolean(item.isRead),
@@ -129,18 +142,15 @@ export function getLocalNotifications(): NotificationItem[] {
     console.warn('Error reading local notifications:', e);
   }
 
-  return DEFAULT_INITIAL_NOTIFICATIONS.filter((item) => !deletedIds.has(item.id)).map((item) => ({
-    ...item,
-    isRead: readIds.has(item.id) ? true : Boolean(item.isRead),
-  }));
+  return [];
 }
 
 export function saveLocalNotifications(list: NotificationItem[]): void {
   try {
     const deletedIds = getDeletedNotifIds();
-    const filtered = list.filter((n) => !deletedIds.has(n.id));
+    const filtered = list.filter((n) => !deletedIds.has(n.id) && !n.id.startsWith('notif-welcome-') && !n.id.startsWith('notif-event-'));
     localStorage.setItem(LOCAL_NOTIFS_STORAGE_KEY, JSON.stringify(filtered.slice(0, 100)));
-    // Dispatch local and cross-tab update events
+    // Dispatch local update event
     window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
     if (notifChannel) {
       notifChannel.postMessage({ type: 'NOTIFICATIONS_UPDATED' });
@@ -164,17 +174,18 @@ export async function loadNotifications(userId?: string): Promise<NotificationIt
   const localItems = getLocalNotifications();
   const readIds = getReadNotifIds();
   const deletedIds = getDeletedNotifIds();
+  const effectiveUserId = userId || getCurrentUserId();
 
   try {
     let query = supabase
       .from('notifications')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(40);
+      .limit(30);
 
-    if (isValidUuid(userId)) {
-      query = query.or(`user_id.eq.${userId},user_id.is.null`);
-    } else if (userId && userId !== 'all') {
+    if (isValidUuid(effectiveUserId)) {
+      query = query.or(`user_id.eq.${effectiveUserId},user_id.is.null`);
+    } else if (effectiveUserId && effectiveUserId !== 'all') {
       query = query.or(`user_id.is.null`);
     }
 
@@ -207,15 +218,21 @@ export async function loadNotifications(userId?: string): Promise<NotificationIt
           };
         });
 
+      // Filter to ensure user only sees notifications meant for them or broadcast
+      const targetFiltered = remoteItems.filter((r) => {
+        if (!r.userId || r.userId === 'all') return true;
+        if (effectiveUserId && r.userId === effectiveUserId) return true;
+        return false;
+      });
+
       // Merge local items and remote items by ID
       const map = new Map<string, NotificationItem>();
-      remoteItems.forEach((r) => map.set(r.id, r));
+      targetFiltered.forEach((r) => map.set(r.id, r));
       localItems.forEach((l) => {
         if (!deletedIds.has(l.id)) {
           if (!map.has(l.id)) {
             map.set(l.id, l);
           } else {
-            // Keep read status if locally read
             if (l.isRead || readIds.has(l.id)) {
               const existing = map.get(l.id)!;
               map.set(l.id, { ...existing, isRead: true });
@@ -239,13 +256,20 @@ export async function loadNotifications(userId?: string): Promise<NotificationIt
 }
 
 export async function addNotification(
-  notif: Partial<NotificationItem>
+  notif: Partial<NotificationItem>,
+  actorUserId?: string
 ): Promise<NotificationItem> {
-  const targetUserId = isValidUuid(notif.userId) ? notif.userId : null;
+  const currentUserId = actorUserId || getCurrentUserId();
+  const targetUserId = notif.userId;
+  const isForOtherUser =
+    targetUserId &&
+    targetUserId !== 'all' &&
+    currentUserId &&
+    targetUserId !== currentUserId;
 
   const item: NotificationItem = {
     id: notif.id || 'notif-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
-    userId: notif.userId || 'all',
+    userId: targetUserId || 'all',
     type: notif.type || 'system',
     title: notif.title || 'Notification',
     body: notif.body || '',
@@ -256,31 +280,10 @@ export async function addNotification(
     senderAvatar: notif.senderAvatar,
   };
 
-  // 1. Immediately save to local cache so it appears without delay
-  const existing = getLocalNotifications();
-  const updated = [item, ...existing.filter((n) => n.id !== item.id)];
-  saveLocalNotifications(updated);
-
-  // 2. Play acoustic chime alert
-  soundSynth.playNotificationChime();
-
-  // 3. Trigger native browser OS notification (e.g. background/minimized tab alert)
-  triggerBrowserNotification(item.title, {
-    body: item.body,
-    icon: item.senderAvatar || 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=192',
-    tag: `notif-${item.type}-${item.id}`,
-  });
-
-  // 4. Dispatch in-app toast event & broadcast to all tabs
-  window.dispatchEvent(new CustomEvent('orthodox:new_notification', { detail: item }));
-  if (notifChannel) {
-    notifChannel.postMessage({ type: 'NEW_NOTIFICATION', item });
-  }
-
-  // 5. Try syncing to Supabase if available
+  // 1. Sync to Supabase table
   try {
     const row: any = {
-      user_id: targetUserId,
+      user_id: isValidUuid(targetUserId) ? targetUserId : null,
       type: item.type,
       title: item.title,
       message: item.body || item.title,
@@ -296,7 +299,39 @@ export async function addNotification(
       item.id = String(data[0].id);
     }
   } catch (err) {
-    // Non-blocking: local notification was already created
+    console.warn('Supabase notification insertion notice:', err);
+  }
+
+  // 2. Cross-tab real-time broadcast
+  if (notifChannel) {
+    notifChannel.postMessage({
+      type: 'NEW_NOTIFICATION',
+      targetUserId: targetUserId || 'all',
+      actorName: notif.senderName,
+      item,
+    });
+  }
+
+  // 3. If this notification is targeted to ANOTHER user (e.g., you liked their post or commented),
+  // DO NOT add it to the sender's own local inbox and DO NOT play audio chime or toast for the sender!
+  if (isForOtherUser) {
+    return item;
+  }
+
+  // 4. If this is a notification for the current user or broadcast:
+  const existing = getLocalNotifications();
+  const updated = [item, ...existing.filter((n) => n.id !== item.id)];
+  saveLocalNotifications(updated);
+
+  // Play sound & dispatch toast only if not triggered by self
+  if (!currentUserId || item.senderName !== 'You') {
+    soundSynth.playNotificationChime();
+    triggerBrowserNotification(item.title, {
+      body: item.body,
+      icon: item.senderAvatar || 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=192',
+      tag: `notif-${item.type}-${item.id}`,
+    });
+    window.dispatchEvent(new CustomEvent('orthodox:new_notification', { detail: item }));
   }
 
   return item;

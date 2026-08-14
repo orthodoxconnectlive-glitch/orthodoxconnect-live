@@ -315,16 +315,19 @@ export const VideosView: React.FC<VideosViewProps> = ({
         [videoId]: (cPrev[videoId] || 0) + (nextState ? 1 : -1),
       }));
 
-      if (nextState && targetVideo) {
-        addNotification({
-          userId: targetVideo.authorId || 'all',
-          type: 'system',
-          title: `Reaction from ${profile?.full_name || 'Parishioner'}`,
-          body: `Liked your video reflection: "${targetVideo.text ? (targetVideo.text.length > 40 ? targetVideo.text.slice(0, 40) + '...' : targetVideo.text) : 'Video'}"`,
-          senderName: profile?.full_name || 'Parishioner',
-          senderAvatar: profile?.avatar_url,
-          link: 'videos',
-        });
+      if (nextState && targetVideo && targetVideo.authorId && profile?.id && targetVideo.authorId !== profile.id) {
+        addNotification(
+          {
+            userId: targetVideo.authorId,
+            type: 'system',
+            title: `Reaction from ${profile?.full_name || 'Parishioner'}`,
+            body: `Liked your video reflection: "${targetVideo.text ? (targetVideo.text.length > 40 ? targetVideo.text.slice(0, 40) + '...' : targetVideo.text) : 'Video'}"`,
+            senderName: profile?.full_name || 'Parishioner',
+            senderAvatar: profile?.avatar_url,
+            link: 'videos',
+          },
+          profile.id
+        );
       }
 
       return updated;
@@ -384,6 +387,22 @@ export const VideosView: React.FC<VideosViewProps> = ({
       }
       return updated;
     });
+
+    const targetVideo = videos.find((v) => v.id === videoId);
+    if (targetVideo && targetVideo.authorId && profile?.id && targetVideo.authorId !== profile.id) {
+      addNotification(
+        {
+          userId: targetVideo.authorId,
+          type: 'mention',
+          title: `New comment on your video from ${profile?.full_name || 'Parishioner'}`,
+          body: text,
+          senderName: profile?.full_name || 'Parishioner',
+          senderAvatar: profile?.avatar_url,
+          link: 'videos',
+        },
+        profile.id
+      );
+    }
   };
 
   const handleHashtagClick = (tag: string) => {

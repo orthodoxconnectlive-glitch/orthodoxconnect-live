@@ -107,15 +107,18 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
     };
 
     setMessages((prev) => [...prev, blessingMessage]);
-    addNotification({
-      userId: 'all',
-      type: 'system',
-      title: `Blessing Request from ${authorName}`,
-      body: 'Requesting priest’s blessing for family & health.',
-      senderName: authorName,
-      senderAvatar: profile?.avatar_url,
-      link: 'live',
-    });
+    addNotification(
+      {
+        userId: 'all',
+        type: 'system',
+        title: `Blessing Request from ${authorName}`,
+        body: 'Requesting priest’s blessing for family & health.',
+        senderName: authorName,
+        senderAvatar: profile?.avatar_url,
+        link: 'live',
+      },
+      profile?.id
+    );
     showToast('Blessing request submitted to priest!');
   };
 

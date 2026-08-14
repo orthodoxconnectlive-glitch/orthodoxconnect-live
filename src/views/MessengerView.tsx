@@ -572,15 +572,20 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     }
 
     // Trigger notification for recipient
-    addNotification({
-      userId: activeContact.id || 'all',
-      type: 'message',
-      title: `Message from ${profile?.full_name || 'Parishioner'}`,
-      body: sendText.trim() || 'Sent an attachment',
-      senderName: profile?.full_name || 'Parishioner',
-      senderAvatar: profile?.avatar_url,
-      link: 'messages',
-    });
+    if (activeContact.id && profile?.id && activeContact.id !== profile.id) {
+      addNotification(
+        {
+          userId: activeContact.id,
+          type: 'message',
+          title: `Message from ${profile?.full_name || 'Parishioner'}`,
+          body: sendText.trim() || 'Sent an attachment',
+          senderName: profile?.full_name || 'Parishioner',
+          senderAvatar: profile?.avatar_url,
+          link: 'messages',
+        },
+        profile.id
+      );
+    }
   };
 
   const handleToggleReaction = (msgId: string, emoji: string) => {

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { UserProfile, UserRole } from '../types';
+import { setCurrentUserId } from '../utils/notifications';
 
 interface AuthContextType {
   user: User | null;
@@ -44,7 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const isSuperAdmin = userEmail === 'orthodoxconnect.live@gmail.com';
           const assignedRole: UserRole = isSuperAdmin ? 'super_admin' : ((data.role as UserRole) || 'user');
 
-          setProfile({
+          const userProf: UserProfile = {
             id: data.id,
             email: data.email || emailStr || '',
             full_name: data.full_name || (emailStr ? emailStr.split('@')[0] : 'Parishioner'),
@@ -53,7 +54,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
             role: assignedRole,
             created_at: data.created_at || data.updated_at || new Date().toISOString(),
-          });
+          };
+          setProfile(userProf);
+          setCurrentUserId(userProf.id);
+          try {
+            localStorage.setItem('orthodox_user_profile', JSON.stringify(userProf));
+          } catch (e) {}
 
           if (isSuperAdmin && data.role !== 'super_admin') {
             supabase.from('profiles').update({ role: 'super_admin' }).eq('id', data.id).then();
@@ -76,6 +82,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       setProfile(defaultProf);
+      setCurrentUserId(defaultProf.id);
+      try {
+        localStorage.setItem('orthodox_user_profile', JSON.stringify(defaultProf));
+      } catch (e) {}
 
       // Attempt upserting to database if configured
       if (isSupabaseConfigured) {
@@ -118,6 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setUser(null);
         setProfile(null);
+        setCurrentUserId(null);
         localStorage.removeItem('orthodox_user_profile');
       }
       setLoading(false);
@@ -125,6 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Supabase session note:', err?.message || err);
       setUser(null);
       setProfile(null);
+      setCurrentUserId(null);
       setLoading(false);
     });
 
@@ -132,6 +144,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (event === 'SIGNED_OUT' || !session?.user) {
         setUser(null);
         setProfile(null);
+        setCurrentUserId(null);
         localStorage.removeItem('orthodox_user_profile');
       } else if (session?.user) {
         setUser(session.user);

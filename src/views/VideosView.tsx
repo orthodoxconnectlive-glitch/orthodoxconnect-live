@@ -50,27 +50,20 @@ export const VideosView: React.FC<VideosViewProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
 
-  // Upload modal form state
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadCaption, setUploadCaption] = useState<string>('');
 
-  // Social interactions state
   const [followedAuthors, setFollowedAuthors] = useState<Record<string, boolean>>({});
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
   const [savedMap, setSavedMap] = useState<Record<string, boolean>>({});
 
-  // Comments drawer state per video
   const [openCommentVideoId, setOpenCommentVideoId] = useState<string | null>(null);
   const [videoCommentsMap, setVideoCommentsMap] = useState<Record<string, VideoComment[]>>({});
 
-  // Active playing video state
   const [activePlayingId, setActivePlayingId] = useState<string | null>(null);
-
-  // Feed container ref for snap scrolling
   const feedContainerRef = useRef<HTMLDivElement>(null);
 
-  // Unmount Cleanup: Pause all media when navigating away
   useEffect(() => {
     return () => {
       const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
@@ -78,17 +71,13 @@ export const VideosView: React.FC<VideosViewProps> = ({
         try {
           m.pause();
           m.currentTime = 0;
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       });
     };
   }, []);
 
-  // Fetch videos on mount with 1.5s timeout safeguard
   useEffect(() => {
     let isMounted = true;
-
     const timer = setTimeout(() => {
       if (isMounted) setLoading(false);
     }, 1500);
@@ -142,7 +131,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
     setLoading(false);
   };
 
-  // Setup IntersectionObserver for auto-playing active snapped video
+  // Lower threshold (0.3) so snap item activates instantly on mobile
   useEffect(() => {
     const container = feedContainerRef.current;
     if (!container) return;
@@ -150,7 +139,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.3) {
             const videoId = entry.target.getAttribute('data-video-id');
             if (videoId) {
               setActivePlayingId(videoId);
@@ -160,7 +149,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
       },
       {
         root: container,
-        threshold: [0.6],
+        threshold: [0.3],
       }
     );
 
@@ -171,29 +160,6 @@ export const VideosView: React.FC<VideosViewProps> = ({
       observer.disconnect();
     };
   }, [videos, activeTab, selectedHashtag, searchQuery]);
-
-  // Keyboard navigation (ArrowUp, ArrowDown)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        document.activeElement?.tagName === 'INPUT' ||
-        document.activeElement?.tagName === 'TEXTAREA'
-      ) {
-        return;
-      }
-
-      if (e.key === 'ArrowDown' || e.key === 'j') {
-        e.preventDefault();
-        handleScrollNext();
-      } else if (e.key === 'ArrowUp' || e.key === 'k') {
-        e.preventDefault();
-        handleScrollPrev();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [videos, activePlayingId]);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -361,7 +327,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
   }, [videos, activeTab, followedAuthors, selectedHashtag, searchQuery]);
 
   return (
-    <div className="w-full flex flex-col items-center relative select-none pb-4">
+    <div className="w-full flex flex-col items-center relative select-none h-[calc(100vh-5rem)]">
       {toastMessage && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#1c1611]/95 border-2 border-[#c5a059] text-[#f5ebd9] text-xs font-serif uppercase tracking-wider font-bold shadow-2xl flex items-center gap-2">
           <CheckCircle className="w-4 h-4 text-[#c5a059]" />
@@ -370,7 +336,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
       )}
 
       {/* Frame Container */}
-      <div className="relative w-full max-w-[420px] h-[calc(100vh-6.5rem)] min-h-[580px] max-h-[860px] bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-[#c5a059]/40 flex flex-col">
+      <div className="relative w-full max-w-[420px] h-full bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-[#c5a059]/40 flex flex-col">
         {/* Floating Top Bar */}
         <div className="absolute top-0 inset-x-0 z-40 px-4 py-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between text-white pointer-events-auto">
           <button
@@ -539,26 +505,6 @@ export const VideosView: React.FC<VideosViewProps> = ({
             ))}
           </div>
         )}
-      </div>
-
-      {/* Desktop Next/Prev Controls */}
-      <div className="hidden lg:flex fixed right-8 top-1/2 -translate-y-1/2 flex-col gap-3 z-40">
-        <button
-          type="button"
-          onClick={handleScrollPrev}
-          className="w-11 h-11 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#1c1611] shadow-xl flex items-center justify-center transition-all cursor-pointer"
-          title="Previous Video"
-        >
-          <ChevronUp className="w-6 h-6 stroke-[2.5]" />
-        </button>
-        <button
-          type="button"
-          onClick={handleScrollNext}
-          className="w-11 h-11 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#1c1611] shadow-xl flex items-center justify-center transition-all cursor-pointer"
-          title="Next Video"
-        >
-          <ChevronDown className="w-6 h-6 stroke-[2.5]" />
-        </button>
       </div>
 
       {/* Upload Video Modal */}

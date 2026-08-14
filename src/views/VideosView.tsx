@@ -90,7 +90,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
   const fetchVideosList = async () => {
     setLoading(true);
-    
+
     const { posts } = await loadPosts();
     const videoPosts = posts.filter((p) => !!p.video || (p.image && p.image.endsWith('.mp4')));
 
@@ -320,7 +320,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
   }, [videos, activeTab, followedAuthors, selectedHashtag, searchQuery]);
 
   return (
-    <div className="w-full flex flex-col items-center relative select-none h-[calc(100vh-5rem)]">
+    <div className="w-full flex flex-col items-center relative select-none h-[calc(100dvh-5.5rem)]">
       {toastMessage && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#1c1611]/95 border-2 border-[#c5a059] text-[#f5ebd9] text-xs font-serif uppercase tracking-wider font-bold shadow-2xl flex items-center gap-2">
           <CheckCircle className="w-4 h-4 text-[#c5a059]" />
@@ -330,8 +330,8 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
       {/* Frame Container */}
       <div className="relative w-full max-w-[420px] h-full bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-[#c5a059]/40 flex flex-col">
-        
-        {/* Floating Top Bar with extra spacing padding (pt-14) so the audio buttons won't collide */}
+
+        {/* Floating Top Bar */}
         <div className="absolute top-0 inset-x-0 z-40 px-4 pt-4 pb-3 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-center justify-between text-white pointer-events-auto">
           <button
             type="button"

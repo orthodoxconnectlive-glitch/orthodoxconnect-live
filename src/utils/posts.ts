@@ -2,22 +2,22 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { Post } from '../types';
 import { addNotification } from './notifications';
 
-// Bunny Stream Credentials & Hostname
+// Bunny Stream Credentials
 export const BUNNY_LIBRARY_ID = import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
 export const BUNNY_API_KEY = import.meta.env.VITE_BUNNY_API_KEY || '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
 export const BUNNY_CDN_HOSTNAME = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 export const BUNNY_STREAM_BASE = `https://${BUNNY_CDN_HOSTNAME}`;
 
-// 13 Video GUIDs directly from your Bunny Stream dashboard screenshot
-export const BUNNY_LIBRARY_GUIDS = [
-  { id: '16454-mp4', title: 'Orthodox Reflection 16454', file: '16454.mp4' },
-  { id: '16443-mp4', title: 'I Come to You - Spiritual Song', file: '16443.mp4' },
-  { id: '16438-mp4', title: 'Parish Fellowship Inspiration', file: '16438.mp4' },
-  { id: '16437-mp4', title: 'Orthodox Teachings 16437', file: '16437.mp4' },
-  { id: '16436-mp4', title: 'Spiritual Contemplation 16436', file: '16436.mp4' },
-  { id: 'c3483883-78dc-48e8-b2af-5848ced3d5ea', title: 'Orthodox Christian Reflection', file: 'c3483883.mp4' },
-  { id: '14463-mp4', title: 'Holy Tradition & Heritage', file: '14463.mp4' },
-  { id: '15779-mp4', title: 'Parish Fellowship & Hymns', file: '15779.mp4' },
+// Real video filenames mapped directly to CDN URLs
+export const REAL_BUNNY_VIDEOS = [
+  { id: 'v-16454', title: 'Orthodox Spiritual Reflection 16454', file: '16454.mp4' },
+  { id: 'v-16443', title: 'I Come to You - English-Coptic Song', file: '16443.mp4' },
+  { id: 'v-16438', title: 'Parish Fellowship & Gathering', file: '16438.mp4' },
+  { id: 'v-16437', title: 'Sunlight & Nature Reflection', file: '16437.mp4' },
+  { id: 'v-16436', title: 'Jupiter & The Great Creator', file: '16436.mp4' },
+  { id: 'v-c3483883', title: 'Monastic Wisdom Reflection', file: 'c3483883-78dc-48e8-b2af-5848ced3d5ea_1_all_19132.mp4' },
+  { id: 'v-14463', title: 'Breakaways & Holy Tradition', file: '14463.mp4' },
+  { id: 'v-15779', title: 'Liturgical Praise & Hymns', file: '15779.mp4' },
 ];
 
 /**
@@ -139,9 +139,6 @@ export function saveLocalLikesMap(map: Record<string, boolean>) {
   }
 }
 
-/**
- * Fast Load Posts Function using direct table query and batch profiles
- */
 export async function loadPosts(
   groupId?: string,
   options?: { limit?: number; offset?: number }
@@ -236,12 +233,12 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
 }
 
 /**
- * Loads videos directly with reliable Bunny Stream CDN fallback
+ * Loads videos directly with clean HTML5 video playback URLs
  */
 export async function loadVideos(): Promise<Post[]> {
   let bunnyVideos: Post[] = [];
 
-  // 1. First attempt: Direct REST API Call
+  // 1. Try REST API fetch
   try {
     const res = await fetch(
       `https://video.mediadelivery.net/library/${BUNNY_LIBRARY_ID}/videos?page=1&itemsPerPage=100&orderBy=date`,
@@ -265,6 +262,7 @@ export async function loadVideos(): Promise<Post[]> {
           authorName: 'OrthodoxConnect',
           authorParish: 'Parish Fellowship',
           authorAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+          // Embed link for iframe playback
           video: `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${video.guid}`,
           image: `https://${BUNNY_CDN_HOSTNAME}/${video.guid}/thumbnail.jpg`,
           createdAt: video.dateUploaded || new Date().toISOString(),
@@ -275,28 +273,28 @@ export async function loadVideos(): Promise<Post[]> {
       }
     }
   } catch (err) {
-    console.warn('Bunny API CORS blocked or unreachable, switching to Direct Library mapping:', err);
+    console.warn('Bunny API fetch notice:', err);
   }
 
-  // 2. Direct Library Fallback if CORS blocked API
+  // 2. Direct fallback using CDN MP4 files from your Bunny Stream library
   if (bunnyVideos.length === 0) {
-    bunnyVideos = BUNNY_LIBRARY_GUIDS.map((item) => ({
+    bunnyVideos = REAL_BUNNY_VIDEOS.map((item) => ({
       id: item.id,
       text: item.title,
       authorName: 'OrthodoxConnect',
       authorParish: 'Parish Fellowship',
       authorAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-      // Direct CDN embed link
-      video: `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${item.id}`,
-      image: `https://${BUNNY_CDN_HOSTNAME}/${item.id}/thumbnail.jpg`,
+      // Direct CDN video link that plays natively in standard <video> tags
+      video: `https://${BUNNY_CDN_HOSTNAME}/${item.file}`,
+      image: `https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800`,
       createdAt: new Date().toISOString(),
-      likesCount: 12,
+      likesCount: 18,
       commentsCount: 0,
       resharesCount: 0,
     }));
   }
 
-  // 3. Append user uploaded video posts from local cache
+  // 3. Append user uploaded videos from local cache
   const localPosts = getLocalSavedPosts();
   const localReels = localPosts.filter((p) => !!p.video);
 
@@ -312,9 +310,6 @@ export async function loadVideos(): Promise<Post[]> {
 
 export const loadReels = loadVideos;
 
-/**
- * Inserts a post directly into Supabase adhering strictly to database schema
- */
 export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   const isUuid =
     postPartial.authorId &&

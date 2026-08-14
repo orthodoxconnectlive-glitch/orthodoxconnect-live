@@ -57,9 +57,9 @@
   border: 1px solid var(--border-gold);
 }
 
-/* Smooth transitions */
-* {
-  transition-property: background-color, border-color, color, fill, stroke;
+/* Targeted interactive transitions for high INP/FID performance */
+button, a, input, select, textarea, [role="button"] {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, transform;
   transition-duration: 150ms;
 }
 

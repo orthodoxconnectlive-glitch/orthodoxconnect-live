@@ -31,6 +31,20 @@ if (typeof window !== 'undefined') {
       media.muted = true;
     });
   }
+
+  // Register Service Worker for background notifications and ringing
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then((reg) => {
+          console.log('[SW] Service Worker registered for notifications & calls:', reg.scope);
+        })
+        .catch((err) => {
+          console.warn('[SW] Service Worker registration fallback:', err);
+        });
+    });
+  }
 }
 
 createRoot(document.getElementById('root')!).render(

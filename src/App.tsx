@@ -2,6 +2,8 @@ import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { MediaProvider } from './context/MediaContext';
+import { CallProvider } from './context/CallContext';
+import { GlobalNotificationToast } from './components/GlobalNotificationToast';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { ActiveChatsPanel } from './components/ActiveChatsPanel';
@@ -20,6 +22,7 @@ import { ProfileView, UserProfileData } from './views/ProfileView';
 import { AdminPanelView } from './views/AdminPanelView';
 import { CalendarView } from './views/CalendarView';
 import { NotificationsView } from './views/NotificationsView';
+import { updateSEOForView } from './utils/seo';
 
 function AppContent() {
   const [currentView, setCurrentView] = useState<string>(() => {
@@ -48,6 +51,9 @@ function AppContent() {
     } catch (e) {
       console.warn('LocalStorage active tab save error:', e);
     }
+
+    // Update dynamic canonical link tag, title, and social meta
+    updateSEOForView(currentView);
 
     // Pause all media and reset position on view/tab change
     const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
@@ -216,7 +222,11 @@ function AppContent() {
         )}
       </main>
 
-      {/* Global Modals */}
+      {/* Global Modals & Notifications */}
+      <GlobalNotificationToast
+        onNavigate={handleNavigate}
+        onOpenMessengerWithUser={handleOpenMessengerWithUser}
+      />
       <InviteModal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
       <EditProfileModal isOpen={isEditProfileOpen} onClose={() => setIsEditProfileOpen(false)} />
       <AuthModal />
@@ -246,7 +256,11 @@ function AppRoot() {
     return <AuthPage />;
   }
 
-  return <AppContent />;
+  return (
+    <CallProvider>
+      <AppContent />
+    </CallProvider>
+  );
 }
 
 export default function App() {

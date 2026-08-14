@@ -118,15 +118,15 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
       // Pause all other media in the feed and app
       pauseAllMedia(video);
       setActiveMediaId(elementMediaId);
-      video.play().catch((err) => {
-        console.warn('[BroadcastCard] Playback was prevented:', err);
+      video.play().catch((err: any) => {
+        console.warn('[BroadcastCard] Playback was prevented:', err?.message || String(err));
       });
     }
   };
 
   // Graceful error handler: Stop playback and set error state without calling .play()
-  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    console.warn('[BroadcastCard] Video loading error:', e);
+  const handleVideoError = (_e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    console.warn('[BroadcastCard] Video loading error for URL:', videoUrl);
     setHasError(true);
     setIsPlaying(false);
   };
@@ -151,8 +151,8 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     if (!isPlaying) {
       pauseAllMedia(videoRef.current);
       setActiveMediaId(elementMediaId);
-      videoRef.current.play().catch((err) => {
-        console.warn('[BroadcastCard] Play on unmute prevented:', err);
+      videoRef.current.play().catch((err: any) => {
+        console.warn('[BroadcastCard] Play on unmute prevented:', err?.message || String(err));
       });
     }
   };

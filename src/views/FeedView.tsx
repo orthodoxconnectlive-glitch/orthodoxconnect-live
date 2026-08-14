@@ -4,27 +4,42 @@ import {
   Image,
   Video,
   Send,
+  Heart,
+  MessageCircle,
+  MessageSquare,
+  Repeat,
+  Share2,
+  Trash2,
   Church,
   Sparkles,
+  Bookmark,
+  Flag,
+  UserPlus,
+  UserCheck,
   Check,
   X,
   Upload,
   AlertCircle,
 } from 'lucide-react';
 import { Post } from '../types';
+import { addNotification } from '../utils/notifications';
+import { TimeAgo } from '../components/TimeAgo';
 import {
   loadPosts,
+  savePost,
   deletePost,
+  BUNNY_STREAM_BASE,
+  SEED_VIDEOS,
   loadLocalPostCommentsMap,
   saveLocalPostCommentsMap,
   loadLocalLikesMap,
   saveLocalLikesMap,
-  getLocalSavedPosts,
 } from '../utils/posts';
 import { uploadMediaFile, uploadVideoToBunnyStream } from '../utils/storage';
 import { isFollowing, toggleFollow } from '../utils/follows';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { BunnyPlayer } from '../components/BunnyPlayer';
 import { ReshareModal } from '../components/ReshareModal';
 import { ReportContentModal } from '../components/ReportContentModal';
 import { StoriesBar } from '../components/StoriesBar';
@@ -40,15 +55,14 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
   const { profile } = useAuth();
   const { t } = useTheme();
 
-  // Initialize immediately with local cached posts for instant render
-  const [posts, setPosts] = useState<Post[]>(() => getLocalSavedPosts());
-  const [loading, setLoading] = useState<boolean>(() => getLocalSavedPosts().length === 0);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
   const [feedTab, setFeedTab] = useState<'all' | 'following'>('all');
   const [followedMap, setFollowedMap] = useState<Record<string, boolean>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Form input state
+  // New post input state
   const [newPostText, setNewPostText] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
@@ -57,11 +71,15 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Drawer / modal states
+  // Comments drawer / modal state
   const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
+  const [commentInput, setCommentInput] = useState('');
   const [commentsMap, setCommentsMap] = useState<Record<string, string[]>>(() => loadLocalPostCommentsMap());
+
+  // Reshare modal state
   const [reshareTargetPost, setReshareTargetPost] = useState<Post | null>(null);
 
+  // Report modal state
   const [reportModalData, setReportModalData] = useState<{
     isOpen: boolean;
     contentType: 'post' | 'comment';
@@ -77,21 +95,8 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
   });
 
   useEffect(() => {
-    let isMounted = true;
+    fetchPosts();
 
-    // Safety timer: force-stop spinner after 1.5 seconds if network hangs
-    const timer = setTimeout(() => {
-      if (isMounted) setLoading(false);
-    }, 1500);
-
-    const initFeed = async () => {
-      await fetchPosts();
-      if (isMounted) setLoading(false);
-    };
-
-    initFeed();
-
-    // Supabase real-time listener
     const postsChannel = supabase
       .channel('public:posts')
       .on(
@@ -104,9 +109,40 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
       .subscribe();
 
     return () => {
-      isMounted = false;
-      clearTimeout(timer);
       supabase.removeChannel(postsChannel);
+    };
+  }, []);
+
+  // Pause all media elements when sub-tab changes or FeedView unmounts
+  useEffect(() => {
+    return () => {
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      allMedia.forEach((media) => {
+        try {
+          if (!media.paused) {
+            media.pause();
+          }
+          media.currentTime = 0;
+        } catch (err) {
+          console.warn('Error pausing media on Feed unmount:', err);
+        }
+      });
+    };
+  }, [feedTab]);
+
+  useEffect(() => {
+    return () => {
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      allMedia.forEach((media) => {
+        try {
+          if (!media.paused) {
+            media.pause();
+          }
+          media.currentTime = 0;
+        } catch (err) {
+          console.warn('Error pausing media on Feed unmount:', err);
+        }
+      });
     };
   }, []);
 
@@ -116,29 +152,44 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
   };
 
   const fetchPosts = async () => {
+    setLoading(true);
     try {
-      const { posts: loaded, error } = await loadPosts(undefined, { limit: 15 });
+      const { posts: loaded, error } = await loadPosts(undefined, { limit: 25 });
 
-      if (error) {
-        console.warn('[FeedView] Fetch notice:', error);
-      } else if (loaded && loaded.length > 0) {
-        const likesMap = loadLocalLikesMap();
-        const postsWithLikes = loaded.map((p) => ({
-          ...p,
-          isLiked: likesMap[p.id] !== undefined ? likesMap[p.id] : p.isLiked,
-        }));
-
-        setPosts(postsWithLikes);
-
-        const fMap: Record<string, boolean> = {};
-        postsWithLikes.forEach((p) => {
-          fMap[p.authorName] = isFollowing(p.authorName);
-        });
-        setFollowedMap(fMap);
+      if (error && error.code !== '57014') {
+        console.warn('[FeedView] Feed fetch notice:', error);
       }
+      setSupabaseError(null);
+
+      const activePosts = (loaded && loaded.length > 0) ? loaded : [];
+      const likesMap = loadLocalLikesMap();
+      
+      // Apply local saved likes
+      const postsWithLikes = activePosts.map((p) => {
+        if (likesMap[p.id] !== undefined) {
+          return {
+            ...p,
+            isLiked: likesMap[p.id],
+          };
+        }
+        return p;
+      });
+
+      setPosts(postsWithLikes);
+
+      // Initialize follow status map for authors
+      const fMap: Record<string, boolean> = {};
+      postsWithLikes.forEach((p) => {
+        fMap[p.authorName] = isFollowing(p.authorName);
+      });
+      setFollowedMap(fMap);
     } catch (err: any) {
-      console.error('[FeedView] Feed fetch error:', err);
+      console.warn('[FeedView] Feed fetch exception handled:', err);
+      setSupabaseError(null);
+      const { posts: fallbackPosts } = await loadPosts(undefined, { limit: 25 });
+      setPosts(fallbackPosts || []);
     } finally {
+      // Ensure loading state is ALWAYS cleared in finally block
       setLoading(false);
     }
   };
@@ -151,13 +202,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         return;
       }
       triggerToast('Uploading photo...');
-      try {
-        const url = await uploadMediaFile(file, 'post-photos');
-        setImageUrl(url);
-        triggerToast('Photo attached!');
-      } catch (err: any) {
-        triggerToast('Failed to upload photo.');
-      }
+      const url = await uploadMediaFile(file, 'post-photos');
+      setImageUrl(url);
+      triggerToast('Photo attached!');
     }
     e.target.value = '';
   };
@@ -169,14 +216,10 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         triggerToast('Please select a valid video file.');
         return;
       }
-      triggerToast('Uploading video to Bunny Stream...');
-      try {
-        const url = await uploadVideoToBunnyStream(file, newPostText || file.name);
-        setVideoUrl(url);
-        triggerToast('Video attached!');
-      } catch (err: any) {
-        triggerToast('Failed to upload video.');
-      }
+      triggerToast('Uploading video directly to Bunny Stream CDN...');
+      const url = await uploadVideoToBunnyStream(file, newPostText || file.name);
+      setVideoUrl(url);
+      triggerToast('Bunny Stream Video attached!');
     }
     e.target.value = '';
   };
@@ -189,7 +232,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
     }));
     triggerToast(
       isNowFollowing
-        ? `Now following ${authorName}.`
+        ? `Now following ${authorName}. You will see all their reflections!`
         : `Unfollowed ${authorName}.`
     );
   };
@@ -199,46 +242,21 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
     if (!newPostText.trim() && !imageUrl && !videoUrl) return;
 
     setIsSubmitting(true);
+    console.log('[FeedView] Initiating post creation and database insert...');
 
     try {
-      const currentUserId = profile?.id;
-      if (!currentUserId) {
-        throw new Error('You must be logged in to share a post.');
-      }
-
-      const media = imageUrl || videoUrl || null;
-
-      const { data, error } = await supabase
-        .from('posts')
-        .insert([
-          {
-            user_id: currentUserId,
-            content: newPostText.trim(),
-            media_url: media,
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const createdPost: Post = {
-        id: data.id,
-        text: data.content,
+      const created = await savePost({
+        text: newPostText.trim(),
         authorName: profile?.full_name || 'Orthodox Parishioner',
         authorParish: profile?.parish || 'Orthodox Church',
-        authorAvatar:
-          profile?.avatar_url ||
-          'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-        authorId: currentUserId,
+        authorAvatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        authorId: profile?.id,
         image: imageUrl || undefined,
         video: videoUrl || undefined,
-        createdAt: data.created_at || new Date().toISOString(),
-        likesCount: 0,
-        commentsCount: 0,
-      };
+      });
 
-      setPosts((prev) => [createdPost, ...prev]);
+      console.log('[FeedView] Post created successfully with ID:', created.id);
+      setPosts((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
       setNewPostText('');
       setImageUrl('');
       setVideoUrl('');
@@ -260,6 +278,18 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
           currentLikes[postId] = isLiked;
           saveLocalLikesMap(currentLikes);
 
+          if (isLiked) {
+            addNotification({
+              userId: p.authorId || 'all',
+              type: 'system',
+              title: `Reaction from ${profile?.full_name || 'Parishioner'}`,
+              body: `Liked your reflection: "${p.text ? (p.text.length > 50 ? p.text.slice(0, 50) + '...' : p.text) : 'Post'}"`,
+              senderName: profile?.full_name || 'Parishioner',
+              senderAvatar: profile?.avatar_url,
+              link: 'feed',
+            });
+          }
+
           return {
             ...p,
             isLiked,
@@ -275,6 +305,8 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
     const text = commentText.trim();
     if (!text) return;
 
+    const targetPost = posts.find((p) => p.id === postId);
+
     setCommentsMap((prev) => {
       const updatedMap = {
         ...prev,
@@ -287,6 +319,16 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
     setPosts((prev) =>
       prev.map((p) => (p.id === postId ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p))
     );
+
+    addNotification({
+      userId: targetPost?.authorId || 'all',
+      type: 'mention',
+      title: `New comment from ${profile?.full_name || 'Parishioner'}`,
+      body: text,
+      senderName: profile?.full_name || 'Parishioner',
+      senderAvatar: profile?.avatar_url,
+      link: 'feed',
+    });
   };
 
   const handleDelete = async (postId: string) => {
@@ -320,6 +362,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
 
   return (
     <div className="space-y-6">
+      {/* Toast notification message */}
       {toastMessage && (
         <div className="fixed top-20 right-6 z-50 px-4 py-2.5 rounded-2xl bg-[#3d2b18] text-[#f5ebd9] border-2 border-[#c5a059] shadow-2xl font-serif text-xs flex items-center gap-2 animate-bounce">
           <Check className="w-4 h-4 text-[#c5a059]" />
@@ -327,9 +370,30 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         </div>
       )}
 
+      {/* Supabase Error Banner */}
+      {supabaseError && (
+        <div className="p-4 rounded-2xl bg-red-100 dark:bg-red-950/80 border-2 border-red-500/50 text-red-900 dark:text-red-200 text-xs flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
+            <div className="truncate">
+              <span className="font-bold">Supabase Feed Error: </span>
+              <span>{supabaseError}</span>
+            </div>
+          </div>
+          <button
+            onClick={() => setSupabaseError(null)}
+            className="p-1.5 hover:bg-red-200 dark:hover:bg-red-900 rounded-xl transition-colors shrink-0 cursor-pointer"
+            title="Dismiss error"
+          >
+            <X className="w-4 h-4 text-red-700 dark:text-red-300" />
+          </button>
+        </div>
+      )}
+
+      {/* Stories Bar Component */}
       <StoriesBar onSelectUser={onSelectUser} />
 
-      {/* Post Creation Form */}
+      {/* Post Creation Box (Facebook Style Direct Upload) */}
       <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg">
         <form onSubmit={handleCreatePost} className="space-y-3">
           <div className="flex items-center gap-3">
@@ -348,6 +412,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="p-1 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#c5a059]/20 transition-colors shrink-0 cursor-pointer"
+                title="Upload photo from device"
               >
                 <Image className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
               </button>
@@ -355,12 +420,14 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                 type="button"
                 onClick={() => videoFileInputRef.current?.click()}
                 className="p-1 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#c5a059]/20 transition-colors shrink-0 cursor-pointer"
+                title="Upload video from device"
               >
                 <Video className="w-4 h-4 text-[#a8833c]" />
               </button>
             </div>
           </div>
 
+          {/* Hidden File Picker Inputs */}
           <input
             ref={fileInputRef}
             type="file"
@@ -376,6 +443,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
             className="hidden"
           />
 
+          {/* Facebook-style Local Photo Preview */}
           {imageUrl && (
             <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
               <div className="relative max-h-80 overflow-hidden rounded-xl bg-black/20 flex items-center justify-center">
@@ -384,33 +452,75 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                   alt="Selected local photo preview"
                   className="w-full h-auto max-h-80 object-cover rounded-xl"
                 />
-                <button
-                  type="button"
-                  onClick={() => setImageUrl('')}
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="absolute top-2 right-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-2.5 py-1.5 rounded-full bg-[#3d2b18]/90 text-[#c5a059] hover:bg-[#3d2b18] hover:text-white transition-all shadow-md text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer border border-[#c5a059]/50"
+                    title="Replace Photo"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Replace</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageUrl('')}
+                    className="p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-[#c5a059]/50"
+                    title="Remove Photo"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-[#3d2b18]/80 text-[#c5a059] text-[10px] font-serif font-bold uppercase tracking-wider backdrop-blur-sm border border-[#c5a059]/30">
+                  Photo Attached
+                </div>
               </div>
             </div>
           )}
 
+          {/* Facebook-style Local Video Preview */}
           {videoUrl && (
             <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
               <div className="relative max-h-80 overflow-hidden rounded-xl bg-black flex items-center justify-center">
                 <video
+                  data-media-id="new-post-video-preview"
                   src={videoUrl}
                   controls
                   playsInline
+                  autoPlay={false}
+                  preload="none"
+                  muted={true}
+                  onPointerDown={(e) => {
+                    e.currentTarget.dataset.userInitiated = 'true';
+                  }}
+                  onError={(e) => {
+                    console.warn('[FeedView] Preview video error:', e);
+                  }}
                   className="w-full h-auto max-h-80 rounded-xl object-contain bg-black"
                 />
-                <button
-                  type="button"
-                  onClick={() => setVideoUrl('')}
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => videoFileInputRef.current?.click()}
+                    className="px-2.5 py-1.5 rounded-full bg-[#3d2b18]/90 text-[#c5a059] hover:bg-[#3d2b18] hover:text-white transition-all shadow-md text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer border border-[#c5a059]/50"
+                    title="Replace Video"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Replace</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVideoUrl('')}
+                    className="p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-[#c5a059]/50"
+                    title="Remove Video"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="absolute bottom-2 left-2 z-10 px-2.5 py-1 rounded-lg bg-[#3d2b18]/80 text-[#c5a059] text-[10px] font-serif font-bold uppercase tracking-wider backdrop-blur-sm border border-[#c5a059]/30 flex items-center gap-1">
+                  <Video className="w-3.5 h-3.5 text-[#c5a059]" />
+                  <span>Video Attached</span>
+                </div>
               </div>
             </div>
           )}
@@ -420,26 +530,32 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-[#7c5f3d]"
+                className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#eedcb5] dark:hover:bg-[#282019]"
+                title="Select photo from PC or gallery"
               >
                 <Image className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-                <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">Photo</span>
+                <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
+                  {imageUrl ? 'Photo Attached' : 'Photo'}
+                </span>
               </button>
 
               <button
                 type="button"
                 onClick={() => videoFileInputRef.current?.click()}
-                className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-[#7c5f3d]"
+                className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#eedcb5] dark:hover:bg-[#282019]"
+                title="Select video from PC or gallery"
               >
                 <Video className="w-4 h-4 text-[#a8833c]" />
-                <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">Video</span>
+                <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
+                  {videoUrl ? 'Video Attached' : 'Video'}
+                </span>
               </button>
             </div>
 
             <button
               type="submit"
               disabled={isSubmitting || (!newPostText.trim() && !imageUrl && !videoUrl)}
-              className="px-5 py-2 rounded-xl bg-[#a8833c] hover:bg-[#8f6e30] text-white font-serif uppercase font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-[#a8833c] hover:bg-[#8f6e30] text-white font-serif uppercase tracking-wider font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Posting...' : t('post')}</span>
@@ -448,7 +564,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         </form>
       </div>
 
-      {/* Feed Tabs */}
+      {/* Feed Mode Switcher (ALL POSTS vs FOLLOWING) */}
       <div className="flex items-center justify-between bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] p-1.5 rounded-2xl shadow-md font-serif text-xs">
         <button
           onClick={() => setFeedTab('all')}
@@ -487,6 +603,15 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
                 ? "You aren't following anyone with active posts yet."
                 : 'No posts found in the parish feed.'}
             </p>
+            {feedTab === 'following' ? (
+              <p className="text-[11px] text-[#a8833c]">
+                Switch to "All Parish Feed" to discover and follow other parish members!
+              </p>
+            ) : (
+              <p className="text-[11px] text-[#a8833c]">
+                Be the first to share a reflection, announcement, or prayer request above!
+              </p>
+            )}
           </div>
         ) : (
           filteredPosts.map((post) => (
@@ -526,6 +651,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         )}
       </div>
 
+      {/* Reshare Modal */}
       <ReshareModal
         post={reshareTargetPost}
         isOpen={Boolean(reshareTargetPost)}
@@ -533,6 +659,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
         onReshareCreated={(newPost) => setPosts([newPost, ...posts])}
       />
 
+      {/* Content Flagging & Reporting Modal */}
       <ReportContentModal
         isOpen={reportModalData.isOpen}
         onClose={() => setReportModalData((prev) => ({ ...prev, isOpen: false }))}
@@ -544,3 +671,4 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
     </div>
   );
 };
+

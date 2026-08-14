@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Allow: /feed
+Allow: /videos
+Allow: /reels
+Allow: /live
+Allow: /calendar
+Allow: /myNetwork
+
+# Block private user areas, direct messaging, and admin dashboard from public search indexing
+Disallow: /admin
+Disallow: /messages
+Disallow: /api/
+Disallow: /profile/edit
+Disallow: /settings
+
+Sitemap: https://orthodoxconnect.live/sitemap.xml

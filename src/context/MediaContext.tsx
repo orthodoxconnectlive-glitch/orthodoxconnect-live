@@ -24,7 +24,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (!media.paused) {
             media.pause();
           }
-          // REMOVED media.currentTime = 0; -> Setting currentTime = 0 purges mobile video buffers!
+          media.currentTime = 0;
         } catch (err) {
           console.warn('[MediaContext] Error pausing media element:', err);
         }
@@ -32,13 +32,13 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
-  // DOM Event Interceptor: Listen on document capture phase for 'play' events
+  // DOM Event Interceptor: Listen on document capture phase for 'play' events on any audio or video element
   useEffect(() => {
     const handleGlobalPlay = (e: Event) => {
       const target = e.target as HTMLMediaElement;
       if (!target || !(target instanceof HTMLMediaElement)) return;
 
-      // Safely pause all other playing media elements WITHOUT resetting buffer position
+      // Automatically pause and reset all other playing media elements across the DOM
       const mediaElements = document.querySelectorAll<HTMLMediaElement>('audio, video');
       mediaElements.forEach((media) => {
         if (media !== target) {
@@ -46,17 +46,19 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (!media.paused) {
               media.pause();
             }
+            media.currentTime = 0;
           } catch (err) {
             console.warn('[MediaContext] Error pausing inactive media element:', err);
           }
         }
       });
 
+      // If the playing element has a dataset ID or source, track it as active media
       const mediaId = target.dataset.mediaId || target.id || target.src || null;
       setActiveMediaId(mediaId);
     };
 
-    // 'play' event does not bubble, so capture phase (true) is required
+    // 'play' event does not bubble, so we must use capture = true
     document.addEventListener('play', handleGlobalPlay, true);
 
     return () => {

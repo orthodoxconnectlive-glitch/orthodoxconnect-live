@@ -64,6 +64,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   useEffect(() => {
     fetchNotifs();
 
+    const handleLocalUpdate = () => {
+      fetchNotifs();
+    };
+
+    window.addEventListener('orthodox:notifications_updated', handleLocalUpdate);
+    window.addEventListener('orthodox:new_notification', handleLocalUpdate);
+    window.addEventListener('storage', handleLocalUpdate);
+
     // Supabase Realtime subscription specifically for notifications table
     const currentUserId = profile?.id;
     const isUuid = currentUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentUserId);
@@ -85,6 +93,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       .subscribe();
 
     return () => {
+      window.removeEventListener('orthodox:notifications_updated', handleLocalUpdate);
+      window.removeEventListener('orthodox:new_notification', handleLocalUpdate);
+      window.removeEventListener('storage', handleLocalUpdate);
       supabase.removeChannel(notifChannel);
     };
   }, [profile?.id]);

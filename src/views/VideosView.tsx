@@ -4,14 +4,21 @@ import {
   Upload,
   Sparkles,
   Search,
+  RefreshCw,
+  Video,
   CheckCircle,
+  ChevronUp,
+  ChevronDown,
   X,
   Plus,
-  Video,
+  Flame,
+  Hash,
+  Compass,
 } from 'lucide-react';
 import { Post } from '../types';
-import { loadPosts, deletePost, savePost } from '../utils/posts';
+import { loadVideos, deletePost, savePost } from '../utils/posts';
 import { uploadVideoToBunnyStream } from '../utils/storage';
+import { addNotification } from '../utils/notifications';
 import { VideoCard, VideoComment } from '../components/VideoCard';
 import { useAuth } from '../context/AuthContext';
 import { UserProfileData } from './ProfileView';
@@ -48,20 +55,27 @@ export const VideosView: React.FC<VideosViewProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
 
+  // Upload modal form state
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadCaption, setUploadCaption] = useState<string>('');
 
+  // Social interactions state
   const [followedAuthors, setFollowedAuthors] = useState<Record<string, boolean>>({});
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
   const [savedMap, setSavedMap] = useState<Record<string, boolean>>({});
 
+  // Comments drawer state per video
   const [openCommentVideoId, setOpenCommentVideoId] = useState<string | null>(null);
   const [videoCommentsMap, setVideoCommentsMap] = useState<Record<string, VideoComment[]>>({});
 
+  // Active playing video state (TikTok auto-play on snap scroll)
   const [activePlayingId, setActivePlayingId] = useState<string | null>(null);
+
+  // Feed container ref for snap scrolling
   const feedContainerRef = useRef<HTMLDivElement>(null);
 
+  // Strict Tab Isolation & Total Unmount Cleanup
   useEffect(() => {
     return () => {
       const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
@@ -69,53 +83,29 @@ export const VideosView: React.FC<VideosViewProps> = ({
         try {
           m.pause();
           m.currentTime = 0;
-        } catch (e) {}
+        } catch (e) {
+          // ignore
+        }
       });
     };
   }, []);
 
+  // Fetch videos from persistent database
   useEffect(() => {
-    let isMounted = true;
-    const runFetch = async () => {
-      await fetchVideosList();
-      if (isMounted) setLoading(false);
-    };
-
-    runFetch();
-
-    return () => {
-      isMounted = false;
-    };
+    fetchVideosList();
   }, []);
 
   const fetchVideosList = async () => {
     setLoading(true);
+    const loadedVideos = await loadVideos();
+    setVideos(loadedVideos);
 
-    const { posts } = await loadPosts();
-    const videoPosts = posts.filter((p) => !!p.video || (p.image && p.image.endsWith('.mp4')));
-
-    const finalVideos = videoPosts.length > 0 ? videoPosts : [
-      {
-        id: 'fallback-v1',
-        text: 'Orthodox Spiritual Reflection & Liturgical Song ☨',
-        authorName: 'OrthodoxConnect',
-        authorParish: 'Parish Fellowship',
-        authorAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-        video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-        image: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800',
-        createdAt: new Date().toISOString(),
-        likesCount: 25,
-        commentsCount: 2,
-        resharesCount: 0,
-      }
-    ];
-
-    setVideos(finalVideos);
-
-    if (finalVideos.length > 0 && !activePlayingId) {
-      setActivePlayingId(finalVideos[0].id);
+    // Set first video as active playing video
+    if (loadedVideos.length > 0 && !activePlayingId) {
+      setActivePlayingId(loadedVideos[0].id);
     }
 
+    // Read cached likes and comments
     let savedLikes: Record<string, boolean> = {};
     let savedComments: Record<string, VideoComment[]> = {};
     try {
@@ -132,7 +122,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
     const initialLikesCount: Record<string, number> = {};
     const initialComments: Record<string, VideoComment[]> = {};
 
-    finalVideos.forEach((v) => {
+    loadedVideos.forEach((v) => {
       const baseLikes = v.likesCount || 0;
       initialLikesCount[v.id] = savedLikes[v.id] ? baseLikes + 1 : baseLikes;
       initialComments[v.id] = savedComments[v.id] || [];
@@ -143,9 +133,80 @@ export const VideosView: React.FC<VideosViewProps> = ({
     setLoading(false);
   };
 
+  // Setup IntersectionObserver for auto-playing active snapped video
+  useEffect(() => {
+    const container = feedContainerRef.current;
+    if (!container) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+            const videoId = entry.target.getAttribute('data-video-id');
+            if (videoId) {
+              setActivePlayingId(videoId);
+            }
+          }
+        });
+      },
+      {
+        root: container,
+        threshold: [0.6],
+      }
+    );
+
+    const videoElements = container.querySelectorAll('[data-video-id]');
+    videoElements.forEach((el) => observer.observe(el));
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [videos, activeTab, selectedHashtag, searchQuery]);
+
+  // Keyboard navigation (ArrowUp, ArrowDown)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === 'INPUT' ||
+        document.activeElement?.tagName === 'TEXTAREA'
+      ) {
+        return;
+      }
+
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        e.preventDefault();
+        handleScrollNext();
+      } else if (e.key === 'ArrowUp' || e.key === 'k') {
+        e.preventDefault();
+        handleScrollPrev();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [videos, activePlayingId]);
+
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
+  };
+
+  const handleScrollNext = () => {
+    if (!feedContainerRef.current) return;
+    const { scrollTop, clientHeight } = feedContainerRef.current;
+    feedContainerRef.current.scrollTo({
+      top: scrollTop + clientHeight,
+      behavior: 'smooth',
+    });
+  };
+
+  const handleScrollPrev = () => {
+    if (!feedContainerRef.current) return;
+    const { scrollTop, clientHeight } = feedContainerRef.current;
+    feedContainerRef.current.scrollTo({
+      top: Math.max(0, scrollTop - clientHeight),
+      behavior: 'smooth',
+    });
   };
 
   const handleVideoUploadSubmit = async (e: React.FormEvent) => {
@@ -158,7 +219,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
     try {
       setIsUploading(true);
       triggerToast('Uploading video directly to Bunny Stream CDN...');
-      const videoMediaUrl = await uploadVideoToBunnyStream(uploadFile, uploadFile.name);
+      const iframeUrl = await uploadVideoToBunnyStream(uploadFile, uploadFile.name);
 
       const newVideo = await savePost({
         text: uploadCaption.trim() || uploadFile.name.replace(/\.[^/.]+$/, ''),
@@ -168,7 +229,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
           profile?.avatar_url ||
           'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
         authorId: profile?.id,
-        video: videoMediaUrl,
+        video: iframeUrl,
       });
 
       setVideos((prev) => [newVideo, ...prev]);
@@ -178,6 +239,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
       setUploadCaption('');
       triggerToast('New Orthodox Video published to feed!');
 
+      // Scroll to top
       if (feedContainerRef.current) {
         feedContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -190,6 +252,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
   };
 
   const handleToggleLike = (videoId: string) => {
+    const targetVideo = videos.find((v) => v.id === videoId);
     setLikedMap((prev) => {
       const isCurrentlyLiked = !!prev[videoId];
       const nextState = !isCurrentlyLiked;
@@ -203,6 +266,19 @@ export const VideosView: React.FC<VideosViewProps> = ({
         ...cPrev,
         [videoId]: (cPrev[videoId] || 0) + (nextState ? 1 : -1),
       }));
+
+      if (nextState && targetVideo) {
+        addNotification({
+          userId: targetVideo.authorId || 'all',
+          type: 'system',
+          title: `Reaction from ${profile?.full_name || 'Parishioner'}`,
+          body: `Liked your video reflection: "${targetVideo.text ? (targetVideo.text.length > 40 ? targetVideo.text.slice(0, 40) + '...' : targetVideo.text) : 'Video'}"`,
+          senderName: profile?.full_name || 'Parishioner',
+          senderAvatar: profile?.avatar_url,
+          link: 'videos',
+        });
+      }
+
       return updated;
     });
   };
@@ -267,16 +343,20 @@ export const VideosView: React.FC<VideosViewProps> = ({
     triggerToast(`Filtering by ${tag}`);
   };
 
+  // Filter videos by tab, search query, and selected hashtag
   const filteredVideos = useMemo(() => {
     return videos.filter((v) => {
+      // Tab filter
       if (activeTab === 'following' && !followedAuthors[v.authorName]) {
         return false;
       }
 
+      // Hashtag filter
       if (selectedHashtag && !v.text?.toLowerCase().includes(selectedHashtag.toLowerCase())) {
         return false;
       }
 
+      // Search query filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -291,149 +371,219 @@ export const VideosView: React.FC<VideosViewProps> = ({
   }, [videos, activeTab, followedAuthors, selectedHashtag, searchQuery]);
 
   return (
-    <div className="w-full min-h-screen bg-[#130e0a] pb-24 px-4 flex flex-col items-center">
+    <div className="w-full flex flex-col items-center relative select-none pb-4">
+      {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#1c1611]/95 border-2 border-[#c5a059] text-[#f5ebd9] text-xs font-serif uppercase tracking-wider font-bold shadow-2xl flex items-center gap-2">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#1c1611]/95 border-2 border-[#c5a059] text-[#f5ebd9] text-xs font-serif uppercase tracking-wider font-bold shadow-2xl animate-fade-in flex items-center gap-2">
           <CheckCircle className="w-4 h-4 text-[#c5a059]" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* Top Header & Navigation Bar */}
-      <div className="w-full max-w-md mt-4 mb-6 flex items-center justify-between bg-[#1c1611] border-2 border-[#c5a059] p-4 rounded-2xl shadow-xl">
-        <div className="flex items-center gap-2 font-serif text-[#f5ebd9]">
+      {/* Main TikTok Container Frame */}
+      <div className="relative w-full max-w-[420px] h-[calc(100vh-6.5rem)] min-h-[580px] max-h-[860px] bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-[#c5a059]/40 flex flex-col">
+        {/* TikTok Top Floating Header (Following | For You + Search & Upload buttons) */}
+        <div className="absolute top-0 inset-x-0 z-40 px-4 py-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between text-white pointer-events-auto">
+          {/* Search Toggle */}
           <button
             type="button"
-            onClick={() => setActiveTab('following')}
-            className={`text-xs uppercase font-bold px-3 py-1.5 rounded-xl transition-colors ${
-              activeTab === 'following' ? 'bg-[#c5a059] text-[#1c1611]' : 'hover:bg-[#282019]'
-            }`}
+            onClick={() => setIsSearchOpen(!isSearchOpen)}
+            className="p-2 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md border border-white/20 text-[#f5ebd9] cursor-pointer transition-transform active:scale-95"
+            title="Search Videos"
+            aria-label="Search Videos"
           >
-            Following
+            <Search className="w-4 h-4" />
           </button>
+
+          {/* Centered Tab Switcher */}
+          <div className="flex items-center gap-4 font-serif">
+            <button
+              type="button"
+              onClick={() => setActiveTab('following')}
+              className={`text-sm font-bold tracking-wider uppercase transition-all cursor-pointer ${
+                activeTab === 'following'
+                  ? 'text-white border-b-2 border-[#c5a059] pb-0.5 drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]'
+                  : 'text-white/60 hover:text-white/90'
+              }`}
+            >
+              Following
+            </button>
+
+            <span className="text-white/30 text-xs">|</span>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('foryou')}
+              className={`text-sm font-bold tracking-wider uppercase transition-all cursor-pointer ${
+                activeTab === 'foryou'
+                  ? 'text-white border-b-2 border-[#c5a059] pb-0.5 drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]'
+                  : 'text-white/60 hover:text-white/90'
+              }`}
+            >
+              For You
+            </button>
+          </div>
+
+          {/* Upload (+) Button */}
           <button
             type="button"
-            onClick={() => setActiveTab('foryou')}
-            className={`text-xs uppercase font-bold px-3 py-1.5 rounded-xl transition-colors ${
-              activeTab === 'foryou' ? 'bg-[#c5a059] text-[#1c1611]' : 'hover:bg-[#282019]'
-            }`}
+            onClick={() => setIsUploadModalOpen(true)}
+            className="p-2 rounded-full bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] cursor-pointer transition-transform active:scale-95 shadow-md flex items-center justify-center font-bold"
+            title="Upload Orthodox Video"
+            aria-label="Upload Video"
           >
-            For You
+            <Plus className="w-4 h-4 stroke-[3]" />
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsUploadModalOpen(true)}
-          className="px-3.5 py-1.5 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-colors cursor-pointer"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>Upload</span>
-        </button>
-      </div>
+        {/* Expandable Top Search / Hashtag Bar */}
+        {isSearchOpen && (
+          <div className="absolute top-14 inset-x-3 z-40 bg-[#1c1611]/95 backdrop-blur-xl border border-[#c5a059] rounded-2xl p-3 shadow-2xl space-y-2 animate-fade-in text-[#f5ebd9]">
+            <div className="relative flex items-center">
+              <Search className="w-4 h-4 text-[#c5a059] absolute left-3" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search sermons, hymns, priests..."
+                className="w-full bg-[#282019] border border-[#c5a059]/50 rounded-xl pl-9 pr-8 py-1.5 text-xs text-[#f5ebd9] placeholder-[#a89379] focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 text-[#a89379] hover:text-white"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
-      {/* Search & Hashtag Bar */}
-      {isSearchOpen && (
-        <div className="w-full max-w-md mb-4 bg-[#1c1611]/95 backdrop-blur-xl border border-[#c5a059] rounded-2xl p-3 shadow-2xl space-y-2 text-[#f5ebd9]">
-          <div className="relative flex items-center">
-            <Search className="w-4 h-4 text-[#c5a059] absolute left-3" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search sermons, hymns, priests..."
-              className="w-full bg-[#282019] border border-[#c5a059]/50 rounded-xl pl-9 pr-8 py-1.5 text-xs text-[#f5ebd9] placeholder-[#a89379] focus:outline-none"
-            />
-            {searchQuery && (
+            {/* Popular Hashtags */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
+              {POPULAR_HASHTAGS.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => handleHashtagClick(tag)}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-serif border whitespace-nowrap cursor-pointer transition-colors ${
+                    selectedHashtag === tag
+                      ? 'bg-[#c5a059] text-[#1c1611] border-[#c5a059] font-bold'
+                      : 'bg-[#282019] text-[#c5a059] border-[#c5a059]/40 hover:bg-[#c5a059]/20'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+
+            {selectedHashtag && (
+              <div className="flex items-center justify-between pt-1 border-t border-[#c5a059]/20 text-[11px] text-[#c5a059]">
+                <span>Active Tag: <b>{selectedHashtag}</b></span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedHashtag(null)}
+                  className="text-red-400 hover:underline cursor-pointer"
+                >
+                  Clear Tag
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Video Feed Snap-Scroll Container */}
+        {loading ? (
+          <div className="w-full h-full flex flex-col items-center justify-center text-[#f5ebd9] space-y-3 bg-[#1c1611]">
+            <Sparkles className="w-10 h-10 text-[#c5a059] animate-spin" />
+            <p className="text-xs font-serif uppercase tracking-wider text-[#c5a059] font-bold">
+              Loading Orthodox Feed...
+            </p>
+          </div>
+        ) : filteredVideos.length === 0 ? (
+          <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-[#1c1611] text-[#f5ebd9] space-y-3">
+            <Film className="w-12 h-12 text-[#c5a059]/50" />
+            <h3 className="font-serif-coptic font-bold text-sm text-[#f5ebd9] uppercase">
+              No Videos Found
+            </h3>
+            <p className="text-xs text-[#a89379] font-serif max-w-xs">
+              {activeTab === 'following'
+                ? 'Follow your favourite Orthodox priests and creators to view their vertical videos here!'
+                : 'No videos match your active filter. Try clearing your search query.'}
+            </p>
+            {activeTab === 'following' && (
               <button
                 type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 text-[#a89379] hover:text-white cursor-pointer"
+                onClick={() => setActiveTab('foryou')}
+                className="px-4 py-2 rounded-xl bg-[#c5a059] text-[#1c1611] font-serif font-bold text-xs uppercase cursor-pointer shadow-md"
               >
-                <X className="w-3.5 h-3.5" />
+                Explore For You
               </button>
             )}
           </div>
-
-          <div className="flex items-center gap-1.5 overflow-x-auto pt-1">
-            {POPULAR_HASHTAGS.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => handleHashtagClick(tag)}
-                className={`px-2 py-0.5 rounded-full text-[10px] font-serif border whitespace-nowrap cursor-pointer transition-colors ${
-                  selectedHashtag === tag
-                    ? 'bg-[#c5a059] text-[#1c1611] border-[#c5a059] font-bold'
-                    : 'bg-[#282019] text-[#c5a059] border-[#c5a059]/40 hover:bg-[#c5a059]/20'
-                }`}
-              >
-                {tag}
-              </button>
+        ) : (
+          <div
+            ref={feedContainerRef}
+            className="w-full h-full snap-y snap-mandatory overflow-y-scroll no-scrollbar relative"
+          >
+            {filteredVideos.map((video) => (
+              <VideoCard
+                key={video.id}
+                video={video}
+                isPlaying={activePlayingId === video.id}
+                onTogglePlay={() =>
+                  setActivePlayingId(activePlayingId === video.id ? null : video.id)
+                }
+                onSelectUser={onSelectUser}
+                onOpenMessengerWithUser={onOpenMessengerWithUser}
+                liked={!!likedMap[video.id]}
+                likeCount={likeCounts[video.id] || 0}
+                onToggleLike={handleToggleLike}
+                saved={!!savedMap[video.id]}
+                onToggleSave={handleToggleSave}
+                isFollowed={!!followedAuthors[video.authorName]}
+                onToggleFollow={handleToggleFollow}
+                onDeleteVideo={handleDeleteVideo}
+                comments={videoCommentsMap[video.id] || []}
+                isCommentOpen={openCommentVideoId === video.id}
+                onToggleCommentOpen={(id) =>
+                  setOpenCommentVideoId(openCommentVideoId === id ? null : id)
+                }
+                onAddComment={handleAddComment}
+                onShare={handleShare}
+                onHashtagClick={handleHashtagClick}
+              />
             ))}
           </div>
-
-          {selectedHashtag && (
-            <div className="flex items-center justify-between pt-1 border-t border-[#c5a059]/20 text-[11px] text-[#c5a059]">
-              <span>Active Tag: <b>{selectedHashtag}</b></span>
-              <button
-                type="button"
-                onClick={() => setSelectedHashtag(null)}
-                className="text-red-400 hover:underline cursor-pointer"
-              >
-                Clear Tag
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Natural Scrolling Feed Container */}
-      <div ref={feedContainerRef} className="w-full max-w-md flex flex-col gap-6">
-        {loading ? (
-          <div className="py-20 text-center text-[#c5a059] font-serif uppercase text-xs flex flex-col items-center gap-3">
-            <Sparkles className="w-8 h-8 animate-spin" />
-            <span>Loading Videos Feed...</span>
-          </div>
-        ) : filteredVideos.length === 0 ? (
-          <div className="py-20 text-center text-[#a89379] font-serif uppercase text-xs">
-            No videos available in this view.
-          </div>
-        ) : (
-          filteredVideos.map((video) => (
-            <VideoCard
-              key={video.id}
-              video={video}
-              isPlaying={activePlayingId === video.id}
-              onTogglePlay={() =>
-                setActivePlayingId(activePlayingId === video.id ? null : video.id)
-              }
-              onSelectUser={onSelectUser}
-              onOpenMessengerWithUser={onOpenMessengerWithUser}
-              liked={!!likedMap[video.id]}
-              likeCount={likeCounts[video.id] || 0}
-              onToggleLike={handleToggleLike}
-              saved={!!savedMap[video.id]}
-              onToggleSave={handleToggleSave}
-              isFollowed={!!followedAuthors[video.authorName]}
-              onToggleFollow={handleToggleFollow}
-              onDeleteVideo={handleDeleteVideo}
-              comments={videoCommentsMap[video.id] || []}
-              isCommentOpen={openCommentVideoId === video.id}
-              onToggleCommentOpen={(id) =>
-                setOpenCommentVideoId(openCommentVideoId === id ? null : id)
-              }
-              onAddComment={handleAddComment}
-              onShare={handleShare}
-              onHashtagClick={handleHashtagClick}
-            />
-          ))
         )}
       </div>
 
-      {/* Upload Video Modal */}
+      {/* Desktop Quick Next/Previous Floating Buttons */}
+      <div className="hidden lg:flex fixed right-8 top-1/2 -translate-y-1/2 flex-col gap-3 z-40">
+        <button
+          type="button"
+          onClick={handleScrollPrev}
+          className="w-11 h-11 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#1c1611] shadow-xl flex items-center justify-center transition-all cursor-pointer active:scale-90"
+          title="Previous Video (Up Arrow)"
+          aria-label="Previous Video"
+        >
+          <ChevronUp className="w-6 h-6 stroke-[2.5]" />
+        </button>
+        <button
+          type="button"
+          onClick={handleScrollNext}
+          className="w-11 h-11 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#1c1611] shadow-xl flex items-center justify-center transition-all cursor-pointer active:scale-90"
+          title="Next Video (Down Arrow)"
+          aria-label="Next Video"
+        >
+          <ChevronDown className="w-6 h-6 stroke-[2.5]" />
+        </button>
+      </div>
+
+      {/* Upload Video Modal Drawer */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#1c1611] border-2 border-[#c5a059] rounded-3xl max-w-md w-full p-6 text-[#f5ebd9] shadow-2xl relative space-y-4">
+          <div className="bg-[#1c1611] border-2 border-[#c5a059] rounded-3xl max-w-md w-full p-6 text-[#f5ebd9] shadow-2xl relative space-y-4 animate-fade-in">
             <div className="flex items-center justify-between border-b border-[#c5a059]/30 pb-3">
               <div className="flex items-center gap-2">
                 <Video className="w-5 h-5 text-[#c5a059]" />
@@ -451,6 +601,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
             </div>
 
             <form onSubmit={handleVideoUploadSubmit} className="space-y-4">
+              {/* File Input */}
               <div className="border-2 border-dashed border-[#c5a059]/50 rounded-2xl p-6 text-center hover:border-[#c5a059] transition-colors bg-[#282019]/50">
                 <Upload className="w-10 h-10 text-[#c5a059] mx-auto mb-2" />
                 <p className="text-xs font-serif text-[#f5ebd9] font-bold mb-1">
@@ -459,7 +610,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
                 <p className="text-[11px] text-[#a89379] font-serif mb-3">
                   Supports MP4, WebM, MOV directly streamed to Bunny CDN
                 </p>
-                <label className="px-4 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase cursor-pointer inline-block shadow-md">
+                <label className="px-4 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase tracking-wider cursor-pointer inline-block shadow-md">
                   <span>{uploadFile ? 'Change Video' : 'Browse Files'}</span>
                   <input
                     type="file"
@@ -472,6 +623,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
                 </label>
               </div>
 
+              {/* Caption Input */}
               <div>
                 <label className="block text-xs font-serif text-[#c5a059] uppercase tracking-wider font-bold mb-1">
                   Description & Hashtags
@@ -480,11 +632,12 @@ export const VideosView: React.FC<VideosViewProps> = ({
                   rows={3}
                   value={uploadCaption}
                   onChange={(e) => setUploadCaption(e.target.value)}
-                  placeholder="Share reflection details (e.g., #Orthodox #Liturgy #JesusPrayer)..."
-                  className="w-full bg-[#282019] border border-[#c5a059] rounded-xl p-3 text-xs text-[#f5ebd9] placeholder-[#a89379] focus:outline-none"
+                  placeholder="Share the liturgical occasion, sermon quote, or reflection (e.g., #Orthodox #Liturgy #JesusPrayer)..."
+                  className="w-full bg-[#282019] border border-[#c5a059] rounded-xl p-3 text-xs text-[#f5ebd9] placeholder-[#a89379] focus:outline-none focus:ring-1 focus:ring-[#c5a059]"
                 />
               </div>
 
+              {/* Submit Button */}
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
@@ -496,7 +649,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
                 <button
                   type="submit"
                   disabled={!uploadFile || isUploading}
-                  className="flex-1 py-2.5 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase disabled:opacity-40 cursor-pointer shadow-lg flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase disabled:opacity-40 cursor-pointer shadow-lg transition-colors flex items-center justify-center gap-2"
                 >
                   {isUploading ? (
                     <>

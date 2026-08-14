@@ -1,9 +1,11 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 
-export const BUNNY_LIBRARY_ID = '713265';
-// NOTE: For production, move this API key to environment variables or a Supabase Edge Function!
-export const BUNNY_API_KEY = import.meta.env.VITE_BUNNY_API_KEY || '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
-export const BUNNY_CDN_HOSTNAME = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
+export const BUNNY_LIBRARY_ID =
+  import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
+export const BUNNY_API_KEY =
+  import.meta.env.VITE_BUNNY_API_KEY || '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
+export const BUNNY_CDN_HOSTNAME =
+  import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 
 /**
  * Uploads a video file directly to Bunny Stream REST API.
@@ -58,12 +60,11 @@ export async function uploadVideoToBunnyStream(
       throw new Error(`Bunny Stream binary upload HTTP ${uploadRes.status}`);
     }
 
-    // 3. Return direct stream or embed URL
+    // 3. Return iframe embed URL
     return `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${guid}`;
   } catch (err) {
-    console.warn('Bunny Stream upload notice/error, falling back to Supabase storage upload:', err);
-    // Uses post-photos bucket as reliable fallback
-    return uploadMediaFile(file, 'post-photos');
+    console.warn('Bunny Stream upload error, falling back to storage upload:', err);
+    return uploadMediaFile(file, 'post-videos');
   }
 }
 
@@ -73,26 +74,19 @@ export async function uploadVideoToBunnyStream(
  */
 export async function uploadMediaFile(
   file: File,
-  bucketName: string = 'post-photos'
+  bucketName: string = 'media'
 ): Promise<string> {
-  // Sanitize file extension and remove special characters from filename
-  const cleanExt = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${cleanExt}`;
+  const fileExt = file.name.split('.').pop() || 'png';
+  const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
   const filePath = `${fileName}`;
 
   try {
-    if (!isSupabaseConfigured) {
-      throw new Error('Supabase client is not configured.');
-    }
-
     // Attempt Supabase storage bucket upload
     const { data, error } = await supabase.storage
       .from(bucketName)
       .upload(filePath, file, { cacheControl: '3600', upsert: true });
 
-    if (error) {
-      console.warn(`[Supabase Storage Error on bucket '${bucketName}']:`, error.message);
-    } else if (data) {
+    if (!error && data) {
       const { data: publicUrlData } = supabase.storage
         .from(bucketName)
         .getPublicUrl(filePath);
@@ -102,17 +96,17 @@ export async function uploadMediaFile(
       }
     }
   } catch (err) {
-    console.warn('Supabase storage upload catch, falling back to local persistent Data URL:', err);
+    console.warn('Supabase storage upload error, falling back to local persistent Data URL:', err);
   }
 
-  // Fallback: Read file as Base64 Data URL so the UI still functions smoothly
+  // Fallback: Read file as Data URL
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
       if (typeof reader.result === 'string') {
         resolve(reader.result);
       } else {
-        reject(new Error('Failed to read file as Data URL'));
+        reject(new Error('Failed to read file'));
       }
     };
     reader.onerror = () => reject(new Error('FileReader error'));

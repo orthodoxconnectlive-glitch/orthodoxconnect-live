@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { NotificationItem, NotificationPreferences } from '../types';
 import { loadNotifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification, loadNotificationPreferences, saveNotificationPreferences } from '../utils/notifications';
 import { TimeAgo } from '../components/TimeAgo';
-
+import { triggerBrowserNotification, soundSynth } from '../utils/ringtone';
 import { UserProfileData } from './ProfileView';
 
 interface NotificationsViewProps {
@@ -27,6 +27,14 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
   useEffect(() => {
     fetchNotifs();
 
+    const handleUpdate = () => {
+      fetchNotifs();
+    };
+
+    window.addEventListener('orthodox:notifications_updated', handleUpdate);
+    window.addEventListener('orthodox:new_notification', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+
     const notifChannel = supabase
       .channel('notifications-view-realtime')
       .on(
@@ -39,6 +47,9 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
       .subscribe();
 
     return () => {
+      window.removeEventListener('orthodox:notifications_updated', handleUpdate);
+      window.removeEventListener('orthodox:new_notification', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
       supabase.removeChannel(notifChannel);
     };
   }, []);

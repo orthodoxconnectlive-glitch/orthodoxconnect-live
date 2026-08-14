@@ -1,13 +1,101 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+    <!-- Primary Title & Canonical Tag -->
+    <title>OrthodoxConnect — Orthodox Christian Fellowship, Liturgical Broadcasts &amp; Community</title>
+    <link rel="canonical" href="https://orthodoxconnect.live/" />
+
+    <!-- Primary Meta Tags -->
+    <meta name="description" content="OrthodoxConnect is a worldwide Orthodox Christian community platform for sharing spiritual reflections, watching liturgical broadcasts, discovering parish rooms, and connecting in fellowship." />
+    <meta name="keywords" content="Orthodox Christianity, Eastern Orthodox, Coptic Orthodox, Divine Liturgy, Byzantine Chant, Orthodox Monastery, Daily Orthodox Readings, Saints of the Day, Orthodox Fellowship" />
+    <meta name="author" content="OrthodoxConnect" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="theme-color" content="#c5a059" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://orthodoxconnect.live/" />
+    <meta property="og:title" content="OrthodoxConnect — Orthodox Christian Fellowship &amp; Liturgical Community" />
+    <meta property="og:description" content="Connect with Orthodox Christian faithful worldwide. Stream live Divine Liturgies, share patristic wisdom, and build parish fellowship." />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=1200" />
+    <meta property="og:site_name" content="OrthodoxConnect" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://orthodoxconnect.live/" />
+    <meta name="twitter:title" content="OrthodoxConnect — Orthodox Christian Fellowship" />
+    <meta name="twitter:description" content="Worldwide Orthodox Christian community platform for liturgical broadcasts, patristic writings, and fellowship." />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=1200" />
+
+    <!-- Preconnect & DNS-Prefetch for Fonts & CDN performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://vz-840ad26e-6fe.b-cdn.net" />
+
+    <!-- Schema.org JSON-LD Structured Data for Crawlers -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://orthodoxconnect.live/#website",
+          "url": "https://orthodoxconnect.live/",
+          "name": "OrthodoxConnect",
+          "description": "Orthodox Christian Fellowship, Liturgical Broadcasts & Community Platform",
+          "publisher": {
+            "@type": "Organization",
+            "@id": "https://orthodoxconnect.live/#organization",
+            "name": "OrthodoxConnect",
+            "url": "https://orthodoxconnect.live/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800"
+            }
+          },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://orthodoxconnect.live/?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://orthodoxconnect.live/#organization",
+          "name": "OrthodoxConnect",
+          "url": "https://orthodoxconnect.live/",
+          "sameAs": [
+            "https://orthodoxconnect.live"
+          ]
+        }
+      ]
+    }
+    </script>
   </head>
-  <body>
+  <body class="bg-[#0f0c09] text-[#f5ebd9] antialiased">
+    <!-- Non-JavaScript Crawler Fallback Content -->
+    <noscript>
+      <div style="padding: 2rem; max-width: 800px; margin: 0 auto; font-family: Georgia, serif; line-height: 1.6; color: #f5ebd9; background-color: #1c1611;">
+        <h1 style="color: #c5a059;">OrthodoxConnect — Orthodox Christian Fellowship &amp; Liturgy</h1>
+        <p>Welcome to OrthodoxConnect (orthodoxconnect.live), a dedicated platform for Eastern and Oriental Orthodox Christian communities across the world.</p>
+        <h2>Public Features &amp; Resources</h2>
+        <ul>
+          <li><strong>Community Feed:</strong> Spiritual reflections, patristic quotations, and prayer requests from monasteries and parishes.</li>
+          <li><strong>Orthodox Videos:</strong> Byzantine chants, hymns, sermon highlights, and homilies.</li>
+          <li><strong>Live Broadcasts:</strong> Streaming Divine Liturgies, Vespers, and feast day vigils.</li>
+          <li><strong>Liturgical Calendar:</strong> Daily saint commemorations, scripture readings, and fasting guidelines.</li>
+        </ul>
+        <p>Please enable JavaScript in your browser to experience interactive livestreaming, real-time messaging, and parish community discussions.</p>
+      </div>
+    </noscript>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

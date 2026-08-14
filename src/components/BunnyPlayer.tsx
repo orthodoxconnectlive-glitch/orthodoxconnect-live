@@ -108,7 +108,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
       });
       setLocalCameraStream(stream);
     } catch (err: any) {
-      console.warn('[BunnyPlayer] Local player webcam error:', err);
+      console.warn('[BunnyPlayer] Local player webcam error:', err?.message || String(err));
       setCameraError(err?.message || 'Unable to access camera or microphone.');
     }
   };
@@ -141,8 +141,8 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
   };
 
   // Graceful error handler: STOP playback and set error state
-  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    console.warn('[BunnyPlayer] Video stream loading error:', e);
+  const handleVideoError = (_e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    console.warn('[BunnyPlayer] Video stream loading error for URL:', videoUrl);
     setHasError(true);
   };
 

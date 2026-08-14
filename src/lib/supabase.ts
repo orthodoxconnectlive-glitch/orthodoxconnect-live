@@ -3,12 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl =
   (import.meta as any).env?.VITE_SUPABASE_URL ||
   (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL : undefined) ||
-  'https://yrkjbxdiujvbauszlqpa.supabase.co';
+  'https://jdliwyaokkjjfqepzumj.supabase.co';
 
 const supabaseAnonKey =
   (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ||
   (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_ANON_KEY : undefined) ||
-  '';
+  'sb_publishable_dHlgxMfg1H8LA5zRkFXnKw_ljTiVMO3';
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&

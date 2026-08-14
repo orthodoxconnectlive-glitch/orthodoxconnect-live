@@ -34,6 +34,7 @@ import { addNotification } from '../utils/notifications';
 import { Message, CallState } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useCall } from '../context/CallContext';
 import { WebRTCCallModal } from '../components/WebRTCCallModal';
 import { UserProfileData } from './ProfileView';
 import { uploadMediaFile } from '../utils/storage';
@@ -112,6 +113,7 @@ interface MessengerViewProps {
 export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, onSelectUser }) => {
   const { profile } = useAuth();
   const { t } = useTheme();
+  const { initiateCall } = useCall();
 
   const LOCAL_MESSAGES_KEY = 'orthodox_local_messages_v2';
 
@@ -671,20 +673,16 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   };
 
   const handleStartCall = (type: 'audio' | 'video') => {
-    setActiveCall({
-      id: 'call-' + Date.now(),
-      partnerId: activeContact.id,
-      partnerName: activeContact.name,
-      partnerAvatar: activeContact.avatar,
-      type,
-      status: 'calling',
-      isMuted: false,
-      isVideoOff: false,
-    });
-
-    setTimeout(() => {
-      setActiveCall((prev) => (prev ? { ...prev, status: 'connected', startedAt: Date.now() } : null));
-    }, 2000);
+    if (!activeContact) return;
+    initiateCall(
+      {
+        id: activeContact.id,
+        name: activeContact.name,
+        avatar: activeContact.avatar,
+        parish: activeContact.parish,
+      },
+      type
+    );
   };
 
   const activeContactsStories = contactsList.filter((c) => c.isOnline);
@@ -1371,9 +1369,6 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
           </div>
         </div>
       )}
-
-      {/* WebRTC Call Modal */}
-      <WebRTCCallModal callState={activeCall} onEndCall={() => setActiveCall(null)} />
     </div>
   );
 };

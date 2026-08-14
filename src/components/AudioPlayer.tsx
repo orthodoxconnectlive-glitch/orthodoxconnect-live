@@ -82,8 +82,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   }, [elementMediaId, setActiveMediaId]);
 
   // Graceful error handler: Stop playback and set error state without calling .play()
-  const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
-    console.warn('[AudioPlayer] Audio loading error:', e);
+  const handleAudioError = (_e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
+    console.warn('[AudioPlayer] Audio loading error for URL:', audioUrl);
     setHasError(true);
     setIsPlaying(false);
     // Crucial: DO NOT call .play() inside onError handler
@@ -104,8 +104,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       // Pause all other playing media across the feed and app
       pauseAllMedia(audio);
       setActiveMediaId(elementMediaId);
-      audio.play().catch((err) => {
-        console.warn('[AudioPlayer] Playback was prevented:', err);
+      audio.play().catch((err: any) => {
+        console.warn('[AudioPlayer] Playback was prevented:', err?.message || String(err));
       });
     }
   };

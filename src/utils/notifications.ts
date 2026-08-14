@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { NotificationItem, NotificationPreferences } from '../types';
+import { soundSynth, triggerBrowserNotification } from './ringtone';
 
 const DEFAULT_PREFERENCES: NotificationPreferences = {
   messages: true,
@@ -10,31 +11,106 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   emailAlerts: false,
 };
 
+const LOCAL_NOTIFS_STORAGE_KEY = 'orthodox_notifications_cache_v3';
+
+// Cross-tab broadcast channel for instant real-time sync across tabs
+let notifChannel: BroadcastChannel | null = null;
+try {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    notifChannel = new BroadcastChannel('orthodox_notifications_channel');
+    notifChannel.onmessage = (event) => {
+      if (event.data?.type === 'NEW_NOTIFICATION') {
+        window.dispatchEvent(new CustomEvent('orthodox:new_notification', { detail: event.data.item }));
+        window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
+      } else if (event.data?.type === 'NOTIFICATIONS_UPDATED') {
+        window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
+      }
+    };
+  }
+} catch (e) {
+  console.warn('BroadcastChannel initialization fallback:', e);
+}
+
 export function isValidUuid(id?: string | null): boolean {
   if (!id) return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
-export async function purgeTestNotifications(): Promise<void> {
+// Initial default seed notifications for fresh profiles
+const DEFAULT_INITIAL_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: 'notif-welcome-1',
+    userId: 'all',
+    type: 'system',
+    title: 'Welcome to OrthodoxConnect',
+    body: 'Christ is in our midst! Connect with parishioners, share reflections, and join live liturgical broadcasts.',
+    link: 'feed',
+    isRead: false,
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+    senderName: 'Parish Council',
+    senderAvatar: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=200',
+  },
+  {
+    id: 'notif-event-1',
+    userId: 'all',
+    type: 'event_invite',
+    title: 'Feast Day Liturgy & Agaipe Meal',
+    body: 'Join the Divine Liturgy tomorrow at 9:00 AM followed by our community fellowship lunch.',
+    link: 'calendar',
+    isRead: false,
+    createdAt: new Date(Date.now() - 7200000).toISOString(),
+    senderName: 'Father Spyridon',
+    senderAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+  },
+];
+
+export function getLocalNotifications(): NotificationItem[] {
   try {
-    await supabase
-      .from('notifications')
-      .delete()
-      .or('title.ilike.%test%,message.ilike.%test%');
-  } catch (err) {
-    console.error('Error purging test notifications:', err);
+    const raw = localStorage.getItem(LOCAL_NOTIFS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Error reading local notifications:', e);
+  }
+  return DEFAULT_INITIAL_NOTIFICATIONS;
+}
+
+export function saveLocalNotifications(list: NotificationItem[]): void {
+  try {
+    localStorage.setItem(LOCAL_NOTIFS_STORAGE_KEY, JSON.stringify(list.slice(0, 100)));
+    // Dispatch local and cross-tab update events
+    window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
+    if (notifChannel) {
+      notifChannel.postMessage({ type: 'NOTIFICATIONS_UPDATED' });
+    }
+  } catch (e) {
+    console.warn('Error saving local notifications:', e);
   }
 }
 
-export async function loadNotifications(userId?: string): Promise<NotificationItem[]> {
-  try {
-    // Proactively purge test entries from the database
-    purgeTestNotifications();
+export async function purgeTestNotifications(): Promise<void> {
+  const current = getLocalNotifications();
+  const filtered = current.filter((d) => {
+    const t = (d.title || '').toLowerCase();
+    const m = (d.body || '').toLowerCase();
+    return !t.includes('test') && !m.includes('test');
+  });
+  saveLocalNotifications(filtered);
+}
 
+export async function loadNotifications(userId?: string): Promise<NotificationItem[]> {
+  const localItems = getLocalNotifications();
+
+  try {
     let query = supabase
       .from('notifications')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(40);
 
     if (isValidUuid(userId)) {
       query = query.or(`user_id.eq.${userId},user_id.is.null`);
@@ -42,15 +118,11 @@ export async function loadNotifications(userId?: string): Promise<NotificationIt
       query = query.or(`user_id.is.null`);
     }
 
-    const { data, error } = await query;
+    const timer = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('NOTIFS_TIMEOUT')), 3000));
+    const { data, error } = await Promise.race([query, timer]).catch(() => ({ data: null, error: null }));
 
-    if (error) {
-      console.error('[loadNotifications] Fetch error:', error);
-      return [];
-    }
-
-    if (data) {
-      return data
+    if (!error && data && Array.isArray(data)) {
+      const remoteItems: NotificationItem[] = data
         .filter((d: any) => {
           const t = (d.title || '').toLowerCase();
           const m = (d.message || d.body || '').toLowerCase();
@@ -63,17 +135,33 @@ export async function loadNotifications(userId?: string): Promise<NotificationIt
           title: d.title || 'Parish Notification',
           body: d.message || d.body || '',
           link: d.link || undefined,
-          isRead: d.read ?? d.is_read ?? false,
+          isRead: Boolean(d.read ?? d.is_read ?? false),
           createdAt: d.created_at || new Date().toISOString(),
           senderName: d.sender_name || undefined,
           senderAvatar: d.sender_avatar || undefined,
         }));
+
+      // Merge local items and remote items by ID
+      const map = new Map<string, NotificationItem>();
+      remoteItems.forEach((r) => map.set(r.id, r));
+      localItems.forEach((l) => {
+        if (!map.has(l.id)) {
+          map.set(l.id, l);
+        }
+      });
+
+      const merged = Array.from(map.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      saveLocalNotifications(merged);
+      return merged;
     }
   } catch (err) {
-    console.error('[loadNotifications] Exception:', err);
+    console.warn('[loadNotifications] Supabase fetch fallback to local cache:', err);
   }
 
-  return [];
+  return localItems;
 }
 
 export async function addNotification(
@@ -82,7 +170,7 @@ export async function addNotification(
   const targetUserId = isValidUuid(notif.userId) ? notif.userId : null;
 
   const item: NotificationItem = {
-    id: notif.id || 'notif-' + Date.now(),
+    id: notif.id || 'notif-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
     userId: notif.userId || 'all',
     type: notif.type || 'system',
     title: notif.title || 'Notification',
@@ -94,6 +182,28 @@ export async function addNotification(
     senderAvatar: notif.senderAvatar,
   };
 
+  // 1. Immediately save to local cache so it appears without delay
+  const existing = getLocalNotifications();
+  const updated = [item, ...existing.filter((n) => n.id !== item.id)];
+  saveLocalNotifications(updated);
+
+  // 2. Play acoustic chime alert
+  soundSynth.playNotificationChime();
+
+  // 3. Trigger native browser OS notification (e.g. background/minimized tab alert)
+  triggerBrowserNotification(item.title, {
+    body: item.body,
+    icon: item.senderAvatar || 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=192',
+    tag: `notif-${item.type}-${item.id}`,
+  });
+
+  // 4. Dispatch in-app toast event & broadcast to all tabs
+  window.dispatchEvent(new CustomEvent('orthodox:new_notification', { detail: item }));
+  if (notifChannel) {
+    notifChannel.postMessage({ type: 'NEW_NOTIFICATION', item });
+  }
+
+  // 5. Try syncing to Supabase if available
   try {
     const row: any = {
       user_id: targetUserId,
@@ -108,27 +218,33 @@ export async function addNotification(
 
     const { data, error } = await supabase.from('notifications').insert([row]).select();
 
-    if (error) {
-      console.error('[addNotification] Supabase error:', error);
-    } else if (data && data.length > 0) {
+    if (!error && data && data.length > 0) {
       item.id = String(data[0].id);
     }
   } catch (err) {
-    console.error('[addNotification] Exception:', err);
+    // Non-blocking: local notification was already created
   }
 
   return item;
 }
 
 export async function markNotificationAsRead(id: string): Promise<void> {
+  const existing = getLocalNotifications();
+  const updated = existing.map((n) => (n.id === id ? { ...n, isRead: true } : n));
+  saveLocalNotifications(updated);
+
   try {
     await supabase.from('notifications').update({ read: true, is_read: true }).eq('id', id);
   } catch (err) {
-    console.error('[markNotificationAsRead] Exception:', err);
+    // Non-blocking
   }
 }
 
 export async function markAllNotificationsAsRead(userId?: string): Promise<void> {
+  const existing = getLocalNotifications();
+  const updated = existing.map((n) => ({ ...n, isRead: true }));
+  saveLocalNotifications(updated);
+
   try {
     let query = supabase.from('notifications').update({ read: true, is_read: true });
     if (isValidUuid(userId)) {
@@ -136,15 +252,19 @@ export async function markAllNotificationsAsRead(userId?: string): Promise<void>
     }
     await query;
   } catch (err) {
-    console.error('[markAllNotificationsAsRead] Exception:', err);
+    // Non-blocking
   }
 }
 
 export async function deleteNotification(id: string): Promise<void> {
+  const existing = getLocalNotifications();
+  const updated = existing.filter((n) => n.id !== id);
+  saveLocalNotifications(updated);
+
   try {
     await supabase.from('notifications').delete().eq('id', id);
   } catch (err) {
-    console.error('[deleteNotification] Exception:', err);
+    // Non-blocking
   }
 }
 
@@ -165,4 +285,3 @@ export function saveNotificationPreferences(prefs: NotificationPreferences): voi
     console.warn('Failed to save preferences:', e);
   }
 }
-

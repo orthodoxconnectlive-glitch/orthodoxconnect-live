@@ -210,7 +210,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       data-video-id={video.id}
       className="w-full max-w-md mx-auto bg-[#1c1611] rounded-3xl border-2 border-[#c5a059]/50 overflow-hidden shadow-2xl relative flex flex-col select-none"
     >
-      {/* Video Display Container with fixed 9:16 aspect ratio */}
+      {/* Video Display Container */}
       <div 
         onClick={onTogglePlay}
         className="relative w-full aspect-[9/16] bg-black cursor-pointer flex items-center justify-center overflow-hidden"
@@ -240,7 +240,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           />
         )}
 
-        {/* Play State Overlay Button */}
+        {/* Clean Single Play Overlay Button (Visible only when paused) */}
         {!isPlaying && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
             <div className="w-16 h-16 rounded-full bg-[#c5a059] text-[#1c1611] flex items-center justify-center shadow-2xl border-2 border-[#f5ebd9]">
@@ -331,7 +331,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </div>
         )}
 
-        {/* Action Bar (Like, Comment, Save, Share, Delete) */}
+        {/* Action Bar */}
         <div className="flex items-center justify-between pt-2 border-t border-[#c5a059]/20 text-xs">
           <button
             type="button"

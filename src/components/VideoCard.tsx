@@ -95,6 +95,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const lastTapRef = useRef<number>(0);
   const elementMediaId = `video-${video.id}`;
   const rawVideoUrl = video.video || '';
+  const bunnyLibraryId = import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
+  const bunnyCdnHost = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 
   // Only use iframe if URL contains explicit embed endpoint with GUID
   const isIframeEmbed =
@@ -153,7 +155,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     };
   }, []);
 
-  // Screen Tap / Double Tap Handler (TikTok style)
+  // Screen Tap / Double Tap Handler
   const handleScreenClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.closest('form') || target.closest('.no-screen-tap')) {
@@ -314,7 +316,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             allow="accelerometer; gyroscope; encrypted-media; picture-in-picture; autoplay;"
             allowFullScreen
             title={video.text || 'Orthodox Video'}
-            onError={() => setHasError(true)}
           />
         </div>
       ) : (
@@ -326,12 +327,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             poster={posterImage}
             autoPlay={false}
             loop={true}
-            preload="auto"
+            preload="metadata"
             muted={isMuted}
             playsInline
+            onCanPlay={() => setHasError(false)}
             onError={(e) => {
-              console.warn('[TikTok Player] Video error:', e);
-              setHasError(true);
+              console.warn('[TikTok Player] Video load notice:', e);
             }}
             className="w-full h-full object-cover sm:object-contain bg-black pointer-events-none"
           />

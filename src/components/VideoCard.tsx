@@ -81,7 +81,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Muted TRUE by default to comply with mobile autoplay policies
+  // Muted TRUE by default for mobile autoplay rules
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const [newCommentText, setNewCommentText] = useState<string>('');
   const [showPlayPulse, setShowPlayPulse] = useState<boolean>(false);
@@ -97,28 +97,26 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     rawVideoUrl.includes('iframe.mediadelivery.net/embed/') &&
     !rawVideoUrl.endsWith('.mp4');
 
-  // Enforce Play/Pause and auto-play fallbacks
+  // Enforce Play/Pause based on active status
   useEffect(() => {
-    if (videoRef.current && !isIframeEmbed) {
-      if (isPlaying) {
-        videoRef.current.muted = isMuted;
-        setActiveMediaId(elementMediaId);
+    const vid = videoRef.current;
+    if (!vid || isIframeEmbed) return;
 
-        const playPromise = videoRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            if (videoRef.current) {
-              videoRef.current.muted = true;
-              setIsMuted(true);
-              videoRef.current.play().catch(() => {});
-            }
-          });
-        }
-      } else {
-        videoRef.current.pause();
-      }
-    } else if (isPlaying) {
+    if (isPlaying) {
+      vid.muted = isMuted;
       setActiveMediaId(elementMediaId);
+
+      const playPromise = vid.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Fallback to muted playback if mobile browser restricted unmuted autoplay
+          vid.muted = true;
+          setIsMuted(true);
+          vid.play().catch(() => {});
+        });
+      }
+    } else {
+      vid.pause();
     }
   }, [isPlaying, isMuted, elementMediaId, setActiveMediaId, isIframeEmbed]);
 
@@ -143,13 +141,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       if (videoRef.current) {
         try {
           videoRef.current.pause();
-          videoRef.current.currentTime = 0;
           videoRef.current.src = '';
         } catch (e) {}
       }
     };
   }, []);
 
+  // Screen Tap Handler (TikTok double-tap like / single tap play-pause)
   const handleScreenClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.closest('form') || target.closest('.no-screen-tap')) {
@@ -178,8 +176,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       lastTapRef.current = now;
       setTimeout(() => {
         if (lastTapRef.current === now) {
-          if (!isPlaying && videoRef.current) {
-            pauseAllMedia(videoRef.current);
+          if (videoRef.current) {
+            if (videoRef.current.paused) {
+              pauseAllMedia(videoRef.current);
+              videoRef.current.play().catch(() => {});
+            } else {
+              videoRef.current.pause();
+            }
           }
           setShowPlayPulse(true);
           setTimeout(() => setShowPlayPulse(false), 500);
@@ -265,7 +268,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       onClick={handleScreenClick}
       className="w-full h-full relative overflow-hidden bg-black select-none flex items-center justify-center snap-start snap-always"
     >
-      {/* Main Video Surface */}
+      {/* Main Video Player Surface */}
       {isIframeEmbed ? (
         <div className="relative w-full h-full bg-black flex items-center justify-center">
           <iframe
@@ -284,9 +287,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             data-media-id={elementMediaId}
             src={rawVideoUrl}
             poster={posterImage}
-            autoPlay={isPlaying}
+            autoPlay={true}
             loop={true}
-            preload="metadata"
+            preload="auto"
             muted={isMuted}
             playsInline
             // @ts-ignore
@@ -296,11 +299,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
       )}
 
-      {/* Vignette Overlay */}
+      {/* Dark Vignette Overlays */}
       <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/70 via-black/30 to-transparent pointer-events-none z-10" />
       <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none z-10" />
 
-      {/* Top Controls */}
+      {/* Top Right Sound & Fullscreen Controls */}
       <div className="absolute top-4 right-4 z-30 flex items-center gap-2 pointer-events-auto">
         <button
           type="button"
@@ -325,7 +328,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </button>
       </div>
 
-      {/* Center Play/Pause Pulse */}
+      {/* Play/Pause Center Indicator */}
       {(!isPlaying || showPlayPulse) && (
         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
           <div className="w-20 h-20 rounded-full bg-black/60 backdrop-blur-md border-2 border-[#c5a059] flex items-center justify-center text-[#c5a059] shadow-2xl transition-all scale-100 animate-fade-in">
@@ -338,7 +341,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
       )}
 
-      {/* Double Tap Heart */}
+      {/* Double Tap Hearts */}
       {doubleTapHearts.map((heart) => (
         <div
           key={heart.id}
@@ -349,7 +352,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
       ))}
 
-      {/* Right Sidebar */}
+      {/* Right Sidebar Interaction Bar */}
       <div className="absolute right-2.5 sm:right-4 bottom-16 z-30 flex flex-col items-center gap-4.5 pointer-events-auto">
         <div className="relative flex flex-col items-center mb-1">
           <div
@@ -387,6 +390,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </button>
         </div>
 
+        {/* Like Button */}
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
@@ -405,6 +409,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </span>
         </div>
 
+        {/* Comments Button */}
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
@@ -421,6 +426,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </span>
         </div>
 
+        {/* Bookmark Button */}
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
@@ -439,6 +445,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </span>
         </div>
 
+        {/* Share Button */}
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
@@ -455,6 +462,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </span>
         </div>
 
+        {/* Delete Button */}
         {canDelete && (
           <div className="flex flex-col items-center gap-1">
             <button
@@ -471,7 +479,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         )}
       </div>
 
-      {/* Bottom Info Overlay */}
+      {/* Bottom Metadata Overlay */}
       <div className="absolute bottom-3 left-3 right-16 sm:right-20 z-20 flex flex-col gap-2 text-left pointer-events-auto">
         <div className="flex items-center gap-2 flex-wrap">
           <button

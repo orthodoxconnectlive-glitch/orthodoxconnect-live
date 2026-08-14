@@ -228,7 +228,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
     try {
       setIsUploading(true);
       triggerToast('Uploading video directly to Bunny Stream CDN...');
-      const iframeUrl = await uploadVideoToBunnyStream(uploadFile, uploadFile.name);
+      const videoMediaUrl = await uploadVideoToBunnyStream(uploadFile, uploadFile.name);
 
       const newVideo = await savePost({
         text: uploadCaption.trim() || uploadFile.name.replace(/\.[^/.]+$/, ''),
@@ -238,7 +238,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
           profile?.avatar_url ||
           'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
         authorId: profile?.id,
-        video: iframeUrl,
+        video: videoMediaUrl,
       });
 
       setVideos((prev) => [newVideo, ...prev]);

@@ -219,7 +219,7 @@ export const ReelCard: React.FC<ReelCardProps> = ({
       ref={containerRef}
       id={`reel-item-${reel.id}`}
       data-reel-id={reel.id}
-      className="relative w-full h-[78vh] sm:h-[82vh] max-h-[750px] flex flex-col justify-between bg-black rounded-3xl border-2 border-[#c5a059] overflow-hidden shadow-2xl group select-none"
+      className="w-full h-[calc(100dvh-5.5rem)] min-h-[580px] max-h-[820px] relative flex flex-col justify-between bg-black rounded-3xl border-2 border-[#c5a059] overflow-hidden shadow-2xl group select-none my-auto"
     >
       {/* Background Video Player Container */}
       <div

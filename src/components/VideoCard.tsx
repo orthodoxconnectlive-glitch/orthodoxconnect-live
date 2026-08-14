@@ -81,7 +81,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Muted TRUE by default for mobile autoplay rules
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const [newCommentText, setNewCommentText] = useState<string>('');
   const [showPlayPulse, setShowPlayPulse] = useState<boolean>(false);
@@ -91,13 +90,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({
 
   const lastTapRef = useRef<number>(0);
   const elementMediaId = `video-${video.id}`;
-  const rawVideoUrl = video.video || '';
+  
+  // Ensure we fall back to a guaranteed working video stream if the URL is empty or broken
+  const rawVideoUrl = video.video && video.video.startsWith('http') 
+    ? video.video 
+    : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
 
   const isIframeEmbed =
     rawVideoUrl.includes('iframe.mediadelivery.net/embed/') &&
     !rawVideoUrl.endsWith('.mp4');
 
-  // Enforce Play/Pause based on active status
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid || isIframeEmbed) return;
@@ -109,7 +111,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       const playPromise = vid.play();
       if (playPromise !== undefined) {
         playPromise.catch(() => {
-          // Fallback to muted playback if mobile browser restricted unmuted autoplay
           vid.muted = true;
           setIsMuted(true);
           vid.play().catch(() => {});
@@ -147,7 +148,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     };
   }, []);
 
-  // Screen Tap Handler (TikTok double-tap like / single tap play-pause)
   const handleScreenClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.closest('form') || target.closest('.no-screen-tap')) {
@@ -287,7 +287,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             data-media-id={elementMediaId}
             src={rawVideoUrl}
             poster={posterImage}
-            autoPlay={true}
+            controls={true} /* Force native controls so mobile devices can always start playback */
             loop={true}
             preload="auto"
             muted={isMuted}

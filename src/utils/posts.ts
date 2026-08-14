@@ -224,12 +224,15 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
 }
 
 /**
- * Fetches videos directly from Bunny Stream REST API Library
+ * Fetches all videos directly from Bunny Stream REST API Library
  */
 export async function loadVideos(): Promise<Post[]> {
+  let bunnyVideos: Post[] = [];
+
+  // 1. Direct fetch from Bunny Stream REST API (Library ID: 713265)
   try {
     const res = await fetch(
-      `https://video.mediadelivery.net/library/${BUNNY_LIBRARY_ID}/videos?page=1&itemsPerPage=50&orderBy=date`,
+      `https://video.mediadelivery.net/library/${BUNNY_LIBRARY_ID}/videos?page=1&itemsPerPage=100&orderBy=date`,
       {
         method: 'GET',
         headers: {
@@ -244,12 +247,12 @@ export async function loadVideos(): Promise<Post[]> {
       const items = data.items || [];
 
       if (items.length > 0) {
-        return items.map((video: any) => ({
+        bunnyVideos = items.map((video: any) => ({
           id: video.guid,
           text: video.title ? video.title.replace('.mp4', '') : 'Orthodox Reflection Video',
           authorName: 'OrthodoxConnect',
           authorParish: 'Parish Fellowship',
-          authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+          authorAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
           video: `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${video.guid}`,
           image: `https://${BUNNY_CDN_HOSTNAME}/${video.guid}/thumbnail.jpg`,
           createdAt: video.dateUploaded || new Date().toISOString(),
@@ -260,12 +263,22 @@ export async function loadVideos(): Promise<Post[]> {
       }
     }
   } catch (err) {
-    console.warn('Bunny Stream API fetch error:', err);
+    console.warn('Bunny Stream API fetch notice:', err);
   }
 
+  // 2. Load local saved posts containing videos
   const localPosts = getLocalSavedPosts();
   const localReels = localPosts.filter((p) => !!p.video);
-  return localReels;
+
+  // 3. Merge Bunny Stream library videos with local posts (Bunny Stream first)
+  const combined = [...bunnyVideos];
+  localReels.forEach((lp) => {
+    if (!combined.some((v) => v.id === lp.id || (v.text === lp.text && v.createdAt === lp.createdAt))) {
+      combined.push(lp);
+    }
+  });
+
+  return combined;
 }
 
 export const loadReels = loadVideos;
@@ -387,7 +400,7 @@ export async function createReshare(
   quote?: string
 ): Promise<Post> {
   const originalPost = await loadPost(postId);
-  
+
   if (originalPost) {
     originalPost.resharesCount = (originalPost.resharesCount || 0) + 1;
   }

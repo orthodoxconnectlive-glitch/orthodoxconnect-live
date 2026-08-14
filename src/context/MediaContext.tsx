@@ -4,16 +4,66 @@ interface MediaContextType {
   activeMediaId: string | null;
   setActiveMediaId: (id: string | null) => void;
   pauseAllMedia: (exceptElement?: HTMLMediaElement | null) => void;
+  isGlobalMuted: boolean;
+  setIsGlobalMuted: (muted: boolean) => void;
+  toggleGlobalMute: () => void;
 }
+
+const GLOBAL_MUTED_STORAGE_KEY = 'orthodox_video_global_muted_v1';
 
 const MediaContext = createContext<MediaContextType>({
   activeMediaId: null,
   setActiveMediaId: () => {},
   pauseAllMedia: () => {},
+  isGlobalMuted: true,
+  setIsGlobalMuted: () => {},
+  toggleGlobalMute: () => {},
 });
 
 export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeMediaId, setActiveMediaId] = useState<string | null>(null);
+  const [isGlobalMuted, setIsGlobalMutedState] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(GLOBAL_MUTED_STORAGE_KEY);
+      if (saved !== null) {
+        return saved === 'true';
+      }
+    } catch (e) {
+      // ignore
+    }
+    return true; // Default muted for mobile autoplay compliance
+  });
+
+  const setIsGlobalMuted = useCallback((muted: boolean) => {
+    setIsGlobalMutedState(muted);
+    try {
+      localStorage.setItem(GLOBAL_MUTED_STORAGE_KEY, String(muted));
+    } catch (e) {
+      // ignore
+    }
+
+    // Immediately propagate the mute state to all currently mounted video and audio elements
+    const mediaElements = document.querySelectorAll<HTMLMediaElement>('video, audio');
+    mediaElements.forEach((media) => {
+      media.muted = muted;
+    });
+  }, []);
+
+  const toggleGlobalMute = useCallback(() => {
+    setIsGlobalMutedState((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(GLOBAL_MUTED_STORAGE_KEY, String(next));
+      } catch (e) {
+        // ignore
+      }
+      const mediaElements = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      mediaElements.forEach((media) => {
+        media.muted = next;
+      });
+      return next;
+    });
+  }, []);
 
   // Pause all audio and video elements on the page except optionally one element
   const pauseAllMedia = useCallback((exceptElement?: HTMLMediaElement | null) => {
@@ -67,7 +117,16 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <MediaContext.Provider value={{ activeMediaId, setActiveMediaId, pauseAllMedia }}>
+    <MediaContext.Provider
+      value={{
+        activeMediaId,
+        setActiveMediaId,
+        pauseAllMedia,
+        isGlobalMuted,
+        setIsGlobalMuted,
+        toggleGlobalMute,
+      }}
+    >
       {children}
     </MediaContext.Provider>
   );

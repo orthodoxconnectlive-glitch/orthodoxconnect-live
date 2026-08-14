@@ -54,63 +54,7 @@ function AppContent() {
 
     // Update dynamic canonical link tag, title, and social meta
     updateSEOForView(currentView);
-
-    // Pause all media and reset position on view/tab change
-    const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-    allMedia.forEach((media) => {
-      try {
-        media.pause();
-        media.currentTime = 0;
-      } catch (err) {
-        console.warn('Error pausing media on view change:', err);
-      }
-    });
   }, [currentView]);
-
-  // Global Initial Mute & Pause Hook on initial mount
-  useLayoutEffect(() => {
-    const silenceAll = () => {
-      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-      allMedia.forEach((media) => {
-        try {
-          media.pause();
-          media.currentTime = 0;
-          media.muted = true; // force silent default on mount
-        } catch (err) {
-          console.warn('Error silencing media on mount:', err);
-        }
-      });
-    };
-    silenceAll();
-  }, []);
-
-  // Root level single active media listener
-  useEffect(() => {
-    const handlePlay = (e: Event) => {
-      const target = e.target as HTMLMediaElement;
-      if (target && target instanceof HTMLMediaElement) {
-        // Unmute target element upon explicit user play interaction
-        target.muted = false;
-      }
-
-      const allMedia = document.querySelectorAll<HTMLMediaElement>('audio, video');
-      allMedia.forEach((media) => {
-        if (media !== e.target) {
-          try {
-            if (!media.paused) {
-              media.pause();
-            }
-            media.currentTime = 0;
-          } catch (err) {
-            console.warn('Error pausing media element:', err);
-          }
-        }
-      });
-    };
-
-    document.addEventListener('play', handlePlay, true);
-    return () => document.removeEventListener('play', handlePlay, true);
-  }, []);
 
   // Check URL params for referral invite link /invite?ref=xyz
   useEffect(() => {

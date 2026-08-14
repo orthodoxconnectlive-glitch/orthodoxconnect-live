@@ -28,10 +28,9 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [hasStarted, setHasStarted] = useState<boolean>(false);
-  const [isMuted, setIsMuted] = useState<boolean>(true);
   const [isHovered, setIsHovered] = useState<boolean>(false);
   const [hasError, setHasError] = useState<boolean>(false);
-  const { pauseAllMedia, setActiveMediaId } = useMedia();
+  const { pauseAllMedia, setActiveMediaId, isGlobalMuted, setIsGlobalMuted } = useMedia();
 
   const elementMediaId = mediaId || `broadcast-${videoUrl}`;
   const bunnyCdnHost = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
@@ -49,7 +48,6 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     setHasError(false);
     setIsPlaying(false);
     setHasStarted(false);
-    setIsMuted(true);
   }, [videoUrl]);
 
   // Clean up stream connection and mute/pause all audio/video elements on unmount
@@ -134,8 +132,8 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const handleToggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!videoRef.current) return;
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
+    const nextMuted = !isGlobalMuted;
+    setIsGlobalMuted(nextMuted);
     videoRef.current.muted = nextMuted;
     if (!nextMuted) {
       videoRef.current.dataset.userInitiated = 'true';
@@ -145,7 +143,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const handleUnmuteLiveStream = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!videoRef.current) return;
-    setIsMuted(false);
+    setIsGlobalMuted(false);
     videoRef.current.muted = false;
     videoRef.current.dataset.userInitiated = 'true';
     if (!isPlaying) {
@@ -230,7 +228,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
             playsInline
             autoPlay={false}
             preload="none"
-            muted={isMuted}
+            muted={isGlobalMuted}
             onError={handleVideoError}
             className="w-full h-auto max-h-[520px] object-contain bg-black rounded-2xl cursor-pointer"
             onClick={handleExplicitPlay}
@@ -261,9 +259,9 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
                   type="button"
                   onClick={handleToggleMute}
                   className="p-1.5 rounded-full bg-black/60 hover:bg-black/90 text-[#f5ebd9] backdrop-blur-sm border border-white/20 transition-all cursor-pointer"
-                  title={isMuted ? 'Unmute' : 'Mute'}
+                  title={isGlobalMuted ? 'Unmute' : 'Mute'}
                 >
-                  {isMuted ? <VolumeX className="w-3.5 h-3.5 text-red-400" /> : <Volume2 className="w-3.5 h-3.5" />}
+                  {isGlobalMuted ? <VolumeX className="w-3.5 h-3.5 text-red-400" /> : <Volume2 className="w-3.5 h-3.5" />}
                 </button>
                 <button
                   type="button"
@@ -278,7 +276,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
           </div>
 
           {/* Unmute Live Stream Button Overlay: Displays when live stream is muted and playing/started */}
-          {isLive && isMuted && hasStarted && (
+          {isLive && isGlobalMuted && hasStarted && (
             <div className="absolute bottom-4 left-4 z-30">
               <button
                 type="button"

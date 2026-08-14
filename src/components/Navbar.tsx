@@ -280,7 +280,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClose={() => setIsNotifOpen(false)}
                 onMarkRead={handleMarkRead}
                 onMarkAllRead={handleMarkAllRead}
-                onNavigateToNotifications={() => onNavigate('notifications')}
+                onNavigateToNotifications={(link) => onNavigate(link || 'notifications')}
               />
             </div>
           </div>

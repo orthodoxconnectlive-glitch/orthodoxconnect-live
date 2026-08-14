@@ -11,7 +11,9 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   emailAlerts: false,
 };
 
-const LOCAL_NOTIFS_STORAGE_KEY = 'orthodox_notifications_cache_v3';
+const LOCAL_NOTIFS_STORAGE_KEY = 'orthodox_notifications_cache_v4';
+const READ_NOTIF_IDS_KEY = 'orthodox_read_notif_ids_v4';
+const DELETED_NOTIF_IDS_KEY = 'orthodox_deleted_notif_ids_v4';
 
 // Cross-tab broadcast channel for instant real-time sync across tabs
 let notifChannel: BroadcastChannel | null = null;
@@ -34,6 +36,48 @@ try {
 export function isValidUuid(id?: string | null): boolean {
   if (!id) return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+function getReadNotifIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(READ_NOTIF_IDS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return new Set(parsed);
+    }
+  } catch (e) {
+    // ignore
+  }
+  return new Set();
+}
+
+function saveReadNotifIds(ids: Set<string>): void {
+  try {
+    localStorage.setItem(READ_NOTIF_IDS_KEY, JSON.stringify(Array.from(ids).slice(-200)));
+  } catch (e) {
+    // ignore
+  }
+}
+
+function getDeletedNotifIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_NOTIF_IDS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return new Set(parsed);
+    }
+  } catch (e) {
+    // ignore
+  }
+  return new Set();
+}
+
+function saveDeletedNotifIds(ids: Set<string>): void {
+  try {
+    localStorage.setItem(DELETED_NOTIF_IDS_KEY, JSON.stringify(Array.from(ids).slice(-200)));
+  } catch (e) {
+    // ignore
+  }
 }
 
 // Initial default seed notifications for fresh profiles
@@ -65,23 +109,37 @@ const DEFAULT_INITIAL_NOTIFICATIONS: NotificationItem[] = [
 ];
 
 export function getLocalNotifications(): NotificationItem[] {
+  const readIds = getReadNotifIds();
+  const deletedIds = getDeletedNotifIds();
+
   try {
     const raw = localStorage.getItem(LOCAL_NOTIFS_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return parsed
+          .filter((item) => !deletedIds.has(item.id))
+          .map((item) => ({
+            ...item,
+            isRead: readIds.has(item.id) ? true : Boolean(item.isRead),
+          }));
       }
     }
   } catch (e) {
     console.warn('Error reading local notifications:', e);
   }
-  return DEFAULT_INITIAL_NOTIFICATIONS;
+
+  return DEFAULT_INITIAL_NOTIFICATIONS.filter((item) => !deletedIds.has(item.id)).map((item) => ({
+    ...item,
+    isRead: readIds.has(item.id) ? true : Boolean(item.isRead),
+  }));
 }
 
 export function saveLocalNotifications(list: NotificationItem[]): void {
   try {
-    localStorage.setItem(LOCAL_NOTIFS_STORAGE_KEY, JSON.stringify(list.slice(0, 100)));
+    const deletedIds = getDeletedNotifIds();
+    const filtered = list.filter((n) => !deletedIds.has(n.id));
+    localStorage.setItem(LOCAL_NOTIFS_STORAGE_KEY, JSON.stringify(filtered.slice(0, 100)));
     // Dispatch local and cross-tab update events
     window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
     if (notifChannel) {
@@ -104,6 +162,8 @@ export async function purgeTestNotifications(): Promise<void> {
 
 export async function loadNotifications(userId?: string): Promise<NotificationItem[]> {
   const localItems = getLocalNotifications();
+  const readIds = getReadNotifIds();
+  const deletedIds = getDeletedNotifIds();
 
   try {
     let query = supabase
@@ -118,35 +178,49 @@ export async function loadNotifications(userId?: string): Promise<NotificationIt
       query = query.or(`user_id.is.null`);
     }
 
-    const timer = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('NOTIFS_TIMEOUT')), 3000));
+    const timer = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('NOTIFS_TIMEOUT')), 2500));
     const { data, error } = await Promise.race([query, timer]).catch(() => ({ data: null, error: null }));
 
     if (!error && data && Array.isArray(data)) {
       const remoteItems: NotificationItem[] = data
         .filter((d: any) => {
+          const notifId = String(d.id);
+          if (deletedIds.has(notifId)) return false;
           const t = (d.title || '').toLowerCase();
           const m = (d.message || d.body || '').toLowerCase();
           return !t.includes('test') && !m.includes('test');
         })
-        .map((d: any) => ({
-          id: String(d.id),
-          userId: d.user_id || 'all',
-          type: d.type || 'system',
-          title: d.title || 'Parish Notification',
-          body: d.message || d.body || '',
-          link: d.link || undefined,
-          isRead: Boolean(d.read ?? d.is_read ?? false),
-          createdAt: d.created_at || new Date().toISOString(),
-          senderName: d.sender_name || undefined,
-          senderAvatar: d.sender_avatar || undefined,
-        }));
+        .map((d: any) => {
+          const notifId = String(d.id);
+          const isRead = readIds.has(notifId) || Boolean(d.read ?? d.is_read ?? false);
+          return {
+            id: notifId,
+            userId: d.user_id || 'all',
+            type: d.type || 'system',
+            title: d.title || 'Parish Notification',
+            body: d.message || d.body || '',
+            link: d.link || undefined,
+            isRead,
+            createdAt: d.created_at || new Date().toISOString(),
+            senderName: d.sender_name || undefined,
+            senderAvatar: d.sender_avatar || undefined,
+          };
+        });
 
       // Merge local items and remote items by ID
       const map = new Map<string, NotificationItem>();
       remoteItems.forEach((r) => map.set(r.id, r));
       localItems.forEach((l) => {
-        if (!map.has(l.id)) {
-          map.set(l.id, l);
+        if (!deletedIds.has(l.id)) {
+          if (!map.has(l.id)) {
+            map.set(l.id, l);
+          } else {
+            // Keep read status if locally read
+            if (l.isRead || readIds.has(l.id)) {
+              const existing = map.get(l.id)!;
+              map.set(l.id, { ...existing, isRead: true });
+            }
+          }
         }
       });
 
@@ -229,6 +303,10 @@ export async function addNotification(
 }
 
 export async function markNotificationAsRead(id: string): Promise<void> {
+  const readIds = getReadNotifIds();
+  readIds.add(id);
+  saveReadNotifIds(readIds);
+
   const existing = getLocalNotifications();
   const updated = existing.map((n) => (n.id === id ? { ...n, isRead: true } : n));
   saveLocalNotifications(updated);
@@ -242,6 +320,10 @@ export async function markNotificationAsRead(id: string): Promise<void> {
 
 export async function markAllNotificationsAsRead(userId?: string): Promise<void> {
   const existing = getLocalNotifications();
+  const readIds = getReadNotifIds();
+  existing.forEach((n) => readIds.add(n.id));
+  saveReadNotifIds(readIds);
+
   const updated = existing.map((n) => ({ ...n, isRead: true }));
   saveLocalNotifications(updated);
 
@@ -257,6 +339,10 @@ export async function markAllNotificationsAsRead(userId?: string): Promise<void>
 }
 
 export async function deleteNotification(id: string): Promise<void> {
+  const deletedIds = getDeletedNotifIds();
+  deletedIds.add(id);
+  saveDeletedNotifIds(deletedIds);
+
   const existing = getLocalNotifications();
   const updated = existing.filter((n) => n.id !== id);
   saveLocalNotifications(updated);

@@ -118,21 +118,10 @@ export function normalizeVideoSource(
   }
 
   // Standard web video URL (MP4, WebM, MOV, S3, Supabase, Google Storage)
-  let directUrl = trimmed;
-  // Append #t=0.001 for iOS Safari / Mobile WebKit to trigger first-frame rendering without a black screen
-  if (
-    (directUrl.startsWith('http://') || directUrl.startsWith('https://')) &&
-    !directUrl.includes('#') &&
-    !directUrl.includes('?') &&
-    (directUrl.endsWith('.mp4') || directUrl.endsWith('.mov') || directUrl.endsWith('.m4v') || directUrl.endsWith('.webm'))
-  ) {
-    directUrl = `${directUrl}#t=0.001`;
-  }
-
   return {
     isBunny: false,
     guid: null,
-    directUrl,
+    directUrl: trimmed,
     iframeUrl: null,
     thumbnailUrl: DEFAULT_POSTER,
     isEmbedOnly: false,
@@ -161,13 +150,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   onHashtagClick,
 }) => {
   const { profile } = useAuth();
-  const { pauseAllMedia, setActiveMediaId } = useMedia();
+  const { pauseAllMedia, setActiveMediaId, isGlobalMuted, setIsGlobalMuted } = useMedia();
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Playback & UI State
-  // Mobile devices require muted audio on initial autoplay to paint video frames without blockage
-  const [isMuted, setIsMuted] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
   const [useIframeFallback, setUseIframeFallback] = useState<boolean>(false);
   const [newCommentText, setNewCommentText] = useState<string>('');
@@ -198,11 +185,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const iframeSrc = useMemo(() => {
     if (!videoMeta.iframeUrl) return null;
     const autoplayVal = isPlaying ? 'true' : 'false';
-    const mutedVal = isMuted ? 'true' : 'false';
+    const mutedVal = isGlobalMuted ? 'true' : 'false';
     return `${videoMeta.iframeUrl}?autoplay=${autoplayVal}&muted=${mutedVal}&loop=true&preload=true&responsive=true`;
-  }, [videoMeta.iframeUrl, isPlaying, isMuted]);
+  }, [videoMeta.iframeUrl, isPlaying, isGlobalMuted]);
 
-  // Sync HTML5 Video Play / Pause & Mute with mobile safety fallbacks
+  // Sync HTML5 Video Play / Pause & Mute with global mute persistence
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid || useIframeFallback) {
@@ -211,29 +198,29 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     }
 
     if (isPlaying) {
-      vid.muted = isMuted;
-      vid.defaultMuted = true;
+      vid.muted = isGlobalMuted;
+      vid.defaultMuted = isGlobalMuted;
       setActiveMediaId(elementMediaId);
 
       const playPromise = vid.play();
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
-          // Autoplay blocked by mobile browser -> Auto mute and retry immediately
+          // If browser policy prevents unmuted autoplay, retry immediately in muted mode
           if (err.name === 'NotAllowedError') {
+            console.warn('[VideoCard] Autoplay prevented, falling back to muted playback');
             vid.muted = true;
-            setIsMuted(true);
             vid.play().catch((e: any) => {
               console.warn('[VideoCard] Muted playback retry failed:', e?.message || String(e));
             });
           } else {
-            console.warn('[VideoCard] Autoplay interrupted:', err?.message || String(err));
+            console.warn('[VideoCard] Playback interrupted:', err?.message || String(err));
           }
         });
       }
     } else {
       vid.pause();
     }
-  }, [isPlaying, isMuted, elementMediaId, setActiveMediaId, useIframeFallback]);
+  }, [isPlaying, isGlobalMuted, elementMediaId, setActiveMediaId, useIframeFallback]);
 
   // Video progress tracking
   useEffect(() => {
@@ -325,8 +312,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const handleToggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
+    const nextMuted = !isGlobalMuted;
+    setIsGlobalMuted(nextMuted);
     if (videoRef.current) {
       videoRef.current.muted = nextMuted;
       if (!nextMuted && isPlaying && videoRef.current.paused) {
@@ -464,12 +451,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             autoPlay={isPlaying}
             loop={true}
             preload="auto"
-            muted={isMuted}
+            muted={isGlobalMuted}
             // @ts-ignore
             playsInline
             webkit-playsinline="true"
             x5-playsinline="true"
-            crossOrigin="anonymous"
             onLoadedData={() => setIsLoaded(true)}
             onCanPlay={() => setIsLoaded(true)}
             onError={handleVideoError}
@@ -488,14 +474,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           type="button"
           onClick={handleToggleMute}
           className={`px-3 py-1.5 rounded-full backdrop-blur-md border text-xs font-serif font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 shadow-2xl cursor-pointer ${
-            isMuted
+            isGlobalMuted
               ? 'bg-black/75 border-red-500/70 text-red-300 hover:bg-black/90 hover:border-red-400'
               : 'bg-black/75 border-[#c5a059] text-[#c5a059] hover:bg-black/90 hover:border-[#e6d3ab]'
           }`}
-          title={isMuted ? 'Tap to Unmute Audio' : 'Tap to Mute Audio'}
+          title={isGlobalMuted ? 'Tap to Unmute Audio (Applies to all videos)' : 'Tap to Mute Audio (Applies to all videos)'}
           aria-label="Toggle Sound"
         >
-          {isMuted ? (
+          {isGlobalMuted ? (
             <>
               <VolumeX className="w-4 h-4 text-red-400 shrink-0" />
               <span className="text-[10px] tracking-wider text-red-300 font-sans font-bold">MUTE</span>

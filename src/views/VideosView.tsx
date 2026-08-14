@@ -133,25 +133,72 @@ export const VideosView: React.FC<VideosViewProps> = ({
     setLoading(false);
   };
 
+  // Filter videos by tab, search query, and selected hashtag
+  const filteredVideos = useMemo(() => {
+    return videos.filter((v) => {
+      // Tab filter
+      if (activeTab === 'following' && !followedAuthors[v.authorName]) {
+        return false;
+      }
+
+      // Hashtag filter
+      if (selectedHashtag && !v.text?.toLowerCase().includes(selectedHashtag.toLowerCase())) {
+        return false;
+      }
+
+      // Search query filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return (
+          v.text?.toLowerCase().includes(q) ||
+          v.authorName?.toLowerCase().includes(q) ||
+          v.authorParish?.toLowerCase().includes(q)
+        );
+      }
+
+      return true;
+    });
+  }, [videos, activeTab, followedAuthors, selectedHashtag, searchQuery]);
+
+  // Synchronize active playing video when filtered list changes
+  useEffect(() => {
+    if (filteredVideos.length > 0) {
+      if (!activePlayingId || !filteredVideos.some((v) => v.id === activePlayingId)) {
+        setActivePlayingId(filteredVideos[0].id);
+      }
+    }
+  }, [filteredVideos, activePlayingId]);
+
   // Setup IntersectionObserver for auto-playing active snapped video
   useEffect(() => {
     const container = feedContainerRef.current;
     if (!container) return;
 
+    let timeoutId: any;
     const observer = new IntersectionObserver(
       (entries) => {
+        let bestEntry: IntersectionObserverEntry | null = null;
         entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-            const videoId = entry.target.getAttribute('data-video-id');
-            if (videoId) {
-              setActivePlayingId(videoId);
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.4) {
+            if (!bestEntry || entry.intersectionRatio > bestEntry.intersectionRatio) {
+              bestEntry = entry;
             }
           }
         });
+
+        if (bestEntry) {
+          const videoId = (bestEntry as any).target.getAttribute('data-video-id');
+          if (videoId) {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+              setActivePlayingId(videoId);
+            }, 80);
+          }
+        }
       },
       {
         root: container,
-        threshold: [0.6],
+        threshold: [0.3, 0.5, 0.7, 0.9],
       }
     );
 
@@ -159,9 +206,10 @@ export const VideosView: React.FC<VideosViewProps> = ({
     videoElements.forEach((el) => observer.observe(el));
 
     return () => {
+      clearTimeout(timeoutId);
       observer.disconnect();
     };
-  }, [videos, activeTab, selectedHashtag, searchQuery]);
+  }, [filteredVideos]);
 
   // Keyboard navigation (ArrowUp, ArrowDown)
   useEffect(() => {
@@ -342,33 +390,6 @@ export const VideosView: React.FC<VideosViewProps> = ({
     setSelectedHashtag(selectedHashtag === tag ? null : tag);
     triggerToast(`Filtering by ${tag}`);
   };
-
-  // Filter videos by tab, search query, and selected hashtag
-  const filteredVideos = useMemo(() => {
-    return videos.filter((v) => {
-      // Tab filter
-      if (activeTab === 'following' && !followedAuthors[v.authorName]) {
-        return false;
-      }
-
-      // Hashtag filter
-      if (selectedHashtag && !v.text?.toLowerCase().includes(selectedHashtag.toLowerCase())) {
-        return false;
-      }
-
-      // Search query filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        return (
-          v.text?.toLowerCase().includes(q) ||
-          v.authorName?.toLowerCase().includes(q) ||
-          v.authorParish?.toLowerCase().includes(q)
-        );
-      }
-
-      return true;
-    });
-  }, [videos, activeTab, followedAuthors, selectedHashtag, searchQuery]);
 
   return (
     <div className="w-full flex flex-col items-center relative select-none pb-4">

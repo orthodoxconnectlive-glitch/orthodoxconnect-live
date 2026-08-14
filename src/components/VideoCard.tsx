@@ -83,8 +83,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Playback & UI State
-  const [isMuted, setIsMuted] = useState<boolean>(false);
+  // Default to muted = true to comply with mobile autoplay security rules
+  const [isMuted, setIsMuted] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
   const [newCommentText, setNewCommentText] = useState<string>('');
   const [showPlayPulse, setShowPlayPulse] = useState<boolean>(false);
@@ -95,24 +95,28 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const lastTapRef = useRef<number>(0);
   const elementMediaId = `video-${video.id}`;
   const rawVideoUrl = video.video || '';
-  const bunnyLibraryId = import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
-  const bunnyCdnHost = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 
   // Only use iframe if URL contains explicit embed endpoint with GUID
   const isIframeEmbed =
     rawVideoUrl.includes('iframe.mediadelivery.net/embed/') &&
     !rawVideoUrl.endsWith('.mp4');
 
-  // Enforce Mute and Play/Pause based on isPlaying prop
+  // Mobile Autoplay & Sound Enforcement
   useEffect(() => {
     if (videoRef.current && !isIframeEmbed) {
       if (isPlaying) {
         videoRef.current.muted = isMuted;
         setActiveMediaId(elementMediaId);
+        
         const playPromise = videoRef.current.play();
         if (playPromise !== undefined) {
           playPromise.catch((err) => {
-            console.warn('[TikTok Player] Auto-play notice:', err);
+            console.warn('[TikTok Player] Auto-play was restricted, retrying muted:', err);
+            if (videoRef.current) {
+              videoRef.current.muted = true;
+              setIsMuted(true);
+              videoRef.current.play().catch(() => {});
+            }
           });
         }
       } else {
@@ -123,7 +127,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     }
   }, [isPlaying, isMuted, elementMediaId, setActiveMediaId, isIframeEmbed]);
 
-  // Video progress tracking for HTML5 video element
+  // Video progress tracking
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
@@ -325,11 +329,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             data-media-id={elementMediaId}
             src={rawVideoUrl}
             poster={posterImage}
-            autoPlay={false}
+            autoPlay={isPlaying}
             loop={true}
             preload="metadata"
             muted={isMuted}
             playsInline
+            // @ts-ignore
+            webkit-playsinline="true"
             onCanPlay={() => setHasError(false)}
             onError={(e) => {
               console.warn('[TikTok Player] Video load notice:', e);

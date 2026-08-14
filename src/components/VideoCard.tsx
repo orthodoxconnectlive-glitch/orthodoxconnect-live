@@ -87,11 +87,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({
 
   const lastTapRef = useRef<number>(0);
   const elementMediaId = `video-${video.id}`;
+
+  // Robustly handle raw video URLs or Bunny Stream GUIDs
+  const bunnyCdnHost = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
+  let rawVideoUrl = video.video || video.image || '';
   
-  // Guarantee a valid working fallback stream if the video link is missing
-  const rawVideoUrl = video.video && video.video.startsWith('http') 
-    ? video.video 
-    : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+  if (rawVideoUrl && !rawVideoUrl.startsWith('http') && rawVideoUrl.length > 3) {
+    rawVideoUrl = `https://${bunnyCdnHost}/${rawVideoUrl}/play_720p.mp4`;
+  } else if (!rawVideoUrl || rawVideoUrl.length < 5) {
+    rawVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+  }
 
   const isIframeEmbed =
     rawVideoUrl.includes('iframe.mediadelivery.net/embed/') &&
@@ -264,7 +269,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       onClick={handleScreenClick}
       className="w-full h-full relative overflow-hidden bg-black select-none flex items-center justify-center snap-start snap-always"
     >
-      {/* Main Video Player Surface - NO broken poster attributes */}
+      {/* Main Video Player Surface */}
       {isIframeEmbed ? (
         <div className="relative w-full h-full bg-black flex items-center justify-center">
           <iframe

@@ -81,6 +81,7 @@ export function mapRowToPost(row: any, profileMap?: Record<string, any>): Post {
 }
 
 const SAVED_COMMENTS_KEY = 'orthodox_local_comments_v2';
+const SAVED_REEL_COMMENTS_KEY = 'orthodox_local_reel_comments_v2';
 const SAVED_LIKES_KEY = 'orthodox_local_likes_v2';
 const SAVED_LOCAL_POSTS_KEY = 'orthodox_local_saved_posts_v1';
 
@@ -99,6 +100,24 @@ export function saveLocalPostCommentsMap(map: Record<string, string[]>) {
     localStorage.setItem(SAVED_COMMENTS_KEY, JSON.stringify(map));
   } catch (e) {
     console.warn('Error saving local comments map:', e);
+  }
+}
+
+export function loadLocalReelCommentsMap(): Record<string, any[]> {
+  try {
+    const saved = localStorage.getItem(SAVED_REEL_COMMENTS_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {
+    console.warn('Error loading reel comments map:', e);
+  }
+  return {};
+}
+
+export function saveLocalReelCommentsMap(map: Record<string, any[]>) {
+  try {
+    localStorage.setItem(SAVED_REEL_COMMENTS_KEY, JSON.stringify(map));
+  } catch (e) {
+    console.warn('Error saving reel comments map:', e);
   }
 }
 

@@ -20,21 +20,53 @@ interface ActiveChatsPanelProps {
   onSelectUser?: (userData: UserProfileData) => void;
 }
 
+const DEFAULT_ACTIVE_MEMBERS: ActiveChatUser[] = [
+  {
+    id: 'user-fr-athanasios',
+    name: 'Fr. Athanasios',
+    parish: "St. Anthony's Monastery",
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+    isOnline: true,
+    lastMessage: 'Peace be with you all. ☨',
+  },
+  {
+    id: 'user-deacon-mark',
+    name: 'Deacon Mark',
+    parish: 'Annunciation Orthodox Church',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+    isOnline: true,
+    lastMessage: 'Choir practice tomorrow after Vespers.',
+  },
+  {
+    id: 'user-maria-sophia',
+    name: 'Maria Sophia',
+    parish: 'Holy Trinity Cathedral',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+    isOnline: true,
+    lastMessage: 'Blessed feast day!',
+  },
+  {
+    id: 'user-kyrillos-alexander',
+    name: 'Kyrillos Alexander',
+    parish: 'St. George Coptic Church',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
+    isOnline: false,
+    lastMessage: 'Glory to God for all things.',
+  },
+];
+
 export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessenger, onSelectUser }) => {
   const { t } = useTheme();
   const { profile: currentProfile } = useAuth();
-  const [users, setUsers] = useState<ActiveChatUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState<ActiveChatUser[]>(DEFAULT_ACTIVE_MEMBERS);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     async function fetchRealUsers() {
       if (!isSupabaseConfigured) {
-        setUsers([]);
-        setLoading(false);
         return;
       }
       try {
-        setLoading(true);
         let query = supabase
           .from('profiles')
           .select('id, full_name, parish, avatar_url, email')
@@ -51,7 +83,7 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
           console.warn('Active users fetch notice:', error.message || error);
         }
 
-        if (!error && data) {
+        if (!error && data && data.length > 0) {
           const mappedUsers: ActiveChatUser[] = data.map((p) => ({
             id: p.id,
             name: p.full_name || 'Parish Member',

@@ -383,12 +383,12 @@ export const VideosView: React.FC<VideosViewProps> = ({
       {/* Main TikTok Container Frame */}
       <div className="relative w-full max-w-[420px] h-[calc(100vh-6.5rem)] min-h-[580px] max-h-[860px] bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-[#c5a059]/40 flex flex-col">
         {/* TikTok Top Floating Header (Following | For You + Search & Upload buttons) */}
-        <div className="absolute top-0 inset-x-0 z-40 px-4 py-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between text-white pointer-events-auto">
+        <div className="absolute top-0 inset-x-0 z-40 px-4 py-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between text-white pointer-events-none">
           {/* Search Toggle */}
           <button
             type="button"
             onClick={() => setIsSearchOpen(!isSearchOpen)}
-            className="p-2 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md border border-white/20 text-[#f5ebd9] cursor-pointer transition-transform active:scale-95"
+            className="p-2 rounded-full bg-black/50 hover:bg-black/80 backdrop-blur-md border border-white/20 text-[#f5ebd9] cursor-pointer transition-transform active:scale-95 pointer-events-auto shadow-lg"
             title="Search Videos"
             aria-label="Search Videos"
           >
@@ -396,7 +396,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
           </button>
 
           {/* Centered Tab Switcher */}
-          <div className="flex items-center gap-4 font-serif">
+          <div className="flex items-center gap-4 font-serif pointer-events-auto">
             <button
               type="button"
               onClick={() => setActiveTab('following')}
@@ -428,7 +428,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
           <button
             type="button"
             onClick={() => setIsUploadModalOpen(true)}
-            className="p-2 rounded-full bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] cursor-pointer transition-transform active:scale-95 shadow-md flex items-center justify-center font-bold"
+            className="p-2 rounded-full bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] cursor-pointer transition-transform active:scale-95 shadow-md flex items-center justify-center font-bold pointer-events-auto"
             title="Upload Orthodox Video"
             aria-label="Upload Video"
           >

@@ -28,6 +28,7 @@ import {
   loadPosts,
   savePost,
   deletePost,
+  getLocalSavedPosts,
   BUNNY_STREAM_BASE,
   SEED_VIDEOS,
   loadLocalPostCommentsMap,
@@ -44,22 +45,36 @@ import { ReshareModal } from '../components/ReshareModal';
 import { ReportContentModal } from '../components/ReportContentModal';
 import { StoriesBar } from '../components/StoriesBar';
 import { PostCard } from '../components/PostCard';
+import { LiturgicalBanner } from '../components/LiturgicalBanner';
 import { UserProfileData } from './ProfileView';
 
 interface FeedViewProps {
   onSelectUser?: (userData: UserProfileData) => void;
   onOpenMessengerWithUser?: (contactId?: string) => void;
+  onOpenCalendar?: () => void;
 }
 
-export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessengerWithUser }) => {
+export const FeedView: React.FC<FeedViewProps> = ({
+  onSelectUser,
+  onOpenMessengerWithUser,
+  onOpenCalendar,
+}) => {
   const { profile } = useAuth();
   const { t } = useTheme();
 
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Instant non-blank initial post state from local/seed storage
+  const [posts, setPosts] = useState<Post[]>(() => getLocalSavedPosts());
+  const [loading, setLoading] = useState<boolean>(false);
   const [supabaseError, setSupabaseError] = useState<string | null>(null);
   const [feedTab, setFeedTab] = useState<'all' | 'following'>('all');
-  const [followedMap, setFollowedMap] = useState<Record<string, boolean>>({});
+  const [followedMap, setFollowedMap] = useState<Record<string, boolean>>(() => {
+    const initialPosts = getLocalSavedPosts();
+    const fMap: Record<string, boolean> = {};
+    initialPosts.forEach((p) => {
+      fMap[p.authorName] = isFollowing(p.authorName);
+    });
+    return fMap;
+  });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // New post input state
@@ -389,6 +404,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ onSelectUser, onOpenMessenge
           </button>
         </div>
       )}
+
+      {/* Daily Liturgical Scripture, Saint of Day & Fasting Banner */}
+      <LiturgicalBanner onOpenCalendar={onOpenCalendar} />
 
       {/* Stories Bar Component */}
       <StoriesBar onSelectUser={onSelectUser} />

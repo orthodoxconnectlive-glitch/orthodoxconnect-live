@@ -142,7 +142,13 @@ function AppContent() {
   const renderView = () => {
     switch (currentView) {
       case 'feed':
-        return <FeedView onSelectUser={handleSelectUser} onOpenMessengerWithUser={handleOpenMessengerWithUser} />;
+        return (
+          <FeedView
+            onSelectUser={handleSelectUser}
+            onOpenMessengerWithUser={handleOpenMessengerWithUser}
+            onOpenCalendar={() => handleNavigate('calendar')}
+          />
+        );
       case 'videos':
       case 'reels':
         return <VideosView onSelectUser={handleSelectUser} onOpenMessengerWithUser={handleOpenMessengerWithUser} />;

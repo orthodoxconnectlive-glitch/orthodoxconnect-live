@@ -324,10 +324,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({
 
   const handleToggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
     if (videoRef.current) {
       videoRef.current.muted = nextMuted;
+      if (!nextMuted && isPlaying && videoRef.current.paused) {
+        videoRef.current.play().catch((err) => {
+          console.warn('[VideoCard] Unmuted playback error:', err);
+        });
+      }
     }
   };
 
@@ -476,30 +482,40 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/75 via-black/30 to-transparent pointer-events-none z-10" />
       <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none z-10" />
 
-      {/* 2. Top Right Player Controls (Mute & Fullscreen) */}
-      <div className="absolute top-4 right-4 z-30 flex items-center gap-2 pointer-events-auto">
+      {/* 2. Top Right Player Controls (Mute & Fullscreen) - Positioned cleanly below header tabs */}
+      <div className="absolute top-14 sm:top-16 right-3 sm:right-4 z-30 flex items-center gap-2 pointer-events-auto no-screen-tap">
         <button
           type="button"
           onClick={handleToggleMute}
-          className="w-10 h-10 rounded-full bg-black/55 hover:bg-black/85 backdrop-blur-md border border-white/20 text-[#f5ebd9] flex items-center justify-center transition-transform active:scale-90 shadow-xl cursor-pointer"
-          title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
+          className={`px-3 py-1.5 rounded-full backdrop-blur-md border text-xs font-serif font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 shadow-2xl cursor-pointer ${
+            isMuted
+              ? 'bg-black/75 border-red-500/70 text-red-300 hover:bg-black/90 hover:border-red-400'
+              : 'bg-black/75 border-[#c5a059] text-[#c5a059] hover:bg-black/90 hover:border-[#e6d3ab]'
+          }`}
+          title={isMuted ? 'Tap to Unmute Audio' : 'Tap to Mute Audio'}
           aria-label="Toggle Sound"
         >
           {isMuted ? (
-            <VolumeX className="w-5 h-5 text-red-400" />
+            <>
+              <VolumeX className="w-4 h-4 text-red-400 shrink-0" />
+              <span className="text-[10px] tracking-wider text-red-300 font-sans font-bold">MUTE</span>
+            </>
           ) : (
-            <Volume2 className="w-5 h-5 text-[#c5a059]" />
+            <>
+              <Volume2 className="w-4 h-4 text-[#c5a059] shrink-0" />
+              <span className="text-[10px] tracking-wider text-[#f5ebd9] font-sans font-bold">AUDIO ON</span>
+            </>
           )}
         </button>
 
         <button
           type="button"
           onClick={handleToggleFullscreen}
-          className="w-10 h-10 rounded-full bg-black/55 hover:bg-black/85 backdrop-blur-md border border-white/20 text-[#f5ebd9] flex items-center justify-center transition-transform active:scale-90 shadow-xl cursor-pointer"
+          className="w-8 h-8 rounded-full bg-black/60 hover:bg-black/85 backdrop-blur-md border border-white/20 text-[#f5ebd9] flex items-center justify-center transition-transform active:scale-90 shadow-xl cursor-pointer"
           title="Fullscreen"
           aria-label="Fullscreen"
         >
-          <Maximize className="w-4 h-4" />
+          <Maximize className="w-3.5 h-3.5" />
         </button>
       </div>
 

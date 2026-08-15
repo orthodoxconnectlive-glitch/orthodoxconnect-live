@@ -41,7 +41,8 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
     videoUrl.includes('mediadelivery.net') ||
     videoUrl.includes(bunnyCdnHost) ||
     videoUrl.includes('b-cdn.net') ||
-    videoUrl.includes('bunnyinfra.net');
+    videoUrl.includes('bunnyinfra.net') ||
+    /^[0-9a-fA-F-]{10,}$/.test(videoUrl.trim());
 
   // Reset error & playback state when URL changes
   useEffect(() => {

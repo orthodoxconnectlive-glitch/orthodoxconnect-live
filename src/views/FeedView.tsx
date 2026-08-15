@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import {
   Image,
   Video,
@@ -20,6 +19,7 @@ import {
   X,
   Upload,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { Post } from '../types';
 import { addNotification } from '../utils/notifications';
@@ -65,7 +65,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
   // Instant non-blank initial post state from local/seed storage
   const [posts, setPosts] = useState<Post[]>(() => getLocalSavedPosts());
   const [loading, setLoading] = useState<boolean>(false);
-  const [supabaseError, setSupabaseError] = useState<string | null>(null);
+  const [feedError, setFeedError] = useState<string | null>(null);
   const [feedTab, setFeedTab] = useState<'all' | 'following'>('all');
   const [followedMap, setFollowedMap] = useState<Record<string, boolean>>(() => {
     const initialPosts = getLocalSavedPosts();
@@ -112,19 +112,13 @@ export const FeedView: React.FC<FeedViewProps> = ({
   useEffect(() => {
     fetchPosts();
 
-    const postsChannel = supabase
-      .channel('public:posts')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'posts' },
-        () => {
-          fetchPosts();
-        }
-      )
-      .subscribe();
+    // Periodic refresh from Cloudflare D1 every 30 seconds
+    const interval = setInterval(() => {
+      fetchPosts(true);
+    }, 30000);
 
     return () => {
-      supabase.removeChannel(postsChannel);
+      clearInterval(interval);
     };
   }, []);
 
@@ -166,19 +160,21 @@ export const FeedView: React.FC<FeedViewProps> = ({
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  const fetchPosts = async () => {
-    setLoading(true);
+  const fetchPosts = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const { posts: loaded, error } = await loadPosts(undefined, { limit: 25 });
+      const { posts: loaded, error } = await loadPosts(undefined, { limit: 30 });
 
-      if (error && error.code !== '57014') {
-        console.warn('[FeedView] Feed fetch notice:', error);
+      if (error) {
+        console.warn('[FeedView] Feed fetch error notice:', error);
+        setFeedError(typeof error === 'string' ? error : 'Unable to connect to Cloudflare D1 database.');
+      } else {
+        setFeedError(null);
       }
-      setSupabaseError(null);
 
-      const activePosts = (loaded && loaded.length > 0) ? loaded : [];
+      const activePosts = loaded && loaded.length > 0 ? loaded : [];
       const likesMap = loadLocalLikesMap();
-      
+
       // Apply local saved likes
       const postsWithLikes = activePosts.map((p) => {
         if (likesMap[p.id] !== undefined) {
@@ -200,12 +196,11 @@ export const FeedView: React.FC<FeedViewProps> = ({
       setFollowedMap(fMap);
     } catch (err: any) {
       console.warn('[FeedView] Feed fetch exception handled:', err);
-      setSupabaseError(null);
-      const { posts: fallbackPosts } = await loadPosts(undefined, { limit: 25 });
+      setFeedError(err?.message || 'Database error');
+      const { posts: fallbackPosts } = await loadPosts(undefined, { limit: 30 });
       setPosts(fallbackPosts || []);
     } finally {
-      // Ensure loading state is ALWAYS cleared in finally block
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -393,23 +388,32 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </div>
       )}
 
-      {/* Supabase Error Banner */}
-      {supabaseError && (
-        <div className="p-4 rounded-2xl bg-red-100 dark:bg-red-950/80 border-2 border-red-500/50 text-red-900 dark:text-red-200 text-xs flex items-center justify-between shadow-md">
+      {/* Feed Error Banner */}
+      {feedError && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-500/50 text-amber-950 dark:text-amber-200 text-xs flex items-center justify-between shadow-md">
           <div className="flex items-center gap-2.5 min-w-0">
-            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
             <div className="truncate">
-              <span className="font-bold">Supabase Feed Error: </span>
-              <span>{supabaseError}</span>
+              <span className="font-bold">Feed Notice: </span>
+              <span>{feedError}</span>
             </div>
           </div>
-          <button
-            onClick={() => setSupabaseError(null)}
-            className="p-1.5 hover:bg-red-200 dark:hover:bg-red-900 rounded-xl transition-colors shrink-0 cursor-pointer"
-            title="Dismiss error"
-          >
-            <X className="w-4 h-4 text-red-700 dark:text-red-300" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => fetchPosts()}
+              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-serif font-bold flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Retry</span>
+            </button>
+            <button
+              onClick={() => setFeedError(null)}
+              className="p-1.5 hover:bg-amber-200 dark:hover:bg-amber-900 rounded-xl transition-colors shrink-0 cursor-pointer"
+              title="Dismiss notice"
+            >
+              <X className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+            </button>
+          </div>
         </div>
       )}
 

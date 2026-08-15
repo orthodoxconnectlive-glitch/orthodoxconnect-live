@@ -4,20 +4,23 @@ import {
   Upload,
   Sparkles,
   Search,
+  RefreshCw,
+  Video,
   CheckCircle,
   ChevronUp,
   ChevronDown,
   X,
   Plus,
-  Video,
+  Flame,
+  Hash,
+  Compass,
 } from 'lucide-react';
 import { Post } from '../types';
-import { loadVideos, deletePost, savePost, loadPosts } from '../utils/posts';
+import { loadVideos, deletePost, savePost } from '../utils/posts';
 import { uploadVideoToBunnyStream } from '../utils/storage';
 import { addNotification } from '../utils/notifications';
 import { VideoCard, VideoComment } from '../components/VideoCard';
 import { useAuth } from '../context/AuthContext';
-import { useMedia } from '../context/MediaContext';
 import { UserProfileData } from './ProfileView';
 
 interface VideosViewProps {
@@ -42,7 +45,6 @@ export const VideosView: React.FC<VideosViewProps> = ({
   onOpenMessengerWithUser,
 }) => {
   const { profile } = useAuth();
-  const { isGlobalMuted, setIsGlobalMuted } = useMedia();
   const [videos, setVideos] = useState<Post[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -67,7 +69,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
   const [openCommentVideoId, setOpenCommentVideoId] = useState<string | null>(null);
   const [videoCommentsMap, setVideoCommentsMap] = useState<Record<string, VideoComment[]>>({});
 
-  // Active playing video state
+  // Active playing video state (TikTok auto-play on snap scroll)
   const [activePlayingId, setActivePlayingId] = useState<string | null>(null);
 
   // Feed container ref for snap scrolling
@@ -81,7 +83,6 @@ export const VideosView: React.FC<VideosViewProps> = ({
         try {
           m.pause();
           m.currentTime = 0;
-          m.src = '';
         } catch (e) {
           // ignore
         }
@@ -89,46 +90,18 @@ export const VideosView: React.FC<VideosViewProps> = ({
     };
   }, []);
 
-  // Fetch videos from persistent database with reliable fallback
+  // Fetch videos from persistent database
   useEffect(() => {
     fetchVideosList();
   }, []);
 
   const fetchVideosList = async () => {
     setLoading(true);
-    let loadedVideos = await loadVideos();
-
-    // If loadVideos returned empty, fetch any posts with video/image
-    if (!loadedVideos || loadedVideos.length === 0) {
-      const { posts } = await loadPosts();
-      loadedVideos = posts.filter((p) => !!p.video || (p.image && p.image.endsWith('.mp4')));
-    }
-
-    // High quality fallback if database is completely empty
-    if (!loadedVideos || loadedVideos.length === 0) {
-      loadedVideos = [
-        {
-          id: 'fallback-video-1',
-          text: 'Orthodox Liturgical Chant & Reflection ☨ #Orthodox #Liturgy',
-          authorName: 'OrthodoxConnect',
-          authorParish: 'Orthodox Church',
-          authorAvatar:
-            'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-          video:
-            'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-          image:
-            'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800',
-          createdAt: new Date().toISOString(),
-          likesCount: 12,
-          commentsCount: 0,
-          resharesCount: 0,
-        },
-      ];
-    }
-
+    const loadedVideos = await loadVideos();
     setVideos(loadedVideos);
 
-    if (loadedVideos.length > 0) {
+    // Set first video as active playing video
+    if (loadedVideos.length > 0 && !activePlayingId) {
       setActivePlayingId(loadedVideos[0].id);
     }
 
@@ -163,12 +136,17 @@ export const VideosView: React.FC<VideosViewProps> = ({
   // Filter videos by tab, search query, and selected hashtag
   const filteredVideos = useMemo(() => {
     return videos.filter((v) => {
+      // Tab filter
       if (activeTab === 'following' && !followedAuthors[v.authorName]) {
         return false;
       }
+
+      // Hashtag filter
       if (selectedHashtag && !v.text?.toLowerCase().includes(selectedHashtag.toLowerCase())) {
         return false;
       }
+
+      // Search query filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -177,6 +155,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
           v.authorParish?.toLowerCase().includes(q)
         );
       }
+
       return true;
     });
   }, [videos, activeTab, followedAuthors, selectedHashtag, searchQuery]);
@@ -190,7 +169,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
     }
   }, [filteredVideos, activePlayingId]);
 
-  // IntersectionObserver for auto-playing active snapped video
+  // Setup IntersectionObserver for auto-playing active snapped video
   useEffect(() => {
     const container = feedContainerRef.current;
     if (!container) return;
@@ -232,7 +211,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
     };
   }, [filteredVideos]);
 
-  // Keyboard navigation
+  // Keyboard navigation (ArrowUp, ArrowDown)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -308,6 +287,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
       setUploadCaption('');
       triggerToast('New Orthodox Video published to feed!');
 
+      // Scroll to top
       if (feedContainerRef.current) {
         feedContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -335,25 +315,13 @@ export const VideosView: React.FC<VideosViewProps> = ({
         [videoId]: (cPrev[videoId] || 0) + (nextState ? 1 : -1),
       }));
 
-      if (
-        nextState &&
-        targetVideo &&
-        targetVideo.authorId &&
-        profile?.id &&
-        targetVideo.authorId !== profile.id
-      ) {
+      if (nextState && targetVideo && targetVideo.authorId && profile?.id && targetVideo.authorId !== profile.id) {
         addNotification(
           {
             userId: targetVideo.authorId,
             type: 'system',
             title: `Reaction from ${profile?.full_name || 'Parishioner'}`,
-            body: `Liked your video: "${
-              targetVideo.text
-                ? targetVideo.text.length > 40
-                  ? targetVideo.text.slice(0, 40) + '...'
-                  : targetVideo.text
-                : 'Video'
-            }"`,
+            body: `Liked your video reflection: "${targetVideo.text ? (targetVideo.text.length > 40 ? targetVideo.text.slice(0, 40) + '...' : targetVideo.text) : 'Video'}"`,
             senderName: profile?.full_name || 'Parishioner',
             senderAvatar: profile?.avatar_url,
             link: 'videos',
@@ -454,8 +422,9 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
       {/* Main TikTok Container Frame */}
       <div className="relative w-full max-w-[420px] h-[calc(100vh-6.5rem)] min-h-[580px] max-h-[860px] bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-[#c5a059]/40 flex flex-col">
-        {/* Top Header Controls */}
+        {/* TikTok Top Floating Header (Following | For You + Search & Upload buttons) */}
         <div className="absolute top-0 inset-x-0 z-40 px-4 py-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between text-white pointer-events-none">
+          {/* Search Toggle */}
           <button
             type="button"
             onClick={() => setIsSearchOpen(!isSearchOpen)}
@@ -470,11 +439,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
           <div className="flex items-center gap-4 font-serif pointer-events-auto">
             <button
               type="button"
-              onClick={() => {
-                setActiveTab('following');
-                setSelectedHashtag(null);
-                setSearchQuery('');
-              }}
+              onClick={() => setActiveTab('following')}
               className={`text-sm font-bold tracking-wider uppercase transition-all cursor-pointer ${
                 activeTab === 'following'
                   ? 'text-white border-b-2 border-[#c5a059] pb-0.5 drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]'
@@ -488,11 +453,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
             <button
               type="button"
-              onClick={() => {
-                setActiveTab('foryou');
-                setSelectedHashtag(null);
-                setSearchQuery('');
-              }}
+              onClick={() => setActiveTab('foryou')}
               className={`text-sm font-bold tracking-wider uppercase transition-all cursor-pointer ${
                 activeTab === 'foryou'
                   ? 'text-white border-b-2 border-[#c5a059] pb-0.5 drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]'
@@ -503,18 +464,19 @@ export const VideosView: React.FC<VideosViewProps> = ({
             </button>
           </div>
 
+          {/* Upload (+) Button */}
           <button
             type="button"
             onClick={() => setIsUploadModalOpen(true)}
             className="p-2 rounded-full bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] cursor-pointer transition-transform active:scale-95 shadow-md flex items-center justify-center font-bold pointer-events-auto"
-            title="Upload Video"
+            title="Upload Orthodox Video"
             aria-label="Upload Video"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
           </button>
         </div>
 
-        {/* Expandable Top Search */}
+        {/* Expandable Top Search / Hashtag Bar */}
         {isSearchOpen && (
           <div className="absolute top-14 inset-x-3 z-40 bg-[#1c1611]/95 backdrop-blur-xl border border-[#c5a059] rounded-2xl p-3 shadow-2xl space-y-2 animate-fade-in text-[#f5ebd9]">
             <div className="relative flex items-center">
@@ -537,6 +499,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
               )}
             </div>
 
+            {/* Popular Hashtags */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
               {POPULAR_HASHTAGS.map((tag) => (
                 <button
@@ -569,12 +532,12 @@ export const VideosView: React.FC<VideosViewProps> = ({
           </div>
         )}
 
-        {/* Video Snap Feed */}
+        {/* Video Feed Snap-Scroll Container */}
         {loading ? (
           <div className="w-full h-full flex flex-col items-center justify-center text-[#f5ebd9] space-y-3 bg-[#1c1611]">
             <Sparkles className="w-10 h-10 text-[#c5a059] animate-spin" />
             <p className="text-xs font-serif uppercase tracking-wider text-[#c5a059] font-bold">
-              Loading Feed...
+              Loading Orthodox Feed...
             </p>
           </div>
         ) : filteredVideos.length === 0 ? (
@@ -585,20 +548,18 @@ export const VideosView: React.FC<VideosViewProps> = ({
             </h3>
             <p className="text-xs text-[#a89379] font-serif max-w-xs">
               {activeTab === 'following'
-                ? 'Follow your favourite priests and creators to see their vertical videos here!'
-                : 'No videos match your active filter.'}
+                ? 'Follow your favourite Orthodox priests and creators to view their vertical videos here!'
+                : 'No videos match your active filter. Try clearing your search query.'}
             </p>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('foryou');
-                setSearchQuery('');
-                setSelectedHashtag(null);
-              }}
-              className="px-4 py-2 rounded-xl bg-[#c5a059] text-[#1c1611] font-serif font-bold text-xs uppercase cursor-pointer shadow-md"
-            >
-              Reset & Explore For You
-            </button>
+            {activeTab === 'following' && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('foryou')}
+                className="px-4 py-2 rounded-xl bg-[#c5a059] text-[#1c1611] font-serif font-bold text-xs uppercase cursor-pointer shadow-md"
+              >
+                Explore For You
+              </button>
+            )}
           </div>
         ) : (
           <div
@@ -637,7 +598,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
         )}
       </div>
 
-      {/* Desktop Quick Next/Previous Controls */}
+      {/* Desktop Quick Next/Previous Floating Buttons */}
       <div className="hidden lg:flex fixed right-8 top-1/2 -translate-y-1/2 flex-col gap-3 z-40">
         <button
           type="button"
@@ -659,7 +620,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
         </button>
       </div>
 
-      {/* Upload Video Modal */}
+      {/* Upload Video Modal Drawer */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-[#1c1611] border-2 border-[#c5a059] rounded-3xl max-w-md w-full p-6 text-[#f5ebd9] shadow-2xl relative space-y-4 animate-fade-in">
@@ -680,6 +641,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
             </div>
 
             <form onSubmit={handleVideoUploadSubmit} className="space-y-4">
+              {/* File Input */}
               <div className="border-2 border-dashed border-[#c5a059]/50 rounded-2xl p-6 text-center hover:border-[#c5a059] transition-colors bg-[#282019]/50">
                 <Upload className="w-10 h-10 text-[#c5a059] mx-auto mb-2" />
                 <p className="text-xs font-serif text-[#f5ebd9] font-bold mb-1">
@@ -701,6 +663,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
                 </label>
               </div>
 
+              {/* Caption Input */}
               <div>
                 <label className="block text-xs font-serif text-[#c5a059] uppercase tracking-wider font-bold mb-1">
                   Description & Hashtags
@@ -714,6 +677,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
                 />
               </div>
 
+              {/* Submit Button */}
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"

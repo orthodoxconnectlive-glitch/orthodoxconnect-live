@@ -121,9 +121,10 @@ function saveDeletedNotifIds(ids: Set<string>): void {
   }
 }
 
-export function getLocalNotifications(): NotificationItem[] {
+export function getLocalNotifications(targetUserIdParam?: string): NotificationItem[] {
   const readIds = getReadNotifIds();
   const deletedIds = getDeletedNotifIds();
+  const effectiveUserId = targetUserIdParam || getCurrentUserId();
 
   try {
     const raw = localStorage.getItem(LOCAL_NOTIFS_STORAGE_KEY);
@@ -131,7 +132,15 @@ export function getLocalNotifications(): NotificationItem[] {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed
-          .filter((item) => !deletedIds.has(item.id) && !item.id.startsWith('notif-welcome-') && !item.id.startsWith('notif-event-'))
+          .filter((item) => {
+            if (deletedIds.has(item.id)) return false;
+            if (item.id.startsWith('notif-welcome-') || item.id.startsWith('notif-event-')) return false;
+            // Strict target recipient check: only show if for 'all' or matches current user
+            if (item.userId && item.userId !== 'all' && effectiveUserId && item.userId !== effectiveUserId) {
+              return false;
+            }
+            return true;
+          })
           .map((item) => ({
             ...item,
             isRead: readIds.has(item.id) ? true : Boolean(item.isRead),

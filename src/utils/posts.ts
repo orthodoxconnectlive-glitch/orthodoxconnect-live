@@ -1,17 +1,82 @@
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+/**
+ * Posts Service for OrthodoxConnect
+ * Backed by Cloudflare Workers API (/api/posts) and Cloudflare D1 SQLite.
+ * Integrates directly with Bunny Stream CDN using video GUIDs.
+ * Zero Supabase dependencies.
+ */
+
 import { Post } from '../types';
 import { addNotification } from './notifications';
 
-// Bunny Stream video links (Library ID: 713265)
-export const BUNNY_STREAM_BASE = `https://${import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net'}`;
+// Bunny Stream CDN configuration
+export const BUNNY_LIBRARY_ID = import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
+export const BUNNY_CDN_HOSTNAME = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
+export const BUNNY_STREAM_BASE = `https://${BUNNY_CDN_HOSTNAME}`;
 export const SEED_VIDEOS: string[] = [];
 
-// Helper to convert Supabase row object to frontend Post model
+const API_BASE_URL = ''; // Relative path against Worker or dev server
+
+/**
+ * Extracts a canonical Bunny Stream video GUID from any string format
+ * (e.g. pure GUID, embed iframe URL, or CDN stream URL).
+ */
+export function extractBunnyVideoGuid(input?: string | null): string | undefined {
+  if (!input || typeof input !== 'string') return undefined;
+  const trimmed = input.trim();
+  if (!trimmed) return undefined;
+
+  const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/;
+  const match = trimmed.match(guidRegex);
+  if (match) {
+    return match[1];
+  }
+
+  // If already an alphanumeric identifier
+  if (/^[0-9a-zA-Z_-]{10,}$/.test(trimmed) && !trimmed.startsWith('http')) {
+    return trimmed;
+  }
+
+  return trimmed;
+}
+
+/**
+ * Helper to convert a Cloudflare D1 database row to the frontend Post model
+ */
 export function mapRowToPost(row: any): Post {
-  const profile = row.profiles || row.profile;
-  const authorName = profile?.full_name || profile?.fullName || row.author_name || row.authorName || 'Orthodox Member';
-  const authorParish = profile?.parish || row.author_parish || row.authorParish || 'Parish Community';
-  const authorAvatar = profile?.avatar_url || profile?.avatarUrl || row.author_avatar || row.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
+  if (!row || typeof row !== 'object') {
+    return {
+      id: 'post-' + Date.now(),
+      text: '',
+      authorName: 'Orthodox Parishioner',
+      authorParish: 'Orthodox Church',
+      authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  const authorName =
+    row.author_name ||
+    row.authorName ||
+    row.profile?.full_name ||
+    row.profiles?.full_name ||
+    'Orthodox Parishioner';
+
+  const authorParish =
+    row.author_parish ||
+    row.authorParish ||
+    row.profile?.parish ||
+    row.profiles?.parish ||
+    'Orthodox Church';
+
+  const authorAvatar =
+    row.author_avatar ||
+    row.authorAvatar ||
+    row.profile?.avatar_url ||
+    row.profiles?.avatar_url ||
+    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+
+  // Bunny Stream video GUID / URL resolution
+  const videoId = row.video_id || row.videoId || row.video || row.video_url || undefined;
 
   return {
     id: String(row.id),
@@ -19,28 +84,28 @@ export function mapRowToPost(row: any): Post {
     authorName,
     authorParish,
     authorAvatar,
-    authorId: row.author_id || row.authorId || profile?.id,
+    authorId: row.author_id || row.authorId || undefined,
     image: row.image_url || row.image || undefined,
-    video: row.video_url || row.video || undefined,
+    video: videoId,
     audio: row.audio_url || row.audio || row.audioUrl || undefined,
     audioUrl: row.audio_url || row.audio || row.audioUrl || undefined,
     broadcastUrl: row.broadcast_url || row.broadcastUrl || undefined,
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
     groupId: row.group_id || row.groupId || undefined,
-    likesCount: row.likes_count ?? row.likesCount ?? 0,
-    commentsCount: row.comments_count ?? row.commentsCount ?? 0,
-    resharesCount: row.reshares_count ?? row.resharesCount ?? 0,
-    isLiked: Boolean(row.is_liked),
-    isReshared: Boolean(row.is_reshared),
-    quotedPost: row.quoted_post ? mapRowToPost(row.quoted_post) : null,
-    reshareKind: row.reshare_kind || undefined,
+    likesCount: typeof row.likes_count === 'number' ? row.likes_count : (typeof row.likesCount === 'number' ? row.likesCount : 0),
+    commentsCount: typeof row.comments_count === 'number' ? row.comments_count : (typeof row.commentsCount === 'number' ? row.commentsCount : 0),
+    resharesCount: typeof row.reshares_count === 'number' ? row.reshares_count : (typeof row.resharesCount === 'number' ? row.resharesCount : 0),
+    isLiked: Boolean(row.is_liked || row.isLiked),
+    isReshared: Boolean(row.is_reshared || row.isReshared),
+    quotedPost: row.quoted_post ? mapRowToPost(row.quoted_post) : (row.quotedPost ? mapRowToPost(row.quotedPost) : null),
+    reshareKind: row.reshare_kind || row.reshareKind || undefined,
   };
 }
 
 const SAVED_COMMENTS_KEY = 'orthodox_local_comments_v3';
 const SAVED_REEL_COMMENTS_KEY = 'orthodox_local_reel_comments_v3';
 const SAVED_LIKES_KEY = 'orthodox_local_likes_v3';
-const SAVED_LOCAL_POSTS_KEY = 'orthodox_local_saved_posts_v3';
+const SAVED_LOCAL_POSTS_KEY = 'orthodox_d1_posts_cache_v1';
 
 export function loadLocalPostCommentsMap(): Record<string, string[]> {
   try {
@@ -78,49 +143,8 @@ export function saveLocalReelCommentsMap(map: Record<string, any[]>) {
   }
 }
 
-// Clean empty default (no fake AI posts)
-export const DEFAULT_COMMUNITY_POSTS: Post[] = [];
-
-// Helper to sanitize post object for strictly serializable plain fields
 export function sanitizePost(post: any): Post {
-  if (!post || typeof post !== 'object') {
-    return {
-      id: 'post-' + Date.now(),
-      text: '',
-      authorName: 'Orthodox Member',
-      authorParish: 'Parish Community',
-      authorAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-      createdAt: new Date().toISOString(),
-    };
-  }
-
-  const cleanString = (val: any) => (typeof val === 'string' ? val : typeof val === 'number' ? String(val) : undefined);
-
-  return {
-    id: cleanString(post.id) || 'post-' + Date.now(),
-    text: typeof post.text === 'string' ? post.text : typeof post.content === 'string' ? post.content : '',
-    authorName: cleanString(post.authorName) || cleanString(post.author_name) || 'Orthodox Member',
-    authorParish: cleanString(post.authorParish) || cleanString(post.author_parish) || 'Parish Community',
-    authorAvatar:
-      cleanString(post.authorAvatar) ||
-      cleanString(post.author_avatar) ||
-      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-    authorId: cleanString(post.authorId) || cleanString(post.author_id),
-    image: cleanString(post.image) || cleanString(post.image_url),
-    video: cleanString(post.video) || cleanString(post.video_url),
-    audio: cleanString(post.audio) || cleanString(post.audioUrl) || cleanString(post.audio_url),
-    audioUrl: cleanString(post.audioUrl) || cleanString(post.audio) || cleanString(post.audio_url),
-    broadcastUrl: cleanString(post.broadcastUrl) || cleanString(post.broadcast_url),
-    createdAt: cleanString(post.createdAt) || cleanString(post.created_at) || new Date().toISOString(),
-    groupId: cleanString(post.groupId) || cleanString(post.group_id),
-    likesCount: typeof post.likesCount === 'number' ? post.likesCount : typeof post.likes_count === 'number' ? post.likes_count : 0,
-    commentsCount: typeof post.commentsCount === 'number' ? post.commentsCount : typeof post.comments_count === 'number' ? post.comments_count : 0,
-    resharesCount: typeof post.resharesCount === 'number' ? post.resharesCount : typeof post.reshares_count === 'number' ? post.reshares_count : 0,
-    isLiked: Boolean(post.isLiked ?? post.is_liked),
-    isReshared: Boolean(post.isReshared ?? post.is_reshared),
-    quotedPost: post.quotedPost && typeof post.quotedPost === 'object' && post.quotedPost !== post ? sanitizePost(post.quotedPost) : null,
-    reshareKind: post.reshareKind === 'quote' || post.reshareKind === 'reshare' ? post.reshareKind : undefined,
-  };
+  return mapRowToPost(post);
 }
 
 export function getLocalSavedPosts(): Post[] {
@@ -129,9 +153,7 @@ export function getLocalSavedPosts(): Post[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed
-          .filter((p) => p && !String(p.id).startsWith('orthodox-post-seed') && !String(p.id).startsWith('orthodox-reel-'))
-          .map(sanitizePost);
+        return parsed.map(mapRowToPost);
       }
     }
   } catch (e: any) {
@@ -144,10 +166,7 @@ export function saveLocalPostToCache(post: Post) {
   try {
     const cleanPost = sanitizePost(post);
     const existing = getLocalSavedPosts();
-    // Filter out duplicates by id or exact match
-    const filtered = existing.filter(
-      (p) => p.id !== cleanPost.id && !(p.text === cleanPost.text && p.createdAt === cleanPost.createdAt)
-    );
+    const filtered = existing.filter((p) => p.id !== cleanPost.id);
     const updated = [cleanPost, ...filtered];
     localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(updated.slice(0, 100)));
   } catch (e: any) {
@@ -173,157 +192,154 @@ export function saveLocalLikesMap(map: Record<string, boolean>) {
   }
 }
 
-// In-memory cache for ultra fast queries and smooth navigation
-let cachedPosts: { data: Post[]; timestamp: number; groupId?: string } | null = null;
-const CACHE_TTL_MS = 12000;
+// In-memory cache for fast navigation transitions
+let cachedPosts: { data: Post[]; timestamp: number; key: string } | null = null;
+const CACHE_TTL_MS = 10000;
 
 export function invalidatePostsCache() {
   cachedPosts = null;
 }
 
+/**
+ * Loads posts from Cloudflare Worker API (GET /api/posts).
+ */
 export async function loadPosts(
   groupId?: string,
   options?: { limit?: number; offset?: number; forceRefresh?: boolean }
 ): Promise<{ posts: Post[]; error: any }> {
-  const localPosts = getLocalSavedPosts().filter((p) => !groupId || p.groupId === groupId);
+  const cacheKey = `posts-${groupId || 'all'}-${options?.offset || 0}-${options?.limit || 30}`;
+  const localFallback = getLocalSavedPosts().filter((p) => !groupId || p.groupId === groupId);
 
-  if (!options?.forceRefresh && cachedPosts && cachedPosts.groupId === groupId && Date.now() - cachedPosts.timestamp < CACHE_TTL_MS) {
+  if (!options?.forceRefresh && cachedPosts && cachedPosts.key === cacheKey && Date.now() - cachedPosts.timestamp < CACHE_TTL_MS) {
     return { posts: cachedPosts.data, error: null };
-  }
-
-  if (!isSupabaseConfigured) {
-    return { posts: localPosts, error: null };
   }
 
   const limit = options?.limit ?? 30;
   const offset = options?.offset ?? 0;
-
-  try {
-    let query = supabase
-      .from('posts')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (groupId) {
-      query = query.eq('group_id', groupId);
-    }
-
-    const timer = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('QUERY_TIMEOUT')), 3500));
-    const { data, error } = await Promise.race([query, timer]).catch(() => ({ data: null, error: null }));
-
-    if (error) {
-      console.warn('[Supabase loadPosts notice]:', error.message || error);
-      return { posts: localPosts, error: null };
-    }
-
-    if (data && Array.isArray(data)) {
-      const dbPosts = data.map(mapRowToPost);
-      // Cache in memory for instant switching
-      cachedPosts = { data: dbPosts, timestamp: Date.now(), groupId };
-      return { posts: dbPosts, error: null };
-    }
-  } catch (err: any) {
-    console.warn('[Supabase loadPosts caught notice]:', err?.message || err);
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  if (groupId) {
+    params.set('group_id', groupId);
   }
 
-  return { posts: localPosts, error: null };
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+
+    const res = await fetch(`${API_BASE_URL}/api/posts?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      throw new Error(`Worker API HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    const rawList = Array.isArray(data) ? data : (data?.posts || []);
+    const mapped = rawList.map(mapRowToPost);
+
+    // Sync to local storage cache
+    if (mapped.length > 0) {
+      mapped.forEach(saveLocalPostToCache);
+    }
+
+    cachedPosts = {
+      data: mapped.length > 0 ? mapped : localFallback,
+      timestamp: Date.now(),
+      key: cacheKey,
+    };
+
+    return { posts: mapped.length > 0 ? mapped : localFallback, error: null };
+  } catch (err: any) {
+    console.warn('[Cloudflare D1 loadPosts notice]:', err?.message || err);
+    return { posts: localFallback, error: err?.message || null };
+  }
 }
 
+/**
+ * Loads posts filtered by author from Cloudflare Worker API.
+ */
 export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
-  const localPosts = getLocalSavedPosts().filter(
+  const localFallback = getLocalSavedPosts().filter(
     (p) => p.authorId === authorId || p.authorName.toLowerCase().includes(authorId.toLowerCase())
   );
-  if (!isSupabaseConfigured) {
-    return localPosts;
-  }
 
   try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authorId);
-    let query = supabase.from('posts').select('*');
+    const params = new URLSearchParams({
+      author_id: authorId,
+      limit: '50',
+    });
 
-    if (isUuid) {
-      query = query.or(`author_id.eq.${authorId},author_name.ilike.%${authorId}%`);
-    } else {
-      query = query.ilike('author_name', `%${authorId}%`);
-    }
+    const res = await fetch(`${API_BASE_URL}/api/posts?${params.toString()}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
 
-    const { data, error } = await query.order('created_at', { ascending: false }).limit(30);
-
-    if (error) {
-      console.warn('Author posts fetch notice:', error.message || error);
-      return localPosts;
-    }
-
-    if (data) {
-      return data.map(mapRowToPost);
+    if (res.ok) {
+      const data = await res.json();
+      const rawList = Array.isArray(data) ? data : (data?.posts || []);
+      const mapped = rawList.map(mapRowToPost);
+      if (mapped.length > 0) return mapped;
     }
   } catch (err) {
-    console.warn('Author posts fetch notice:', err);
+    console.warn('[Cloudflare D1 loadPostsByAuthor notice]:', err);
   }
 
-  return localPosts;
+  return localFallback;
 }
 
-export const DEFAULT_ORTHODOX_VIDEOS: Post[] = [];
-
+/**
+ * Loads videos / reels from Cloudflare Worker API (GET /api/posts?video_only=true).
+ */
 export async function loadVideos(): Promise<Post[]> {
-  const localReels = getLocalSavedPosts().filter((p) => !!p.video);
-  if (!isSupabaseConfigured) {
-    return localReels;
-  }
+  const localVideos = getLocalSavedPosts().filter((p) => Boolean(p.video));
 
   try {
-    const timer = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('VIDEOS_TIMEOUT')), 3000));
-    const reelsPromise = supabase
-      .from('posts_reels')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(30);
+    const res = await fetch(`${API_BASE_URL}/api/posts?video_only=true&limit=50`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
 
-    const { data: reelsData, error: reelsError } = await Promise.race([reelsPromise, timer]).catch(() => ({ data: null, error: null }));
-
-    if (!reelsError && reelsData && reelsData.length > 0) {
-      return reelsData.map(mapRowToPost);
-    }
-
-    const postsPromise = supabase
-      .from('posts')
-      .select('*')
-      .or('video.not.is.null,video_url.not.is.null')
-      .order('created_at', { ascending: false })
-      .limit(30);
-
-    const { data: postsData, error: postsError } = await Promise.race([postsPromise, timer]).catch(() => ({ data: null, error: null }));
-
-    if (!postsError && postsData && postsData.length > 0) {
-      return postsData.map(mapRowToPost);
+    if (res.ok) {
+      const data = await res.json();
+      const rawList = Array.isArray(data) ? data : (data?.posts || []);
+      const mapped = rawList.map(mapRowToPost);
+      if (mapped.length > 0) return mapped;
     }
   } catch (err) {
-    console.warn('Videos fetch notice:', err);
+    console.warn('[Cloudflare D1 loadVideos notice]:', err);
   }
 
-  return localReels;
+  return localVideos;
 }
 
 export const loadReels = loadVideos;
 
+/**
+ * Inserts a new post into Cloudflare D1 via POST /api/posts.
+ * Extracts and persists Bunny Stream video GUID.
+ */
 export async function savePost(postPartial: Partial<Post>): Promise<Post> {
-  const isUuid =
-    postPartial.authorId &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(postPartial.authorId);
+  const videoGuid = extractBunnyVideoGuid(postPartial.video);
 
   const newPost: Post = {
-    id: postPartial.id || 'post-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+    id: postPartial.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `post-${Date.now()}`),
     text: postPartial.text || '',
-    authorName: postPartial.authorName || 'Orthodox Member',
-    authorParish: postPartial.authorParish || 'Parish Community',
+    authorName: postPartial.authorName || 'Orthodox Parishioner',
+    authorParish: postPartial.authorParish || 'Orthodox Church',
     authorAvatar:
       postPartial.authorAvatar ||
-      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
     authorId: postPartial.authorId,
     image: postPartial.image,
-    video: postPartial.video,
+    video: videoGuid,
     audio: postPartial.audio || postPartial.audioUrl,
     audioUrl: postPartial.audioUrl || postPartial.audio,
     broadcastUrl: postPartial.broadcastUrl,
@@ -336,82 +352,56 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     reshareKind: postPartial.reshareKind,
   };
 
-  // Cache locally immediately for optimistic UI & offline resilience
+  // Optimistic local cache update
   saveLocalPostToCache(newPost);
   invalidatePostsCache();
 
-  if (!isSupabaseConfigured) {
-    return newPost;
-  }
-
-  const dbPayload: Record<string, any> = {
+  const d1Payload = {
+    id: newPost.id,
     content: newPost.text,
+    video_id: videoGuid || null,
+    author_id: newPost.authorId || null,
     author_name: newPost.authorName,
     author_parish: newPost.authorParish,
     author_avatar: newPost.authorAvatar,
-    author_id: isUuid ? newPost.authorId : null,
     image_url: newPost.image || null,
-    video: newPost.video || null,
-    video_url: newPost.video || null,
     group_id: newPost.groupId || null,
+    likes_count: newPost.likesCount,
+    comments_count: newPost.commentsCount,
+    reshares_count: newPost.resharesCount,
     created_at: newPost.createdAt,
   };
 
-  if (newPost.video) {
-    try {
-      await supabase.from('posts_reels').insert([{
-        content: newPost.text,
-        author_name: newPost.authorName,
-        author_parish: newPost.authorParish,
-        author_avatar: newPost.authorAvatar,
-        author_id: isUuid ? newPost.authorId : null,
-        video_url: newPost.video,
-        created_at: newPost.createdAt,
-      }]);
-    } catch (reelsErr: any) {
-      console.warn('posts_reels insert notice:', reelsErr?.message || reelsErr);
-    }
-  }
-
   try {
-    const { data, error } = await supabase.from('posts').insert([dbPayload]).select();
+    const res = await fetch(`${API_BASE_URL}/api/posts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(d1Payload),
+    });
 
-    if (error) {
-      console.warn('[Supabase Post Insert Note]:', error.message);
-      // Fallback for strict column schemas
-      if (error.code === '42703' || error.message?.includes('column')) {
-        const fallbackPayload: Record<string, any> = {
-          content: newPost.text,
-          image_url: newPost.image || null,
-          video_url: newPost.video || null,
-          created_at: newPost.createdAt,
-        };
-        if (isUuid) fallbackPayload.author_id = newPost.authorId;
-
-        const { data: fbData } = await supabase.from('posts').insert([fallbackPayload]).select();
-        if (fbData && fbData.length > 0) {
-          const savedFallback = mapRowToPost(fbData[0]);
-          if (!savedFallback.image && newPost.image) savedFallback.image = newPost.image;
-          if (!savedFallback.video && newPost.video) savedFallback.video = newPost.video;
-          saveLocalPostToCache(savedFallback);
-          return savedFallback;
-        }
+    if (res.ok) {
+      const result = await res.json();
+      if (result?.post) {
+        const saved = mapRowToPost(result.post);
+        saveLocalPostToCache(saved);
+        return saved;
       }
-    } else if (data && data.length > 0) {
-      const saved = mapRowToPost(data[0]);
-      if (!saved.image && newPost.image) saved.image = newPost.image;
-      if (!saved.video && newPost.video) saved.video = newPost.video;
-
-      saveLocalPostToCache(saved);
-      return saved;
+    } else {
+      console.warn('[Cloudflare D1 Post Insert HTTP]:', res.status);
     }
   } catch (err: any) {
-    console.warn('[Supabase Post Insert caught note]:', err?.message || err);
+    console.warn('[Cloudflare D1 savePost error, using cached]:', err?.message || err);
   }
 
   return newPost;
 }
 
+/**
+ * Deletes a post from Cloudflare D1 via DELETE /api/posts/:id.
+ */
 export async function deletePost(postId: string): Promise<{ success: boolean; error: any }> {
   try {
     const existing = getLocalSavedPosts();
@@ -419,17 +409,20 @@ export async function deletePost(postId: string): Promise<{ success: boolean; er
     localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(filtered));
     invalidatePostsCache();
 
-    if (isSupabaseConfigured) {
-      await supabase.from('posts_reels').delete().eq('id', postId);
-      await supabase.from('posts').delete().eq('id', postId);
-    }
-    return { success: true, error: null };
+    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}`, {
+      method: 'DELETE',
+    });
+
+    return { success: res.ok, error: res.ok ? null : `HTTP ${res.status}` };
   } catch (err) {
-    console.warn('Post delete notice:', err);
+    console.warn('[Cloudflare D1 deletePost notice]:', err);
     return { success: false, error: err };
   }
 }
 
+/**
+ * Creates a post reshare or quote post.
+ */
 export async function createReshare(
   originalPostId: string,
   kind: 'reshare' | 'quote',
@@ -438,11 +431,14 @@ export async function createReshare(
   const localPosts = getLocalSavedPosts();
   let originalPost = localPosts.find((p) => p.id === originalPostId);
 
-  if (!originalPost && isSupabaseConfigured) {
+  if (!originalPost) {
     try {
-      const { data } = await supabase.from('posts').select('*').eq('id', originalPostId).single();
-      if (data) {
-        originalPost = mapRowToPost(data);
+      const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(originalPostId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.post) {
+          originalPost = mapRowToPost(data.post);
+        }
       }
     } catch (e) {
       // ignore
@@ -457,11 +453,16 @@ export async function createReshare(
 
   const authorName = userProfile?.full_name || 'Parishioner';
   const authorParish = userProfile?.parish || 'Orthodox Church';
-  const authorAvatar = userProfile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
+  const authorAvatar =
+    userProfile?.avatar_url ||
+    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
   const authorId = userProfile?.id;
 
   const resharePayload: Partial<Post> = {
-    text: kind === 'quote' && quoteComment ? quoteComment : `Shared reflection from ${originalPost?.authorName || 'Parishioner'}`,
+    text:
+      kind === 'quote' && quoteComment
+        ? quoteComment
+        : `Shared reflection from ${originalPost?.authorName || 'Parishioner'}`,
     authorName,
     authorParish,
     authorAvatar,
@@ -490,4 +491,3 @@ export async function createReshare(
 
   return newPost;
 }
-

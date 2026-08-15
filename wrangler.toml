@@ -1,4 +1,5 @@
 name = "orthodoxconnect-live"
+main = "src/worker.ts"
 compatibility_date = "2026-08-15"
 
 [assets]

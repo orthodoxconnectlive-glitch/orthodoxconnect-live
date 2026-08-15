@@ -5,17 +5,118 @@ import { defineConfig, UserConfig, Plugin } from 'vite';
 
 function localApiDevPlugin(): Plugin {
   // In-memory store for local Vite dev testing
-  const devPosts: any[] = [];
+  const devPosts: any[] = [
+    {
+      id: 'post-seed-1',
+      content: 'Blessed Feast of the Transfiguration of our Lord and Savior Jesus Christ! "Lord, it is good for us to be here; if You wish, let us make here three tabernacles: one for You, one for Moses, and one for Elijah." (Matthew 17:4)',
+      video_id: null,
+      author_id: 'user-fr-anthony',
+      author_name: 'Fr. Anthony Shenouda',
+      author_parish: 'St. Mark Coptic Orthodox Cathedral',
+      author_avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      image_url: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800',
+      group_id: null,
+      likes_count: 14,
+      comments_count: 3,
+      reshares_count: 5,
+      created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    },
+    {
+      id: 'post-seed-2',
+      content: 'Glory to God! The youth choir has uploaded the live recording of the midnight praises (Tasbeha) from Friday night.',
+      video_id: 'sample-bunny-guid-01',
+      author_id: 'user-deacon-mark',
+      author_name: 'Deacon Mark Mikhail',
+      author_parish: 'St. George Coptic Orthodox Church',
+      author_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+      image_url: null,
+      group_id: null,
+      likes_count: 22,
+      comments_count: 7,
+      reshares_count: 4,
+      created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
+    }
+  ];
 
   return {
     name: 'local-api-dev-middleware',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
+        const url = new URL(req.url || '/', 'http://localhost:3000');
+
+        // Handle Bunny API Proxy in dev
+        if (url.pathname === '/api/bunny/create-video' || url.pathname === '/api/bunny/create-video/') {
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+          if (req.method === 'OPTIONS') {
+            res.statusCode = 204;
+            res.end();
+            return;
+          }
+
+          if (req.method === 'POST') {
+            let body = '';
+            req.on('data', (chunk) => (body += chunk));
+            req.on('end', async () => {
+              try {
+                const parsed = JSON.parse(body || '{}');
+                const videoTitle = parsed.title || `Orthodox_Video_${Date.now()}`;
+                const libraryId = process.env.VITE_BUNNY_LIBRARY_ID || '713265';
+                const apiKey = process.env.VITE_BUNNY_API_KEY || '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
+
+                const bunnyRes = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos`, {
+                  method: 'POST',
+                  headers: {
+                    AccessKey: apiKey,
+                    'Content-Type': 'application/json',
+                    accept: 'application/json',
+                  },
+                  body: JSON.stringify({ title: videoTitle }),
+                });
+
+                if (bunnyRes.ok) {
+                  const data = await bunnyRes.json();
+                  const guid = data.guid;
+                  res.statusCode = 201;
+                  res.end(
+                    JSON.stringify({
+                      success: true,
+                      guid,
+                      libraryId,
+                      embedUrl: `https://iframe.mediadelivery.net/embed/${libraryId}/${guid}?autoplay=false&loop=false&muted=false&preload=true`,
+                      directUploadUrl: `https://video.bunnycdn.com/library/${libraryId}/videos/${guid}`,
+                    })
+                  );
+                } else {
+                  // If external fetch fails, fallback mock guid for local offline dev
+                  const mockGuid = `local-bunny-${Date.now()}`;
+                  res.statusCode = 201;
+                  res.end(
+                    JSON.stringify({
+                      success: true,
+                      guid: mockGuid,
+                      libraryId,
+                      embedUrl: `https://iframe.mediadelivery.net/embed/${libraryId}/${mockGuid}?autoplay=false&loop=false&muted=false&preload=true`,
+                      directUploadUrl: `https://video.bunnycdn.com/library/${libraryId}/videos/${mockGuid}`,
+                    })
+                  );
+                }
+              } catch (err: any) {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ success: false, error: err?.message }));
+              }
+            });
+            return;
+          }
+        }
+
         if (!req.url?.startsWith('/api/posts')) {
           return next();
         }
 
-        const url = new URL(req.url, 'http://localhost:3000');
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');

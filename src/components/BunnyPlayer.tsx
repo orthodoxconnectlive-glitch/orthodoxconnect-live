@@ -166,20 +166,20 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
       isFallbackDummyUrl = true;
     } else if (sanitized.includes('iframe.mediadelivery.net/embed/')) {
       const baseUrl = sanitized.split('?')[0];
-      embedSrc = `${baseUrl}?autoplay=${autoplay}&muted=${isAudioMuted}`;
+      embedSrc = `${baseUrl}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true`;
     } else if (sanitized.includes(bunnyCdnHost) || sanitized.includes('b-cdn.net')) {
       if (/\.(mp4|m3u8|webm|mov)(\?.*)?$/i.test(sanitized)) {
         directSrc = sanitized;
       } else {
         const guidMatch = sanitized.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F-]{10,})/);
         if (guidMatch) {
-          embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${guidMatch[1]}?autoplay=${autoplay}&muted=${isAudioMuted}`;
+          embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${guidMatch[1]}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true`;
         } else {
           embedSrc = sanitized;
         }
       }
     } else if (/^[0-9a-fA-F-]{10,}$/.test(sanitized)) {
-      embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${sanitized}?autoplay=${autoplay}&muted=${isAudioMuted}`;
+      embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${sanitized}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true`;
     } else if (sanitized.startsWith('http://') || sanitized.startsWith('https://') || sanitized.startsWith('blob:') || sanitized.startsWith('data:')) {
       directSrc = sanitized;
     } else {

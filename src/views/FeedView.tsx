@@ -81,7 +81,10 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const [newPostText, setNewPostText] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
+  const [videoFileName, setVideoFileName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatusText, setSubmitStatusText] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoFileInputRef = useRef<HTMLInputElement>(null);
@@ -226,10 +229,12 @@ export const FeedView: React.FC<FeedViewProps> = ({
         triggerToast('Please select a valid video file.');
         return;
       }
-      triggerToast('Uploading video directly to Bunny Stream CDN...');
-      const url = await uploadVideoToBunnyStream(file, newPostText || file.name);
-      setVideoUrl(url);
-      triggerToast('Bunny Stream Video attached!');
+      setSelectedVideoFile(file);
+      setVideoFileName(file.name);
+      // Create instant local preview URL
+      const localPreviewUrl = URL.createObjectURL(file);
+      setVideoUrl(localPreviewUrl);
+      triggerToast('Video attached. Click "Publish Reflection" to upload.');
     }
     e.target.value = '';
   };
@@ -249,33 +254,60 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPostText.trim() && !imageUrl && !videoUrl) return;
+    if (!newPostText.trim() && !imageUrl && !videoUrl && !selectedVideoFile) return;
 
     setIsSubmitting(true);
-    console.log('[FeedView] Initiating post creation and database insert...');
+    setSubmitStatusText('Saving reflection...');
 
     try {
+      let finalVideoId: string | undefined = undefined;
+
+      // 1. If a video file is attached, upload directly to Bunny Stream to get GUID
+      if (selectedVideoFile) {
+        setSubmitStatusText('Uploading video to Bunny Stream...');
+        triggerToast('Uploading video to Bunny Stream CDN...');
+        const uploadedGuid = await uploadVideoToBunnyStream(
+          selectedVideoFile,
+          newPostText || selectedVideoFile.name
+        );
+        finalVideoId = uploadedGuid;
+      } else if (videoUrl && !videoUrl.startsWith('blob:') && !videoUrl.startsWith('data:')) {
+        finalVideoId = videoUrl;
+      }
+
+      // 2. Insert into Cloudflare D1 via POST /api/posts
+      setSubmitStatusText('Publishing to parish feed...');
       const created = await savePost({
         text: newPostText.trim(),
         authorName: profile?.full_name || 'Orthodox Parishioner',
         authorParish: profile?.parish || 'Orthodox Church',
-        authorAvatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        authorAvatar:
+          profile?.avatar_url ||
+          'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
         authorId: profile?.id,
         image: imageUrl || undefined,
-        video: videoUrl || undefined,
+        video: finalVideoId,
       });
 
-      console.log('[FeedView] Post created successfully with ID:', created.id);
-      setPosts((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
+      console.log('[FeedView] Post created in Cloudflare D1 with ID:', created.id);
+
+      // 3. Clear form inputs upon completion
       setNewPostText('');
       setImageUrl('');
       setVideoUrl('');
+      setSelectedVideoFile(null);
+      setVideoFileName('');
+
+      // 4. Immediately re-fetch the post list (GET /api/posts) to sync UI with D1
+      await fetchPosts(true);
+
       triggerToast('Reflection published to parish feed!');
     } catch (err: any) {
       console.error('[FeedView] Post submission error:', err);
       triggerToast('Error submitting post: ' + (err?.message || 'Database error'));
     } finally {
       setIsSubmitting(false);
+      setSubmitStatusText('');
     }
   };
 
@@ -540,7 +572,11 @@ export const FeedView: React.FC<FeedViewProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setVideoUrl('')}
+                    onClick={() => {
+                      setVideoUrl('');
+                      setSelectedVideoFile(null);
+                      setVideoFileName('');
+                    }}
                     className="p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-[#c5a059]/50"
                     title="Remove Video"
                   >
@@ -549,7 +585,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 </div>
                 <div className="absolute bottom-2 left-2 z-10 px-2.5 py-1 rounded-lg bg-[#3d2b18]/80 text-[#c5a059] text-[10px] font-serif font-bold uppercase tracking-wider backdrop-blur-sm border border-[#c5a059]/30 flex items-center gap-1">
                   <Video className="w-3.5 h-3.5 text-[#c5a059]" />
-                  <span>Video Attached</span>
+                  <span>{videoFileName ? `Video: ${videoFileName}` : 'Bunny Stream Video Attached'}</span>
                 </div>
               </div>
             </div>
@@ -577,18 +613,27 @@ export const FeedView: React.FC<FeedViewProps> = ({
               >
                 <Video className="w-4 h-4 text-[#a8833c]" />
                 <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
-                  {videoUrl ? 'Video Attached' : 'Video'}
+                  {videoUrl || selectedVideoFile ? 'Video Attached' : 'Video'}
                 </span>
               </button>
             </div>
 
             <button
               type="submit"
-              disabled={isSubmitting || (!newPostText.trim() && !imageUrl && !videoUrl)}
+              disabled={isSubmitting || (!newPostText.trim() && !imageUrl && !videoUrl && !selectedVideoFile)}
               className="px-5 py-2 rounded-xl bg-[#a8833c] hover:bg-[#8f6e30] text-white font-serif uppercase tracking-wider font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
             >
-              <Send className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? 'Posting...' : t('post')}</span>
+              {isSubmitting ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>{submitStatusText || 'Publishing...'}</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{t('post')}</span>
+                </>
+              )}
             </button>
           </div>
         </form>

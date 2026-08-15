@@ -1,7 +1,7 @@
 /**
  * Cloudflare Worker API for OrthodoxConnect
  * Handles /api/posts endpoints with Cloudflare D1 SQLite database (binding: DB)
- * and Bunny Stream video IDs.
+ * and Bunny Stream video integration.
  */
 
 export interface D1PreparedStatement {
@@ -26,6 +26,7 @@ export interface ExecutionContext {
 export interface Env {
   DB: D1Database;
   BUNNY_LIBRARY_ID?: string;
+  BUNNY_API_KEY?: string;
   BUNNY_CDN_HOST?: string;
 }
 
@@ -45,10 +46,14 @@ export interface D1PostRow {
   created_at: string;
 }
 
+const DEFAULT_BUNNY_LIBRARY_ID = '713265';
+const DEFAULT_BUNNY_API_KEY = '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
+const DEFAULT_BUNNY_CDN_HOST = 'vz-840ad26e-6fe.b-cdn.net';
+
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept',
   'Access-Control-Max-Age': '86400',
   'Content-Type': 'application/json',
 };
@@ -88,7 +93,7 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
-    // 1. Handle CORS Preflight
+    // 1. Handle CORS Preflight for all endpoints
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         status: 204,
@@ -107,11 +112,54 @@ export default {
         });
       }
 
-      // 3. Collection endpoints: /api/posts or /api/posts/
+      // 3. Bunny Stream: Video Creation Initiation Endpoint
+      // POST /api/bunny/create-video - Creates a video record in Bunny Stream
+      if (url.pathname === '/api/bunny/create-video' || url.pathname === '/api/bunny/create-video/') {
+        if (request.method !== 'POST') {
+          return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
+        }
+
+        const body: any = await request.json().catch(() => ({}));
+        const videoTitle = body.title || `Orthodox_Video_${Date.now()}`;
+        const libraryId = env.BUNNY_LIBRARY_ID || DEFAULT_BUNNY_LIBRARY_ID;
+        const apiKey = env.BUNNY_API_KEY || DEFAULT_BUNNY_API_KEY;
+
+        const bunnyRes = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos`, {
+          method: 'POST',
+          headers: {
+            AccessKey: apiKey,
+            'Content-Type': 'application/json',
+            accept: 'application/json',
+          },
+          body: JSON.stringify({ title: videoTitle }),
+        });
+
+        if (!bunnyRes.ok) {
+          const errText = await bunnyRes.text();
+          return jsonResponse(
+            { success: false, error: `Bunny Stream API Error: ${bunnyRes.status} ${errText}` },
+            bunnyRes.status
+          );
+        }
+
+        const data: any = await bunnyRes.json();
+        const guid = data.guid;
+        const embedUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${guid}?autoplay=false&loop=false&muted=false&preload=true`;
+
+        return jsonResponse({
+          success: true,
+          guid,
+          libraryId,
+          embedUrl,
+          directUploadUrl: `https://video.bunnycdn.com/library/${libraryId}/videos/${guid}`,
+        }, 201);
+      }
+
+      // 4. Collection endpoints: /api/posts or /api/posts/
       if (url.pathname === '/api/posts' || url.pathname === '/api/posts/') {
         // GET: Fetch posts ordered by created_at DESC with pagination and filters
         if (request.method === 'GET') {
-          const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '30', 10), 1), 100);
+          const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10), 1), 100);
           const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10), 0);
           const authorId = url.searchParams.get('author_id') || url.searchParams.get('authorId');
           const groupId = url.searchParams.get('group_id') || url.searchParams.get('groupId');
@@ -165,7 +213,11 @@ export default {
         if (request.method === 'POST') {
           const body: any = await request.json();
 
-          const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `post-${Date.now()}`);
+          const id =
+            body.id ||
+            (typeof crypto !== 'undefined' && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `post-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
           const content = body.content ?? body.text ?? '';
           const videoIdRaw = body.video_id ?? body.videoId ?? body.video ?? null;
           const videoId = extractBunnyVideoGuid(videoIdRaw);
@@ -248,7 +300,7 @@ export default {
         return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
       }
 
-      // 4. Single item endpoint: /api/posts/:id
+      // 5. Single item endpoint: /api/posts/:id
       if (url.pathname.startsWith('/api/posts/')) {
         const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').trim());
 
@@ -292,3 +344,4 @@ export default {
     }
   },
 };
+

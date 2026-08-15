@@ -16,7 +16,7 @@ import {
   Compass,
 } from 'lucide-react';
 import { Post } from '../types';
-import { loadVideos, deletePost, savePost } from '../utils/posts';
+import { loadVideos, deletePost, savePost, togglePostLike, addPostComment } from '../utils/posts';
 import { uploadVideoToBunnyStream } from '../utils/storage';
 import { addNotification } from '../utils/notifications';
 import { VideoCard, VideoComment } from '../components/VideoCard';
@@ -328,39 +328,37 @@ export const VideosView: React.FC<VideosViewProps> = ({
     }
   };
 
-  const handleToggleLike = (videoId: string) => {
-    const targetVideo = videos.find((v) => v.id === videoId);
+  const handleToggleLike = async (videoId: string) => {
+    let nextState = false;
     setLikedMap((prev) => {
       const isCurrentlyLiked = !!prev[videoId];
-      const nextState = !isCurrentlyLiked;
+      nextState = !isCurrentlyLiked;
       const updated = { ...prev, [videoId]: nextState };
       try {
         localStorage.setItem('orthodox_videos_liked_map', JSON.stringify(updated));
       } catch (e) {
         console.warn('Videos likes save error:', e);
       }
-      setLikeCounts((cPrev) => ({
-        ...cPrev,
-        [videoId]: (cPrev[videoId] || 0) + (nextState ? 1 : -1),
-      }));
-
-      if (nextState && targetVideo && targetVideo.authorId && profile?.id && targetVideo.authorId !== profile.id) {
-        addNotification(
-          {
-            userId: targetVideo.authorId,
-            type: 'system',
-            title: `Reaction from ${profile?.full_name || 'Parishioner'}`,
-            body: `Liked your video reflection: "${targetVideo.text ? (targetVideo.text.length > 40 ? targetVideo.text.slice(0, 40) + '...' : targetVideo.text) : 'Video'}"`,
-            senderName: profile?.full_name || 'Parishioner',
-            senderAvatar: profile?.avatar_url,
-            link: 'videos',
-          },
-          profile.id
-        );
-      }
-
       return updated;
     });
+
+    setLikeCounts((cPrev) => ({
+      ...cPrev,
+      [videoId]: Math.max(0, (cPrev[videoId] || 0) + (nextState ? 1 : -1)),
+    }));
+
+    // Call Cloudflare D1 endpoint
+    const res = await togglePostLike(videoId, profile);
+    if (res && typeof res.likes_count === 'number') {
+      setLikeCounts((cPrev) => ({
+        ...cPrev,
+        [videoId]: res.likes_count,
+      }));
+      setLikedMap((prev) => ({
+        ...prev,
+        [videoId]: res.liked,
+      }));
+    }
   };
 
   const handleToggleFollow = (authorName: string) => {
@@ -397,14 +395,17 @@ export const VideosView: React.FC<VideosViewProps> = ({
     triggerToast('Video link copied to clipboard!');
   };
 
-  const handleAddComment = (videoId: string, text: string) => {
+  const handleAddComment = async (videoId: string, text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
     const newComment: VideoComment = {
       id: `comment-${Date.now()}`,
       authorName: profile?.full_name || 'Orthodox Parishioner',
       authorAvatar:
         profile?.avatar_url ||
         'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-      text,
+      text: trimmed,
       createdAt: 'Just now',
     };
 
@@ -421,21 +422,8 @@ export const VideosView: React.FC<VideosViewProps> = ({
       return updated;
     });
 
-    const targetVideo = videos.find((v) => v.id === videoId);
-    if (targetVideo && targetVideo.authorId && profile?.id && targetVideo.authorId !== profile.id) {
-      addNotification(
-        {
-          userId: targetVideo.authorId,
-          type: 'mention',
-          title: `New comment on your video from ${profile?.full_name || 'Parishioner'}`,
-          body: text,
-          senderName: profile?.full_name || 'Parishioner',
-          senderAvatar: profile?.avatar_url,
-          link: 'videos',
-        },
-        profile.id
-      );
-    }
+    // Call Cloudflare D1 endpoint
+    await addPostComment(videoId, trimmed, profile);
   };
 
   const handleHashtagClick = (tag: string) => {

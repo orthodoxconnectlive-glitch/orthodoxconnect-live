@@ -20,7 +20,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
   const [prefs, setPrefs] = useState<NotificationPreferences>(loadNotificationPreferences());
 
   const fetchNotifs = async () => {
-    const data = await loadNotifications('all');
+    const data = await loadNotifications();
     setNotifications(data);
   };
 

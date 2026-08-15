@@ -259,11 +259,16 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Bunny Stream Video Embed Player */}
       {cleanVideoId ? (
-        <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-md border border-[#c5a059]/30 mb-3.5">
+        <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-md border border-[#c5a059]/30 mb-3.5 flex items-center justify-center">
+          {/* Ambient blurred backdrop */}
+          <div
+            className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
+            style={{ backgroundImage: `url(https://vz-840ad26e-6fe.b-cdn.net/${cleanVideoId}/thumbnail.jpg)` }}
+          />
           <iframe
-            src={`https://iframe.mediadelivery.net/embed/713265/${cleanVideoId}?autoplay=false&loop=false&muted=false&preload=true`}
+            src={`https://iframe.mediadelivery.net/embed/713265/${cleanVideoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`}
             loading="lazy"
-            className="w-full h-full border-0"
+            className="w-full h-full border-0 relative z-10"
             allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
             allowFullScreen={true}
             title={postContent ? (postContent.slice(0, 40) + '...') : 'Bunny Stream Video'}

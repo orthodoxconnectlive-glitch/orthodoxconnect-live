@@ -126,7 +126,7 @@ export interface EventItem {
 export interface NotificationItem {
   id: string;
   userId: string;
-  type: 'message' | 'mention' | 'group_invite' | 'event_invite' | 'moderation_alert' | 'system';
+  type: 'message' | 'mention' | 'group_invite' | 'event_invite' | 'moderation_alert' | 'system' | 'like' | 'comment';
   title: string;
   body: string;
   link?: string;

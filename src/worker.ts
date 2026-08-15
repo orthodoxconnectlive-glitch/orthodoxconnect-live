@@ -46,6 +46,93 @@ export interface D1PostRow {
   created_at: string;
 }
 
+export interface D1PostLikeRow {
+  post_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface D1PostCommentRow {
+  id: string;
+  post_id: string;
+  user_id: string | null;
+  author_name: string | null;
+  author_avatar: string | null;
+  content: string;
+  created_at: string;
+}
+
+export interface D1NotificationRow {
+  id: string;
+  recipient_id: string | null;
+  actor_id: string | null;
+  actor_name: string | null;
+  actor_avatar: string | null;
+  type: string;
+  title: string | null;
+  body: string | null;
+  post_id: string | null;
+  link: string | null;
+  is_read: number;
+  created_at: string;
+}
+
+let d1TablesInitialized = false;
+async function ensureD1Tables(db?: D1Database) {
+  if (!db || d1TablesInitialized) return;
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS posts (
+        id TEXT PRIMARY KEY,
+        content TEXT NOT NULL DEFAULT '',
+        video_id TEXT,
+        author_id TEXT,
+        author_name TEXT DEFAULT 'Orthodox Parishioner',
+        author_parish TEXT DEFAULT 'Orthodox Church',
+        author_avatar TEXT DEFAULT 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        image_url TEXT,
+        group_id TEXT,
+        likes_count INTEGER DEFAULT 0,
+        comments_count INTEGER DEFAULT 0,
+        reshares_count INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS post_likes (
+        post_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (post_id, user_id)
+      );
+      CREATE TABLE IF NOT EXISTS post_comments (
+        id TEXT PRIMARY KEY,
+        post_id TEXT NOT NULL,
+        user_id TEXT,
+        author_name TEXT DEFAULT 'Orthodox Parishioner',
+        author_avatar TEXT DEFAULT 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY,
+        recipient_id TEXT,
+        actor_id TEXT,
+        actor_name TEXT DEFAULT 'Orthodox Parishioner',
+        actor_avatar TEXT,
+        type TEXT NOT NULL DEFAULT 'system',
+        title TEXT,
+        body TEXT,
+        post_id TEXT,
+        link TEXT,
+        is_read INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+    d1TablesInitialized = true;
+  } catch (e) {
+    // Non-fatal if tables already exist
+  }
+}
+
 const DEFAULT_BUNNY_LIBRARY_ID = '713265';
 const DEFAULT_BUNNY_API_KEY = '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
 const DEFAULT_BUNNY_CDN_HOST = 'vz-840ad26e-6fe.b-cdn.net';
@@ -329,7 +416,207 @@ export default {
         return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
       }
 
-      // 5. Single post endpoints: /api/posts/:id
+      // 5. Post likes endpoint: POST /api/posts/:id/like
+      const likeMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/like\/?$/);
+      if (likeMatch) {
+        if (request.method !== 'POST') {
+          return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
+        }
+        const postId = decodeURIComponent(likeMatch[1]);
+        const body: any = await request.json().catch(() => ({}));
+        const auth = getAuthIdentity(request);
+
+        const userId =
+          body.user_id ||
+          body.userId ||
+          auth.id ||
+          (auth.email ? auth.email : 'anon-user');
+        const actorName =
+          body.user_name ||
+          body.userName ||
+          body.author_name ||
+          body.authorName ||
+          (auth.email ? auth.email.split('@')[0] : 'Orthodox Parishioner');
+        const actorAvatar =
+          body.user_avatar ||
+          body.userAvatar ||
+          body.author_avatar ||
+          body.authorAvatar ||
+          'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+
+        let liked = false;
+        let likesCount = 0;
+
+        if (env.DB) {
+          await ensureD1Tables(env.DB);
+          const existing = await env.DB.prepare('SELECT * FROM post_likes WHERE post_id = ? AND user_id = ?')
+            .bind(postId, userId)
+            .first();
+
+          const post = await env.DB.prepare('SELECT * FROM posts WHERE id = ?')
+            .bind(postId)
+            .first<D1PostRow>();
+
+          if (existing) {
+            // Unlike
+            await env.DB.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?')
+              .bind(postId, userId)
+              .run();
+            await env.DB.prepare('UPDATE posts SET likes_count = MAX(0, likes_count - 1) WHERE id = ?')
+              .bind(postId)
+              .run();
+            liked = false;
+          } else {
+            // Like
+            await env.DB.prepare('INSERT INTO post_likes (post_id, user_id, created_at) VALUES (?, ?, ?)')
+              .bind(postId, userId, new Date().toISOString())
+              .run();
+            await env.DB.prepare('UPDATE posts SET likes_count = likes_count + 1 WHERE id = ?')
+              .bind(postId)
+              .run();
+            liked = true;
+
+            // If liking, insert a row into notifications (type: 'like') for the post author if not liking own post
+            if (post && post.author_id && post.author_id !== userId) {
+              const notifId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `notif-like-${Date.now()}`;
+              const postSnippet = post.content ? (post.content.length > 50 ? post.content.slice(0, 50) + '...' : post.content) : 'Post';
+              const notifTitle = `${actorName} liked your reflection`;
+              const notifBody = `Liked: "${postSnippet}"`;
+              const createdAt = new Date().toISOString();
+
+              try {
+                await env.DB.prepare(
+                  'INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                )
+                  .bind(
+                    notifId,
+                    post.author_id,
+                    userId,
+                    actorName,
+                    actorAvatar,
+                    'like',
+                    notifTitle,
+                    notifBody,
+                    postId,
+                    'feed',
+                    0,
+                    createdAt
+                  )
+                  .run();
+              } catch (notifErr) {
+                console.warn('[D1 Notification Insert Error]:', notifErr);
+              }
+            }
+          }
+
+          const updated = await env.DB.prepare('SELECT likes_count FROM posts WHERE id = ?')
+            .bind(postId)
+            .first<{ likes_count: number }>();
+          likesCount = updated?.likes_count ?? (liked ? 1 : 0);
+        }
+
+        return jsonResponse({
+          success: true,
+          liked,
+          likes_count: likesCount,
+        });
+      }
+
+      // 6. Post comments endpoint: /api/posts/:id/comments (GET & POST)
+      const commentsMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/comments\/?$/);
+      if (commentsMatch) {
+        const postId = decodeURIComponent(commentsMatch[1]);
+
+        if (request.method === 'GET') {
+          let comments: D1PostCommentRow[] = [];
+          if (env.DB) {
+            await ensureD1Tables(env.DB);
+            const stmt = env.DB.prepare('SELECT * FROM post_comments WHERE post_id = ? ORDER BY created_at ASC').bind(postId);
+            const { results } = await stmt.all<D1PostCommentRow>();
+            comments = results || [];
+          }
+          return jsonResponse({ success: true, comments });
+        }
+
+        if (request.method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const auth = getAuthIdentity(request);
+
+          const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `comm-${Date.now()}`);
+          const content = (body.content || body.text || '').trim();
+          if (!content) {
+            return jsonResponse({ success: false, error: 'Comment content cannot be empty' }, 400);
+          }
+
+          const userId = body.user_id || body.userId || auth.id || null;
+          const authorName = body.author_name || body.authorName || (auth.email ? auth.email.split('@')[0] : 'Orthodox Parishioner');
+          const authorAvatar = body.author_avatar || body.authorAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+          const createdAt = body.created_at || new Date().toISOString();
+
+          const newCommentRow: D1PostCommentRow = {
+            id,
+            post_id: postId,
+            user_id: userId,
+            author_name: authorName,
+            author_avatar: authorAvatar,
+            content,
+            created_at: createdAt,
+          };
+
+          if (env.DB) {
+            await ensureD1Tables(env.DB);
+            await env.DB.prepare(
+              'INSERT INTO post_comments (id, post_id, user_id, author_name, author_avatar, content, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+            )
+              .bind(id, postId, userId, authorName, authorAvatar, content, createdAt)
+              .run();
+
+            await env.DB.prepare('UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?')
+              .bind(postId)
+              .run();
+
+            // Check author of the post to send notification
+            const post = await env.DB.prepare('SELECT * FROM posts WHERE id = ?')
+              .bind(postId)
+              .first<D1PostRow>();
+
+            if (post && post.author_id && post.author_id !== userId) {
+              const notifId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `notif-comm-${Date.now()}`;
+              const notifTitle = `New comment from ${authorName}`;
+              const notifBody = content.length > 80 ? content.slice(0, 80) + '...' : content;
+
+              try {
+                await env.DB.prepare(
+                  'INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                )
+                  .bind(
+                    notifId,
+                    post.author_id,
+                    userId,
+                    authorName,
+                    authorAvatar,
+                    'comment',
+                    notifTitle,
+                    notifBody,
+                    postId,
+                    'feed',
+                    0,
+                    createdAt
+                  )
+                  .run();
+              } catch (notifErr) {
+                console.warn('[D1 Comment Notification Error]:', notifErr);
+              }
+            }
+          }
+
+          return jsonResponse({ success: true, comment: newCommentRow }, 201);
+        }
+
+        return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
+      }
+
+      // 7. Single post endpoints: /api/posts/:id
       if (url.pathname.startsWith('/api/posts/')) {
         const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').trim());
 
@@ -383,6 +670,141 @@ export default {
         }
 
         return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
+      }
+
+      // 8. Notifications mark-read endpoint: POST /api/notifications/mark-read
+      if (url.pathname === '/api/notifications/mark-read' || url.pathname === '/api/notifications/mark-read/') {
+        if (request.method !== 'POST') {
+          return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
+        }
+
+        const body: any = await request.json().catch(() => ({}));
+        const id = body.id;
+        const ids: string[] = Array.isArray(body.ids) ? body.ids : [];
+        const recipientId = body.recipient_id || body.user_id || body.userId;
+        const markAll = Boolean(body.all);
+
+        if (env.DB) {
+          await ensureD1Tables(env.DB);
+          if (id) {
+            await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE id = ?').bind(id).run();
+          } else if (ids.length > 0) {
+            for (const singleId of ids) {
+              await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE id = ?').bind(singleId).run();
+            }
+          } else if (markAll || recipientId) {
+            if (recipientId) {
+              await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE recipient_id = ? OR recipient_id = 'all' OR recipient_id IS NULL")
+                .bind(recipientId)
+                .run();
+            } else {
+              await env.DB.prepare('UPDATE notifications SET is_read = 1').run();
+            }
+          }
+        }
+
+        return jsonResponse({ success: true, message: 'Notifications marked as read' });
+      }
+
+      // 9. Notifications collection endpoints: /api/notifications (GET, POST)
+      if (url.pathname === '/api/notifications' || url.pathname === '/api/notifications/') {
+        if (request.method === 'GET') {
+          const auth = getAuthIdentity(request);
+          const recipientId = url.searchParams.get('recipient_id') || url.searchParams.get('user_id') || auth.id;
+          const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20', 10), 1), 100);
+
+          let notifications: D1NotificationRow[] = [];
+
+          if (env.DB) {
+            await ensureD1Tables(env.DB);
+            if (recipientId) {
+              const stmt = env.DB.prepare(
+                "SELECT * FROM notifications WHERE recipient_id = ? OR recipient_id = 'all' OR recipient_id IS NULL ORDER BY created_at DESC LIMIT ?"
+              ).bind(recipientId, limit);
+              const { results } = await stmt.all<D1NotificationRow>();
+              notifications = results || [];
+            } else {
+              const stmt = env.DB.prepare(
+                'SELECT * FROM notifications ORDER BY created_at DESC LIMIT ?'
+              ).bind(limit);
+              const { results } = await stmt.all<D1NotificationRow>();
+              notifications = results || [];
+            }
+          }
+
+          return jsonResponse({ success: true, notifications, count: notifications.length });
+        }
+
+        if (request.method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const auth = getAuthIdentity(request);
+
+          const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `notif-${Date.now()}`);
+          const recipientId = body.recipient_id ?? body.userId ?? body.user_id ?? null;
+          const actorId = body.actor_id ?? body.actorId ?? auth.id ?? null;
+          const actorName = body.actor_name ?? body.actorName ?? body.senderName ?? 'Orthodox Parishioner';
+          const actorAvatar = body.actor_avatar ?? body.actorAvatar ?? body.senderAvatar ?? null;
+          const type = body.type || 'system';
+          const title = body.title || 'Parish Notification';
+          const notifBody = body.body || body.message || '';
+          const postId = body.post_id || body.postId || null;
+          const link = body.link || (postId ? 'feed' : null);
+          const isRead = body.is_read || body.read ? 1 : 0;
+          const createdAt = body.created_at || new Date().toISOString();
+
+          const newNotifRow: D1NotificationRow = {
+            id,
+            recipient_id: recipientId,
+            actor_id: actorId,
+            actor_name: actorName,
+            actor_avatar: actorAvatar,
+            type,
+            title,
+            body: notifBody,
+            post_id: postId,
+            link,
+            is_read: isRead,
+            created_at: createdAt,
+          };
+
+          if (env.DB) {
+            await ensureD1Tables(env.DB);
+            await env.DB.prepare(
+              'INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            )
+              .bind(
+                id,
+                recipientId,
+                actorId,
+                actorName,
+                actorAvatar,
+                type,
+                title,
+                notifBody,
+                postId,
+                link,
+                isRead,
+                createdAt
+              )
+              .run();
+          }
+
+          return jsonResponse({ success: true, notification: newNotifRow }, 201);
+        }
+
+        return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
+      }
+
+      // 10. Single notification endpoint: DELETE /api/notifications/:id
+      if (url.pathname.startsWith('/api/notifications/')) {
+        const notifId = decodeURIComponent(url.pathname.replace('/api/notifications/', '').trim());
+        if (request.method === 'DELETE') {
+          if (env.DB) {
+            await ensureD1Tables(env.DB);
+            await env.DB.prepare('DELETE FROM notifications WHERE id = ?').bind(notifId).run();
+          }
+          return jsonResponse({ success: true, id: notifId, message: 'Notification deleted' });
+        }
       }
 
       // 6. User management endpoints: /api/users/:id

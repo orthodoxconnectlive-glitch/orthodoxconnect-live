@@ -443,6 +443,150 @@ export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
 }
 
 /**
+ * Toggles like on a post in Cloudflare D1 / Worker backend with optimistic updates.
+ */
+export async function togglePostLike(
+  postId: string,
+  userProfile?: any
+): Promise<{ success: boolean; liked: boolean; likes_count: number }> {
+  let profile = userProfile;
+  if (!profile) {
+    try {
+      const raw = localStorage.getItem('orthodox_user_profile');
+      if (raw) profile = JSON.parse(raw);
+    } catch (e) {}
+  }
+
+  const userId = profile?.id || '';
+  const authorName = profile?.full_name || 'Orthodox Parishioner';
+  const authorAvatar = profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+
+  // Local optimistic map update
+  const likesMap = loadLocalLikesMap();
+  const nextLiked = !likesMap[postId];
+  likesMap[postId] = nextLiked;
+  saveLocalLikesMap(likesMap);
+
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(profile),
+    };
+    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/like`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        user_id: userId,
+        user_name: authorName,
+        user_avatar: authorAvatar,
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        success: true,
+        liked: Boolean(data.liked),
+        likes_count: typeof data.likes_count === 'number' ? data.likes_count : (nextLiked ? 1 : 0),
+      };
+    }
+  } catch (err) {
+    console.warn('[Cloudflare D1 togglePostLike notice]:', err);
+  }
+
+  return { success: true, liked: nextLiked, likes_count: nextLiked ? 1 : 0 };
+}
+
+/**
+ * Fetches comments for a specific post from Cloudflare D1.
+ */
+export async function fetchPostComments(postId: string): Promise<any[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/comments`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.comments && Array.isArray(data.comments)) {
+        return data.comments;
+      }
+    }
+  } catch (err) {
+    console.warn('[Cloudflare D1 fetchPostComments notice]:', err);
+  }
+
+  // Fallback to local map comments
+  const localMap = loadLocalPostCommentsMap();
+  const strings = localMap[postId] || [];
+  return strings.map((text, idx) => ({
+    id: `local-comm-${idx}`,
+    post_id: postId,
+    content: text,
+    author_name: 'Orthodox Parishioner',
+    author_avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+    created_at: new Date().toISOString(),
+  }));
+}
+
+/**
+ * Adds a comment to a post in Cloudflare D1.
+ */
+export async function addPostComment(
+  postId: string,
+  content: string,
+  userProfile?: any
+): Promise<{ success: boolean; comment?: any; error?: any }> {
+  const text = content.trim();
+  if (!text) return { success: false, error: 'Empty comment' };
+
+  let profile = userProfile;
+  if (!profile) {
+    try {
+      const raw = localStorage.getItem('orthodox_user_profile');
+      if (raw) profile = JSON.parse(raw);
+    } catch (e) {}
+  }
+
+  const userId = profile?.id || null;
+  const authorName = profile?.full_name || 'Orthodox Parishioner';
+  const authorAvatar = profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+
+  // Save to local cache map too
+  const localMap = loadLocalPostCommentsMap();
+  localMap[postId] = [...(localMap[postId] || []), text];
+  saveLocalPostCommentsMap(localMap);
+
+  const newComment = {
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `comm-${Date.now()}`,
+    post_id: postId,
+    user_id: userId,
+    author_name: authorName,
+    author_avatar: authorAvatar,
+    content: text,
+    created_at: new Date().toISOString(),
+  };
+
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(profile),
+    };
+    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/comments`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(newComment),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return { success: true, comment: data?.comment || newComment };
+    }
+  } catch (err: any) {
+    console.warn('[Cloudflare D1 addPostComment notice]:', err);
+  }
+
+  return { success: true, comment: newComment };
+}
+
+/**
  * Deletes a post from Cloudflare D1 via DELETE /api/posts/:id with user identity headers.
  */
 export async function deletePost(postId: string, userProfile?: any): Promise<{ success: boolean; error: any }> {

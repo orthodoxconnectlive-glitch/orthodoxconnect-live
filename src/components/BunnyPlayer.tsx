@@ -166,20 +166,20 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
       isFallbackDummyUrl = true;
     } else if (sanitized.includes('iframe.mediadelivery.net/embed/')) {
       const baseUrl = sanitized.split('?')[0];
-      embedSrc = `${baseUrl}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true`;
+      embedSrc = `${baseUrl}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true&responsive=true`;
     } else if (sanitized.includes(bunnyCdnHost) || sanitized.includes('b-cdn.net')) {
       if (/\.(mp4|m3u8|webm|mov)(\?.*)?$/i.test(sanitized)) {
         directSrc = sanitized;
       } else {
         const guidMatch = sanitized.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F-]{10,})/);
         if (guidMatch) {
-          embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${guidMatch[1]}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true`;
+          embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${guidMatch[1]}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true&responsive=true`;
         } else {
           embedSrc = sanitized;
         }
       }
     } else if (/^[0-9a-fA-F-]{10,}$/.test(sanitized)) {
-      embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${sanitized}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true`;
+      embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${sanitized}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true&responsive=true`;
     } else if (sanitized.startsWith('http://') || sanitized.startsWith('https://') || sanitized.startsWith('blob:') || sanitized.startsWith('data:')) {
       directSrc = sanitized;
     } else {
@@ -267,11 +267,16 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
         </div>
       ) : embedSrc ? (
         /* Render Bunny Stream Embed iframe (canonical iframe.mediadelivery.net endpoint) */
-        <div className="relative w-full aspect-video bg-black">
+        <div className="relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center">
+          {/* Ambient blurred backdrop */}
+          <div
+            className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
+            style={{ backgroundImage: `url(${posterUrl || DEFAULT_POSTER})` }}
+          />
           <iframe
             src={embedSrc}
             loading="lazy"
-            className="w-full h-full border-0"
+            className="w-full h-full border-0 relative z-10"
             allow="accelerometer; gyroscope; encrypted-media; picture-in-picture;"
             allowFullScreen
             title={title || 'Bunny Stream Live Video'}

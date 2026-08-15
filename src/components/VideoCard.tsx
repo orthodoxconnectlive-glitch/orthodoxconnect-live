@@ -270,12 +270,26 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       onClick={handleScreenClick}
       className="w-full h-full relative overflow-hidden bg-black select-none flex items-center justify-center snap-start snap-always"
     >
+      {/* Fallback Ambient Background: Blurred backdrop preventing harsh black letterboxing */}
+      <div
+        className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
+        style={{
+          backgroundImage: `url(${
+            cleanVideoId
+              ? `https://vz-840ad26e-6fe.b-cdn.net/${cleanVideoId}/thumbnail.jpg`
+              : postImage || DEFAULT_POSTER
+          })`,
+        }}
+      />
+
       {/* 1. Main 9:16 Video Player Surface: Render Bunny Stream embed iframe for active reel */}
-      <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
+      <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl">
         {cleanVideoId ? (
           isPlaying ? (
             <iframe
-              src={`https://iframe.mediadelivery.net/embed/713265/${cleanVideoId}?autoplay=true&loop=true&muted=${isGlobalMuted ? 'true' : 'false'}&preload=true`}
+              src={`https://iframe.mediadelivery.net/embed/713265/${cleanVideoId}?autoplay=true&loop=true&muted=${
+                isGlobalMuted ? 'true' : 'false'
+              }&preload=true&responsive=true`}
               loading="eager"
               className="w-full h-full border-0 absolute inset-0 object-cover pointer-events-auto"
               allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
@@ -285,9 +299,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           ) : (
             <div className="relative w-full h-full">
               <img
-                src={postImage || DEFAULT_POSTER}
+                src={
+                  cleanVideoId
+                    ? `https://vz-840ad26e-6fe.b-cdn.net/${cleanVideoId}/thumbnail.jpg`
+                    : postImage || DEFAULT_POSTER
+                }
                 alt="Reel content"
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  if (postImage) (e.currentTarget as HTMLImageElement).src = postImage;
+                }}
               />
               <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
                 <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-sm border-2 border-[#c5a059] flex items-center justify-center text-[#c5a059] shadow-2xl">
@@ -310,7 +331,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none z-10" />
 
       {/* 2. Top Right Player Controls (Sound / Mute & Fullscreen) */}
-      <div className="absolute top-14 sm:top-16 right-3 sm:right-4 z-20 flex items-center gap-2 pointer-events-auto no-screen-tap">
+      <div className="absolute top-14 sm:top-16 right-3 sm:right-4 z-30 flex items-center gap-2 pointer-events-auto no-screen-tap">
         <button
           type="button"
           onClick={handleToggleMute}
@@ -370,8 +391,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
       ))}
 
-      {/* 5. Right-Side Action Bar: z-20 relative pointer-events-auto */}
-      <div className="absolute right-2.5 sm:right-4 bottom-16 z-20 flex flex-col items-center gap-4.5 pointer-events-auto">
+      {/* 5. Right-Side Action Bar: z-30 pointer-events-auto */}
+      <div className="absolute right-2.5 sm:right-4 bottom-16 z-30 flex flex-col items-center gap-4.5 pointer-events-auto">
         {/* Author Avatar with Red (+) Follow Button */}
         <div className="relative flex flex-col items-center mb-1">
           <div
@@ -512,7 +533,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       </div>
 
       {/* 6. Bottom Overlay: Creator info, caption with clickable hashtags, and audio track bar */}
-      <div className="absolute bottom-3 left-3 right-16 sm:right-20 z-20 flex flex-col gap-2 text-left pointer-events-auto">
+      <div className="absolute bottom-3 left-3 right-16 sm:right-20 z-30 flex flex-col gap-2 text-left pointer-events-auto">
         {/* Creator Username & Verified Badge */}
         <div className="flex items-center gap-2 flex-wrap">
           <button

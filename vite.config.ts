@@ -38,6 +38,56 @@ function localApiDevPlugin(): Plugin {
     }
   ];
 
+  const devPostLikes: Array<{ post_id: string; user_id: string; created_at: string }> = [];
+  const devPostComments: Array<{
+    id: string;
+    post_id: string;
+    user_id: string | null;
+    author_name: string;
+    author_avatar: string;
+    content: string;
+    created_at: string;
+  }> = [
+    {
+      id: 'comm-seed-1',
+      post_id: 'post-seed-1',
+      user_id: 'user-deacon-mark',
+      author_name: 'Deacon Mark Mikhail',
+      author_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+      content: 'Axios! Blessed feast to all the congregation.',
+      created_at: new Date(Date.now() - 3600000).toISOString(),
+    },
+  ];
+  let devNotifications: Array<{
+    id: string;
+    recipient_id: string | null;
+    actor_id: string | null;
+    actor_name: string;
+    actor_avatar: string | null;
+    type: string;
+    title: string;
+    body: string;
+    post_id: string | null;
+    link: string | null;
+    is_read: number;
+    created_at: string;
+  }> = [
+    {
+      id: 'notif-seed-1',
+      recipient_id: 'all',
+      actor_id: 'user-admin',
+      actor_name: 'Fr. Athanasius',
+      actor_avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      type: 'system',
+      title: 'Welcome to OrthodoxConnect',
+      body: 'Connect with your parish, watch spiritual reflections, and join the community.',
+      post_id: null,
+      link: 'feed',
+      is_read: 0,
+      created_at: new Date().toISOString(),
+    },
+  ];
+
   return {
     name: 'local-api-dev-middleware',
     configureServer(server) {
@@ -113,7 +163,7 @@ function localApiDevPlugin(): Plugin {
           }
         }
 
-        if (!req.url?.startsWith('/api/posts')) {
+        if (!req.url?.startsWith('/api/')) {
           return next();
         }
 
@@ -134,6 +184,136 @@ function localApiDevPlugin(): Plugin {
         const isSuperAdmin = userEmail === 'orthodoxconnect.live@gmail.com' || userRole === 'super_admin';
         const isAdmin = isSuperAdmin || userRole === 'admin' || userRole === 'owner';
 
+        // 1. Likes endpoint: POST /api/posts/:id/like
+        const likeMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/like\/?$/);
+        if (likeMatch && req.method === 'POST') {
+          const postId = decodeURIComponent(likeMatch[1]);
+          let body = '';
+          req.on('data', (chunk) => (body += chunk));
+          req.on('end', () => {
+            try {
+              const parsed = JSON.parse(body || '{}');
+              const effectiveUserId = parsed.user_id || parsed.userId || userId || 'anon-user';
+              const actorName = parsed.user_name || parsed.userName || parsed.author_name || (userEmail ? userEmail.split('@')[0] : 'Orthodox Parishioner');
+              const actorAvatar = parsed.user_avatar || parsed.userAvatar || parsed.author_avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+
+              const existingIndex = devPostLikes.findIndex((l) => l.post_id === postId && l.user_id === effectiveUserId);
+              const post = devPosts.find((p) => p.id === postId);
+
+              let liked = false;
+              if (existingIndex >= 0) {
+                devPostLikes.splice(existingIndex, 1);
+                if (post) {
+                  post.likes_count = Math.max(0, (post.likes_count || 1) - 1);
+                }
+                liked = false;
+              } else {
+                devPostLikes.push({ post_id: postId, user_id: effectiveUserId, created_at: new Date().toISOString() });
+                if (post) {
+                  post.likes_count = (post.likes_count || 0) + 1;
+                }
+                liked = true;
+
+                if (post && post.author_id && post.author_id !== effectiveUserId) {
+                  devNotifications.unshift({
+                    id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    recipient_id: post.author_id,
+                    actor_id: effectiveUserId,
+                    actor_name: actorName,
+                    actor_avatar: actorAvatar,
+                    type: 'like',
+                    title: `${actorName} liked your reflection`,
+                    body: `Liked: "${post.content ? (post.content.length > 50 ? post.content.slice(0, 50) + '...' : post.content) : 'Post'}"`,
+                    post_id: postId,
+                    link: 'feed',
+                    is_read: 0,
+                    created_at: new Date().toISOString(),
+                  });
+                }
+              }
+
+              res.statusCode = 200;
+              res.end(JSON.stringify({ success: true, liked, likes_count: post?.likes_count ?? (liked ? 1 : 0) }));
+            } catch (e: any) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, error: e?.message }));
+            }
+          });
+          return;
+        }
+
+        // 2. Comments endpoint: GET/POST /api/posts/:id/comments
+        const commentsMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/comments\/?$/);
+        if (commentsMatch) {
+          const postId = decodeURIComponent(commentsMatch[1]);
+          if (req.method === 'GET') {
+            const comments = devPostComments.filter((c) => c.post_id === postId);
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, comments }));
+            return;
+          }
+
+          if (req.method === 'POST') {
+            let body = '';
+            req.on('data', (chunk) => (body += chunk));
+            req.on('end', () => {
+              try {
+                const parsed = JSON.parse(body || '{}');
+                const content = (parsed.content || parsed.text || '').trim();
+                if (!content) {
+                  res.statusCode = 400;
+                  res.end(JSON.stringify({ success: false, error: 'Comment content cannot be empty' }));
+                  return;
+                }
+
+                const effectiveUserId = parsed.user_id || parsed.userId || userId || null;
+                const authorName = parsed.author_name || parsed.authorName || (userEmail ? userEmail.split('@')[0] : 'Orthodox Parishioner');
+                const authorAvatar = parsed.author_avatar || parsed.authorAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+                const newComment = {
+                  id: parsed.id || `comm-${Date.now()}`,
+                  post_id: postId,
+                  user_id: effectiveUserId,
+                  author_name: authorName,
+                  author_avatar: authorAvatar,
+                  content,
+                  created_at: parsed.created_at || new Date().toISOString(),
+                };
+
+                devPostComments.push(newComment);
+                const post = devPosts.find((p) => p.id === postId);
+                if (post) {
+                  post.comments_count = (post.comments_count || 0) + 1;
+                }
+
+                if (post && post.author_id && post.author_id !== effectiveUserId) {
+                  devNotifications.unshift({
+                    id: `notif-comm-${Date.now()}`,
+                    recipient_id: post.author_id,
+                    actor_id: effectiveUserId,
+                    actor_name: authorName,
+                    actor_avatar: authorAvatar,
+                    type: 'comment',
+                    title: `New comment from ${authorName}`,
+                    body: content.length > 80 ? content.slice(0, 80) + '...' : content,
+                    post_id: postId,
+                    link: 'feed',
+                    is_read: 0,
+                    created_at: new Date().toISOString(),
+                  });
+                }
+
+                res.statusCode = 201;
+                res.end(JSON.stringify({ success: true, comment: newComment }));
+              } catch (e: any) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, error: e?.message }));
+              }
+            });
+            return;
+          }
+        }
+
+        // 3. Posts collection: GET/POST /api/posts
         if (url.pathname === '/api/posts' || url.pathname === '/api/posts/') {
           if (req.method === 'GET') {
             const authorId = url.searchParams.get('author_id') || url.searchParams.get('authorId');
@@ -194,6 +374,100 @@ function localApiDevPlugin(): Plugin {
                 res.end(JSON.stringify({ success: false, error: e?.message }));
               }
             });
+            return;
+          }
+        }
+
+        // 4. Notifications mark-read: POST /api/notifications/mark-read
+        if (url.pathname === '/api/notifications/mark-read' || url.pathname === '/api/notifications/mark-read/') {
+          if (req.method === 'POST') {
+            let body = '';
+            req.on('data', (chunk) => (body += chunk));
+            req.on('end', () => {
+              try {
+                const parsed = JSON.parse(body || '{}');
+                const targetId = parsed.id;
+                const targetIds: string[] = Array.isArray(parsed.ids) ? parsed.ids : [];
+                const recipientId = parsed.recipient_id || parsed.user_id || parsed.userId;
+                const markAll = Boolean(parsed.all);
+
+                devNotifications = devNotifications.map((n) => {
+                  if (targetId && n.id === targetId) return { ...n, is_read: 1 };
+                  if (targetIds.includes(n.id)) return { ...n, is_read: 1 };
+                  if (markAll || (recipientId && (n.recipient_id === recipientId || n.recipient_id === 'all' || !n.recipient_id))) {
+                    return { ...n, is_read: 1 };
+                  }
+                  return n;
+                });
+
+                res.statusCode = 200;
+                res.end(JSON.stringify({ success: true, message: 'Notifications marked as read' }));
+              } catch (e: any) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, error: e?.message }));
+              }
+            });
+            return;
+          }
+        }
+
+        // 5. Notifications collection: GET/POST /api/notifications
+        if (url.pathname === '/api/notifications' || url.pathname === '/api/notifications/') {
+          if (req.method === 'GET') {
+            const recipientId = url.searchParams.get('recipient_id') || url.searchParams.get('user_id') || userId;
+            const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '20', 10), 1), 100);
+
+            let filtered = [...devNotifications];
+            if (recipientId) {
+              filtered = filtered.filter((n) => !n.recipient_id || n.recipient_id === 'all' || n.recipient_id === recipientId);
+            }
+            filtered = filtered.slice(0, limit);
+
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, notifications: filtered, count: filtered.length }));
+            return;
+          }
+
+          if (req.method === 'POST') {
+            let body = '';
+            req.on('data', (chunk) => (body += chunk));
+            req.on('end', () => {
+              try {
+                const parsed = JSON.parse(body || '{}');
+                const newNotif = {
+                  id: parsed.id || `notif-${Date.now()}`,
+                  recipient_id: parsed.recipient_id ?? parsed.userId ?? parsed.user_id ?? null,
+                  actor_id: parsed.actor_id ?? parsed.actorId ?? userId ?? null,
+                  actor_name: parsed.actor_name ?? parsed.actorName ?? parsed.senderName ?? 'Orthodox Parishioner',
+                  actor_avatar: parsed.actor_avatar ?? parsed.actorAvatar ?? parsed.senderAvatar ?? null,
+                  type: parsed.type || 'system',
+                  title: parsed.title || 'Parish Notification',
+                  body: parsed.body || parsed.message || '',
+                  post_id: parsed.post_id || parsed.postId || null,
+                  link: parsed.link || (parsed.post_id ? 'feed' : null),
+                  is_read: parsed.is_read || parsed.read ? 1 : 0,
+                  created_at: parsed.created_at || new Date().toISOString(),
+                };
+
+                devNotifications.unshift(newNotif);
+                res.statusCode = 201;
+                res.end(JSON.stringify({ success: true, notification: newNotif }));
+              } catch (e: any) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, error: e?.message }));
+              }
+            });
+            return;
+          }
+        }
+
+        // 6. Delete notification: DELETE /api/notifications/:id
+        if (url.pathname.startsWith('/api/notifications/')) {
+          const notifId = url.pathname.replace('/api/notifications/', '').trim();
+          if (req.method === 'DELETE') {
+            devNotifications = devNotifications.filter((n) => n.id !== notifId);
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, id: notifId, message: 'Notification deleted' }));
             return;
           }
         }

@@ -2,6 +2,8 @@ import { supabase } from '../lib/supabase';
 import { NotificationItem, NotificationPreferences } from '../types';
 import { soundSynth, triggerBrowserNotification } from './ringtone';
 
+const API_BASE_URL = typeof window !== 'undefined' ? (window.location.origin || '') : '';
+
 const DEFAULT_PREFERENCES: NotificationPreferences = {
   messages: true,
   mentions: true,
@@ -185,6 +187,65 @@ export async function loadNotifications(userId?: string): Promise<NotificationIt
   const deletedIds = getDeletedNotifIds();
   const effectiveUserId = userId || getCurrentUserId();
 
+  // 1. Try Cloudflare D1 / Worker backend first
+  try {
+    const queryParam = effectiveUserId ? `?recipient_id=${encodeURIComponent(effectiveUserId)}` : '';
+    const res = await fetch(`${API_BASE_URL}/api/notifications${queryParam}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.notifications && Array.isArray(data.notifications)) {
+        const d1Items: NotificationItem[] = data.notifications
+          .filter((d: any) => {
+            const notifId = String(d.id);
+            if (deletedIds.has(notifId)) return false;
+            const t = (d.title || '').toLowerCase();
+            const m = (d.body || d.message || '').toLowerCase();
+            return !t.includes('test') && !m.includes('test');
+          })
+          .map((d: any) => {
+            const notifId = String(d.id);
+            const isRead = readIds.has(notifId) || Boolean(d.is_read || d.read);
+            return {
+              id: notifId,
+              userId: d.recipient_id || d.user_id || 'all',
+              type: d.type || 'system',
+              title: d.title || 'Parish Notification',
+              body: d.body || d.message || '',
+              link: d.link || (d.post_id ? 'feed' : undefined),
+              isRead,
+              createdAt: d.created_at || new Date().toISOString(),
+              senderName: d.actor_name || d.sender_name || undefined,
+              senderAvatar: d.actor_avatar || d.sender_avatar || undefined,
+            };
+          });
+
+        const map = new Map<string, NotificationItem>();
+        d1Items.forEach((r) => map.set(r.id, r));
+        localItems.forEach((l) => {
+          if (!deletedIds.has(l.id)) {
+            if (!map.has(l.id)) {
+              map.set(l.id, l);
+            } else {
+              if (l.isRead || readIds.has(l.id)) {
+                const existing = map.get(l.id)!;
+                map.set(l.id, { ...existing, isRead: true });
+              }
+            }
+          }
+        });
+
+        const merged = Array.from(map.values()).sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        saveLocalNotifications(merged);
+        return merged;
+      }
+    }
+  } catch (d1Err) {
+    console.warn('[loadNotifications] Cloudflare D1 fetch notice:', d1Err);
+  }
+
+  // 2. Fallback to Supabase
   try {
     let query = supabase
       .from('notifications')
@@ -289,7 +350,34 @@ export async function addNotification(
     senderAvatar: notif.senderAvatar,
   };
 
-  // 1. Sync to Supabase table
+  // 1. Sync to Cloudflare D1 / Worker backend
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/notifications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: item.id,
+        recipient_id: item.userId === 'all' ? null : item.userId,
+        actor_id: currentUserId,
+        actor_name: item.senderName || 'Orthodox Parishioner',
+        actor_avatar: item.senderAvatar || null,
+        type: item.type,
+        title: item.title,
+        body: item.body,
+        link: item.link || null,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.notification?.id) {
+        item.id = String(data.notification.id);
+      }
+    }
+  } catch (d1Err) {
+    console.warn('Cloudflare D1 notification insertion notice:', d1Err);
+  }
+
+  // 2. Sync to Supabase table as backup
   try {
     const row: any = {
       user_id: isValidUuid(targetUserId) ? targetUserId : null,
@@ -303,7 +391,6 @@ export async function addNotification(
     if (item.senderAvatar) row.sender_avatar = item.senderAvatar;
 
     const { data, error } = await supabase.from('notifications').insert([row]).select();
-
     if (!error && data && data.length > 0) {
       item.id = String(data[0].id);
     }
@@ -311,7 +398,7 @@ export async function addNotification(
     console.warn('Supabase notification insertion notice:', err);
   }
 
-  // 2. Cross-tab real-time broadcast
+  // 3. Cross-tab real-time broadcast
   if (notifChannel) {
     notifChannel.postMessage({
       type: 'NEW_NOTIFICATION',
@@ -321,13 +408,13 @@ export async function addNotification(
     });
   }
 
-  // 3. If this notification is targeted to ANOTHER user (e.g., you liked their post or commented),
+  // 4. If this notification is targeted to ANOTHER user (e.g., you liked their post or commented),
   // DO NOT add it to the sender's own local inbox and DO NOT play audio chime or toast for the sender!
   if (isForOtherUser) {
     return item;
   }
 
-  // 4. If this is a notification for the current user or broadcast:
+  // 5. If this is a notification for the current user or broadcast:
   const existing = getLocalNotifications();
   const updated = [item, ...existing.filter((n) => n.id !== item.id)];
   saveLocalNotifications(updated);
@@ -355,6 +442,18 @@ export async function markNotificationAsRead(id: string): Promise<void> {
   const updated = existing.map((n) => (n.id === id ? { ...n, isRead: true } : n));
   saveLocalNotifications(updated);
 
+  // Sync with Cloudflare D1
+  try {
+    await fetch(`${API_BASE_URL}/api/notifications/mark-read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+  } catch (err) {
+    // Non-blocking
+  }
+
+  // Sync with Supabase
   try {
     await supabase.from('notifications').update({ read: true, is_read: true }).eq('id', id);
   } catch (err) {
@@ -371,6 +470,18 @@ export async function markAllNotificationsAsRead(userId?: string): Promise<void>
   const updated = existing.map((n) => ({ ...n, isRead: true }));
   saveLocalNotifications(updated);
 
+  // Sync with Cloudflare D1
+  try {
+    await fetch(`${API_BASE_URL}/api/notifications/mark-read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true, recipient_id: userId }),
+    });
+  } catch (err) {
+    // Non-blocking
+  }
+
+  // Sync with Supabase
   try {
     let query = supabase.from('notifications').update({ read: true, is_read: true });
     if (isValidUuid(userId)) {
@@ -391,6 +502,16 @@ export async function deleteNotification(id: string): Promise<void> {
   const updated = existing.filter((n) => n.id !== id);
   saveLocalNotifications(updated);
 
+  // Sync with Cloudflare D1
+  try {
+    await fetch(`${API_BASE_URL}/api/notifications/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  } catch (err) {
+    // Non-blocking
+  }
+
+  // Sync with Supabase
   try {
     await supabase.from('notifications').delete().eq('id', id);
   } catch (err) {
@@ -415,3 +536,4 @@ export function saveNotificationPreferences(prefs: NotificationPreferences): voi
     console.warn('Failed to save preferences:', e);
   }
 }
+

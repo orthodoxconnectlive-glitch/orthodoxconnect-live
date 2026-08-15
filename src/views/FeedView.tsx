@@ -28,6 +28,8 @@ import {
   loadPosts,
   savePost,
   deletePost,
+  togglePostLike,
+  addPostComment,
   getLocalSavedPosts,
   BUNNY_STREAM_BASE,
   SEED_VIDEOS,
@@ -329,30 +331,12 @@ export const FeedView: React.FC<FeedViewProps> = ({
     }
   };
 
-  const handleToggleLike = (postId: string) => {
+  const handleToggleLike = async (postId: string) => {
+    // Optimistic local state update
     setPosts((prev) =>
       prev.map((p) => {
         if (p.id === postId) {
           const isLiked = !p.isLiked;
-          const currentLikes = loadLocalLikesMap();
-          currentLikes[postId] = isLiked;
-          saveLocalLikesMap(currentLikes);
-
-          if (isLiked && p.authorId && profile?.id && p.authorId !== profile.id) {
-            addNotification(
-              {
-                userId: p.authorId,
-                type: 'system',
-                title: `Reaction from ${profile?.full_name || 'Parishioner'}`,
-                body: `Liked your reflection: "${p.text ? (p.text.length > 50 ? p.text.slice(0, 50) + '...' : p.text) : 'Post'}"`,
-                senderName: profile?.full_name || 'Parishioner',
-                senderAvatar: profile?.avatar_url,
-                link: 'feed',
-              },
-              profile.id
-            );
-          }
-
           return {
             ...p,
             isLiked,
@@ -362,41 +346,32 @@ export const FeedView: React.FC<FeedViewProps> = ({
         return p;
       })
     );
+
+    // Call Cloudflare D1 endpoint (which also records like and dispatches notification)
+    const res = await togglePostLike(postId, profile);
+    if (res && typeof res.likes_count === 'number') {
+      setPosts((prev) =>
+        prev.map((p) => (p.id === postId ? { ...p, isLiked: res.liked, likesCount: res.likes_count } : p))
+      );
+    }
   };
 
-  const handleAddComment = (postId: string, commentText: string) => {
+  const handleAddComment = async (postId: string, commentText: string) => {
     const text = commentText.trim();
     if (!text) return;
 
-    const targetPost = posts.find((p) => p.id === postId);
-
-    setCommentsMap((prev) => {
-      const updatedMap = {
-        ...prev,
-        [postId]: [...(prev[postId] || []), text],
-      };
-      saveLocalPostCommentsMap(updatedMap);
-      return updatedMap;
-    });
+    // Optimistic local state updates
+    setCommentsMap((prev) => ({
+      ...prev,
+      [postId]: [...(prev[postId] || []), text],
+    }));
 
     setPosts((prev) =>
       prev.map((p) => (p.id === postId ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p))
     );
 
-    if (targetPost?.authorId && profile?.id && targetPost.authorId !== profile.id) {
-      addNotification(
-        {
-          userId: targetPost.authorId,
-          type: 'mention',
-          title: `New comment from ${profile?.full_name || 'Parishioner'}`,
-          body: text,
-          senderName: profile?.full_name || 'Parishioner',
-          senderAvatar: profile?.avatar_url,
-          link: 'feed',
-        },
-        profile.id
-      );
-    }
+    // Call Cloudflare D1 endpoint (which also saves comment and notifies post author)
+    await addPostComment(postId, text, profile);
   };
 
   const handleDelete = async (postId: string) => {

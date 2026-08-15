@@ -85,6 +85,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const [videoFileName, setVideoFileName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatusText, setSubmitStatusText] = useState<string>('');
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoFileInputRef = useRef<HTMLInputElement>(null);
@@ -257,26 +258,39 @@ export const FeedView: React.FC<FeedViewProps> = ({
     if (!newPostText.trim() && !imageUrl && !videoUrl && !selectedVideoFile) return;
 
     setIsSubmitting(true);
-    setSubmitStatusText('Saving reflection...');
+    setUploadProgress(0);
+    setSubmitStatusText('Preparing reflection...');
 
     try {
       let finalVideoId: string | undefined = undefined;
 
-      // 1. If a video file is attached, upload directly to Bunny Stream to get GUID
+      // 1. Asynchronous Upload Order:
+      // When the user selects a video file and clicks "POST":
+      // a. First, call POST /api/bunny/create-video to get container guid
+      // b. Second, await binary upload PUT request to Bunny Stream
       if (selectedVideoFile) {
-        setSubmitStatusText('Uploading video to Bunny Stream...');
-        triggerToast('Uploading video to Bunny Stream CDN...');
+        setSubmitStatusText('Uploading video to Bunny Stream (0%)...');
+        triggerToast('Uploading video directly to Bunny Stream CDN...');
+
         const uploadedGuid = await uploadVideoToBunnyStream(
           selectedVideoFile,
-          newPostText || selectedVideoFile.name
+          newPostText || selectedVideoFile.name,
+          (percent) => {
+            setUploadProgress(percent);
+            setSubmitStatusText(`Uploading video to Bunny Stream (${percent}%)...`);
+          }
         );
+
+        if (!uploadedGuid) {
+          throw new Error('Bunny Stream upload failed to return a valid video GUID.');
+        }
         finalVideoId = uploadedGuid;
       } else if (videoUrl && !videoUrl.startsWith('blob:') && !videoUrl.startsWith('data:')) {
         finalVideoId = videoUrl;
       }
 
-      // 2. Insert into Cloudflare D1 via POST /api/posts
-      setSubmitStatusText('Publishing to parish feed...');
+      // c. Third, ONLY AFTER the PUT request returns status 200/OK, send POST /api/posts containing video_id: guid
+      setSubmitStatusText('Saving reflection to database...');
       const created = await savePost({
         text: newPostText.trim(),
         authorName: profile?.full_name || 'Orthodox Parishioner',
@@ -286,19 +300,21 @@ export const FeedView: React.FC<FeedViewProps> = ({
           'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
         authorId: profile?.id,
         image: imageUrl || undefined,
+        video_id: finalVideoId,
         video: finalVideoId,
       });
 
-      console.log('[FeedView] Post created in Cloudflare D1 with ID:', created.id);
+      console.log('[FeedView] Post created in Cloudflare D1 with ID:', created.id, 'video_id:', finalVideoId);
 
-      // 3. Clear form inputs upon completion
+      // Clear form inputs upon successful submission
       setNewPostText('');
       setImageUrl('');
       setVideoUrl('');
       setSelectedVideoFile(null);
       setVideoFileName('');
+      setUploadProgress(0);
 
-      // 4. Immediately re-fetch the post list (GET /api/posts) to sync UI with D1
+      // Re-fetch post list from D1 to sync UI
       await fetchPosts(true);
 
       triggerToast('Reflection published to parish feed!');
@@ -308,6 +324,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
     } finally {
       setIsSubmitting(false);
       setSubmitStatusText('');
+      setUploadProgress(0);
     }
   };
 
@@ -588,6 +605,16 @@ export const FeedView: React.FC<FeedViewProps> = ({
                   <span>{videoFileName ? `Video: ${videoFileName}` : 'Bunny Stream Video Attached'}</span>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Progress Bar during Video Upload */}
+          {isSubmitting && selectedVideoFile && (
+            <div className="w-full bg-[#eedcb5] dark:bg-[#282019] rounded-full h-2 overflow-hidden border border-[#c5a059]/40 mt-1">
+              <div
+                className="bg-[#c5a059] h-2 rounded-full transition-all duration-200"
+                style={{ width: `${Math.max(5, uploadProgress)}%` }}
+              />
             </div>
           )}
 

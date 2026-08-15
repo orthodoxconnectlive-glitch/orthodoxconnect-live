@@ -34,6 +34,37 @@ interface PostCardProps {
   onAddComment: (postId: string, commentText: string) => void;
 }
 
+/**
+ * Sanitizes any raw video source or identifier into a clean Bunny Stream GUID.
+ */
+export function extractCleanVideoId(raw?: string): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  // 1. Standard 36-char or 32-char GUID pattern
+  const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/i;
+  const match = trimmed.match(guidRegex);
+  if (match) return match[1];
+
+  // 2. Direct alphanumeric ID (10+ characters without path/protocol)
+  if (/^[0-9a-fA-F-]{10,}$/.test(trimmed) && !trimmed.startsWith('http') && !trimmed.includes('/')) {
+    return trimmed;
+  }
+
+  // 3. Extract from Bunny iframe or mediadelivery URL
+  if (trimmed.includes('mediadelivery.net') || trimmed.includes('bunnycdn.com') || trimmed.includes('b-cdn.net')) {
+    const parts = trimmed.split('?')[0].split('/');
+    const lastPart = parts[parts.length - 1];
+    if (lastPart && (lastPart.length >= 10 || guidRegex.test(lastPart))) {
+      const pMatch = lastPart.match(guidRegex);
+      return pMatch ? pMatch[1] : lastPart;
+    }
+  }
+
+  return null;
+}
+
 export const PostCard: React.FC<PostCardProps> = ({
   post,
   currentProfile,
@@ -53,8 +84,19 @@ export const PostCard: React.FC<PostCardProps> = ({
   const { t } = useTheme();
   const [commentInput, setCommentInput] = useState<string>('');
 
+  // Standardize & sanitize all post properties (support snake_case & camelCase)
+  const rawPost = post as any;
+  const authorName = post.authorName || rawPost.author_name || 'Orthodox Parishioner';
+  const authorParish = post.authorParish || rawPost.author_parish || 'Orthodox Parish';
+  const authorAvatar = post.authorAvatar || rawPost.author_avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+  const authorId = post.authorId || rawPost.author_id;
+  const postContent = post.text || rawPost.content || '';
+  const postImage = post.image || rawPost.image_url || rawPost.photo_url;
+  const rawVideo = post.video_id || rawPost.video_id || post.video || rawPost.videoId || rawPost.video_url;
+  const cleanVideoId = extractCleanVideoId(rawVideo);
+
   const isSuperAdminOrAuthor =
-    currentProfile?.id === post.authorId ||
+    currentProfile?.id === authorId ||
     currentProfile?.role === 'admin' ||
     currentProfile?.role === 'owner' ||
     currentProfile?.role === 'super_admin' ||
@@ -67,10 +109,10 @@ export const PostCard: React.FC<PostCardProps> = ({
     setCommentInput('');
   };
 
-  const hasAudio = Boolean(post.audio || post.audioUrl);
-  const audioSource = post.audio || post.audioUrl;
-  const hasVideo = Boolean(post.video || post.broadcastUrl);
-  const videoSource = post.video || post.broadcastUrl;
+  const hasAudio = Boolean(post.audio || post.audioUrl || rawPost.audio_url);
+  const audioSource = post.audio || post.audioUrl || rawPost.audio_url;
+  const hasGenericVideo = Boolean(post.video || post.broadcastUrl || rawPost.broadcast_url);
+  const genericVideoSource = post.video || post.broadcastUrl || rawPost.broadcast_url;
 
   return (
     <div
@@ -92,16 +134,16 @@ export const PostCard: React.FC<PostCardProps> = ({
             className="relative cursor-pointer group"
             onClick={() =>
               onSelectUser?.({
-                id: post.authorId,
-                name: post.authorName,
-                avatar: post.authorAvatar,
-                parish: post.authorParish,
+                id: authorId,
+                name: authorName,
+                avatar: authorAvatar,
+                parish: authorParish,
               })
             }
           >
             <img
-              src={post.authorAvatar}
-              alt={post.authorName}
+              src={authorAvatar}
+              alt={authorName}
               className="w-10 h-10 rounded-full object-cover border-2 border-[#c5a059] group-hover:scale-105 transition-transform"
             />
             <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#3d2b18] text-[#c5a059] border border-[#c5a059] flex items-center justify-center text-[8px]">
@@ -115,23 +157,23 @@ export const PostCard: React.FC<PostCardProps> = ({
                 className="font-serif-coptic font-bold text-xs sm:text-sm text-[#3d2b18] dark:text-[#f5ebd9] uppercase tracking-wider cursor-pointer hover:underline hover:text-[#c5a059] transition-colors"
                 onClick={() =>
                   onSelectUser?.({
-                    id: post.authorId,
-                    name: post.authorName,
-                    avatar: post.authorAvatar,
-                    parish: post.authorParish,
+                    id: authorId,
+                    name: authorName,
+                    avatar: authorAvatar,
+                    parish: authorParish,
                   })
                 }
               >
-                {post.authorName}
+                {authorName}
               </h4>
 
               {/* Follow / Following Toggle Button */}
-              {currentProfile?.full_name?.toLowerCase() !== post.authorName.toLowerCase() && (
+              {currentProfile?.full_name?.toLowerCase() !== authorName.toLowerCase() && (
                 <div className="flex items-center gap-1.5">
                   {onToggleFollow && (
                     <button
                       type="button"
-                      onClick={() => onToggleFollow(post.authorName)}
+                      onClick={() => onToggleFollow(authorName)}
                       className={`px-2.5 py-0.5 rounded-full text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
                         isFollowed
                           ? 'bg-[#eedcb5] dark:bg-[#282019] text-[#7c5f3d] border border-[#c5a059]'
@@ -155,7 +197,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   {onOpenMessengerWithUser && (
                     <button
                       type="button"
-                      onClick={() => onOpenMessengerWithUser(post.authorId || post.authorName)}
+                      onClick={() => onOpenMessengerWithUser(authorId || authorName)}
                       className="px-2.5 py-0.5 rounded-full text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 bg-[#3d2b18] dark:bg-[#282019] text-[#c5a059] hover:bg-[#a8833c] hover:text-white border border-[#c5a059] transition-all cursor-pointer shadow-sm"
                       title="Send 1-to-1 message"
                     >
@@ -167,7 +209,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               )}
 
               <TimeAgo
-                date={post.createdAt}
+                date={post.createdAt || (post as any).created_at}
                 prefix="· "
                 className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-wider font-semibold"
               />
@@ -176,7 +218,7 @@ export const PostCard: React.FC<PostCardProps> = ({
             <div className="flex items-center gap-1 mt-0.5">
               <Church className="w-3 h-3 text-[#c5a059]" />
               <p className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-wider font-semibold">
-                {post.authorParish || 'Orthodox Parish'}
+                {authorParish}
               </p>
             </div>
           </div>
@@ -187,7 +229,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           <button
             type="button"
             onClick={() =>
-              onOpenReport('post', post.id, post.authorName, post.text || 'Post Media Content')
+              onOpenReport('post', post.id, authorName, postContent || 'Post Media Content')
             }
             className="p-1.5 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#e6d3ab] transition-colors cursor-pointer"
             title="Flag / Report Content"
@@ -209,35 +251,46 @@ export const PostCard: React.FC<PostCardProps> = ({
       </div>
 
       {/* Post Text Content */}
-      {post.text && (
+      {postContent && (
         <p className="text-xs sm:text-sm text-[#3d2b18] dark:text-[#f5ebd9] font-serif leading-relaxed mb-3.5 whitespace-pre-wrap">
-          {post.text}
+          {postContent}
         </p>
       )}
 
+      {/* Bunny Stream Video Embed Player */}
+      {cleanVideoId ? (
+        <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-md border border-[#c5a059]/30 mb-3.5">
+          <iframe
+            src={`https://iframe.mediadelivery.net/embed/713265/${cleanVideoId}?autoplay=false&loop=false&muted=false&preload=true`}
+            loading="lazy"
+            className="w-full h-full border-0"
+            allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+            allowFullScreen={true}
+            title={postContent ? (postContent.slice(0, 40) + '...') : 'Bunny Stream Video'}
+          />
+        </div>
+      ) : hasGenericVideo && genericVideoSource ? (
+        <div className="mb-3.5">
+          <BroadcastCard
+            videoUrl={genericVideoSource}
+            title={postContent || 'Parish Broadcast'}
+            authorName={authorName}
+            authorParish={authorParish}
+            mediaId={`post-video-${post.id}`}
+          />
+        </div>
+      ) : null}
+
       {/* Image Media */}
-      {post.image && (
+      {postImage && (!cleanVideoId || (post as any).show_image_with_video) && (
         <div className="rounded-2xl overflow-hidden mb-3.5 border-2 border-[#c5a059]/40 bg-[#3d2b18]/10 w-full max-h-[500px] flex items-center justify-center shadow-inner">
           <img
-            src={post.image}
-            alt="Post photo"
+            src={postImage}
+            alt="Post media"
             className="w-full h-auto max-h-[500px] object-cover rounded-2xl"
             onError={(e) => {
               (e.target as HTMLElement).style.display = 'none';
             }}
-          />
-        </div>
-      )}
-
-      {/* Video / Recorded Broadcast Media: AutoPlay Stripped, Explicit Play Required */}
-      {hasVideo && videoSource && (
-        <div className="mb-3.5">
-          <BroadcastCard
-            videoUrl={videoSource}
-            title={post.text || 'Parish Broadcast'}
-            authorName={post.authorName}
-            authorParish={post.authorParish}
-            mediaId={`post-video-${post.id}`}
           />
         </div>
       )}

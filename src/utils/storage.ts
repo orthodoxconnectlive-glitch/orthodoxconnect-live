@@ -21,13 +21,15 @@ export interface BunnyUploadResult {
  */
 export async function uploadVideoToBunnyStream(
   file: File,
-  title?: string
+  title?: string,
+  onProgress?: (percent: number) => void
 ): Promise<string> {
+  const libraryId = BUNNY_LIBRARY_ID || '713265';
   const videoTitle = title || file.name || `Orthodox_Video_${Date.now()}`;
   let guid: string | null = null;
   let directUploadUrl = '';
 
-  // Step 1: Try backend helper endpoint first (/api/bunny/create-video)
+  // 1. First, call POST /api/bunny/create-video to get the container guid
   try {
     const res = await fetch('/api/bunny/create-video', {
       method: 'POST',
@@ -39,18 +41,22 @@ export async function uploadVideoToBunnyStream(
       const data = await res.json();
       if (data?.guid) {
         guid = data.guid;
-        directUploadUrl = data.directUploadUrl || `https://video.bunnycdn.com/library/${BUNNY_LIBRARY_ID}/videos/${guid}`;
+        directUploadUrl =
+          data.directUploadUrl ||
+          `https://video.bunnycdn.com/library/${libraryId}/videos/${guid}`;
       }
+    } else {
+      console.warn('[storage] /api/bunny/create-video returned status:', res.status);
     }
   } catch (e) {
-    console.warn('[storage] /api/bunny/create-video helper error, attempting direct API:', e);
+    console.warn('[storage] /api/bunny/create-video helper error:', e);
   }
 
-  // Step 1 Fallback: Create Video Object via direct Bunny Stream REST API
+  // Fallback to direct Bunny Stream REST API if backend proxy failed
   if (!guid) {
     try {
       const createRes = await fetch(
-        `https://video.bunnycdn.com/library/${BUNNY_LIBRARY_ID}/videos`,
+        `https://video.bunnycdn.com/library/${libraryId}/videos`,
         {
           method: 'POST',
           headers: {
@@ -65,26 +71,7 @@ export async function uploadVideoToBunnyStream(
       if (createRes.ok) {
         const createData = await createRes.json();
         guid = createData.guid;
-        directUploadUrl = `https://video.bunnycdn.com/library/${BUNNY_LIBRARY_ID}/videos/${guid}`;
-      } else {
-        // Try fallback mediadelivery hostname
-        const altRes = await fetch(
-          `https://video.mediadelivery.net/library/${BUNNY_LIBRARY_ID}/videos`,
-          {
-            method: 'POST',
-            headers: {
-              AccessKey: BUNNY_API_KEY,
-              'Content-Type': 'application/json',
-              accept: 'application/json',
-            },
-            body: JSON.stringify({ title: videoTitle }),
-          }
-        );
-        if (altRes.ok) {
-          const altData = await altRes.json();
-          guid = altData.guid;
-          directUploadUrl = `https://video.mediadelivery.net/library/${BUNNY_LIBRARY_ID}/videos/${guid}`;
-        }
+        directUploadUrl = `https://video.bunnycdn.com/library/${libraryId}/videos/${guid}`;
       }
     } catch (createErr) {
       console.warn('[storage] Direct Bunny create video error:', createErr);
@@ -92,40 +79,50 @@ export async function uploadVideoToBunnyStream(
   }
 
   if (!guid) {
-    console.warn('[storage] Bunny Stream creation failed, falling back to storage upload');
-    return uploadMediaFile(file, 'post-videos');
+    throw new Error('Failed to create Bunny Stream video container (GUID could not be generated).');
   }
 
-  // Step 2: Upload Video Binary to Bunny Stream
-  try {
-    const uploadUrl = directUploadUrl || `https://video.bunnycdn.com/library/${BUNNY_LIBRARY_ID}/videos/${guid}`;
-    const uploadRes = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        AccessKey: BUNNY_API_KEY,
-        'Content-Type': 'application/octet-stream',
-      },
-      body: file,
-    });
+  // 2. Second, await the binary upload PUT request to Bunny Stream (https://video.bunnycdn.com/library/713265/videos/${guid})
+  const uploadUrl =
+    directUploadUrl || `https://video.bunnycdn.com/library/${libraryId}/videos/${guid}`;
 
-    if (!uploadRes.ok) {
-      // Try alt endpoint
-      await fetch(`https://video.mediadelivery.net/library/${BUNNY_LIBRARY_ID}/videos/${guid}`, {
-        method: 'PUT',
-        headers: {
-          AccessKey: BUNNY_API_KEY,
-          'Content-Type': 'application/octet-stream',
-        },
-        body: file,
-      });
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl, true);
+    xhr.setRequestHeader('AccessKey', BUNNY_API_KEY);
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
+          onProgress(percent);
+        }
+      };
     }
 
-    // Return the pure GUID or canonical embed URL so it can be stored into D1
-    return guid;
-  } catch (uploadErr) {
-    console.warn('[storage] Bunny Stream binary upload notice, returning guid:', uploadErr);
-    return guid;
-  }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        if (onProgress) onProgress(100);
+        resolve();
+      } else {
+        reject(
+          new Error(
+            `Bunny Stream binary upload PUT failed with status ${xhr.status}: ${xhr.statusText || 'Upload rejected'}`
+          )
+        );
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Network error occurred during Bunny Stream binary PUT upload.'));
+    };
+
+    xhr.send(file);
+  });
+
+  // 3. ONLY AFTER the PUT request returns status 200/OK, return guid
+  return guid;
 }
 
 /**

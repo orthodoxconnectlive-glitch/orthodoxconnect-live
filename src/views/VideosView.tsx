@@ -58,6 +58,8 @@ export const VideosView: React.FC<VideosViewProps> = ({
   // Upload modal form state
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadCaption, setUploadCaption] = useState<string>('');
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadStatusText, setUploadStatusText] = useState<string>('');
 
   // Social interactions state
   const [followedAuthors, setFollowedAuthors] = useState<Record<string, boolean>>({});
@@ -266,8 +268,27 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
     try {
       setIsUploading(true);
+      setUploadProgress(0);
+      setUploadStatusText('Preparing video container...');
       triggerToast('Uploading video directly to Bunny Stream CDN...');
-      const iframeUrl = await uploadVideoToBunnyStream(uploadFile, uploadFile.name);
+
+      // 1. Asynchronous Upload Order:
+      // a. POST /api/bunny/create-video -> b. await PUT binary upload to Bunny Stream
+      const uploadedGuid = await uploadVideoToBunnyStream(
+        uploadFile,
+        uploadCaption.trim() || uploadFile.name,
+        (percent) => {
+          setUploadProgress(percent);
+          setUploadStatusText(`Uploading video binary (${percent}%)...`);
+        }
+      );
+
+      if (!uploadedGuid) {
+        throw new Error('Bunny Stream upload failed to return a valid video GUID.');
+      }
+
+      // c. Third, ONLY AFTER the PUT request returns status 200/OK, send POST /api/posts containing video_id: guid
+      setUploadStatusText('Saving video reflection to Cloudflare D1...');
 
       const newVideo = await savePost({
         text: uploadCaption.trim() || uploadFile.name.replace(/\.[^/.]+$/, ''),
@@ -277,7 +298,8 @@ export const VideosView: React.FC<VideosViewProps> = ({
           profile?.avatar_url ||
           'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
         authorId: profile?.id,
-        video: iframeUrl,
+        video_id: uploadedGuid,
+        video: uploadedGuid,
       });
 
       setVideos((prev) => [newVideo, ...prev]);
@@ -285,17 +307,24 @@ export const VideosView: React.FC<VideosViewProps> = ({
       setIsUploadModalOpen(false);
       setUploadFile(null);
       setUploadCaption('');
+      setUploadProgress(0);
+      setUploadStatusText('');
       triggerToast('New Orthodox Video published to feed!');
+
+      // Re-fetch videos from database to ensure fresh state
+      await fetchVideosList();
 
       // Scroll to top
       if (feedContainerRef.current) {
         feedContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Video upload error:', err);
-      triggerToast('Upload failed. Please try again.');
+      triggerToast('Upload failed: ' + (err?.message || 'Please try again.'));
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
+      setUploadStatusText('');
     }
   };
 
@@ -677,12 +706,32 @@ export const VideosView: React.FC<VideosViewProps> = ({
                 />
               </div>
 
+              {/* Progress Bar while Uploading */}
+              {isUploading && (
+                <div className="space-y-2 p-3.5 rounded-2xl bg-[#282019] border border-[#c5a059]/40 animate-fade-in shadow-inner">
+                  <div className="flex items-center justify-between text-xs font-serif text-[#f5ebd9]">
+                    <span className="flex items-center gap-1.5 text-[#c5a059] font-medium">
+                      <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                      <span>{uploadStatusText || 'Uploading to Bunny Stream CDN...'}</span>
+                    </span>
+                    <span className="font-bold font-mono text-[#c5a059]">{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-[#1c1611] rounded-full h-2 overflow-hidden border border-[#c5a059]/20">
+                    <div
+                      className="bg-gradient-to-r from-[#c5a059] to-[#eedcb5] h-full transition-all duration-300 rounded-full"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Submit Button */}
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsUploadModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-[#c5a059]/40 text-[#c5a059] font-serif font-bold text-xs uppercase hover:bg-[#282019] cursor-pointer"
+                  onClick={() => !isUploading && setIsUploadModalOpen(false)}
+                  disabled={isUploading}
+                  className="flex-1 py-2.5 rounded-xl border border-[#c5a059]/40 text-[#c5a059] font-serif font-bold text-xs uppercase hover:bg-[#282019] cursor-pointer disabled:opacity-40"
                 >
                   Cancel
                 </button>
@@ -694,7 +743,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
                   {isUploading ? (
                     <>
                       <Sparkles className="w-4 h-4 animate-spin" />
-                      <span>Publishing...</span>
+                      <span>{uploadProgress > 0 && uploadProgress < 100 ? `Uploading (${uploadProgress}%)...` : 'Publishing...'}</span>
                     </>
                   ) : (
                     <span>Publish Video</span>

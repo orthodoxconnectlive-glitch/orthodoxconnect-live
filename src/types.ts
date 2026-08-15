@@ -13,13 +13,14 @@ export interface UserProfile {
 
 export interface Post {
   id: string;
-  text: string; // Mapped from 'content' in Supabase
+  text: string; // Mapped from 'content'
   authorName: string; // Mapped from 'author_name'
   authorParish: string; // Mapped from 'author_parish'
   authorAvatar: string; // Mapped from 'author_avatar'
   authorId?: string;
   image?: string; // Mapped from 'image_url'
-  video?: string; // Mapped from 'video' (Bunny Stream URL)
+  video?: string; // Mapped from 'video' / 'video_id'
+  video_id?: string; // Bunny Stream Video GUID
   audio?: string; // Mapped from 'audio' or 'audio_url'
   audioUrl?: string;
   broadcastUrl?: string;

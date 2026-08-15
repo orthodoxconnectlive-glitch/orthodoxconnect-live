@@ -90,7 +90,7 @@ export function normalizeVideoSource(
   // Regex to extract 32/36-character Bunny Video GUID
   const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/i;
   const match = trimmed.match(guidRegex);
-  const guid = match ? match[1] : null;
+  const guid = match ? match[1] : (/^[0-9a-fA-F-]{10,}$/.test(trimmed) && !trimmed.startsWith('http') && !trimmed.includes('/') ? trimmed : null);
 
   const isBunnyProvider =
     trimmed.includes('bunnycdn.com') ||
@@ -110,7 +110,7 @@ export function normalizeVideoSource(
     return {
       isBunny: true,
       guid,
-      directUrl: isEmbedOnly ? directUrl : directUrl,
+      directUrl,
       iframeUrl,
       thumbnailUrl,
       isEmbedOnly,
@@ -154,6 +154,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Standardize & sanitize all video item properties (support snake_case & camelCase)
+  const rawItem = video as any;
+  const authorName = video.authorName || rawItem.author_name || 'Orthodox Parishioner';
+  const authorParish = video.authorParish || rawItem.author_parish || 'Orthodox Parish';
+  const authorAvatar = video.authorAvatar || rawItem.author_avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+  const authorId = video.authorId || rawItem.author_id;
+  const videoText = video.text || rawItem.content || '';
+  const videoImage = video.image || rawItem.image_url || rawItem.photo_url;
+  const rawVideoSource = video.video_id || rawItem.video_id || video.video || rawItem.videoId || rawItem.video_url;
+
   // Playback & UI State
   const [hasError, setHasError] = useState<boolean>(false);
   const [useIframeFallback, setUseIframeFallback] = useState<boolean>(false);
@@ -169,17 +179,17 @@ export const VideoCard: React.FC<VideoCardProps> = ({
 
   // Normalized video source attributes
   const videoMeta = useMemo(() => {
-    return normalizeVideoSource(video.video);
-  }, [video.video]);
+    return normalizeVideoSource(rawVideoSource);
+  }, [rawVideoSource]);
 
   // Determine final poster image (custom image > Bunny Stream auto thumbnail > default poster)
   const posterImage = useMemo(() => {
-    if (video.image && video.image.trim()) return video.image;
+    if (videoImage && videoImage.trim()) return videoImage;
     if (videoMeta.thumbnailUrl && videoMeta.thumbnailUrl !== DEFAULT_POSTER) {
       return videoMeta.thumbnailUrl;
     }
     return DEFAULT_POSTER;
-  }, [video.image, videoMeta.thumbnailUrl]);
+  }, [videoImage, videoMeta.thumbnailUrl]);
 
   // Construct iframe embed URL with active play/mute query params
   const iframeSrc = useMemo(() => {
@@ -350,13 +360,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   };
 
   const canDelete =
-    profile?.id === video.authorId ||
+    profile?.id === authorId ||
     profile?.role === 'admin' ||
     profile?.role === 'owner' ||
     profile?.role === 'super_admin' ||
     profile?.email === 'orthodoxconnect.live@gmail.com';
 
-  const authorHandle = `@${video.authorName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'orthodox'}`;
+  const authorHandle = `@${authorName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'orthodox'}`;
 
   // Helper to render caption with interactive hashtags
   const renderFormattedCaption = (text: string) => {
@@ -437,7 +447,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             className="w-full h-full border-0 pointer-events-auto"
             allow="accelerometer; gyroscope; encrypted-media; picture-in-picture; autoplay;"
             allowFullScreen
-            title={video.text || 'Orthodox Video'}
+            title={videoText || 'Orthodox Video'}
             onError={() => setHasError(true)}
           />
         </div>
@@ -446,7 +456,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           <video
             ref={videoRef}
             data-media-id={elementMediaId}
-            src={videoMeta.directUrl || video.video}
+            src={videoMeta.directUrl || rawVideoSource}
             poster={posterImage}
             autoPlay={isPlaying}
             loop={true}
@@ -537,17 +547,17 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               onSelectUser?.({
-                id: video.authorId,
-                name: video.authorName,
-                avatar: video.authorAvatar,
-                parish: video.authorParish,
+                id: authorId,
+                name: authorName,
+                avatar: authorAvatar,
+                parish: authorParish,
               });
             }}
             className="w-12 h-12 rounded-full border-2 border-[#c5a059] overflow-hidden shadow-2xl cursor-pointer hover:scale-105 transition-transform"
           >
             <img
-              src={video.authorAvatar}
-              alt={video.authorName}
+              src={authorAvatar}
+              alt={authorName}
               className="w-full h-full object-cover"
             />
           </div>
@@ -557,7 +567,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onToggleFollow(video.authorName);
+              onToggleFollow(authorName);
             }}
             className={`absolute -bottom-2 w-5 h-5 rounded-full flex items-center justify-center text-white text-[11px] font-bold shadow-lg border border-black cursor-pointer transition-all ${
               isFollowed
@@ -679,10 +689,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               onSelectUser?.({
-                id: video.authorId,
-                name: video.authorName,
-                avatar: video.authorAvatar,
-                parish: video.authorParish,
+                id: authorId,
+                name: authorName,
+                avatar: authorAvatar,
+                parish: authorParish,
               });
             }}
             className="flex items-center gap-1.5 font-bold text-sm text-white hover:underline cursor-pointer drop-shadow-md"
@@ -692,21 +702,21 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </button>
 
           {/* Parish Badge */}
-          {video.authorParish && (
+          {authorParish && (
             <span className="px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-md border border-[#c5a059]/40 text-[#c5a059] text-[10px] font-serif flex items-center gap-1 drop-shadow-md">
               <Church className="w-2.5 h-2.5" />
-              <span className="truncate max-w-[120px]">{video.authorParish}</span>
+              <span className="truncate max-w-[120px]">{authorParish}</span>
             </span>
           )}
         </div>
 
         {/* Video Caption with Clickable Hashtags */}
-        {video.text && (
+        {videoText && (
           <div className="text-xs text-white/95 font-serif leading-relaxed drop-shadow-md max-w-full">
             <p className={isCaptionExpanded ? '' : 'line-clamp-2'}>
-              {renderFormattedCaption(video.text)}
+              {renderFormattedCaption(videoText)}
             </p>
-            {video.text.length > 90 && (
+            {videoText.length > 90 && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -727,7 +737,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             <Music className="w-3.5 h-3.5 text-[#c5a059] shrink-0" />
             <div className="overflow-hidden whitespace-nowrap text-[11px] text-white/90 font-serif">
               <span className="inline-block animate-marquee">
-                Original Audio — {video.authorName} • Byzantine Liturgical Chant & Reflection ☨
+                Original Audio — {authorName} • Byzantine Liturgical Chant & Reflection ☨
               </span>
             </div>
           </div>
@@ -740,7 +750,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               }`}
             >
               <img
-                src={video.authorAvatar}
+                src={authorAvatar}
                 alt="Audio thumbnail"
                 className="w-full h-full object-cover"
               />

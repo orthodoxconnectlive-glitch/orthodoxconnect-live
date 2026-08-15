@@ -76,7 +76,8 @@ export function mapRowToPost(row: any): Post {
     'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
 
   // Bunny Stream video GUID / URL resolution
-  const videoId = row.video_id || row.videoId || row.video || row.video_url || undefined;
+  const rawVideo = row.video_id || row.videoId || row.video || row.video_url || undefined;
+  const videoGuid = extractBunnyVideoGuid(rawVideo);
 
   return {
     id: String(row.id),
@@ -86,7 +87,8 @@ export function mapRowToPost(row: any): Post {
     authorAvatar,
     authorId: row.author_id || row.authorId || undefined,
     image: row.image_url || row.image || undefined,
-    video: videoId,
+    video: rawVideo,
+    video_id: videoGuid || (rawVideo && /^[0-9a-fA-F-]{10,}$/.test(rawVideo.trim()) ? rawVideo.trim() : undefined),
     audio: row.audio_url || row.audio || row.audioUrl || undefined,
     audioUrl: row.audio_url || row.audio || row.audioUrl || undefined,
     broadcastUrl: row.broadcast_url || row.broadcastUrl || undefined,
@@ -327,7 +329,7 @@ export const loadReels = loadVideos;
  * Extracts and persists Bunny Stream video GUID.
  */
 export async function savePost(postPartial: Partial<Post>): Promise<Post> {
-  const videoGuid = extractBunnyVideoGuid(postPartial.video);
+  const videoGuid = postPartial.video_id || extractBunnyVideoGuid(postPartial.video);
 
   const newPost: Post = {
     id: postPartial.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `post-${Date.now()}`),
@@ -340,6 +342,7 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     authorId: postPartial.authorId,
     image: postPartial.image,
     video: videoGuid,
+    video_id: videoGuid,
     audio: postPartial.audio || postPartial.audioUrl,
     audioUrl: postPartial.audioUrl || postPartial.audio,
     broadcastUrl: postPartial.broadcastUrl,

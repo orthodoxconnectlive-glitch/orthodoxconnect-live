@@ -26,7 +26,7 @@ import {
   loadAuditLogs,
   getUserModerationStatus,
 } from '../utils/moderation';
-import { deletePost } from '../utils/posts';
+import { deletePost, deleteUserApi } from '../utils/posts';
 
 export const AdminPanelView: React.FC = () => {
   const { profile } = useAuth();
@@ -55,7 +55,8 @@ export const AdminPanelView: React.FC = () => {
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const isSuperAdmin = profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';
+  const isCurrentSuperAdmin = profile?.email?.toLowerCase() === 'orthodoxconnect.live@gmail.com';
+  const isSuperAdmin = isCurrentSuperAdmin || profile?.role === 'super_admin';
   const isAdminOrOwner = isSuperAdmin || profile?.role === 'admin' || profile?.role === 'owner';
 
   const showToast = (msg: string) => {
@@ -166,7 +167,25 @@ export const AdminPanelView: React.FC = () => {
 
     const targetId = userToDelete.id;
     const targetName = userToDelete.full_name;
+    const targetEmail = userToDelete.email;
+    const targetRole = userToDelete.role;
 
+    const isTargetAdmin = targetRole === 'admin' || targetRole === 'owner';
+    if (isTargetAdmin && !isCurrentSuperAdmin) {
+      showToast('Permission Denied: Only the Super Admin (orthodoxconnect.live@gmail.com) can delete Admin accounts.');
+      setUserToDelete(null);
+      return;
+    }
+
+    // 1. Call Cloudflare Worker API with user identity headers
+    const apiResult = await deleteUserApi(targetId, targetEmail, targetRole, profile);
+    if (!apiResult.success) {
+      showToast(`Error: ${apiResult.error || 'Failed to delete user account.'}`);
+      setUserToDelete(null);
+      return;
+    }
+
+    // 2. Remove from state & Supabase
     setUsersList((prev) => prev.filter((u) => u.id !== targetId));
     setTotalMembers((prev) => Math.max(0, prev - 1));
 
@@ -175,7 +194,7 @@ export const AdminPanelView: React.FC = () => {
       showToast(`Removed ${targetName} from parish directory.`);
     } catch (err) {
       console.warn('Delete profile error:', err);
-      showToast(`Removed ${targetName} from local directory.`);
+      showToast(`Removed ${targetName} from parish directory.`);
     } finally {
       setUserToDelete(null);
     }
@@ -246,7 +265,7 @@ export const AdminPanelView: React.FC = () => {
 
   const handleRemoveContent = async (report: ContentReport) => {
     if (report.targetType === 'post') {
-      await deletePost(report.targetId);
+      await deletePost(report.targetId, profile);
     }
     await updateReportStatus(
       report.id,
@@ -478,10 +497,12 @@ export const AdminPanelView: React.FC = () => {
                 ) : (
                   filteredUsers.map((user) => {
                     const status = userStatuses[user.id] || { warningCount: 0, isBanned: false };
-                    const isProtected =
-                      user.role === 'owner' ||
+                    const isTargetSuperAdmin =
                       user.role === 'super_admin' ||
-                      user.email === 'orthodoxconnect.live@gmail.com';
+                      user.email?.toLowerCase() === 'orthodoxconnect.live@gmail.com';
+                    const isTargetAdmin = user.role === 'admin' || user.role === 'owner';
+                    const canDeleteTarget =
+                      !isTargetSuperAdmin && (!isTargetAdmin || isCurrentSuperAdmin);
 
                     return (
                       <tr key={user.id} className="hover:bg-[#f1ebd7]/50 transition-colors">
@@ -514,9 +535,13 @@ export const AdminPanelView: React.FC = () => {
 
                         {/* Role Badge & Change Role Dropdown */}
                         <td className="py-3 px-3">
-                          {isProtected ? (
+                          {isTargetSuperAdmin ? (
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#c5a059] text-white border border-[#a8833c] shadow-sm">
-                              {user.email === 'orthodoxconnect.live@gmail.com' ? 'SUPER ADMIN' : user.role.toUpperCase()}
+                              SUPER ADMIN
+                            </span>
+                          ) : isTargetAdmin && !isCurrentSuperAdmin ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#7c5f3d] text-white border border-[#5a4632] shadow-sm">
+                              ADMIN
                             </span>
                           ) : (
                             <select
@@ -555,7 +580,11 @@ export const AdminPanelView: React.FC = () => {
 
                         {/* Action Buttons */}
                         <td className="py-3 px-3 text-right flex items-center justify-end gap-2">
-                          {!isProtected ? (
+                          {isTargetSuperAdmin ? (
+                            <span className="text-[10px] text-[#a8833c] font-serif font-bold uppercase italic">
+                              Super Admin (Protected)
+                            </span>
+                          ) : (
                             <>
                               <button
                                 onClick={() => handleBanUser(user.id, !status.isBanned)}
@@ -568,19 +597,24 @@ export const AdminPanelView: React.FC = () => {
                                 {status.isBanned ? 'Unban' : 'Ban'}
                               </button>
 
-                              <button
-                                onClick={() => setUserToDelete(user)}
-                                className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] uppercase shadow-sm transition-all cursor-pointer flex items-center gap-1"
-                                title="Remove / Delete User"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                <span>Delete User</span>
-                              </button>
+                              {canDeleteTarget ? (
+                                <button
+                                  onClick={() => setUserToDelete(user)}
+                                  className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] uppercase shadow-sm transition-all cursor-pointer flex items-center gap-1"
+                                  title="Remove / Delete User"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Delete User</span>
+                                </button>
+                              ) : isTargetAdmin ? (
+                                <span
+                                  className="text-[10px] text-[#8b6b4a] italic font-medium px-1.5 py-0.5 rounded bg-[#f5f2ed] border border-[#d4af37]/20"
+                                  title="Admin accounts can only be deleted by the Super Admin (orthodoxconnect.live@gmail.com)"
+                                >
+                                  Admin (Protected)
+                                </span>
+                              ) : null}
                             </>
-                          ) : (
-                            <span className="text-[10px] text-[#a8833c] font-serif font-bold uppercase italic">
-                              Protected System User
-                            </span>
                           )}
                         </td>
                       </tr>

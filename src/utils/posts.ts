@@ -25,15 +25,26 @@ export function extractBunnyVideoGuid(input?: string | null): string | undefined
   const trimmed = input.trim();
   if (!trimmed) return undefined;
 
+  // 1. Standard 36-char UUID regex (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
   const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/;
   const match = trimmed.match(guidRegex);
   if (match) {
     return match[1];
   }
 
-  // If already an alphanumeric identifier
-  if (/^[0-9a-zA-Z_-]{10,}$/.test(trimmed) && !trimmed.startsWith('http')) {
+  // 2. Direct alphanumeric ID (10+ characters without path/protocol)
+  if (/^[0-9a-fA-F-]{10,}$/.test(trimmed) && !trimmed.startsWith('http') && !trimmed.includes('/')) {
     return trimmed;
+  }
+
+  // 3. Extract from Bunny iframe or mediadelivery URL
+  if (trimmed.includes('mediadelivery.net') || trimmed.includes('bunnycdn.com') || trimmed.includes('b-cdn.net')) {
+    const parts = trimmed.split('?')[0].split('/');
+    const lastPart = parts[parts.length - 1];
+    if (lastPart && (lastPart.length >= 10 || guidRegex.test(lastPart))) {
+      const pMatch = lastPart.match(guidRegex);
+      return pMatch ? pMatch[1] : lastPart;
+    }
   }
 
   return trimmed;
@@ -301,7 +312,9 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
  * Loads videos / reels from Cloudflare Worker API (GET /api/posts?video_only=true).
  */
 export async function loadVideos(): Promise<Post[]> {
-  const localVideos = getLocalSavedPosts().filter((p) => Boolean(p.video));
+  const localVideos = getLocalSavedPosts().filter(
+    (p) => (p.video_id && String(p.video_id).trim() !== '') || (p.video && String(p.video).trim() !== '')
+  );
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/posts?video_only=true&limit=50`, {
@@ -312,7 +325,9 @@ export async function loadVideos(): Promise<Post[]> {
     if (res.ok) {
       const data = await res.json();
       const rawList = Array.isArray(data) ? data : (data?.posts || []);
-      const mapped = rawList.map(mapRowToPost);
+      const mapped = rawList
+        .map(mapRowToPost)
+        .filter((p: Post) => Boolean((p.video_id && p.video_id.trim() !== '') || (p.video && p.video.trim() !== '')));
       if (mapped.length > 0) return mapped;
     }
   } catch (err) {
@@ -340,7 +355,8 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
       postPartial.authorAvatar ||
       'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
     authorId: postPartial.authorId,
-    image: postPartial.image,
+    // Clean Media Separation: If video is present, ensure image is undefined
+    image: videoGuid ? undefined : postPartial.image,
     video: videoGuid,
     video_id: videoGuid,
     audio: postPartial.audio || postPartial.audioUrl,
@@ -367,7 +383,8 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     author_name: newPost.authorName,
     author_parish: newPost.authorParish,
     author_avatar: newPost.authorAvatar,
-    image_url: newPost.image || null,
+    // Clean Media Separation: If video_id exists, image_url must be null in D1 insert payload
+    image_url: videoGuid ? null : (postPartial.image || null),
     group_id: newPost.groupId || null,
     likes_count: newPost.likesCount,
     comments_count: newPost.commentsCount,
@@ -403,23 +420,92 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
 }
 
 /**
- * Deletes a post from Cloudflare D1 via DELETE /api/posts/:id.
+ * Extracts current user identity headers for role-based Cloudflare Worker requests.
  */
-export async function deletePost(postId: string): Promise<{ success: boolean; error: any }> {
+export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
+  let profile = overrideProfile;
+  if (!profile) {
+    try {
+      const raw = localStorage.getItem('orthodox_user_profile');
+      if (raw) profile = JSON.parse(raw);
+    } catch (e) {}
+  }
+
+  const email = profile?.email || '';
+  const role = profile?.role || 'user';
+  const id = profile?.id || '';
+
+  return {
+    'x-user-email': email,
+    'x-user-role': role,
+    'x-user-id': id,
+  };
+}
+
+/**
+ * Deletes a post from Cloudflare D1 via DELETE /api/posts/:id with user identity headers.
+ */
+export async function deletePost(postId: string, userProfile?: any): Promise<{ success: boolean; error: any }> {
   try {
     const existing = getLocalSavedPosts();
     const filtered = existing.filter((p) => p.id !== postId);
     localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(filtered));
     invalidatePostsCache();
 
+    const headers = getAuthHeaders(userProfile);
+
     const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}`, {
       method: 'DELETE',
+      headers,
     });
 
-    return { success: res.ok, error: res.ok ? null : `HTTP ${res.status}` };
-  } catch (err) {
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      return { success: false, error: errData.error || `HTTP ${res.status}` };
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
     console.warn('[Cloudflare D1 deletePost notice]:', err);
-    return { success: false, error: err };
+    return { success: false, error: err?.message || err };
+  }
+}
+
+/**
+ * Deletes a user account from Cloudflare D1 via DELETE /api/users/:id with user identity headers.
+ */
+export async function deleteUserApi(
+  userId: string,
+  targetEmail?: string,
+  targetRole?: string,
+  userProfile?: any
+): Promise<{ success: boolean; error: any }> {
+  try {
+    const headers = {
+      ...getAuthHeaders(userProfile),
+      'x-target-email': targetEmail || '',
+      'x-target-role': targetRole || 'user',
+    };
+
+    const queryParams = new URLSearchParams();
+    if (targetEmail) queryParams.set('target_email', targetEmail);
+    if (targetRole) queryParams.set('target_role', targetRole);
+
+    const qs = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    const res = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(userId)}${qs}`, {
+      method: 'DELETE',
+      headers,
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      return { success: false, error: errData.error || `HTTP ${res.status}` };
+    }
+
+    return { success: true, error: null };
+  } catch (err: any) {
+    console.warn('[Cloudflare D1 deleteUserApi notice]:', err);
+    return { success: false, error: err?.message || err };
   }
 }
 

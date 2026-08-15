@@ -5,7 +5,7 @@ import { defineConfig, UserConfig, Plugin } from 'vite';
 
 function localApiDevPlugin(): Plugin {
   // In-memory store for local Vite dev testing
-  const devPosts: any[] = [
+  let devPosts: any[] = [
     {
       id: 'post-seed-1',
       content: 'Blessed Feast of the Transfiguration of our Lord and Savior Jesus Christ! "Lord, it is good for us to be here; if You wish, let us make here three tabernacles: one for You, one for Moses, and one for Elijah." (Matthew 17:4)',
@@ -120,13 +120,19 @@ function localApiDevPlugin(): Plugin {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Email, X-User-Role, X-User-Id, x-user-email, x-user-role, x-user-id, x-target-email, x-target-role');
 
         if (req.method === 'OPTIONS') {
           res.statusCode = 204;
           res.end();
           return;
         }
+
+        const userEmail = String(req.headers['x-user-email'] || '').trim().toLowerCase();
+        const userRole = String(req.headers['x-user-role'] || '').trim().toLowerCase();
+        const userId = String(req.headers['x-user-id'] || '').trim();
+        const isSuperAdmin = userEmail === 'orthodoxconnect.live@gmail.com' || userRole === 'super_admin';
+        const isAdmin = isSuperAdmin || userRole === 'admin' || userRole === 'owner';
 
         if (url.pathname === '/api/posts' || url.pathname === '/api/posts/') {
           if (req.method === 'GET') {
@@ -142,7 +148,7 @@ function localApiDevPlugin(): Plugin {
               filtered = filtered.filter((p) => p.group_id === groupId);
             }
             if (videoOnly) {
-              filtered = filtered.filter((p) => Boolean(p.video_id));
+              filtered = filtered.filter((p) => p.video_id && String(p.video_id).trim() !== '');
             }
 
             res.statusCode = 200;
@@ -195,10 +201,53 @@ function localApiDevPlugin(): Plugin {
         if (url.pathname.startsWith('/api/posts/')) {
           const postId = url.pathname.replace('/api/posts/', '').trim();
           if (req.method === 'DELETE') {
+            const post = devPosts.find((p) => p.id === postId);
+            const isAuthor = Boolean(post && userId && post.author_id === userId);
+            const canDelete = isAdmin || isAuthor;
+
+            if (post && !canDelete) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ success: false, error: 'Forbidden: You do not have permission to delete this post.' }));
+              return;
+            }
+
             const idx = devPosts.findIndex((p) => p.id === postId);
             if (idx >= 0) devPosts.splice(idx, 1);
             res.statusCode = 200;
             res.end(JSON.stringify({ success: true, id: postId }));
+            return;
+          }
+        }
+
+        if (url.pathname.startsWith('/api/users/')) {
+          const targetUserId = url.pathname.replace('/api/users/', '').trim();
+          if (req.method === 'DELETE') {
+            if (!isAdmin) {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ success: false, error: 'Forbidden: Admin access required to delete users.' }));
+              return;
+            }
+
+            const targetEmail = String(url.searchParams.get('target_email') || req.headers['x-target-email'] || '').trim().toLowerCase();
+            const targetRole = String(url.searchParams.get('target_role') || req.headers['x-target-role'] || 'user').trim().toLowerCase();
+
+            if (targetEmail === 'orthodoxconnect.live@gmail.com' || targetRole === 'super_admin') {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ success: false, error: 'Forbidden: The Super Admin account cannot be deleted.' }));
+              return;
+            }
+
+            const isTargetAdmin = targetRole === 'admin' || targetRole === 'owner';
+            if (isTargetAdmin && userEmail !== 'orthodoxconnect.live@gmail.com') {
+              res.statusCode = 403;
+              res.end(JSON.stringify({ success: false, error: 'Forbidden: Only the Super Admin (orthodoxconnect.live@gmail.com) has permission to delete Admin accounts.' }));
+              return;
+            }
+
+            // Remove target posts
+            devPosts = devPosts.filter((p) => p.author_id !== targetUserId);
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, id: targetUserId, message: 'User deleted successfully.' }));
             return;
           }
         }

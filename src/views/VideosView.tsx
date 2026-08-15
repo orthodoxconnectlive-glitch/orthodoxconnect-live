@@ -381,9 +381,13 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
   const handleDeleteVideo = async (videoId: string) => {
     if (window.confirm('Are you sure you want to delete this video?')) {
-      await deletePost(videoId);
-      setVideos((prev) => prev.filter((v) => v.id !== videoId));
-      triggerToast('Video deleted successfully.');
+      const res = await deletePost(videoId, profile);
+      if (res.success) {
+        setVideos((prev) => prev.filter((v) => v.id !== videoId));
+        triggerToast('Video deleted successfully.');
+      } else {
+        triggerToast(`Error: ${res.error || 'Failed to delete video.'}`);
+      }
     }
   };
 
@@ -757,3 +761,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
     </div>
   );
 };
+
+export const ReelsView = VideosView;
+export const VideoView = VideosView;
+

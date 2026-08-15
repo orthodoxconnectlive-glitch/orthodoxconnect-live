@@ -53,10 +53,37 @@ const DEFAULT_BUNNY_CDN_HOST = 'vz-840ad26e-6fe.b-cdn.net';
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept, X-User-Email, X-User-Role, X-User-Id, x-user-email, x-user-role, x-user-id, x-target-email, x-target-role',
   'Access-Control-Max-Age': '86400',
   'Content-Type': 'application/json',
 };
+
+export const SUPER_ADMIN_EMAIL = 'orthodoxconnect.live@gmail.com';
+
+export function getAuthIdentity(request: Request) {
+  const email = (
+    request.headers.get('x-user-email') ||
+    request.headers.get('X-User-Email') ||
+    ''
+  ).trim().toLowerCase();
+
+  const role = (
+    request.headers.get('x-user-role') ||
+    request.headers.get('X-User-Role') ||
+    ''
+  ).trim().toLowerCase();
+
+  const id = (
+    request.headers.get('x-user-id') ||
+    request.headers.get('X-User-Id') ||
+    ''
+  ).trim();
+
+  const isSuperAdmin = email === SUPER_ADMIN_EMAIL || role === 'super_admin';
+  const isAdmin = isSuperAdmin || role === 'admin' || role === 'owner';
+
+  return { email, role, id, isSuperAdmin, isAdmin };
+}
 
 function jsonResponse(data: any, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -229,7 +256,9 @@ export default {
             body.author_avatar ??
             body.authorAvatar ??
             'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
-          const imageUrl = body.image_url ?? body.image ?? null;
+          const rawImageUrl = body.image_url ?? body.image ?? null;
+          // Clean Media Separation: If post has a video_id, image_url must be null
+          const imageUrl = videoId ? null : rawImageUrl;
           const groupId = body.group_id ?? body.groupId ?? null;
           const likesCount =
             typeof body.likes_count === 'number'
@@ -300,7 +329,7 @@ export default {
         return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
       }
 
-      // 5. Single item endpoint: /api/posts/:id
+      // 5. Single post endpoints: /api/posts/:id
       if (url.pathname.startsWith('/api/posts/')) {
         const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').trim());
 
@@ -322,10 +351,131 @@ export default {
         }
 
         if (request.method === 'DELETE') {
+          const auth = getAuthIdentity(request);
+
+          // Check if post exists to verify author ownership if not admin
+          let post: D1PostRow | null = null;
+          if (env.DB) {
+            try {
+              post = await env.DB.prepare('SELECT * FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
+            } catch (e) {}
+          }
+
+          // Permission Rule: Any Admin or Super Admin can delete any post.
+          // Regular users can only delete their own posts.
+          const isAuthor = Boolean(post && auth.id && post.author_id && auth.id === post.author_id);
+          const isAllowed = auth.isAdmin || isAuthor;
+
+          if (post && !isAllowed) {
+            return jsonResponse(
+              {
+                success: false,
+                error: 'Forbidden: You do not have permission to delete this post. Only Admins or the post author can delete it.',
+              },
+              403
+            );
+          }
+
           if (env.DB) {
             await env.DB.prepare('DELETE FROM posts WHERE id = ?').bind(postId).run();
           }
-          return jsonResponse({ success: true, id: postId });
+          return jsonResponse({ success: true, id: postId, message: 'Post deleted successfully.' });
+        }
+
+        return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
+      }
+
+      // 6. User management endpoints: /api/users/:id
+      if (url.pathname.startsWith('/api/users/')) {
+        const targetUserId = decodeURIComponent(url.pathname.replace('/api/users/', '').trim());
+
+        if (!targetUserId) {
+          return jsonResponse({ success: false, error: 'User ID is required' }, 400);
+        }
+
+        if (request.method === 'DELETE') {
+          const auth = getAuthIdentity(request);
+
+          // Permission Rule: Any Admin can delete regular user accounts.
+          if (!auth.isAdmin) {
+            return jsonResponse(
+              {
+                success: false,
+                error: 'Forbidden: Admin access required to delete users.',
+              },
+              403
+            );
+          }
+
+          // Check target profile
+          let targetProfile: any = null;
+          if (env.DB) {
+            try {
+              targetProfile = await env.DB.prepare('SELECT * FROM profiles WHERE id = ?').bind(targetUserId).first();
+              if (!targetProfile) {
+                targetProfile = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(targetUserId).first();
+              }
+            } catch (e) {}
+          }
+
+          const targetEmail = (
+            targetProfile?.email ||
+            url.searchParams.get('target_email') ||
+            url.searchParams.get('email') ||
+            request.headers.get('x-target-email') ||
+            ''
+          ).toLowerCase();
+
+          const targetRole = (
+            targetProfile?.role ||
+            url.searchParams.get('target_role') ||
+            url.searchParams.get('role') ||
+            request.headers.get('x-target-role') ||
+            'user'
+          ).toLowerCase();
+
+          // Rule 1: Super Admin account cannot be deleted by anyone
+          if (targetEmail === SUPER_ADMIN_EMAIL || targetRole === 'super_admin') {
+            return jsonResponse(
+              {
+                success: false,
+                error: 'Forbidden: The Super Admin account cannot be deleted.',
+              },
+              403
+            );
+          }
+
+          // Rule 2: NO standard admin can delete another Admin account.
+          // ONLY the Super Admin ("orthodoxconnect.live@gmail.com") has permission to delete Admin accounts.
+          const isTargetAdmin = targetRole === 'admin' || targetRole === 'owner';
+          if (isTargetAdmin && auth.email !== SUPER_ADMIN_EMAIL) {
+            return jsonResponse(
+              {
+                success: false,
+                error: 'Forbidden: Only the Super Admin (orthodoxconnect.live@gmail.com) has permission to delete Admin accounts.',
+              },
+              403
+            );
+          }
+
+          // Allowed: Execute deletion in D1
+          if (env.DB) {
+            try {
+              await env.DB.prepare('DELETE FROM profiles WHERE id = ?').bind(targetUserId).run();
+            } catch (e) {}
+            try {
+              await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(targetUserId).run();
+            } catch (e) {}
+            try {
+              await env.DB.prepare('DELETE FROM posts WHERE author_id = ?').bind(targetUserId).run();
+            } catch (e) {}
+          }
+
+          return jsonResponse({
+            success: true,
+            id: targetUserId,
+            message: 'User deleted successfully.',
+          });
         }
 
         return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);

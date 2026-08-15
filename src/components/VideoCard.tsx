@@ -10,15 +10,12 @@ import {
   Bookmark,
   Church,
   Trash2,
-  AlertCircle,
-  RefreshCw,
   Send,
   X,
   Plus,
   Check,
   Maximize,
   Music,
-  Disc,
   Sparkles,
   CheckCircle2,
 } from 'lucide-react';
@@ -35,7 +32,7 @@ export interface VideoComment {
   createdAt: string;
 }
 
-interface VideoCardProps {
+export interface VideoCardProps {
   video: Post;
   isPlaying: boolean;
   onTogglePlay: (e?: React.MouseEvent) => void;
@@ -61,71 +58,35 @@ export const DEFAULT_POSTER =
   'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800';
 
 /**
- * Normalizes any video source input (Bunny Stream UUID, embed URL, direct MP4, CDN link)
- * into structured stream URLs, thumbnails, and fallbacks.
+ * Standardized helper to extract a clean Bunny Stream Video GUID / UUID
+ * from any input format (pure GUID, embed URL, iframe src, CDN stream URL).
  */
-export function normalizeVideoSource(
-  rawSource?: string,
-  customLibraryId?: string,
-  customCdnHost?: string
-) {
-  const libraryId = customLibraryId || import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
-  const cdnHost = (import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net')
-    .replace(/^https?:\/\//, '')
-    .replace(/\/$/, '');
-
-  if (!rawSource || typeof rawSource !== 'string' || !rawSource.trim()) {
-    return {
-      isBunny: false,
-      guid: null,
-      directUrl: '',
-      iframeUrl: null,
-      thumbnailUrl: DEFAULT_POSTER,
-      isEmbedOnly: false,
-    };
-  }
-
+export function extractCleanVideoId(rawSource?: string | null): string | null {
+  if (!rawSource || typeof rawSource !== 'string') return null;
   const trimmed = rawSource.trim();
+  if (!trimmed) return null;
 
-  // Regex to extract 32/36-character Bunny Video GUID
-  const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/i;
+  // 1. Standard 36-char UUID regex (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+  const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/;
   const match = trimmed.match(guidRegex);
-  const guid = match ? match[1] : (/^[0-9a-fA-F-]{10,}$/.test(trimmed) && !trimmed.startsWith('http') && !trimmed.includes('/') ? trimmed : null);
+  if (match) return match[1];
 
-  const isBunnyProvider =
-    trimmed.includes('bunnycdn.com') ||
-    trimmed.includes('b-cdn.net') ||
-    trimmed.includes('mediadelivery.net') ||
-    trimmed.includes('bunnyinfra.net') ||
-    (guid !== null && !trimmed.startsWith('http') && !trimmed.startsWith('data:') && !trimmed.startsWith('blob:'));
-
-  if (isBunnyProvider && guid) {
-    const directUrl = `https://${cdnHost}/${guid}/play_720p.mp4`;
-    const iframeUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${guid}`;
-    const thumbnailUrl = `https://${cdnHost}/${guid}/thumbnail.jpg`;
-
-    // If source is explicitly an iframe embed URL
-    const isEmbedOnly = trimmed.includes('iframe.mediadelivery.net/embed/');
-
-    return {
-      isBunny: true,
-      guid,
-      directUrl,
-      iframeUrl,
-      thumbnailUrl,
-      isEmbedOnly,
-    };
+  // 2. Direct alphanumeric ID (10+ characters without path/protocol)
+  if (/^[0-9a-fA-F-]{10,}$/.test(trimmed) && !trimmed.startsWith('http') && !trimmed.includes('/')) {
+    return trimmed;
   }
 
-  // Standard web video URL (MP4, WebM, MOV, S3, Supabase, Google Storage)
-  return {
-    isBunny: false,
-    guid: null,
-    directUrl: trimmed,
-    iframeUrl: null,
-    thumbnailUrl: DEFAULT_POSTER,
-    isEmbedOnly: false,
-  };
+  // 3. Extract from Bunny iframe or mediadelivery URL
+  if (trimmed.includes('mediadelivery.net') || trimmed.includes('bunnycdn.com') || trimmed.includes('b-cdn.net')) {
+    const parts = trimmed.split('?')[0].split('/');
+    const lastPart = parts[parts.length - 1];
+    if (lastPart && (lastPart.length >= 10 || guidRegex.test(lastPart))) {
+      const pMatch = lastPart.match(guidRegex);
+      return pMatch ? pMatch[1] : lastPart;
+    }
+  }
+
+  return null;
 }
 
 export const VideoCard: React.FC<VideoCardProps> = ({
@@ -151,133 +112,46 @@ export const VideoCard: React.FC<VideoCardProps> = ({
 }) => {
   const { profile } = useAuth();
   const { pauseAllMedia, setActiveMediaId, isGlobalMuted, setIsGlobalMuted } = useMedia();
-  const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Standardize & sanitize all video item properties (support snake_case & camelCase)
+  // Standardize & sanitize video item properties
   const rawItem = video as any;
   const authorName = video.authorName || rawItem.author_name || 'Orthodox Parishioner';
   const authorParish = video.authorParish || rawItem.author_parish || 'Orthodox Parish';
-  const authorAvatar = video.authorAvatar || rawItem.author_avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+  const authorAvatar =
+    video.authorAvatar ||
+    rawItem.author_avatar ||
+    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
   const authorId = video.authorId || rawItem.author_id;
   const videoText = video.text || rawItem.content || '';
-  const videoImage = video.image || rawItem.image_url || rawItem.photo_url;
-  const rawVideoSource = video.video_id || rawItem.video_id || video.video || rawItem.videoId || rawItem.video_url;
+  const postImage = video.image || rawItem.image_url || rawItem.image || rawItem.photo_url;
 
-  // Playback & UI State
-  const [hasError, setHasError] = useState<boolean>(false);
-  const [useIframeFallback, setUseIframeFallback] = useState<boolean>(false);
+  // Standardize Video GUID Extraction: prioritize post.video_id || post.videoId
+  const rawVideoSource =
+    video.video_id ||
+    rawItem.video_id ||
+    video.video ||
+    rawItem.videoId ||
+    rawItem.video_url;
+  const cleanVideoId = extractCleanVideoId(rawVideoSource);
+
+  // UI state
   const [newCommentText, setNewCommentText] = useState<string>('');
   const [showPlayPulse, setShowPlayPulse] = useState<boolean>(false);
   const [doubleTapHearts, setDoubleTapHearts] = useState<{ id: number; x: number; y: number }[]>([]);
-  const [progress, setProgress] = useState<number>(0);
   const [isCaptionExpanded, setIsCaptionExpanded] = useState<boolean>(false);
-  const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
   const lastTapRef = useRef<number>(0);
-  const elementMediaId = `video-${video.id}`;
+  const elementMediaId = `reel-${video.id}`;
 
-  // Normalized video source attributes
-  const videoMeta = useMemo(() => {
-    return normalizeVideoSource(rawVideoSource);
-  }, [rawVideoSource]);
-
-  // Determine final poster image (custom image > Bunny Stream auto thumbnail > default poster)
-  const posterImage = useMemo(() => {
-    if (videoImage && videoImage.trim()) return videoImage;
-    if (videoMeta.thumbnailUrl && videoMeta.thumbnailUrl !== DEFAULT_POSTER) {
-      return videoMeta.thumbnailUrl;
-    }
-    return DEFAULT_POSTER;
-  }, [videoImage, videoMeta.thumbnailUrl]);
-
-  // Construct iframe embed URL with active play/mute query params
-  const iframeSrc = useMemo(() => {
-    if (!videoMeta.iframeUrl) return null;
-    const autoplayVal = isPlaying ? 'true' : 'false';
-    const mutedVal = isGlobalMuted ? 'true' : 'false';
-    return `${videoMeta.iframeUrl}?autoplay=${autoplayVal}&muted=${mutedVal}&loop=true&preload=true&responsive=true`;
-  }, [videoMeta.iframeUrl, isPlaying, isGlobalMuted]);
-
-  // Sync HTML5 Video Play / Pause & Mute with global mute persistence
+  // Keep active media context synced
   useEffect(() => {
-    const vid = videoRef.current;
-    if (!vid || useIframeFallback) {
-      if (isPlaying) setActiveMediaId(elementMediaId);
-      return;
-    }
-
     if (isPlaying) {
-      vid.muted = isGlobalMuted;
-      vid.defaultMuted = isGlobalMuted;
       setActiveMediaId(elementMediaId);
-
-      const playPromise = vid.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          // If browser policy prevents unmuted autoplay, retry immediately in muted mode
-          if (err.name === 'NotAllowedError') {
-            console.warn('[VideoCard] Autoplay prevented, falling back to muted playback');
-            vid.muted = true;
-            vid.play().catch((e: any) => {
-              console.warn('[VideoCard] Muted playback retry failed:', e?.message || String(e));
-            });
-          } else {
-            console.warn('[VideoCard] Playback interrupted:', err?.message || String(err));
-          }
-        });
-      }
-    } else {
-      vid.pause();
     }
-  }, [isPlaying, isGlobalMuted, elementMediaId, setActiveMediaId, useIframeFallback]);
+  }, [isPlaying, elementMediaId, setActiveMediaId]);
 
-  // Video progress tracking
-  useEffect(() => {
-    const vid = videoRef.current;
-    if (!vid) return;
-
-    const handleTimeUpdate = () => {
-      if (vid.duration && !isNaN(vid.duration)) {
-        setProgress((vid.currentTime / vid.duration) * 100);
-      }
-    };
-
-    vid.addEventListener('timeupdate', handleTimeUpdate);
-    return () => {
-      vid.removeEventListener('timeupdate', handleTimeUpdate);
-    };
-  }, []);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (videoRef.current) {
-        try {
-          videoRef.current.pause();
-          videoRef.current.currentTime = 0;
-          videoRef.current.removeAttribute('src');
-          videoRef.current.load();
-        } catch (e) {
-          // ignore cleanup errors
-        }
-      }
-    };
-  }, []);
-
-  // Handle direct HTML5 video element error (switch to Bunny iframe or display retry)
-  const handleVideoError = (_e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    console.warn('[VideoCard] HTML5 Video playback error for video ID:', video.id);
-    if (videoMeta.isBunny && videoMeta.iframeUrl && !useIframeFallback) {
-      // Automatically fallback to Bunny Stream Iframe embed
-      setUseIframeFallback(true);
-      setHasError(false);
-    } else {
-      setHasError(true);
-    }
-  };
-
-  // Screen Tap / Double Tap Handler (TikTok style)
+  // Screen Tap / Double Tap Handler (Reels style)
   const handleScreenClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.closest('form') || target.closest('.no-screen-tap')) {
@@ -285,10 +159,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     }
 
     const now = Date.now();
-    const DOUBLE_TAP_DELAY = 300;
+    const DOUBLE_TAP_DELAY = 280;
 
     if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-      // Double tap -> Like video with animated heart burst
+      // Double tap -> Like reel with animated heart burst
       const rect = containerRef.current?.getBoundingClientRect();
       const x = rect ? e.clientX - rect.left : e.clientX;
       const y = rect ? e.clientY - rect.top : e.clientY;
@@ -308,8 +182,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       lastTapRef.current = now;
       setTimeout(() => {
         if (lastTapRef.current === now) {
-          if (!isPlaying && videoRef.current) {
-            pauseAllMedia(videoRef.current);
+          if (!isPlaying) {
+            pauseAllMedia();
           }
           setShowPlayPulse(true);
           setTimeout(() => setShowPlayPulse(false), 500);
@@ -322,16 +196,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const handleToggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    const nextMuted = !isGlobalMuted;
-    setIsGlobalMuted(nextMuted);
-    if (videoRef.current) {
-      videoRef.current.muted = nextMuted;
-      if (!nextMuted && isPlaying && videoRef.current.paused) {
-        videoRef.current.play().catch((err) => {
-          console.warn('[VideoCard] Unmuted playback error:', err);
-        });
-      }
-    }
+    setIsGlobalMuted(!isGlobalMuted);
   };
 
   const handleToggleFullscreen = (e: React.MouseEvent) => {
@@ -391,7 +256,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     });
   };
 
-  // Format large numbers (1.2k, 14.5k)
   const formatCount = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
     if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
@@ -401,85 +265,52 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   return (
     <div
       ref={containerRef}
-      id={`orthodox-video-${video.id}`}
+      id={`orthodox-reel-${video.id}`}
       data-video-id={video.id}
       onClick={handleScreenClick}
       className="w-full h-full relative overflow-hidden bg-black select-none flex items-center justify-center snap-start snap-always"
     >
-      {/* 1. Main 9:16 Video Player Surface */}
-      {hasError ? (
-        <div className="relative w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#1c130c] overflow-hidden">
-          <img
-            src={posterImage}
-            alt="Video Thumbnail"
-            className="absolute inset-0 w-full h-full object-cover opacity-20 filter blur-xs"
-          />
-          <div className="relative z-10 flex flex-col items-center">
-            <div className="w-14 h-14 rounded-full bg-red-950/80 border border-red-500/40 flex items-center justify-center mb-3 text-red-400 shadow-inner">
-              <AlertCircle className="w-7 h-7" />
+      {/* 1. Main 9:16 Video Player Surface: Render Bunny Stream embed iframe for active reel */}
+      <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
+        {cleanVideoId ? (
+          isPlaying ? (
+            <iframe
+              src={`https://iframe.mediadelivery.net/embed/713265/${cleanVideoId}?autoplay=true&loop=true&muted=${isGlobalMuted ? 'true' : 'false'}&preload=true`}
+              loading="eager"
+              className="w-full h-full border-0 absolute inset-0 object-cover pointer-events-auto"
+              allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+              allowFullScreen={true}
+              title={videoText || 'Orthodox Reel'}
+            />
+          ) : (
+            <div className="relative w-full h-full">
+              <img
+                src={postImage || DEFAULT_POSTER}
+                alt="Reel content"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
+                <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-sm border-2 border-[#c5a059] flex items-center justify-center text-[#c5a059] shadow-2xl">
+                  <Play className="w-8 h-8 fill-current ml-1" />
+                </div>
+              </div>
             </div>
-            <h4 className="text-[#f5ebd9] font-serif font-bold text-base mb-1 uppercase tracking-wider">
-              Video Offline
-            </h4>
-            <p className="text-[#eedcb5]/70 text-xs max-w-xs font-serif mb-4">
-              The video source could not be reached. Tap retry to reconnect.
-            </p>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setHasError(false);
-                setUseIframeFallback(false);
-                if (isPlaying) onTogglePlay();
-              }}
-              className="px-4 py-2 rounded-2xl bg-[#3d2b18] hover:bg-[#c5a059] text-[#c5a059] hover:text-[#1c130c] font-serif font-bold text-xs uppercase tracking-wider transition-colors border border-[#c5a059]/40 cursor-pointer shadow-lg flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Retry Video</span>
-            </button>
-          </div>
-        </div>
-      ) : useIframeFallback && iframeSrc ? (
-        <div className="relative w-full h-full bg-black flex items-center justify-center">
-          <iframe
-            src={iframeSrc}
-            loading="eager"
-            className="w-full h-full border-0 pointer-events-auto"
-            allow="accelerometer; gyroscope; encrypted-media; picture-in-picture; autoplay;"
-            allowFullScreen
-            title={videoText || 'Orthodox Video'}
-            onError={() => setHasError(true)}
+          )
+        ) : (
+          <img
+            src={postImage || DEFAULT_POSTER}
+            alt="Reel content"
+            className="w-full h-full object-cover"
           />
-        </div>
-      ) : (
-        <div className="relative w-full h-full flex items-center justify-center bg-black">
-          <video
-            ref={videoRef}
-            data-media-id={elementMediaId}
-            src={videoMeta.directUrl || rawVideoSource}
-            poster={posterImage}
-            autoPlay={isPlaying}
-            loop={true}
-            preload="auto"
-            muted={isGlobalMuted}
-            // @ts-ignore
-            playsInline
-            webkit-playsinline="true"
-            x5-playsinline="true"
-            onLoadedData={() => setIsLoaded(true)}
-            onCanPlay={() => setIsLoaded(true)}
-            onError={handleVideoError}
-            className="w-full h-full object-cover sm:object-contain bg-black pointer-events-none"
-          />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Dark Vignette Gradients for Legibility (Top and Bottom) */}
       <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/75 via-black/30 to-transparent pointer-events-none z-10" />
       <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none z-10" />
 
-      {/* 2. Top Right Player Controls (Mute & Fullscreen) - Positioned cleanly below header tabs */}
-      <div className="absolute top-14 sm:top-16 right-3 sm:right-4 z-30 flex items-center gap-2 pointer-events-auto no-screen-tap">
+      {/* 2. Top Right Player Controls (Sound / Mute & Fullscreen) */}
+      <div className="absolute top-14 sm:top-16 right-3 sm:right-4 z-20 flex items-center gap-2 pointer-events-auto no-screen-tap">
         <button
           type="button"
           onClick={handleToggleMute}
@@ -488,7 +319,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               ? 'bg-black/75 border-red-500/70 text-red-300 hover:bg-black/90 hover:border-red-400'
               : 'bg-black/75 border-[#c5a059] text-[#c5a059] hover:bg-black/90 hover:border-[#e6d3ab]'
           }`}
-          title={isGlobalMuted ? 'Tap to Unmute Audio (Applies to all videos)' : 'Tap to Mute Audio (Applies to all videos)'}
+          title={isGlobalMuted ? 'Tap to Unmute Audio' : 'Tap to Mute Audio'}
           aria-label="Toggle Sound"
         >
           {isGlobalMuted ? (
@@ -539,8 +370,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
       ))}
 
-      {/* 5. Right-Side Action Bar (TikTok Style) */}
-      <div className="absolute right-2.5 sm:right-4 bottom-16 z-30 flex flex-col items-center gap-4.5 pointer-events-auto">
+      {/* 5. Right-Side Action Bar: z-20 relative pointer-events-auto */}
+      <div className="absolute right-2.5 sm:right-4 bottom-16 z-20 flex flex-col items-center gap-4.5 pointer-events-auto">
         {/* Author Avatar with Red (+) Follow Button */}
         <div className="relative flex flex-col items-center mb-1">
           <div
@@ -581,7 +412,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </button>
         </div>
 
-        {/* Heart / Like Button with Animated Counter */}
+        {/* Heart / Like Button */}
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
@@ -661,7 +492,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </span>
         </div>
 
-        {/* Delete Button (if admin/author) */}
+        {/* Delete Button (if admin or author) */}
         {canDelete && (
           <div className="flex flex-col items-center gap-1">
             <button
@@ -671,8 +502,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                 onDeleteVideo(video.id);
               }}
               className="w-9 h-9 rounded-full bg-red-950/80 border border-red-500/50 flex items-center justify-center text-red-300 hover:bg-red-600 hover:text-white transition-transform active:scale-95 cursor-pointer shadow-xl"
-              title="Delete Video"
-              aria-label="Delete Video"
+              title="Delete Reel"
+              aria-label="Delete Reel"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -737,7 +568,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             <Music className="w-3.5 h-3.5 text-[#c5a059] shrink-0" />
             <div className="overflow-hidden whitespace-nowrap text-[11px] text-white/90 font-serif">
               <span className="inline-block animate-marquee">
-                Original Audio — {authorName} • Byzantine Liturgical Chant & Reflection ☨
+                Original Audio — {authorName} • Byzantine Liturgical Reflection ☨
               </span>
             </div>
           </div>
@@ -755,21 +586,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({
                 className="w-full h-full object-cover"
               />
             </div>
-            {/* Center vinyl hole */}
             <div className="absolute w-1.5 h-1.5 rounded-full bg-black border border-white/40" />
           </div>
         </div>
       </div>
 
-      {/* 7. Bottom Edge Progress Bar */}
-      <div className="absolute bottom-0 inset-x-0 h-1 bg-white/20 z-30 pointer-events-none">
-        <div
-          style={{ width: `${progress}%` }}
-          className="h-full bg-gradient-to-r from-[#c5a059] to-[#eedcb5] transition-all duration-100"
-        />
-      </div>
-
-      {/* 8. Slide-Up Comment Drawer / Bottom Sheet */}
+      {/* 7. Slide-Up Comment Drawer / Bottom Sheet */}
       {isCommentOpen && (
         <div
           onClick={(e) => e.stopPropagation()}
@@ -814,7 +636,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               <div className="text-center py-10">
                 <Sparkles className="w-8 h-8 text-[#c5a059]/50 mx-auto mb-2" />
                 <p className="text-[#a89379] font-serif">
-                  Be the first to leave a spiritual comment or reflection on this video!
+                  Be the first to leave a reflection on this video!
                 </p>
               </div>
             ) : (
@@ -845,7 +667,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               type="text"
               value={newCommentText}
               onChange={(e) => setNewCommentText(e.target.value)}
-              placeholder="Add a comment or reflection..."
+              placeholder="Add a reflection or prayer..."
               className="flex-1 bg-[#282019] border border-[#c5a059] rounded-2xl px-3.5 py-2 text-xs text-[#f5ebd9] placeholder-[#a89379] focus:outline-none focus:ring-1 focus:ring-[#c5a059]"
             />
             <button
@@ -861,3 +683,5 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     </div>
   );
 };
+
+export const ReelCard = VideoCard;

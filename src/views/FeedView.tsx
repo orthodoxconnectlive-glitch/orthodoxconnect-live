@@ -299,7 +299,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
           profile?.avatar_url ||
           'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
         authorId: profile?.id,
-        image: imageUrl || undefined,
+        // Clean Media Separation: If video is attached, ensure image is null/undefined
+        image: finalVideoId ? undefined : (imageUrl || undefined),
         video_id: finalVideoId,
         video: finalVideoId,
       });
@@ -399,8 +400,12 @@ export const FeedView: React.FC<FeedViewProps> = ({
   };
 
   const handleDelete = async (postId: string) => {
-    await deletePost(postId);
-    setPosts((prev) => prev.filter((p) => p.id !== postId));
+    const res = await deletePost(postId, profile);
+    if (res.success) {
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+    } else {
+      console.warn('Failed to delete post:', res.error);
+    }
   };
 
   const handleOpenReport = (

@@ -51,6 +51,37 @@ interface FeedViewProps {
   onOpenCalendar?: () => void;
 }
 
+/**
+ * Compresses an image in the browser via HTML5 Canvas
+ * Prevents SQLite / D1 "SQLITE_TOOBIG" payload errors
+ */
+const compressImageToDataUrl = (file: File, maxWidth = 800, quality = 0.7): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+};
+
 export const FeedView: React.FC<FeedViewProps> = ({
   onSelectUser,
   onOpenMessengerWithUser,
@@ -122,7 +153,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
     try {
       const res = await fetch('/api/posts');
       if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch feed`);
-      
+
       const rawData = await res.json();
       const rawList: any[] = Array.isArray(rawData) ? rawData : rawData.posts || [];
 
@@ -166,10 +197,15 @@ export const FeedView: React.FC<FeedViewProps> = ({
         triggerToast('Please select a valid image file.');
         return;
       }
-      triggerToast('Uploading photo...');
-      const url = await uploadMediaFile(file, 'post-photos');
-      setImageUrl(url);
-      triggerToast('Photo attached!');
+      triggerToast('Optimizing photo...');
+      try {
+        const compressed = await compressImageToDataUrl(file, 800, 0.7);
+        setImageUrl(compressed);
+        triggerToast('Photo ready!');
+      } catch (err) {
+        console.error('Image compression error:', err);
+        triggerToast('Error processing image');
+      }
     }
     e.target.value = '';
   };
@@ -214,7 +250,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
     try {
       let finalVideoId: string | null = null;
 
-      // 1. Upload to Bunny Stream if video selected
       if (selectedVideoFile) {
         setSubmitStatusText('Uploading video to Bunny Stream...');
         triggerToast('Uploading video directly to Bunny Stream CDN...');

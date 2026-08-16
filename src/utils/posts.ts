@@ -58,10 +58,15 @@ export function mapRowToPost(row: any): Post {
     return {
       id: 'post-' + Date.now(),
       text: '',
+      content: '',
       authorName: 'Orthodox Parishioner',
+      author_name: 'Orthodox Parishioner',
       authorParish: 'Orthodox Church',
+      author_parish: 'Orthodox Church',
       authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      author_avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
       createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     };
   }
 
@@ -86,32 +91,67 @@ export function mapRowToPost(row: any): Post {
     row.profiles?.avatar_url ||
     'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
 
+  const authorId = row.author_id || row.authorId || undefined;
+
   // Bunny Stream video GUID / URL resolution
   const rawVideo = row.video_id || row.videoId || row.video || row.video_url || undefined;
   const videoGuid = extractBunnyVideoGuid(rawVideo);
+  const cleanVideo = videoGuid || (rawVideo && /^[0-9a-fA-F-]{10,}$/.test(rawVideo.trim()) ? rawVideo.trim() : undefined);
+
+  const text = (row.content ?? row.text ?? '').trim();
+  const rawImage = row.image_url || row.imageUrl || row.image || undefined;
+  // Clean media separation: if video is present, suppress image unless explicitly marked
+  const finalImage = cleanVideo ? undefined : rawImage;
+  const createdAt = row.created_at || row.createdAt || new Date().toISOString();
+  const groupId = row.group_id || row.groupId || undefined;
+
+  const likesCount = typeof row.likes_count === 'number' ? row.likes_count : (typeof row.likesCount === 'number' ? row.likesCount : 0);
+  const commentsCount = typeof row.comments_count === 'number' ? row.comments_count : (typeof row.commentsCount === 'number' ? row.commentsCount : 0);
+  const resharesCount = typeof row.reshares_count === 'number' ? row.reshares_count : (typeof row.resharesCount === 'number' ? row.resharesCount : 0);
+  const isLiked = Boolean(row.is_liked || row.isLiked);
+  const isReshared = Boolean(row.is_reshared || row.isReshared);
 
   return {
     id: String(row.id),
-    text: row.content || row.text || '',
+    text,
+    content: text,
     authorName,
+    author_name: authorName,
     authorParish,
+    author_parish: authorParish,
     authorAvatar,
-    authorId: row.author_id || row.authorId || undefined,
-    image: row.image_url || row.image || undefined,
-    video: rawVideo,
-    video_id: videoGuid || (rawVideo && /^[0-9a-fA-F-]{10,}$/.test(rawVideo.trim()) ? rawVideo.trim() : undefined),
+    author_avatar: authorAvatar,
+    authorId,
+    author_id: authorId,
+    image: finalImage,
+    imageUrl: finalImage,
+    image_url: finalImage,
+    video: cleanVideo || rawVideo,
+    videoId: cleanVideo,
+    video_id: cleanVideo,
     audio: row.audio_url || row.audio || row.audioUrl || undefined,
     audioUrl: row.audio_url || row.audio || row.audioUrl || undefined,
+    audio_url: row.audio_url || row.audio || row.audioUrl || undefined,
     broadcastUrl: row.broadcast_url || row.broadcastUrl || undefined,
-    createdAt: row.created_at || row.createdAt || new Date().toISOString(),
-    groupId: row.group_id || row.groupId || undefined,
-    likesCount: typeof row.likes_count === 'number' ? row.likes_count : (typeof row.likesCount === 'number' ? row.likesCount : 0),
-    commentsCount: typeof row.comments_count === 'number' ? row.comments_count : (typeof row.commentsCount === 'number' ? row.commentsCount : 0),
-    resharesCount: typeof row.reshares_count === 'number' ? row.reshares_count : (typeof row.resharesCount === 'number' ? row.resharesCount : 0),
-    isLiked: Boolean(row.is_liked || row.isLiked),
-    isReshared: Boolean(row.is_reshared || row.isReshared),
+    broadcast_url: row.broadcast_url || row.broadcastUrl || undefined,
+    createdAt,
+    created_at: createdAt,
+    groupId,
+    group_id: groupId,
+    likesCount,
+    likes_count: likesCount,
+    commentsCount,
+    comments_count: commentsCount,
+    resharesCount,
+    reshares_count: resharesCount,
+    isLiked,
+    is_liked: isLiked,
+    isReshared,
+    is_reshared: isReshared,
     quotedPost: row.quoted_post ? mapRowToPost(row.quoted_post) : (row.quotedPost ? mapRowToPost(row.quotedPost) : null),
+    quoted_post: row.quoted_post ? mapRowToPost(row.quoted_post) : (row.quotedPost ? mapRowToPost(row.quotedPost) : null),
     reshareKind: row.reshare_kind || row.reshareKind || undefined,
+    reshare_kind: row.reshare_kind || row.reshareKind || undefined,
   };
 }
 

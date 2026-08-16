@@ -1,8 +1,11 @@
 import { supabase } from '../lib/supabase';
 
-export const BUNNY_LIBRARY_ID = '713265';
-export const BUNNY_API_KEY = '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
-export const BUNNY_CDN_HOSTNAME = 'vz-840ad26e-6fe.b-cdn.net';
+export const BUNNY_LIBRARY_ID =
+  import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
+export const BUNNY_API_KEY =
+  import.meta.env.VITE_BUNNY_API_KEY || '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
+export const BUNNY_CDN_HOSTNAME =
+  import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 
 export interface BunnyUploadResult {
   guid: string;
@@ -11,70 +14,138 @@ export interface BunnyUploadResult {
 }
 
 /**
- * Uploads a video file directly to Bunny Stream REST API with guaranteed binary delivery.
+ * Compresses an image file client-side using HTML5 Canvas to max width 800px and quality 0.70.
+ * Eliminates oversized base64 payloads to avoid Cloudflare D1 / SQLite SQLITE_TOOBIG errors.
+ */
+export async function compressImageToDataUrl(
+  file: File,
+  maxWidth: number = 800,
+  quality: number = 0.7
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // If SVG or animated GIF, read as regular Data URL
+    if (file.type === 'image/svg+xml' || file.type === 'image/gif') {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (e) => reject(e);
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (readerEvent) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(readerEvent.target?.result as string);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = () => {
+        resolve(readerEvent.target?.result as string);
+      };
+      img.src = readerEvent.target?.result as string;
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Uploads a video file directly to Bunny Stream REST API with two-step handoff:
+ * Step A: POST https://video.bunnycdn.com/library/713265/videos with body { title } to obtain guid
+ * Step B: PUT https://video.bunnycdn.com/library/713265/videos/${guid} with binary octet-stream
+ * Only resolves when HTTP status is 2xx and binary upload is 100% complete.
  */
 export async function uploadVideoToBunnyStream(
   file: File,
   title?: string,
   onProgress?: (percent: number) => void
 ): Promise<string> {
-  const libraryId = BUNNY_LIBRARY_ID;
-  const apiKey = BUNNY_API_KEY;
+  const libraryId = BUNNY_LIBRARY_ID || '713265';
+  const apiKey = BUNNY_API_KEY || '615dab8d-4588-4669-934446d0dc3f-a0a1-4dfd';
   const videoTitle = title || file.name || `Orthodox_Video_${Date.now()}`;
   let guid: string | null = null;
 
-  // Step 1: Create Video Container in Bunny Stream
+  // Step A: Create Video Object in Bunny Stream
   try {
-    const createRes = await fetch(`https://video.bunnycdn.com/library/${libraryId}/videos`, {
-      method: 'POST',
-      headers: {
-        AccessKey: apiKey,
-        'Content-Type': 'application/json',
-        accept: 'application/json',
-      },
-      body: JSON.stringify({ title: videoTitle }),
-    });
+    const createRes = await fetch(
+      `https://video.bunnycdn.com/library/${libraryId}/videos`,
+      {
+        method: 'POST',
+        headers: {
+          AccessKey: apiKey,
+          'Content-Type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify({ title: videoTitle }),
+      }
+    );
 
     if (createRes.ok) {
       const createData = await createRes.json();
       guid = createData.guid;
     } else {
-      const errText = await createRes.text();
-      console.warn('[Bunny Direct Create Failed]:', createRes.status, errText);
+      console.warn('[Bunny Direct Create] returned status:', createRes.status);
     }
-  } catch (err) {
-    console.warn('[Bunny Direct Create Exception]:', err);
+  } catch (createErr) {
+    console.warn('[Bunny Direct Create] network error:', createErr);
   }
 
-  // Fallback to worker route if direct create fails
+  // Fallback to Worker API endpoint if direct create failed (e.g. CORS)
   if (!guid) {
-    const workerRes = await fetch('/api/bunny/create-video', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: videoTitle }),
-    });
-    if (workerRes.ok) {
-      const workerData = await workerRes.json();
-      guid = workerData.guid;
+    try {
+      const proxyRes = await fetch('/api/bunny/create-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: videoTitle }),
+      });
+
+      if (proxyRes.ok) {
+        const proxyData = await proxyRes.json();
+        if (proxyData?.guid) {
+          guid = proxyData.guid;
+        }
+      }
+    } catch (proxyErr) {
+      console.warn('[Bunny Proxy Create] error:', proxyErr);
     }
   }
 
   if (!guid) {
-    throw new Error('Failed to create Bunny Stream video container (No GUID generated).');
+    throw new Error('Failed to initialize Bunny Stream video container (GUID generation failed).');
   }
 
-  // Step 2: Stream Raw Binary PUT to Bunny Stream
+  // Step B: Stream binary using XMLHttpRequest PUT
+  const uploadUrl = `https://video.bunnycdn.com/library/${libraryId}/videos/${guid}`;
+
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('PUT', `https://video.bunnycdn.com/library/${libraryId}/videos/${guid}`, true);
-    
+    xhr.open('PUT', uploadUrl, true);
     xhr.setRequestHeader('AccessKey', apiKey);
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
     xhr.setRequestHeader('accept', 'application/json');
 
-    if (xhr.upload) {
+    if (xhr.upload && onProgress) {
       xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable && onProgress) {
+        if (event.lengthComputable) {
           const percent = Math.min(99, Math.round((event.loaded / event.total) * 100));
           onProgress(percent);
         }
@@ -86,12 +157,17 @@ export async function uploadVideoToBunnyStream(
         if (onProgress) onProgress(100);
         resolve();
       } else {
-        reject(new Error(`Bunny video binary upload failed with status ${xhr.status}: ${xhr.responseText}`));
+        reject(
+          new Error(
+            `Bunny Stream binary upload PUT failed with status ${xhr.status}: ${xhr.statusText || 'Upload rejected'}`
+          )
+        );
       }
     };
 
-    xhr.onerror = () => reject(new Error('Network error during Bunny video binary upload.'));
-    xhr.ontimeout = () => reject(new Error('Bunny video upload timed out.'));
+    xhr.onerror = () => {
+      reject(new Error('Network error occurred during Bunny Stream binary PUT upload.'));
+    };
 
     xhr.send(file);
   });
@@ -100,21 +176,23 @@ export async function uploadVideoToBunnyStream(
 }
 
 /**
- * Helper to build the canonical Bunny Stream iframe embed URL.
+ * Helper to build the canonical Bunny Stream iframe embed URL for a given videoId/GUID.
  */
 export function getBunnyEmbedIframeUrl(videoId: string): string {
-  return `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${videoId}?autoplay=false&loop=false&muted=false&preload=true`;
+  const libraryId = BUNNY_LIBRARY_ID || '713265';
+  return `https://iframe.mediadelivery.net/embed/${libraryId}/${videoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`;
 }
 
 /**
- * Uploads media file to Supabase or converts to persistent data URL.
+ * Uploads a file to Supabase Storage bucket or converts to compressed Data URL.
  */
 export async function uploadMediaFile(
   file: File,
   bucketName: string = 'media'
 ): Promise<string> {
   const fileExt = file.name.split('.').pop() || 'png';
-  const filePath = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+  const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+  const filePath = `${fileName}`;
 
   try {
     const { data, error } = await supabase.storage
@@ -131,9 +209,15 @@ export async function uploadMediaFile(
       }
     }
   } catch (err) {
-    console.warn('Supabase storage fallback:', err);
+    console.warn('Storage bucket upload error, compressing to optimized Data URL:', err);
   }
 
+  // If image, compress via HTML5 canvas to keep size under SQLite limits
+  if (file.type.startsWith('image/')) {
+    return compressImageToDataUrl(file, 800, 0.7);
+  }
+
+  // Fallback: Read file as Data URL
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -147,3 +231,4 @@ export async function uploadMediaFile(
     reader.readAsDataURL(file);
   });
 }
+

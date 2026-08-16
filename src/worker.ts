@@ -129,7 +129,7 @@ async function ensureD1Tables(db?: D1Database) {
     `);
     d1TablesInitialized = true;
   } catch (e) {
-    // Non-fatal
+    // Non-fatal if tables already exist
   }
 }
 
@@ -179,17 +179,23 @@ function jsonResponse(data: any, status = 200): Response {
   });
 }
 
+/**
+ * Extracts a clean Bunny Stream video GUID from any string format
+ * (e.g. pure GUID, embed iframe URL, or CDN direct stream URL).
+ */
 export function extractBunnyVideoGuid(input?: string | null): string | null {
   if (!input || typeof input !== 'string') return null;
   const trimmed = input.trim();
   if (!trimmed) return null;
 
+  // Match canonical UUID v4 / GUID pattern
   const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/;
   const match = trimmed.match(guidRegex);
   if (match) {
     return match[1];
   }
 
+  // If already an alphanumeric identifier
   if (/^[0-9a-zA-Z_-]{10,}$/.test(trimmed) && !trimmed.startsWith('http')) {
     return trimmed;
   }
@@ -201,6 +207,7 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    // 1. Handle CORS Preflight for all endpoints
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         status: 204,
@@ -209,6 +216,7 @@ export default {
     }
 
     try {
+      // 2. Health check endpoint
       if (url.pathname === '/api/health') {
         return jsonResponse({
           status: 'ok',
@@ -218,7 +226,8 @@ export default {
         });
       }
 
-      // POST /api/bunny/create-video
+      // 3. Bunny Stream: Video Creation Initiation Endpoint
+      // POST /api/bunny/create-video - Creates a video record in Bunny Stream
       if (url.pathname === '/api/bunny/create-video' || url.pathname === '/api/bunny/create-video/') {
         if (request.method !== 'POST') {
           return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
@@ -260,10 +269,10 @@ export default {
         }, 201);
       }
 
-      // Collection endpoints: /api/posts
+      // 4. Collection endpoints: /api/posts or /api/posts/
       if (url.pathname === '/api/posts' || url.pathname === '/api/posts/') {
+        // GET: Fetch posts ordered by datetime(created_at) DESC with pagination and filters
         if (request.method === 'GET') {
-          if (env.DB) await ensureD1Tables(env.DB);
           const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10), 1), 100);
           const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10), 0);
           const authorId = url.searchParams.get('author_id') || url.searchParams.get('authorId');
@@ -294,32 +303,45 @@ export default {
             query += ' WHERE ' + conditions.join(' AND ');
           }
 
-          query += ' ORDER BY datetime(created_at) DESC LIMIT ? OFFSET ?';
+          query += ' ORDER BY datetime(created_at) DESC, created_at DESC LIMIT ? OFFSET ?';
           params.push(limit, offset);
 
           let posts: D1PostRow[] = [];
 
           if (env.DB) {
-            const stmt = env.DB.prepare(query).bind(...params);
-            const { results } = await stmt.all<D1PostRow>();
-            posts = results || [];
+            try {
+              const stmt = env.DB.prepare(query).bind(...params);
+              const { results } = await stmt.all<D1PostRow>();
+              posts = results || [];
+            } catch (queryErr) {
+              // Fallback query if datetime parsing had an edge case
+              const fallbackStmt = env.DB.prepare('SELECT * FROM posts ORDER BY created_at DESC LIMIT ? OFFSET ?').bind(limit, offset);
+              const { results } = await fallbackStmt.all<D1PostRow>();
+              posts = results || [];
+            }
           }
 
-          return jsonResponse(posts); // Return clean array directly for easy frontend consumption
+          return jsonResponse({
+            success: true,
+            posts,
+            limit,
+            offset,
+            count: posts.length,
+          });
         }
 
+        // POST: Insert new post into Cloudflare D1
         if (request.method === 'POST') {
-          if (env.DB) await ensureD1Tables(env.DB);
           const body: any = await request.json().catch(() => ({}));
 
           const id =
-            body.id ||
+            (body.id && String(body.id).trim()) ||
             (typeof crypto !== 'undefined' && crypto.randomUUID
               ? crypto.randomUUID()
               : `post-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
-          const content = body.content ?? body.text ?? '';
+          const content = (body.content ?? body.text ?? '').trim();
           const videoIdRaw = body.video_id ?? body.videoId ?? body.video ?? null;
-          const videoId = extractBunnyVideoGuid(videoIdRaw);
+          const videoId = extractBunnyVideoGuid(videoIdRaw) || null;
 
           const authorId = body.author_id ?? body.authorId ?? null;
           const authorName = body.author_name ?? body.authorName ?? 'Orthodox Parishioner';
@@ -329,11 +351,27 @@ export default {
             body.authorAvatar ??
             'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
           const rawImageUrl = body.image_url ?? body.image ?? null;
-          const imageUrl = videoId ? null : rawImageUrl;
+          // Clean Media Separation: If post has a video_id, image_url must be null
+          const imageUrl = videoId ? null : (rawImageUrl || null);
           const groupId = body.group_id ?? body.groupId ?? null;
-          const likesCount = Number(body.likes_count || body.likesCount || 0);
-          const commentsCount = Number(body.comments_count || body.commentsCount || 0);
-          const resharesCount = Number(body.reshares_count || body.resharesCount || 0);
+          const likesCount =
+            typeof body.likes_count === 'number'
+              ? body.likes_count
+              : typeof body.likesCount === 'number'
+              ? body.likesCount
+              : 0;
+          const commentsCount =
+            typeof body.comments_count === 'number'
+              ? body.comments_count
+              : typeof body.commentsCount === 'number'
+              ? body.commentsCount
+              : 0;
+          const resharesCount =
+            typeof body.reshares_count === 'number'
+              ? body.reshares_count
+              : typeof body.resharesCount === 'number'
+              ? body.resharesCount
+              : 0;
           const createdAt = body.created_at || body.createdAt || new Date().toISOString();
 
           const newRow: D1PostRow = {
@@ -362,30 +400,30 @@ export default {
 
             await env.DB.prepare(insertSql)
               .bind(
-                id,
-                content,
-                videoId,
-                authorId,
-                authorName,
-                authorParish,
-                authorAvatar,
-                imageUrl,
-                groupId,
-                likesCount,
-                commentsCount,
-                resharesCount,
-                createdAt
+                id ?? null,
+                content ?? '',
+                videoId ?? null,
+                authorId ?? null,
+                authorName ?? 'Orthodox Parishioner',
+                authorParish ?? 'Orthodox Church',
+                authorAvatar ?? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+                imageUrl ?? null,
+                groupId ?? null,
+                likesCount ?? 0,
+                commentsCount ?? 0,
+                resharesCount ?? 0,
+                createdAt ?? new Date().toISOString()
               )
               .run();
           }
 
-          return jsonResponse({ success: true, post: newRow, ...newRow }, 201);
+          return jsonResponse({ success: true, post: newRow }, 201);
         }
 
         return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
       }
 
-      // Likes: POST /api/posts/:id/like
+      // 5. Post likes endpoint: POST /api/posts/:id/like
       const likeMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/like\/?$/);
       if (likeMatch) {
         if (request.method !== 'POST') {
@@ -427,6 +465,7 @@ export default {
             .first<D1PostRow>();
 
           if (existing) {
+            // Unlike
             await env.DB.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?')
               .bind(postId, userId)
               .run();
@@ -435,6 +474,7 @@ export default {
               .run();
             liked = false;
           } else {
+            // Like
             await env.DB.prepare('INSERT INTO post_likes (post_id, user_id, created_at) VALUES (?, ?, ?)')
               .bind(postId, userId, new Date().toISOString())
               .run();
@@ -443,6 +483,7 @@ export default {
               .run();
             liked = true;
 
+            // If liking, insert a row into notifications (type: 'like') for the post author if not liking own post
             if (post && post.author_id && post.author_id !== userId) {
               const notifId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `notif-like-${Date.now()}`;
               const postSnippet = post.content ? (post.content.length > 50 ? post.content.slice(0, 50) + '...' : post.content) : 'Post';
@@ -488,7 +529,7 @@ export default {
         });
       }
 
-      // Comments: /api/posts/:id/comments
+      // 6. Post comments endpoint: /api/posts/:id/comments (GET & POST)
       const commentsMatch = url.pathname.match(/^\/api\/posts\/([^/]+)\/comments\/?$/);
       if (commentsMatch) {
         const postId = decodeURIComponent(commentsMatch[1]);
@@ -541,6 +582,7 @@ export default {
               .bind(postId)
               .run();
 
+            // Check author of the post to send notification
             const post = await env.DB.prepare('SELECT * FROM posts WHERE id = ?')
               .bind(postId)
               .first<D1PostRow>();
@@ -581,7 +623,7 @@ export default {
         return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
       }
 
-      // Single post endpoints: /api/posts/:id
+      // 7. Single post endpoints: /api/posts/:id
       if (url.pathname.startsWith('/api/posts/')) {
         const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').trim());
 
@@ -605,6 +647,7 @@ export default {
         if (request.method === 'DELETE') {
           const auth = getAuthIdentity(request);
 
+          // Check if post exists to verify author ownership if not admin
           let post: D1PostRow | null = null;
           if (env.DB) {
             try {
@@ -612,6 +655,8 @@ export default {
             } catch (e) {}
           }
 
+          // Permission Rule: Any Admin or Super Admin can delete any post.
+          // Regular users can only delete their own posts.
           const isAuthor = Boolean(post && auth.id && post.author_id && auth.id === post.author_id);
           const isAllowed = auth.isAdmin || isAuthor;
 
@@ -634,7 +679,7 @@ export default {
         return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
       }
 
-      // Notifications mark-read: POST /api/notifications/mark-read
+      // 8. Notifications mark-read endpoint: POST /api/notifications/mark-read
       if (url.pathname === '/api/notifications/mark-read' || url.pathname === '/api/notifications/mark-read/') {
         if (request.method !== 'POST') {
           return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
@@ -668,7 +713,7 @@ export default {
         return jsonResponse({ success: true, message: 'Notifications marked as read' });
       }
 
-      // Notifications collection: /api/notifications
+      // 9. Notifications collection endpoints: /api/notifications (GET, POST)
       if (url.pathname === '/api/notifications' || url.pathname === '/api/notifications/') {
         if (request.method === 'GET') {
           const auth = getAuthIdentity(request);
@@ -757,7 +802,7 @@ export default {
         return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
       }
 
-      // Single notification: DELETE /api/notifications/:id
+      // 10. Single notification endpoint: DELETE /api/notifications/:id
       if (url.pathname.startsWith('/api/notifications/')) {
         const notifId = decodeURIComponent(url.pathname.replace('/api/notifications/', '').trim());
         if (request.method === 'DELETE') {
@@ -769,7 +814,7 @@ export default {
         }
       }
 
-      // User management: /api/users/:id
+      // 6. User management endpoints: /api/users/:id
       if (url.pathname.startsWith('/api/users/')) {
         const targetUserId = decodeURIComponent(url.pathname.replace('/api/users/', '').trim());
 
@@ -780,6 +825,7 @@ export default {
         if (request.method === 'DELETE') {
           const auth = getAuthIdentity(request);
 
+          // Permission Rule: Any Admin can delete regular user accounts.
           if (!auth.isAdmin) {
             return jsonResponse(
               {
@@ -790,6 +836,7 @@ export default {
             );
           }
 
+          // Check target profile
           let targetProfile: any = null;
           if (env.DB) {
             try {
@@ -816,6 +863,7 @@ export default {
             'user'
           ).toLowerCase();
 
+          // Rule 1: Super Admin account cannot be deleted by anyone
           if (targetEmail === SUPER_ADMIN_EMAIL || targetRole === 'super_admin') {
             return jsonResponse(
               {
@@ -826,6 +874,8 @@ export default {
             );
           }
 
+          // Rule 2: NO standard admin can delete another Admin account.
+          // ONLY the Super Admin ("orthodoxconnect.live@gmail.com") has permission to delete Admin accounts.
           const isTargetAdmin = targetRole === 'admin' || targetRole === 'owner';
           if (isTargetAdmin && auth.email !== SUPER_ADMIN_EMAIL) {
             return jsonResponse(
@@ -837,6 +887,7 @@ export default {
             );
           }
 
+          // Allowed: Execute deletion in D1
           if (env.DB) {
             try {
               await env.DB.prepare('DELETE FROM profiles WHERE id = ?').bind(targetUserId).run();
@@ -872,3 +923,4 @@ export default {
     }
   },
 };
+

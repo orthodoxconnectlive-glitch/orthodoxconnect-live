@@ -86,17 +86,13 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   // Standardize & sanitize all post properties (support snake_case & camelCase)
   const rawPost = post as any;
-  const authorName = post.authorName || rawPost.author_name || 'Orthodox Parishioner';
-  const authorParish = post.authorParish || rawPost.author_parish || 'Orthodox Parish';
-  const authorAvatar = post.authorAvatar || rawPost.author_avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
-  const authorId = post.authorId || rawPost.author_id;
-  
-  // Robust content and image extraction
-  const postContent = (post.content ?? post.text ?? rawPost.content ?? rawPost.text ?? '').trim();
-  const postImage = post.imageUrl || post.image || rawPost.image_url || rawPost.image || rawPost.photo_url || null;
-  
-  const rawVideo = post.videoId || post.video_id || rawPost.video_id || post.video || rawPost.videoId || rawPost.video_url;
-  const cleanVideoId = extractCleanVideoId(rawVideo);
+  const authorName = post.authorName || post.author_name || rawPost.profile?.full_name || 'Orthodox Parishioner';
+  const authorParish = post.authorParish || post.author_parish || rawPost.profile?.parish || 'Orthodox Parish';
+  const authorAvatar = post.authorAvatar || post.author_avatar || rawPost.profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+  const authorId = post.authorId || post.author_id || rawPost.author_id;
+  const postContent = (post.content ?? post.text ?? '').trim();
+  const postImage = post.imageUrl || post.image || post.image_url || null;
+  const cleanVideoId = extractCleanVideoId(post.videoId || post.video_id || post.video || undefined);
 
   const isSuperAdminOrAuthor =
     currentProfile?.id === authorId ||
@@ -112,10 +108,10 @@ export const PostCard: React.FC<PostCardProps> = ({
     setCommentInput('');
   };
 
-  const hasAudio = Boolean(post.audio || post.audioUrl || rawPost.audio_url);
-  const audioSource = post.audio || post.audioUrl || rawPost.audio_url;
-  const hasGenericVideo = Boolean(post.video || post.broadcastUrl || rawPost.broadcast_url);
-  const genericVideoSource = post.video || post.broadcastUrl || rawPost.broadcast_url;
+  const hasAudio = Boolean(post.audio || post.audioUrl || post.audio_url);
+  const audioSource = post.audio || post.audioUrl || post.audio_url;
+  const hasGenericVideo = Boolean(post.video || post.broadcastUrl || post.broadcast_url);
+  const genericVideoSource = post.video || post.broadcastUrl || post.broadcast_url;
 
   return (
     <div
@@ -263,6 +259,7 @@ export const PostCard: React.FC<PostCardProps> = ({
       {/* Bunny Stream Video Embed Player */}
       {cleanVideoId ? (
         <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-md border border-[#c5a059]/30 mb-3.5 flex items-center justify-center">
+          {/* Ambient blurred backdrop */}
           <div
             className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
             style={{ backgroundImage: `url(https://vz-840ad26e-6fe.b-cdn.net/${cleanVideoId}/thumbnail.jpg)` }}
@@ -302,13 +299,13 @@ export const PostCard: React.FC<PostCardProps> = ({
         </div>
       )}
 
-      {/* Audio Track Media */}
+      {/* Audio Track Media: AutoPlay Stripped, Explicit Play Required */}
       {hasAudio && audioSource && (
         <div className="mb-3.5">
           <AudioPlayer
             audioUrl={audioSource}
-            title={postContent ? (postContent.slice(0, 40) + '...') : 'Spiritual Chant / Sermon'}
-            authorName={authorName}
+            title={post.text ? (post.text.slice(0, 40) + '...') : 'Spiritual Chant / Sermon'}
+            authorName={post.authorName}
             mediaId={`post-audio-${post.id}`}
           />
         </div>
@@ -340,7 +337,7 @@ export const PostCard: React.FC<PostCardProps> = ({
             </span>
           </div>
           <p className="text-[#2c2c2c] dark:text-[#eedcb5] italic pl-7">
-            "{post.quotedPost.text || (post.quotedPost as any).content}"
+            "{post.quotedPost.text}"
           </p>
         </div>
       )}

@@ -13,26 +13,45 @@ export interface UserProfile {
 
 export interface Post {
   id: string;
-  text: string; // Mapped from 'content'
-  authorName: string; // Mapped from 'author_name'
-  authorParish: string; // Mapped from 'author_parish'
-  authorAvatar: string; // Mapped from 'author_avatar'
+  text?: string;
+  content?: string;
+  authorName?: string;
+  author_name?: string;
+  authorParish?: string;
+  author_parish?: string;
+  authorAvatar?: string;
+  author_avatar?: string;
   authorId?: string;
-  image?: string; // Mapped from 'image_url'
-  video?: string; // Mapped from 'video' / 'video_id'
-  video_id?: string; // Bunny Stream Video GUID
-  audio?: string; // Mapped from 'audio' or 'audio_url'
+  author_id?: string;
+  image?: string | null;
+  imageUrl?: string | null;
+  image_url?: string | null;
+  video?: string | null;
+  videoId?: string | null;
+  video_id?: string | null;
+  audio?: string;
   audioUrl?: string;
+  audio_url?: string;
   broadcastUrl?: string;
-  createdAt: string; // Mapped from 'created_at'
-  groupId?: string; // Mapped from 'group_id'
+  broadcast_url?: string;
+  createdAt?: string;
+  created_at?: string;
+  groupId?: string;
+  group_id?: string;
   likesCount?: number;
+  likes_count?: number;
   commentsCount?: number;
+  comments_count?: number;
   resharesCount?: number;
+  reshares_count?: number;
   isLiked?: boolean;
+  is_liked?: boolean;
   isReshared?: boolean;
+  is_reshared?: boolean;
   quotedPost?: Post | null;
+  quoted_post?: Post | null;
   reshareKind?: 'reshare' | 'quote';
+  reshare_kind?: string;
 }
 
 export interface Message {

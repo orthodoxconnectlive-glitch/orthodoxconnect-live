@@ -1,5 +1,17 @@
 import React, { useEffect, useRef } from 'react';
-import { Bell, CheckCheck, MessageSquare, AtSign, Calendar, Users, ShieldAlert, ChevronRight, X } from 'lucide-react';
+import { 
+  Bell, 
+  CheckCheck, 
+  MessageSquare, 
+  AtSign, 
+  Calendar, 
+  Users, 
+  ShieldAlert, 
+  ChevronRight, 
+  X, 
+  Heart, 
+  MessageCircle 
+} from 'lucide-react';
 import { NotificationItem } from '../types';
 import { TimeAgo } from './TimeAgo';
 
@@ -42,9 +54,17 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-  const getIcon = (type: NotificationItem['type']) => {
+  const getIcon = (type: NotificationItem['type'] | string) => {
     switch (type) {
+      case 'like':
+      case 'post_like':
+        return <Heart className="w-4 h-4 text-rose-500 fill-rose-500/20" />;
+      case 'comment':
+      case 'post_comment':
+        return <MessageCircle className="w-4 h-4 text-blue-500" />;
       case 'message':
+      case 'dm':
+      case 'direct_message':
         return <MessageSquare className="w-4 h-4 text-amber-600" />;
       case 'mention':
         return <AtSign className="w-4 h-4 text-emerald-600" />;
@@ -64,7 +84,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     onClose();
     if (notif.link) {
       onNavigateToNotifications(notif.link);
-    } else if (notif.type === 'message') {
+    } else if (notif.type === 'message' || notif.type === 'dm' || notif.type === 'direct_message') {
       onNavigateToNotifications('messages');
     } else if (notif.type === 'event_invite') {
       onNavigateToNotifications('calendar');

@@ -1,41 +1,34 @@
-import { supabase } from '../lib/supabase';
 import { EventItem, EventRsvp } from '../types';
 import { addNotification } from './notifications';
-
-const SEED_EVENTS: EventItem[] = [];
+import { eventsApi } from '../lib/api';
 
 let localEventsCache: EventItem[] = [];
 
 export async function loadEvents(): Promise<EventItem[]> {
   try {
-    const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .order('date', { ascending: true });
-
-    if (!error && data && data.length > 0) {
+    const data = await eventsApi.getAll();
+    if (data && data.length > 0) {
       const dbEvents: EventItem[] = data.map((d: any) => ({
         id: String(d.id),
         title: d.title,
         description: d.description || '',
         date: d.date,
         time: d.time || '10:00 AM',
-        locationType: d.location_type || 'physical',
-        locationAddress: d.location_address || undefined,
-        virtualLink: d.virtual_link || undefined,
+        locationType: d.location_type || d.locationType || 'physical',
+        locationAddress: d.location_address || d.locationAddress || undefined,
+        virtualLink: d.virtual_link || d.virtualLink || undefined,
         category: d.category || 'liturgy',
         parish: d.parish || 'Orthodox Parish',
-        hostName: d.host_name || 'Priest / Coordinator',
-        hostAvatar: d.host_avatar || undefined,
-        hostId: d.host_id || undefined,
-        imageUrl: d.image_url || undefined,
-        createdAt: d.created_at || new Date().toISOString(),
-        goingCount: d.going_count || 1,
-        interestedCount: d.interested_count || 0,
-        rsvps: d.rsvps || [],
+        hostName: d.host_name || d.hostName || 'Priest / Coordinator',
+        hostAvatar: d.host_avatar || d.hostAvatar || undefined,
+        hostId: d.host_id || d.hostId || undefined,
+        imageUrl: d.image_url || d.imageUrl || undefined,
+        createdAt: d.created_at || d.createdAt || new Date().toISOString(),
+        goingCount: d.going_count ?? d.goingCount ?? 1,
+        interestedCount: d.interested_count ?? d.interestedCount ?? 0,
+        rsvps: typeof d.rsvps === 'string' ? JSON.parse(d.rsvps || '[]') : (d.rsvps || []),
       }));
 
-      // Merge with local cache
       const map = new Map<string, EventItem>();
       dbEvents.forEach((e) => map.set(e.id, e));
       localEventsCache.forEach((e) => {
@@ -45,7 +38,7 @@ export async function loadEvents(): Promise<EventItem[]> {
       return Array.from(map.values());
     }
   } catch (err) {
-    console.warn('Supabase loadEvents fallback to local cache:', err);
+    console.warn('Cloudflare D1 loadEvents notice:', err);
   }
 
   return localEventsCache;
@@ -84,26 +77,7 @@ export async function saveEvent(newEventData: Partial<EventItem>): Promise<Event
   localEventsCache = [created, ...localEventsCache];
 
   try {
-    const payload = {
-      title: created.title,
-      description: created.description,
-      date: created.date,
-      time: created.time,
-      location_type: created.locationType,
-      location_address: created.locationAddress || null,
-      virtual_link: created.virtualLink || null,
-      category: created.category,
-      parish: created.parish,
-      host_name: created.hostName,
-      host_avatar: created.hostAvatar || null,
-      host_id: created.hostId || null,
-      image_url: created.imageUrl || null,
-      going_count: created.goingCount,
-      interested_count: created.interestedCount,
-      rsvps: created.rsvps,
-    };
-
-    await supabase.from('events').insert([payload]);
+    await eventsApi.create(created);
 
     addNotification({
       userId: 'all',
@@ -170,14 +144,11 @@ export async function setEventRsvp(
 
   if (updatedEvent) {
     try {
-      await supabase
-        .from('events')
-        .update({
-          going_count: (updatedEvent as EventItem).goingCount,
-          interested_count: (updatedEvent as EventItem).interestedCount,
-          rsvps: (updatedEvent as EventItem).rsvps,
-        })
-        .eq('id', eventId);
+      await eventsApi.update(eventId, {
+        goingCount: (updatedEvent as EventItem).goingCount,
+        interestedCount: (updatedEvent as EventItem).interestedCount,
+        rsvps: (updatedEvent as EventItem).rsvps,
+      });
     } catch (err) {
       console.warn('Update RSVP warning:', err);
     }

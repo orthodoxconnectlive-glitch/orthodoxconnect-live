@@ -1,12 +1,8 @@
 /**
  * Real-Time Call Signaling Layer
  * Handles cross-tab, cross-window, and multi-user WebRTC call signaling
- * using BroadcastChannel, localStorage events, and Supabase realtime channels.
+ * using BroadcastChannel and localStorage storage events.
  */
-
-import { supabase } from '../lib/supabase';
-import { CallState } from '../types';
-import { soundSynth, triggerBrowserNotification } from './ringtone';
 
 export interface CallSignalPayload {
   type: 'OFFER_CALL' | 'RINGING' | 'ACCEPT_CALL' | 'DECLINE_CALL' | 'END_CALL';
@@ -57,18 +53,6 @@ export class CallSignalingService {
         } catch (err) {}
       }
     });
-
-    // 3. Listen to Supabase Realtime channel for calls
-    try {
-      supabase
-        .channel('orthodox-global-calls-realtime')
-        .on('broadcast', { event: 'call-signal' }, (payload: any) => {
-          if (payload.payload && payload.payload.callId) {
-            this.emitSignal(payload.payload);
-          }
-        })
-        .subscribe();
-    } catch (e) {}
   }
 
   private emitSignal(signal: CallSignalPayload) {
@@ -99,15 +83,6 @@ export class CallSignalingService {
     // 2. Write to localStorage for cross-window / cross-tab sync
     try {
       localStorage.setItem(LOCAL_STORAGE_CALL_SIGNAL_KEY, JSON.stringify(signal));
-    } catch (e) {}
-
-    // 3. Broadcast to Supabase Realtime
-    try {
-      supabase.channel('orthodox-global-calls-realtime').send({
-        type: 'broadcast',
-        event: 'call-signal',
-        payload: signal,
-      });
     } catch (e) {}
   }
 }

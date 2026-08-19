@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { profilesApi } from '../lib/api';
 import {
   Users,
   Church,
@@ -104,17 +104,9 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
   }, []);
 
   const fetchRealMembers = async () => {
-    if (!isSupabaseConfigured) return;
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, parish, avatar_url, bio, email');
-
-      if (error) {
-        console.warn('Real members fetch note:', error.message || error);
-      }
-
-      if (!error && data) {
+      const data = await profilesApi.getAll();
+      if (data && data.length > 0) {
         const real = data.filter((p) => !p.email || !p.email.endsWith('@example.com'));
         const mapped: ParishMember[] = real.map((p) => ({
           id: p.id,

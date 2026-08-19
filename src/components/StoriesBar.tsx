@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Sparkles, X, ChevronLeft, ChevronRight, Send, Image as ImageIcon, Church } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { storiesApi } from '../lib/api';
 import { Story, loadStories, saveStory } from '../utils/stories';
 import { useAuth } from '../context/AuthContext';
 import { UserProfileData } from '../views/ProfileView';
@@ -30,20 +30,9 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
   useEffect(() => {
     async function fetchRealStories() {
       const local = loadStories();
-      if (!isSupabaseConfigured) {
-        setStories(local);
-        return;
-      }
       try {
-        const { data, error } = await supabase
-          .from('stories')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (error) {
-          console.warn('Stories fetch note:', error.message || error);
-          setStories(local);
-        } else if (data && data.length > 0) {
+        const data = await storiesApi.getAll();
+        if (data && data.length > 0) {
           const mapped: Story[] = data.map((d: any) => ({
             id: d.id,
             authorName: d.author_name || d.authorName || 'Parish Member',
@@ -107,25 +96,18 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
       caption: caption.trim(),
     });
 
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase.from('stories').insert([
-          {
-            id: created.id,
-            author_name: created.authorName,
-            author_avatar: created.authorAvatar,
-            author_parish: created.authorParish,
-            image_url: created.imageUrl,
-            caption: created.caption,
-            author_id: profile?.id,
-          },
-        ]);
-        if (error) {
-          console.warn('Stories insert note:', error.message || error);
-        }
-      } catch (err) {
-        console.warn('Stories insert notice:', err);
-      }
+    try {
+      await storiesApi.create({
+        id: created.id,
+        author_name: created.authorName,
+        author_avatar: created.authorAvatar,
+        author_parish: created.authorParish,
+        image_url: created.imageUrl,
+        caption: created.caption,
+        author_id: profile?.id,
+      } as any);
+    } catch (err) {
+      console.warn('Stories insert notice:', err);
     }
 
     setStories([created, ...stories]);

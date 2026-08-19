@@ -1,5 +1,3 @@
-import { supabase } from '../lib/supabase';
-
 export const BUNNY_LIBRARY_ID =
   import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
 export const BUNNY_API_KEY =
@@ -184,35 +182,13 @@ export function getBunnyEmbedIframeUrl(videoId: string): string {
 }
 
 /**
- * Uploads a file to Supabase Storage bucket or converts to compressed Data URL.
+ * Uploads/prepares media file (compresses images to optimized Data URLs for Cloudflare D1 storage).
  */
 export async function uploadMediaFile(
   file: File,
-  bucketName: string = 'media'
+  _bucketName: string = 'media'
 ): Promise<string> {
-  const fileExt = file.name.split('.').pop() || 'png';
-  const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
-  const filePath = `${fileName}`;
-
-  try {
-    const { data, error } = await supabase.storage
-      .from(bucketName)
-      .upload(filePath, file, { cacheControl: '3600', upsert: true });
-
-    if (!error && data) {
-      const { data: publicUrlData } = supabase.storage
-        .from(bucketName)
-        .getPublicUrl(filePath);
-
-      if (publicUrlData?.publicUrl) {
-        return publicUrlData.publicUrl;
-      }
-    }
-  } catch (err) {
-    console.warn('Storage bucket upload error, compressing to optimized Data URL:', err);
-  }
-
-  // If image, compress via HTML5 canvas to keep size under SQLite limits
+  // If image, compress via HTML5 canvas to keep size well under SQLite limits
   if (file.type.startsWith('image/')) {
     return compressImageToDataUrl(file, 800, 0.7);
   }
@@ -231,4 +207,3 @@ export async function uploadMediaFile(
     reader.readAsDataURL(file);
   });
 }
-

@@ -29,7 +29,7 @@ import {
   ArrowLeft,
   MessageCircle,
 } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { messagesApi, profilesApi } from '../lib/api';
 import { addNotification } from '../utils/notifications';
 import { Message, CallState } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -178,35 +178,18 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
 
   useEffect(() => {
     async function loadRealContacts() {
-      if (!isSupabaseConfigured) return;
       try {
-        // 1. Fetch profiles table with full_name and parish
-        let query = supabase
-          .from('profiles')
-          .select('id, full_name, parish, avatar_url, email');
-
-        if (profile?.id && isUUIDString(profile.id)) {
-          query = query.neq('id', profile.id.replace(/^auth-/, ''));
-        }
-
-        const { data: profilesData, error: profilesError } = await query;
-
-        if (profilesError) {
-          console.warn('Profiles load note:', profilesError.message || profilesError);
-        }
+        // 1. Fetch profiles table with full_name and parish from Cloudflare D1
+        const profilesData = await profilesApi.getAll(undefined, profile?.id);
 
         // 2. Fetch active messages to identify contacts user has chatted with
         const activePartnerIds = new Set<string>();
-        if (profile?.id && isUUIDString(profile.id)) {
+        if (profile?.id) {
           const myCleanId = profile.id.replace(/^auth-/, '');
-          const { data: msgsData } = await supabase
-            .from('messages')
-            .select('sender_id, receiver_id, created_at')
-            .or(`sender_id.eq.${myCleanId},receiver_id.eq.${myCleanId}`)
-            .order('created_at', { ascending: false });
+          const msgsData = await messagesApi.getConversation(myCleanId);
 
-          if (msgsData) {
-            msgsData.forEach((m) => {
+          if (msgsData && Array.isArray(msgsData)) {
+            msgsData.forEach((m: any) => {
               const partnerId = m.sender_id === myCleanId ? m.receiver_id : m.sender_id;
               if (partnerId && partnerId !== myCleanId) {
                 activePartnerIds.add(partnerId);
@@ -215,7 +198,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
           }
         }
 
-        if (!profilesError && profilesData) {
+        if (profilesData && profilesData.length > 0) {
           const mapped: ChatContact[] = profilesData.map((p) => {
             const displayName = getContactDisplayName(p);
             return {
@@ -259,7 +242,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
 
   // Fetch individual profile details when activeContact has a raw UUID or default name
   useEffect(() => {
-    if (!activeContact?.id || !isSupabaseConfigured) return;
+    if (!activeContact?.id) return;
 
     if (
       !activeContact.full_name &&
@@ -269,19 +252,9 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
       async function fetchSingleProfile() {
         try {
           const cleanId = activeContact!.id.replace(/^auth-/, '');
-          if (!isUUIDString(cleanId)) return;
+          const data = await profilesApi.getById(cleanId);
 
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('id, full_name, parish, avatar_url, email')
-            .eq('id', cleanId)
-            .maybeSingle();
-
-          if (error) {
-            console.warn('Single profile load note:', error.message || error);
-          }
-
-          if (data && !error) {
+          if (data) {
             const realName = getContactDisplayName(data);
             setActiveContact((prev) =>
               prev && prev.id === activeContact!.id
@@ -425,33 +398,29 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Real-time synchronization using Supabase Realtime channel and storage events
+  // Real-time synchronization using BroadcastChannel and storage events
   useEffect(() => {
     if (!activeContact) return;
-    const channel = supabase
-      .channel(`messages_realtime_${activeContact.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-        },
-        (payload) => {
-          if (payload.new) {
-            const newM = payload.new as ExtendedMessage;
-            if (newM.sender_id === activeContact.id || newM.receiver_id === activeContact.id) {
-              setMessages((prev) => {
-                if (prev.some((m) => m.id === newM.id)) return prev;
-                const updated = [...prev, newM];
-                saveLocalMessagesForContact(activeContact.id, updated);
-                return updated;
-              });
-            }
+
+    let msgBroadcast: BroadcastChannel | null = null;
+    try {
+      msgBroadcast = new BroadcastChannel('orthodox_messenger_channel');
+      msgBroadcast.onmessage = (event) => {
+        if (event.data?.type === 'NEW_MESSAGE' && event.data?.message) {
+          const newM = event.data.message as ExtendedMessage;
+          if (newM.sender_id === activeContact.id || newM.receiver_id === activeContact.id) {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === newM.id)) return prev;
+              const updated = [...prev, newM];
+              saveLocalMessagesForContact(activeContact.id, updated);
+              return updated;
+            });
           }
         }
-      )
-      .subscribe();
+      };
+    } catch (e) {
+      console.warn('BroadcastChannel error:', e);
+    }
 
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === LOCAL_MESSAGES_KEY) {
@@ -461,7 +430,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
-      supabase.removeChannel(channel);
+      msgBroadcast?.close();
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [activeContact?.id]);
@@ -473,20 +442,12 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     setMessages(localMsgs);
 
     const cleanContactId = activeContact.id.replace(/^auth-/, '');
-    if (!isUUIDString(cleanContactId)) {
-      setIsMessagesLoading(false);
-      return;
-    }
 
     try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .or(`sender_id.eq.${cleanContactId},receiver_id.eq.${cleanContactId}`)
-        .order('created_at', { ascending: true });
+      const data = await messagesApi.getConversation(cleanContactId);
 
-      if (!error && data && data.length > 0) {
-        // Merge Supabase messages with local messages
+      if (data && data.length > 0) {
+        // Merge Cloudflare D1 messages with local messages
         const msgMap = new Map<string, ExtendedMessage>();
         localMsgs.forEach((m) => msgMap.set(m.id, m));
         data.forEach((m: any) => msgMap.set(m.id, m as ExtendedMessage));
@@ -499,7 +460,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
         saveLocalMessagesForContact(activeContact.id, merged);
       }
     } catch (err) {
-      console.warn('Supabase messages fallback:', err);
+      console.warn('Messages load notice:', err);
     } finally {
       setIsMessagesLoading(false);
     }
@@ -539,6 +500,15 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     setVideoAttachment('');
     setShowEmojiPicker(false);
 
+    // Broadcast message to other tabs
+    try {
+      const msgBroadcast = new BroadcastChannel('orthodox_messenger_channel');
+      msgBroadcast.postMessage({ type: 'NEW_MESSAGE', message: newMsg });
+      msgBroadcast.close();
+    } catch (e) {
+      console.warn('Broadcast notice:', e);
+    }
+
     // Update last message in contacts list snippet
     setContactsList((prev) =>
       prev.map((c) =>
@@ -555,20 +525,16 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     const cleanSenderId = (profile?.id || '').replace(/^auth-/, '');
     const cleanReceiverId = activeContact.id.replace(/^auth-/, '');
 
-    if (isUUIDString(cleanSenderId) && isUUIDString(cleanReceiverId)) {
-      try {
-        await supabase.from('messages').insert([
-          {
-            sender_id: cleanSenderId,
-            receiver_id: cleanReceiverId,
-            content: newMsg.content,
-            image_url: newMsg.image_url || null,
-            video_url: newMsg.video_url || null,
-          },
-        ]);
-      } catch (err) {
-        console.warn('Supabase message insert error:', err);
-      }
+    try {
+      await messagesApi.send({
+        sender_id: cleanSenderId || 'me',
+        receiver_id: cleanReceiverId,
+        content: newMsg.content,
+        image_url: newMsg.image_url,
+        video_url: newMsg.video_url,
+      });
+    } catch (err) {
+      console.warn('Message send error:', err);
     }
 
     // Trigger notification for recipient

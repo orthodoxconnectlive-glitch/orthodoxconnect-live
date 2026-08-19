@@ -1,4 +1,3 @@
-import { supabase } from '../lib/supabase';
 import { NotificationItem, NotificationPreferences } from '../types';
 import { soundSynth, triggerBrowserNotification } from './ringtone';
 
@@ -48,37 +47,37 @@ export function setCurrentUserId(userId?: string | null): void {
   }
 }
 
-// Cross-tab broadcast channel for instant real-time sync across tabs
-let notifChannel: BroadcastChannel | null = null;
-try {
-  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-    notifChannel = new BroadcastChannel('orthodox_notifications_channel');
-    notifChannel.onmessage = (event) => {
-      const currentId = getCurrentUserId();
-      if (event.data?.type === 'NEW_NOTIFICATION') {
-        const item: NotificationItem = event.data.item;
-        const targetUserId = event.data.targetUserId;
-        // Only process and alert if this notification is for this user or broadcast
-        if (!targetUserId || targetUserId === 'all' || (currentId && targetUserId === currentId)) {
-          // If the item was sent by someone else, play sound & alert
-          if (item.senderName !== event.data.actorName) {
-            soundSynth.playNotificationChime();
-          }
-          window.dispatchEvent(new CustomEvent('orthodox:new_notification', { detail: item }));
-          window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
-        }
-      } else if (event.data?.type === 'NOTIFICATIONS_UPDATED') {
-        window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
+function getLocalNotifications(): NotificationItem[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_NOTIFS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((n: any) => {
+          const t = (n.title || '').toLowerCase();
+          const b = (n.body || '').toLowerCase();
+          return !t.includes('test') && !b.includes('test');
+        });
       }
-    };
+    }
+  } catch (e) {
+    console.warn('Error loading cached notifications:', e);
   }
-} catch (e) {
-  console.warn('BroadcastChannel initialization fallback:', e);
+  return [];
 }
 
-export function isValidUuid(id?: string | null): boolean {
-  if (!id) return false;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+function saveLocalNotifications(notifs: NotificationItem[]): void {
+  try {
+    const cleaned = notifs.filter((n) => {
+      const t = (n.title || '').toLowerCase();
+      const b = (n.body || '').toLowerCase();
+      return !t.includes('test') && !b.includes('test');
+    });
+    localStorage.setItem(LOCAL_NOTIFS_STORAGE_KEY, JSON.stringify(cleaned));
+    window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
+  } catch (e) {
+    console.warn('Error saving notifications cache:', e);
+  }
 }
 
 function getReadNotifIds(): Set<string> {
@@ -88,18 +87,14 @@ function getReadNotifIds(): Set<string> {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return new Set(parsed);
     }
-  } catch (e) {
-    // ignore
-  }
+  } catch (e) {}
   return new Set();
 }
 
 function saveReadNotifIds(ids: Set<string>): void {
   try {
-    localStorage.setItem(READ_NOTIF_IDS_KEY, JSON.stringify(Array.from(ids).slice(-200)));
-  } catch (e) {
-    // ignore
-  }
+    localStorage.setItem(READ_NOTIF_IDS_KEY, JSON.stringify(Array.from(ids)));
+  } catch (e) {}
 }
 
 function getDeletedNotifIds(): Set<string> {
@@ -109,85 +104,64 @@ function getDeletedNotifIds(): Set<string> {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return new Set(parsed);
     }
-  } catch (e) {
-    // ignore
-  }
+  } catch (e) {}
   return new Set();
 }
 
 function saveDeletedNotifIds(ids: Set<string>): void {
   try {
-    localStorage.setItem(DELETED_NOTIF_IDS_KEY, JSON.stringify(Array.from(ids).slice(-200)));
-  } catch (e) {
-    // ignore
-  }
+    localStorage.setItem(DELETED_NOTIF_IDS_KEY, JSON.stringify(Array.from(ids)));
+  } catch (e) {}
 }
 
-export function getLocalNotifications(targetUserIdParam?: string): NotificationItem[] {
-  const readIds = getReadNotifIds();
-  const deletedIds = getDeletedNotifIds();
-  const effectiveUserId = targetUserIdParam || getCurrentUserId();
+const NOTIF_CHANNEL_NAME = 'orthodox_notifications_cross_tab';
+let notifChannel: BroadcastChannel | null = null;
+try {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    notifChannel = new BroadcastChannel(NOTIF_CHANNEL_NAME);
+    notifChannel.onmessage = (event) => {
+      if (event.data && event.data.type === 'NEW_NOTIFICATION') {
+        const currentUserId = getCurrentUserId();
+        const targetUserId = event.data.targetUserId;
+        const actorName = event.data.actorName;
 
-  try {
-    const raw = localStorage.getItem(LOCAL_NOTIFS_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed
-          .filter((item) => {
-            if (deletedIds.has(item.id)) return false;
-            if (item.id.startsWith('notif-welcome-') || item.id.startsWith('notif-event-')) return false;
-            // Strict target recipient check: only show if for 'all' or matches current user
-            if (item.userId && item.userId !== 'all' && effectiveUserId && item.userId !== effectiveUserId) {
-              return false;
-            }
-            return true;
-          })
-          .map((item) => ({
-            ...item,
-            isRead: readIds.has(item.id) ? true : Boolean(item.isRead),
-          }));
+        const isForMe =
+          !targetUserId ||
+          targetUserId === 'all' ||
+          (currentUserId && (currentUserId === targetUserId || targetUserId.includes(currentUserId)));
+
+        const isSentByMe = Boolean(
+          actorName === 'You' ||
+          (currentUserId && event.data.actorId && event.data.actorId === currentUserId)
+        );
+
+        if (isForMe && !isSentByMe) {
+          const item = event.data.item as NotificationItem;
+          const existing = getLocalNotifications();
+          const updated = [item, ...existing.filter((n) => n.id !== item.id)];
+          saveLocalNotifications(updated);
+
+          soundSynth.playNotificationChime();
+          triggerBrowserNotification(item.title, {
+            body: item.body,
+            icon: item.senderAvatar || 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=192',
+            tag: `notif-${item.type}-${item.id}`,
+          });
+          window.dispatchEvent(new CustomEvent('orthodox:new_notification', { detail: item }));
+        }
       }
-    }
-  } catch (e) {
-    console.warn('Error reading local notifications:', e);
+    };
   }
-
-  return [];
-}
-
-export function saveLocalNotifications(list: NotificationItem[]): void {
-  try {
-    const deletedIds = getDeletedNotifIds();
-    const filtered = list.filter((n) => !deletedIds.has(n.id) && !n.id.startsWith('notif-welcome-') && !n.id.startsWith('notif-event-'));
-    localStorage.setItem(LOCAL_NOTIFS_STORAGE_KEY, JSON.stringify(filtered.slice(0, 100)));
-    // Dispatch local update event
-    window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
-    if (notifChannel) {
-      notifChannel.postMessage({ type: 'NOTIFICATIONS_UPDATED' });
-    }
-  } catch (e) {
-    console.warn('Error saving local notifications:', e);
-  }
-}
-
-export async function purgeTestNotifications(): Promise<void> {
-  const current = getLocalNotifications();
-  const filtered = current.filter((d) => {
-    const t = (d.title || '').toLowerCase();
-    const m = (d.body || '').toLowerCase();
-    return !t.includes('test') && !m.includes('test');
-  });
-  saveLocalNotifications(filtered);
+} catch (e) {
+  console.warn('BroadcastChannel fallback for notifications:', e);
 }
 
 export async function loadNotifications(userId?: string): Promise<NotificationItem[]> {
-  const localItems = getLocalNotifications();
+  const effectiveUserId = userId || getCurrentUserId() || undefined;
   const readIds = getReadNotifIds();
   const deletedIds = getDeletedNotifIds();
-  const effectiveUserId = userId || getCurrentUserId();
+  const localItems = getLocalNotifications().filter((n) => !deletedIds.has(n.id));
 
-  // 1. Try Cloudflare D1 / Worker backend first
   try {
     const queryParam = effectiveUserId ? `?recipient_id=${encodeURIComponent(effectiveUserId)}` : '';
     const res = await fetch(`${API_BASE_URL}/api/notifications${queryParam}`);
@@ -245,181 +219,77 @@ export async function loadNotifications(userId?: string): Promise<NotificationIt
     console.warn('[loadNotifications] Cloudflare D1 fetch notice:', d1Err);
   }
 
-  // 2. Fallback to Supabase
-  try {
-    let query = supabase
-      .from('notifications')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(30);
-
-    if (isValidUuid(effectiveUserId)) {
-      query = query.or(`user_id.eq.${effectiveUserId},user_id.is.null`);
-    } else if (effectiveUserId && effectiveUserId !== 'all') {
-      query = query.or(`user_id.is.null`);
-    }
-
-    const timer = new Promise<any>((_, reject) => setTimeout(() => reject(new Error('NOTIFS_TIMEOUT')), 2500));
-    const { data, error } = await Promise.race([query, timer]).catch(() => ({ data: null, error: null }));
-
-    if (!error && data && Array.isArray(data)) {
-      const remoteItems: NotificationItem[] = data
-        .filter((d: any) => {
-          const notifId = String(d.id);
-          if (deletedIds.has(notifId)) return false;
-          const t = (d.title || '').toLowerCase();
-          const m = (d.message || d.body || '').toLowerCase();
-          return !t.includes('test') && !m.includes('test');
-        })
-        .map((d: any) => {
-          const notifId = String(d.id);
-          const isRead = readIds.has(notifId) || Boolean(d.read ?? d.is_read ?? false);
-          return {
-            id: notifId,
-            userId: d.user_id || 'all',
-            type: d.type || 'system',
-            title: d.title || 'Parish Notification',
-            body: d.message || d.body || '',
-            link: d.link || undefined,
-            isRead,
-            createdAt: d.created_at || new Date().toISOString(),
-            senderName: d.sender_name || undefined,
-            senderAvatar: d.sender_avatar || undefined,
-          };
-        });
-
-      // Filter to ensure user only sees notifications meant for them or broadcast
-      const targetFiltered = remoteItems.filter((r) => {
-        if (!r.userId || r.userId === 'all') return true;
-        if (effectiveUserId && r.userId === effectiveUserId) return true;
-        return false;
-      });
-
-      // Merge local items and remote items by ID
-      const map = new Map<string, NotificationItem>();
-      targetFiltered.forEach((r) => map.set(r.id, r));
-      localItems.forEach((l) => {
-        if (!deletedIds.has(l.id)) {
-          if (!map.has(l.id)) {
-            map.set(l.id, l);
-          } else {
-            if (l.isRead || readIds.has(l.id)) {
-              const existing = map.get(l.id)!;
-              map.set(l.id, { ...existing, isRead: true });
-            }
-          }
-        }
-      });
-
-      const merged = Array.from(map.values()).sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-
-      saveLocalNotifications(merged);
-      return merged;
-    }
-  } catch (err) {
-    console.warn('[loadNotifications] Supabase fetch fallback to local cache:', err);
-  }
-
-  return localItems;
+  return localItems.map((n) => (readIds.has(n.id) ? { ...n, isRead: true } : n));
 }
 
 export async function addNotification(
-  notif: Partial<NotificationItem>,
-  actorUserId?: string
+  notif: Omit<NotificationItem, 'id' | 'createdAt' | 'isRead'> & { id?: string },
+  sourceActorUserId?: string
 ): Promise<NotificationItem> {
-  const currentUserId = actorUserId || getCurrentUserId();
+  const currentUserId = getCurrentUserId();
   const targetUserId = notif.userId;
-  const isForOtherUser =
+
+  const isForOtherUser = Boolean(
     targetUserId &&
     targetUserId !== 'all' &&
     currentUserId &&
-    targetUserId !== currentUserId;
+    targetUserId !== currentUserId
+  );
 
   const item: NotificationItem = {
-    id: notif.id || 'notif-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+    id: notif.id || `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     userId: targetUserId || 'all',
-    type: notif.type || 'system',
-    title: notif.title || 'Notification',
-    body: notif.body || '',
+    type: notif.type,
+    title: notif.title,
+    body: notif.body,
     link: notif.link,
-    isRead: false,
-    createdAt: new Date().toISOString(),
     senderName: notif.senderName,
     senderAvatar: notif.senderAvatar,
+    isRead: false,
+    createdAt: new Date().toISOString(),
   };
 
-  // 1. Sync to Cloudflare D1 / Worker backend
+  // 1. Sync to Cloudflare D1
   try {
-    const res = await fetch(`${API_BASE_URL}/api/notifications`, {
+    await fetch(`${API_BASE_URL}/api/notifications`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: item.id,
-        recipient_id: item.userId === 'all' ? null : item.userId,
-        actor_id: currentUserId,
-        actor_name: item.senderName || 'Orthodox Parishioner',
-        actor_avatar: item.senderAvatar || null,
+        recipient_id: targetUserId,
+        actor_id: sourceActorUserId || currentUserId,
+        actor_name: notif.senderName || 'Orthodox Parishioner',
+        actor_avatar: notif.senderAvatar,
         type: item.type,
         title: item.title,
         body: item.body,
-        link: item.link || null,
+        link: item.link,
+        created_at: item.createdAt,
       }),
     });
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.notification?.id) {
-        item.id = String(data.notification.id);
-      }
-    }
   } catch (d1Err) {
-    console.warn('Cloudflare D1 notification insertion notice:', d1Err);
+    console.warn('[addNotification] Cloudflare D1 sync notice:', d1Err);
   }
 
-  // 2. Sync to Supabase table as backup
-  try {
-    const row: any = {
-      user_id: isValidUuid(targetUserId) ? targetUserId : null,
-      type: item.type,
-      title: item.title,
-      message: item.body || item.title,
-      read: false,
-    };
-    if (item.link) row.link = item.link;
-    if (item.senderName) row.sender_name = item.senderName;
-    if (item.senderAvatar) row.sender_avatar = item.senderAvatar;
-
-    const { data, error } = await supabase.from('notifications').insert([row]).select();
-    if (!error && data && data.length > 0) {
-      item.id = String(data[0].id);
-    }
-  } catch (err) {
-    console.warn('Supabase notification insertion notice:', err);
-  }
-
-  // 3. Cross-tab real-time broadcast
+  // 2. Cross-tab real-time broadcast
   if (notifChannel) {
     notifChannel.postMessage({
       type: 'NEW_NOTIFICATION',
       targetUserId: targetUserId || 'all',
       actorName: notif.senderName,
+      actorId: sourceActorUserId || currentUserId,
       item,
     });
   }
 
-  // 4. If this notification is targeted to ANOTHER user (e.g., you liked their post or commented),
-  // DO NOT add it to the sender's own local inbox and DO NOT play audio chime or toast for the sender!
   if (isForOtherUser) {
     return item;
   }
 
-  // 5. If this is a notification for the current user or broadcast:
   const existing = getLocalNotifications();
   const updated = [item, ...existing.filter((n) => n.id !== item.id)];
   saveLocalNotifications(updated);
 
-  // Play sound & dispatch toast only if not triggered by self
   if (!currentUserId || item.senderName !== 'You') {
     soundSynth.playNotificationChime();
     triggerBrowserNotification(item.title, {
@@ -442,23 +312,13 @@ export async function markNotificationAsRead(id: string): Promise<void> {
   const updated = existing.map((n) => (n.id === id ? { ...n, isRead: true } : n));
   saveLocalNotifications(updated);
 
-  // Sync with Cloudflare D1
   try {
     await fetch(`${API_BASE_URL}/api/notifications/mark-read`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     });
-  } catch (err) {
-    // Non-blocking
-  }
-
-  // Sync with Supabase
-  try {
-    await supabase.from('notifications').update({ read: true, is_read: true }).eq('id', id);
-  } catch (err) {
-    // Non-blocking
-  }
+  } catch (err) {}
 }
 
 export async function markAllNotificationsAsRead(userId?: string): Promise<void> {
@@ -470,27 +330,13 @@ export async function markAllNotificationsAsRead(userId?: string): Promise<void>
   const updated = existing.map((n) => ({ ...n, isRead: true }));
   saveLocalNotifications(updated);
 
-  // Sync with Cloudflare D1
   try {
     await fetch(`${API_BASE_URL}/api/notifications/mark-read`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ all: true, recipient_id: userId }),
     });
-  } catch (err) {
-    // Non-blocking
-  }
-
-  // Sync with Supabase
-  try {
-    let query = supabase.from('notifications').update({ read: true, is_read: true });
-    if (isValidUuid(userId)) {
-      query = query.or(`user_id.eq.${userId},user_id.is.null`);
-    }
-    await query;
-  } catch (err) {
-    // Non-blocking
-  }
+  } catch (err) {}
 }
 
 export async function deleteNotification(id: string): Promise<void> {
@@ -502,38 +348,23 @@ export async function deleteNotification(id: string): Promise<void> {
   const updated = existing.filter((n) => n.id !== id);
   saveLocalNotifications(updated);
 
-  // Sync with Cloudflare D1
   try {
     await fetch(`${API_BASE_URL}/api/notifications/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
-  } catch (err) {
-    // Non-blocking
-  }
-
-  // Sync with Supabase
-  try {
-    await supabase.from('notifications').delete().eq('id', id);
-  } catch (err) {
-    // Non-blocking
-  }
+  } catch (err) {}
 }
 
 export function loadNotificationPreferences(): NotificationPreferences {
   try {
     const saved = localStorage.getItem('oc_notif_prefs');
     if (saved) return JSON.parse(saved);
-  } catch (e) {
-    // Ignore
-  }
+  } catch (e) {}
   return DEFAULT_PREFERENCES;
 }
 
 export function saveNotificationPreferences(prefs: NotificationPreferences): void {
   try {
     localStorage.setItem('oc_notif_prefs', JSON.stringify(prefs));
-  } catch (e) {
-    console.warn('Failed to save preferences:', e);
-  }
+  } catch (e) {}
 }
-

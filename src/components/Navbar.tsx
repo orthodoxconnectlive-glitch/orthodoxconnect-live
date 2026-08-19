@@ -24,7 +24,6 @@ import {
   Utensils,
   BookOpen,
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { NotificationItem } from '../types';
@@ -72,31 +71,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     window.addEventListener('orthodox:new_notification', handleLocalUpdate);
     window.addEventListener('storage', handleLocalUpdate);
 
-    // Supabase Realtime subscription specifically for notifications table
-    const currentUserId = profile?.id;
-    const isUuid = currentUserId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentUserId);
-
-    const notifChannel = supabase
-      .channel('public:notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          ...(isUuid ? { filter: `user_id=eq.${currentUserId}` } : {}),
-        },
-        () => {
-          fetchNotifs();
-        }
-      )
-      .subscribe();
-
     return () => {
       window.removeEventListener('orthodox:notifications_updated', handleLocalUpdate);
       window.removeEventListener('orthodox:new_notification', handleLocalUpdate);
       window.removeEventListener('storage', handleLocalUpdate);
-      supabase.removeChannel(notifChannel);
     };
   }, [profile?.id]);
 

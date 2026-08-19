@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Radio, Camera, AlertCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
+import { liveStreamsApi } from '../lib/api';
 import { addNotification } from '../utils/notifications';
 
 export interface StreamData {
@@ -141,20 +141,14 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     }
 
     try {
-      const { error } = await supabase.from('live_streams').insert([
-        {
-          title: streamPayload.title,
-          host_parish: streamPayload.host_parish,
-          media_url: streamPayload.media_url,
-          priest_name: profile?.full_name || 'Priest / Host',
-          is_live: true,
-          created_at: new Date().toISOString(),
-        },
-      ]);
-
-      if (error) {
-        throw error;
-      }
+      await liveStreamsApi.create({
+        title: streamPayload.title,
+        host_parish: streamPayload.host_parish,
+        media_url: streamPayload.media_url,
+        priest_name: profile?.full_name || 'Priest / Host',
+        is_live: true,
+        created_at: new Date().toISOString(),
+      });
 
       // Dispatch live stream notification to all users
       addNotification({
@@ -167,7 +161,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
         link: 'live',
       });
     } catch (err: any) {
-      console.warn('Supabase live_streams insert notice/fallback:', err);
+      console.warn('Cloudflare D1 live_streams insert notice/fallback:', err);
     } finally {
       setIsSubmitting(false);
     }

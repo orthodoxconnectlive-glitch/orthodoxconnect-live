@@ -1,8 +1,7 @@
-import { supabase } from '../lib/supabase';
 import { ContentReport, ModerationAuditLog, UserModerationStatus } from '../types';
+import { reportsApi, profilesApi } from '../lib/api';
 
 const INITIAL_REPORTS: ContentReport[] = [];
-
 const INITIAL_AUDIT_LOGS: ModerationAuditLog[] = [];
 
 let localReportsCache: ContentReport[] = [...INITIAL_REPORTS];
@@ -11,27 +10,8 @@ let userStatusMap: Record<string, UserModerationStatus> = {};
 
 export async function loadContentReports(): Promise<ContentReport[]> {
   try {
-    const { data, error } = await supabase
-      .from('content_reports')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (!error && data && data.length > 0) {
-      const dbReports: ContentReport[] = data.map((d: any) => ({
-        id: String(d.id),
-        targetType: d.target_type,
-        targetId: d.target_id,
-        targetContentPreview: d.target_content_preview || undefined,
-        targetAuthorName: d.target_author_name || undefined,
-        targetAuthorId: d.target_author_id || undefined,
-        reporterId: d.reporter_id || 'me',
-        reporterName: d.reporter_name || 'Parish Member',
-        reason: d.reason || 'inappropriate',
-        details: d.details || undefined,
-        status: d.status || 'pending',
-        createdAt: d.created_at || new Date().toISOString(),
-      }));
-
+    const dbReports = await reportsApi.getAll();
+    if (dbReports && dbReports.length > 0) {
       const map = new Map<string, ContentReport>();
       dbReports.forEach((r) => map.set(r.id, r));
       localReportsCache.forEach((r) => {
@@ -41,7 +21,7 @@ export async function loadContentReports(): Promise<ContentReport[]> {
       return Array.from(map.values());
     }
   } catch (err) {
-    console.warn('Supabase reports fetch fallback:', err);
+    console.warn('Cloudflare D1 reports fetch fallback:', err);
   }
 
   return localReportsCache;
@@ -68,20 +48,7 @@ export async function submitContentReport(
   localReportsCache = [newReport, ...localReportsCache];
 
   try {
-    await supabase.from('content_reports').insert([
-      {
-        target_type: newReport.targetType,
-        target_id: newReport.targetId,
-        target_content_preview: newReport.targetContentPreview || null,
-        target_author_name: newReport.targetAuthorName || null,
-        target_author_id: newReport.targetAuthorId || null,
-        reporter_id: newReport.reporterId,
-        reporter_name: newReport.reporterName,
-        reason: newReport.reason,
-        details: newReport.details || null,
-        status: 'pending',
-      },
-    ]);
+    await reportsApi.create(newReport);
   } catch (err) {
     console.warn('Submit content report warning:', err);
   }
@@ -122,10 +89,7 @@ export async function updateReportStatus(
   }
 
   try {
-    await supabase
-      .from('content_reports')
-      .update({ status })
-      .eq('id', reportId);
+    await reportsApi.updateStatus(reportId, status);
   } catch (err) {
     console.warn('Update report status warning:', err);
   }
@@ -205,7 +169,7 @@ export async function setUserBanStatus(
   ];
 
   try {
-    await supabase.from('profiles').update({ is_banned: isBanned }).eq('id', userId);
+    await profilesApi.update(userId, { is_banned: isBanned } as any);
   } catch (err) {
     console.warn('Set ban status error:', err);
   }

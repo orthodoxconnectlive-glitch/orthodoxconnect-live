@@ -14,10 +14,10 @@ import {
   X,
   CheckCircle,
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { UserProfile, UserRole, ContentReport, ModerationAuditLog } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { profilesApi, reportsApi } from '../lib/api';
 import {
   loadContentReports,
   updateReportStatus,
@@ -73,41 +73,14 @@ export const AdminPanelView: React.FC = () => {
   const fetchAdminData = async () => {
     if (!isAdminOrOwner) return;
 
-    // 1. Fetch exact total members count from Supabase
-    try {
-      const { count, error: countErr } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true });
-
-      if (!countErr && count !== null) {
-        setTotalMembers(count > 0 ? count : (profile ? 1 : 0));
-      }
-    } catch (err) {
-      console.warn('Supabase exact member count fetch warning:', err);
-    }
-
-    // 2. Fetch registered profiles
+    // 1. Fetch registered profiles from Cloudflare D1
     let loadedUsers: UserProfile[] = [];
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*');
-
-      if (!error && data && data.length > 0) {
-        loadedUsers = data.map((d: any) => ({
-          id: d.id,
-          email: d.email || 'member@orthodoxconnect.live',
-          full_name: d.full_name || 'Orthodox Member',
-          parish: d.parish || 'St. George Cathedral',
-          role: (d.role as UserRole) || 'user',
-          avatar_url: d.avatar_url,
-          created_at: d.created_at || d.joined_at || new Date().toISOString(),
-        }));
+      loadedUsers = await profilesApi.getAll();
+      if (loadedUsers && loadedUsers.length > 0) {
         setUsersList(loadedUsers);
-
-        setTotalMembers((prevCount) => (prevCount > 0 ? prevCount : loadedUsers.length));
+        setTotalMembers(loadedUsers.length);
       } else {
-        // Fallback or empty DB
         if (profile) {
           const defaultAdminUser: UserProfile = {
             id: profile.id || 'admin-user',
@@ -119,22 +92,22 @@ export const AdminPanelView: React.FC = () => {
             created_at: new Date().toISOString(),
           };
           setUsersList([defaultAdminUser]);
-          setTotalMembers((prev) => (prev > 0 ? prev : 1));
+          setTotalMembers(1);
         }
       }
     } catch (err) {
       console.warn('Admin user list fetch error:', err);
     }
 
-    // 3. Fetch moderation content reports
+    // 2. Fetch moderation content reports
     const reports = await loadContentReports();
     setReportsList(reports);
 
-    // 4. Fetch audit logs
+    // 3. Fetch audit logs
     const logs = await loadAuditLogs();
     setAuditLogs(logs);
 
-    // 5. Load user moderation status
+    // 4. Load user moderation status
     const statusMap: Record<string, { warningCount: number; isBanned: boolean }> = {};
     const checkList = loadedUsers.length > 0 ? loadedUsers : usersList;
     for (const u of checkList) {
@@ -153,7 +126,7 @@ export const AdminPanelView: React.FC = () => {
     );
 
     try {
-      await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
+      await profilesApi.update(userId, { role: newRole });
       showToast(`User role updated to ${newRole.toUpperCase()}`);
     } catch (err) {
       console.warn('Role update error:', err);
@@ -177,7 +150,7 @@ export const AdminPanelView: React.FC = () => {
       return;
     }
 
-    // 1. Call Cloudflare Worker API with user identity headers
+    // 1. Call Cloudflare Worker API
     const apiResult = await deleteUserApi(targetId, targetEmail, targetRole, profile);
     if (!apiResult.success) {
       showToast(`Error: ${apiResult.error || 'Failed to delete user account.'}`);
@@ -185,12 +158,12 @@ export const AdminPanelView: React.FC = () => {
       return;
     }
 
-    // 2. Remove from state & Supabase
+    // 2. Remove from state
     setUsersList((prev) => prev.filter((u) => u.id !== targetId));
     setTotalMembers((prev) => Math.max(0, prev - 1));
 
     try {
-      await supabase.from('profiles').delete().eq('id', targetId);
+      await profilesApi.delete(targetId);
       showToast(`Removed ${targetName} from parish directory.`);
     } catch (err) {
       console.warn('Delete profile error:', err);
@@ -230,16 +203,13 @@ export const AdminPanelView: React.FC = () => {
     setTotalMembers((prev) => prev + 1);
 
     try {
-      await supabase.from('profiles').insert([
-        {
-          id: newId,
-          email,
-          full_name: name,
-          parish,
-          role,
-          avatar_url: newMemberObj.avatar_url,
-        },
-      ]);
+      await profilesApi.update(newId, {
+        email,
+        full_name: name,
+        parish,
+        role,
+        avatar_url: newMemberObj.avatar_url,
+      });
       showToast(`Added ${name} to parish directory.`);
     } catch (err) {
       console.warn('Add member DB notice:', err);

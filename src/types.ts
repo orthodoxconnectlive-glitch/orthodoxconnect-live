@@ -1,5 +1,21 @@
 export type UserRole = 'super_admin' | 'admin' | 'user' | 'owner' | 'clergy';
 
+export interface User {
+  id: string;
+  email?: string;
+  app_metadata?: Record<string, any>;
+  user_metadata?: {
+    full_name?: string;
+    parish?: string;
+    avatar_url?: string;
+    bio?: string;
+    role?: UserRole;
+    [key: string]: any;
+  };
+  aud?: string;
+  created_at?: string;
+}
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -196,4 +212,15 @@ export interface UserModerationStatus {
   isBanned: boolean;
   banReason?: string;
   updatedAt: string;
+}
+
+export interface Story {
+  id: string;
+  authorName: string;
+  authorAvatar: string;
+  authorParish: string;
+  imageUrl: string;
+  caption?: string;
+  createdAt: string;
+  isViewed?: boolean;
 }

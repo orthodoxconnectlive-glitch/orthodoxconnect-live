@@ -3,7 +3,7 @@ import { Radio, Eye, PlusCircle, Heart, Share2, Flame, CheckCircle, Square } fro
 import { BunnyPlayer } from '../components/BunnyPlayer';
 import { ParishLiveChat } from '../components/ParishLiveChat';
 import { GoLiveModal, StreamData } from '../components/GoLiveModal';
-import { supabase } from '../lib/supabase';
+import { liveStreamsApi } from '../lib/api';
 
 interface LiveStreamItem {
   id: string;
@@ -125,16 +125,13 @@ export const LiveBroadcastView: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Sync remote Supabase live_streams if available
+  // Sync remote Cloudflare D1 live_streams if available
   useEffect(() => {
     async function fetchRemoteStreams() {
       try {
-        const { data, error } = await supabase
-          .from('live_streams')
-          .select('*')
-          .order('created_at', { ascending: false });
+        const data = await liveStreamsApi.getAll();
 
-        if (!error && data && data.length > 0) {
+        if (data && data.length > 0) {
           const mapped: LiveStreamItem[] = data.map((row) => ({
             id: row.id || `stream-${Date.now()}`,
             title: row.title || 'Parish Live Service',
@@ -156,7 +153,7 @@ export const LiveBroadcastView: React.FC = () => {
           });
         }
       } catch (err) {
-        console.warn('Supabase remote live streams query notice:', err);
+        console.warn('Cloudflare D1 live streams query notice:', err);
       }
     }
     fetchRemoteStreams();

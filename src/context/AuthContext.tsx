@@ -1,14 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { UserProfile, UserRole } from '../types';
+import { User, UserProfile, UserRole } from '../types';
+import { authApi, profilesApi } from '../lib/api';
 import { setCurrentUserId } from '../utils/notifications';
 
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password?: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string, parish: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: Error | null }>;
@@ -26,145 +25,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState<boolean>(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
-  // Fetch or upsert user profile from Supabase profiles table
-  const fetchProfile = async (userId: string, emailStr?: string) => {
-    try {
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
-
-        if (error) {
-          console.warn('Profile fetch notice:', error.message || error);
-        }
-
-        if (!error && data) {
-          const userEmail = (data.email || emailStr || '').toLowerCase();
-          const isSuperAdmin = userEmail === 'orthodoxconnect.live@gmail.com';
-          const assignedRole: UserRole = isSuperAdmin ? 'super_admin' : ((data.role as UserRole) || 'user');
-
-          const userProf: UserProfile = {
-            id: data.id,
-            email: data.email || emailStr || '',
-            full_name: data.full_name || (emailStr ? emailStr.split('@')[0] : 'Parishioner'),
-            parish: data.parish || 'Orthodox Church',
-            bio: data.bio || 'Orthodox Christian seeking fellowship.',
-            avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-            role: assignedRole,
-            created_at: data.created_at || data.updated_at || new Date().toISOString(),
-          };
-          setProfile(userProf);
-          setCurrentUserId(userProf.id);
-          try {
-            localStorage.setItem('orthodox_user_profile', JSON.stringify(userProf));
-          } catch (e) {}
-
-          if (isSuperAdmin && data.role !== 'super_admin') {
-            supabase.from('profiles').update({ role: 'super_admin' }).eq('id', data.id).then();
-          }
-          return;
-        }
-      }
-
-      // If profile does not exist yet in table or offline, build default from user email/id
-      const userEmail = (emailStr || '').toLowerCase();
-      const isSuperAdmin = userEmail === 'orthodoxconnect.live@gmail.com';
-      const defaultProf: UserProfile = {
-        id: userId,
-        email: emailStr || '',
-        full_name: isSuperAdmin ? 'Super Admin' : (emailStr ? emailStr.split('@')[0] : 'Parishioner'),
-        parish: isSuperAdmin ? 'Holy Synod Headquarters' : 'Orthodox Church',
-        bio: isSuperAdmin ? 'Global Administrator & Shepherd for OrthodoxConnect.' : 'Orthodox Christian seeking fellowship and spiritual growth.',
-        avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-        role: isSuperAdmin ? 'super_admin' : 'user',
-      };
-
-      setProfile(defaultProf);
-      setCurrentUserId(defaultProf.id);
-      try {
-        localStorage.setItem('orthodox_user_profile', JSON.stringify(defaultProf));
-      } catch (e) {}
-
-      // Attempt upserting to database if configured
-      if (isSupabaseConfigured) {
-        const { error: upsertErr } = await supabase.from('profiles').upsert([
-          {
-            id: userId,
-            email: defaultProf.email,
-            full_name: defaultProf.full_name,
-            parish: defaultProf.parish,
-            bio: defaultProf.bio,
-            avatar_url: defaultProf.avatar_url,
-            role: defaultProf.role,
-          },
-        ]);
-        if (upsertErr) {
-          console.warn('Profile upsert note:', upsertErr.message || upsertErr);
-        }
-      }
-    } catch (err) {
-      console.warn('Profile handling notice:', err);
-    }
-  };
-
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setUser(null);
-      setProfile(null);
-      setLoading(false);
-      return;
+    async function initAuth() {
+      try {
+        // 1. Try local cache first for instant render
+        const cached = localStorage.getItem('orthodox_user_profile');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.id) {
+              setProfile(parsed);
+              setUser({
+                id: parsed.id,
+                email: parsed.email,
+                user_metadata: {
+                  full_name: parsed.full_name,
+                  parish: parsed.parish,
+                  avatar_url: parsed.avatar_url,
+                  role: parsed.role,
+                },
+              });
+              setCurrentUserId(parsed.id);
+            }
+          } catch (e) {}
+        }
+
+        // 2. Validate session with Edge Cloudflare Worker
+        const { user: serverUser, profile: serverProfile } = await authApi.getSession();
+        if (serverUser && serverProfile) {
+          setUser(serverUser);
+          setProfile(serverProfile);
+          setCurrentUserId(serverProfile.id);
+          localStorage.setItem('orthodox_user_profile', JSON.stringify(serverProfile));
+        } else if (!cached) {
+          setUser(null);
+          setProfile(null);
+          setCurrentUserId(null);
+        }
+      } catch (err) {
+        console.warn('[AuthContext] Session init note:', err);
+      } finally {
+        setLoading(false);
+      }
     }
 
-    // Check initial auth session via supabase.auth.getUser()
-    supabase.auth.getUser().then(({ data: { user: currentUser }, error }) => {
-      if (error) {
-        console.warn('Supabase session check:', error.message || error);
-      }
-      if (currentUser) {
-        setUser(currentUser);
-        fetchProfile(currentUser.id, currentUser.email);
-      } else {
-        setUser(null);
-        setProfile(null);
-        setCurrentUserId(null);
-        localStorage.removeItem('orthodox_user_profile');
-      }
-      setLoading(false);
-    }).catch((err) => {
-      console.warn('Supabase session note:', err?.message || err);
-      setUser(null);
-      setProfile(null);
-      setCurrentUserId(null);
-      setLoading(false);
-    });
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session?.user) {
-        setUser(null);
-        setProfile(null);
-        setCurrentUserId(null);
-        localStorage.removeItem('orthodox_user_profile');
-      } else if (session?.user) {
-        setUser(session.user);
-        fetchProfile(session.user.id, session.user.email);
-      }
-      setLoading(false);
-    });
-
-    return () => {
-      authListener.subscription?.unsubscribe?.();
-    };
+    initAuth();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password?: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      if (data.user) {
-        setUser(data.user);
-        await fetchProfile(data.user.id, data.user.email);
+      const res = await authApi.signIn(email, password);
+      if (res.user && res.profile) {
+        setUser(res.user);
+        setProfile(res.profile);
+        setCurrentUserId(res.profile.id);
+        localStorage.setItem('orthodox_user_profile', JSON.stringify(res.profile));
       }
       return { error: null };
     } catch (err: any) {
@@ -174,42 +89,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string, fullName: string, parish: string) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const res = await authApi.signUp({
         email,
         password,
-        options: {
-          data: {
-            full_name: fullName,
-            parish,
-          },
-        },
+        fullName,
+        parish,
       });
-      if (error) throw error;
-
-      if (data.user) {
-        setUser(data.user);
-        const newProf: UserProfile = {
-          id: data.user.id,
-          email,
-          full_name: fullName,
-          parish,
-          bio: 'Orthodox Christian seeking fellowship.',
-          avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-          role: 'user',
-        };
-        setProfile(newProf);
-
-        await supabase.from('profiles').insert([
-          {
-            id: data.user.id,
-            email,
-            full_name: fullName,
-            parish,
-            bio: newProf.bio,
-            avatar_url: newProf.avatar_url,
-            role: 'user',
-          },
-        ]);
+      if (res.user && res.profile) {
+        setUser(res.user);
+        setProfile(res.profile);
+        setCurrentUserId(res.profile.id);
+        localStorage.setItem('orthodox_user_profile', JSON.stringify(res.profile));
       }
       return { error: null };
     } catch (err: any) {
@@ -219,19 +109,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await authApi.signOut();
     } catch (e) {
       console.warn('SignOut warning:', e);
     }
     localStorage.removeItem('orthodox_user_profile');
+    localStorage.removeItem('orthodox_auth_token');
     setUser(null);
     setProfile(null);
+    setCurrentUserId(null);
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!profile) return { error: new Error('No profile loaded') };
 
-    const updated = { ...profile, ...updates };
+    const updated: UserProfile = { ...profile, ...updates };
     setProfile(updated);
 
     try {
@@ -240,24 +132,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('LocalStorage error:', e);
     }
 
-    if (user && user.id) {
-      try {
-        const { error } = await supabase.from('profiles').upsert([
-          {
-            id: user.id,
-            full_name: updated.full_name,
-            parish: updated.parish,
-            bio: updated.bio,
-            avatar_url: updated.avatar_url,
-            role: updated.role,
-          },
-        ]);
-        if (error) {
-          console.warn('Database sync notice:', error.message);
-        }
-      } catch (err: any) {
-        console.warn('Profile database update warning:', err);
-      }
+    try {
+      await profilesApi.update(profile.id, updates);
+    } catch (err: any) {
+      console.warn('Profile API update warning:', err);
     }
 
     return { error: null };
@@ -266,11 +144,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updatePassword = async (newPassword: string) => {
     try {
       if (!user) {
-        // If guest user or local offline mode, simulate successful password update
         return { error: null };
       }
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
+      await authApi.updatePassword(newPassword, user.id);
       return { error: null };
     } catch (err: any) {
       return { error: err as Error };

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, CheckCheck, Trash2, Filter, MessageSquare, AtSign, Calendar, Users, ShieldAlert, Settings, SlidersHorizontal, Sparkles } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { NotificationItem, NotificationPreferences } from '../types';
 import { loadNotifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification, loadNotificationPreferences, saveNotificationPreferences } from '../utils/notifications';
 import { TimeAgo } from '../components/TimeAgo';
@@ -35,22 +34,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     window.addEventListener('orthodox:new_notification', handleUpdate);
     window.addEventListener('storage', handleUpdate);
 
-    const notifChannel = supabase
-      .channel('notifications-view-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'notifications' },
-        () => {
-          fetchNotifs();
-        }
-      )
-      .subscribe();
-
     return () => {
       window.removeEventListener('orthodox:notifications_updated', handleUpdate);
       window.removeEventListener('orthodox:new_notification', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
-      supabase.removeChannel(notifChannel);
     };
   }, []);
 

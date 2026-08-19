@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MessageSquare, Circle, ChevronRight, User } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { profilesApi } from '../lib/api';
 import { UserProfileData } from '../views/ProfileView';
 
 interface ActiveChatUser {
@@ -63,28 +63,10 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
 
   useEffect(() => {
     async function fetchRealUsers() {
-      if (!isSupabaseConfigured) {
-        return;
-      }
       try {
-        let query = supabase
-          .from('profiles')
-          .select('id, full_name, parish, avatar_url, email')
-          .limit(10);
-
-        const currentId = currentProfile?.id?.replace(/^auth-/, '');
-        if (currentId && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(currentId)) {
-          query = query.neq('id', currentId);
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-          console.warn('Active users fetch notice:', error.message || error);
-        }
-
-        if (!error && data && data.length > 0) {
-          const mappedUsers: ActiveChatUser[] = data.map((p) => ({
+        const data = await profilesApi.getAll(undefined, currentProfile?.id);
+        if (data && data.length > 0) {
+          const mappedUsers: ActiveChatUser[] = data.slice(0, 10).map((p) => ({
             id: p.id,
             name: p.full_name || 'Parish Member',
             parish: p.parish || 'Orthodox Church',

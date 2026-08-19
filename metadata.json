@@ -1,6 +1,0 @@
-{
-  "name": "OrthodoxConnect",
-  "description": "A high-performance social network and fellowship platform for the Orthodox Christian community.",
-  "requestFramePermissions": ["camera", "microphone"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

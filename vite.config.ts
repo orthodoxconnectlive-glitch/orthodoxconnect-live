@@ -147,7 +147,7 @@ function localApiDevPlugin(): Plugin {
                   res.end(
                     JSON.stringify({
                       success: true,
-                      guid: mockGuid,
+                      guid,
                       libraryId,
                       embedUrl: `https://iframe.mediadelivery.net/embed/${libraryId}/${mockGuid}?autoplay=false&loop=false&muted=false&preload=true`,
                       directUploadUrl: `https://video.bunnycdn.com/library/${libraryId}/videos/${mockGuid}`,
@@ -232,8 +232,17 @@ function localApiDevPlugin(): Plugin {
                 }
               }
 
+              const allPostLikes = devPostLikes.filter((l) => l.post_id === postId);
               res.statusCode = 200;
-              res.end(JSON.stringify({ success: true, liked, likes_count: post?.likes_count ?? (liked ? 1 : 0) }));
+              res.end(
+                JSON.stringify({
+                  success: true,
+                  liked,
+                  is_liked: liked,
+                  likes_count: post?.likes_count ?? (liked ? 1 : 0),
+                  liked_by_user_ids: allPostLikes.map((l) => l.user_id),
+                })
+              );
             } catch (e: any) {
               res.statusCode = 400;
               res.end(JSON.stringify({ success: false, error: e?.message }));
@@ -319,6 +328,7 @@ function localApiDevPlugin(): Plugin {
             const authorId = url.searchParams.get('author_id') || url.searchParams.get('authorId');
             const groupId = url.searchParams.get('group_id') || url.searchParams.get('groupId');
             const videoOnly = url.searchParams.get('video_only') === 'true' || url.searchParams.get('videos') === 'true';
+            const currentRequesterId = url.searchParams.get('viewer_id') || url.searchParams.get('user_id') || userId || '';
 
             let filtered = [...devPosts];
             if (authorId) {
@@ -331,8 +341,22 @@ function localApiDevPlugin(): Plugin {
               filtered = filtered.filter((p) => p.video_id && String(p.video_id).trim() !== '');
             }
 
+            // Scopes likes per-user so other users don't see another person's like as their own
+            const postsWithUserState = filtered.map((post) => {
+              const postLikes = devPostLikes.filter((l) => l.post_id === post.id);
+              const isLiked = currentRequesterId
+                ? postLikes.some((l) => l.user_id === currentRequesterId)
+                : false;
+
+              return {
+                ...post,
+                is_liked: isLiked,
+                liked_by_user_ids: postLikes.map((l) => l.user_id),
+              };
+            });
+
             res.statusCode = 200;
-            res.end(JSON.stringify({ success: true, posts: filtered }));
+            res.end(JSON.stringify({ success: true, posts: postsWithUserState }));
             return;
           }
 

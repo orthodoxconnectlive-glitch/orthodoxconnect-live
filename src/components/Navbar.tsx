@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Cross,
   Search,
@@ -55,10 +55,26 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const todayData = getTodayLiturgicalDay(language);
 
-  const fetchNotifs = async () => {
-    const data = await loadNotifications(profile?.id);
-    setNotifications(data);
+  // Helper to check read state across camelCase and snake_case API payloads
+  const isNotificationRead = (n: any): boolean => {
+    return n.isRead === true || n.is_read === true || n.read === true;
   };
+
+  const fetchNotifs = useCallback(async () => {
+    try {
+      const data = await loadNotifications(profile?.id);
+      if (Array.isArray(data)) {
+        // Normalize the array so state always maintains consistent isRead boolean
+        const normalized = data.map((item: any) => ({
+          ...item,
+          isRead: isNotificationRead(item),
+        }));
+        setNotifications(normalized);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications in Navbar:', error);
+    }
+  }, [profile?.id]);
 
   useEffect(() => {
     fetchNotifs();
@@ -76,23 +92,22 @@ export const Navbar: React.FC<NavbarProps> = ({
       window.removeEventListener('orthodox:new_notification', handleLocalUpdate);
       window.removeEventListener('storage', handleLocalUpdate);
     };
-  }, [profile?.id]);
+  }, [fetchNotifs]);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const unreadCount = notifications.filter((n) => !isNotificationRead(n)).length;
+  const unreadMessageCount = notifications.filter((n) => n.type === 'message' && !isNotificationRead(n)).length;
 
   const handleMarkRead = async (id: string) => {
     await markNotificationAsRead(id);
     setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      prev.map((n) => (n.id === id ? { ...n, isRead: true, is_read: true } : n))
     );
   };
 
   const handleMarkAllRead = async () => {
     await markAllNotificationsAsRead();
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true, is_read: true })));
   };
-
-  const unreadMessageCount = notifications.filter((n) => n.type === 'message' && !n.isRead).length;
 
   const subTabs = [
     { id: 'feed', icon: Rss, label: t('feed') },
@@ -189,6 +204,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Search className="w-4 h-4" />
             </button>
+            
             {/* Create Post / Meeting (+) button */}
             <button
               onClick={() => onNavigate('feed')}
@@ -226,9 +242,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               title="Messenger"
             >
               <MessageSquare className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-              {notifications.filter((n) => n.type === 'message' && !n.isRead).length > 0 && (
-                <span className="absolute -top-1 -right-1 px-1.5 py-0.2 min-w-[16px] h-4 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center shadow-sm">
-                  {notifications.filter((n) => n.type === 'message' && !n.isRead).length}
+              {unreadMessageCount > 0 && (
+                <span className="absolute -top-1 -right-1 px-1 min-w-[18px] h-4 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center shadow-sm border border-white dark:border-[#120e0b]">
+                  {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
                 </span>
               )}
             </button>
@@ -246,8 +262,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Bell className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center shadow-md animate-pulse">
-                    {unreadCount}
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-4 px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center shadow-md animate-pulse border border-white dark:border-[#120e0b]">
+                    {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
               </button>
@@ -322,7 +338,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      {/* Mobile / Side Menu Drawer (Matching Desktop Sidebar 100%) */}
+      {/* Mobile / Side Menu Drawer */}
       {isDrawerOpen && (
         <div className="fixed inset-0 z-50 flex">
           {/* Backdrop */}
@@ -360,7 +376,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               </div>
 
-              {/* User Profile Header Card (LUCAS OWNER & ADMIN Widget - Identical to Desktop Sidebar) */}
+              {/* User Profile Header Card */}
               {profile ? (
                 <button
                   onClick={() => {
@@ -421,7 +437,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </button>
 
-              {/* Drawer Menu Navigation Items (Identical to Desktop Sidebar) */}
+              {/* Drawer Menu Navigation Items */}
               <nav className="space-y-1.5 pt-1">
                 {drawerMenuItems.map((item: any) => {
                   const Icon = item.icon;
@@ -635,5 +651,3 @@ export const Navbar: React.FC<NavbarProps> = ({
     </>
   );
 };
-
-

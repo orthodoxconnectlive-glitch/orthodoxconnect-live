@@ -248,9 +248,6 @@ const CORS_HEADERS: Record<string, string> = {
 
 export const SUPER_ADMIN_EMAIL = 'orthodoxconnect.live@gmail.com';
 
-/**
- * Edge-compatible password hashing using Web Crypto API SHA-256.
- */
 export async function hashPassword(password: string): Promise<string> {
   const enc = new TextEncoder();
   const data = enc.encode('orthodox_edge_salt_v1_' + password);
@@ -364,7 +361,6 @@ export default {
           const now = new Date().toISOString();
 
           if (env.DB) {
-            // Check if email exists
             const existing = await env.DB.prepare('SELECT id FROM profiles WHERE LOWER(email) = LOWER(?)').bind(email).first();
             if (existing) {
               return jsonResponse({ success: false, error: 'An account with this email address already exists.' }, 409);
@@ -376,7 +372,6 @@ export default {
             `).bind(userId, email, passwordHash, fullName, parish, bio, avatarUrl, role, now, now).run();
           }
 
-          // Generate session token
           const token = `sess_${userId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
           const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
 
@@ -435,7 +430,6 @@ export default {
           }
 
           if (!profileRow) {
-            // If super admin initial login, auto-provision
             if (email === SUPER_ADMIN_EMAIL) {
               const hash = await hashPassword(password);
               const superId = 'super-admin-root';
@@ -468,13 +462,11 @@ export default {
             return jsonResponse({ success: false, error: 'Your account has been suspended by parish moderation.' }, 403);
           }
 
-          // Verify password hash
           const inputHash = await hashPassword(password);
           if (profileRow.password_hash && profileRow.password_hash !== inputHash) {
             return jsonResponse({ success: false, error: 'Invalid email or password.' }, 401);
           }
 
-          // Update role to super_admin if email matches
           if (email === SUPER_ADMIN_EMAIL && profileRow.role !== 'super_admin') {
             profileRow.role = 'super_admin';
             if (env.DB) {
@@ -482,7 +474,6 @@ export default {
             }
           }
 
-          // Create session
           const token = `sess_${profileRow.id}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
           const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
 
@@ -737,39 +728,47 @@ export default {
         }
       }
 
-      // 5. Messages Endpoints (/api/messages)
+      // 5. Messages Endpoints (/api/messages) [SECURED & ENFORCED]
       if (url.pathname === '/api/messages' || url.pathname === '/api/messages/') {
+        const auth = getAuthIdentity(request);
+        let authenticatedUserId = auth.id;
+
+        if (!authenticatedUserId && auth.bearerToken && env.DB) {
+          const session = await env.DB.prepare(
+            'SELECT user_id FROM sessions WHERE token = ?'
+          ).bind(auth.bearerToken).first<{ user_id: string }>();
+          if (session?.user_id) {
+            authenticatedUserId = session.user_id;
+          }
+        }
+
+        if (!authenticatedUserId) {
+          return jsonResponse({ success: false, error: 'Unauthorized: Valid user credentials required.' }, 401);
+        }
+
         if (request.method === 'GET') {
-          const user1 = url.searchParams.get('user1') || url.searchParams.get('sender_id');
-          const user2 = url.searchParams.get('user2') || url.searchParams.get('receiver_id');
-          const contactId = url.searchParams.get('contact_id');
-          const myId = url.searchParams.get('my_id') || getAuthIdentity(request).id;
+          const otherUserId = url.searchParams.get('contact_id') || 
+                              url.searchParams.get('user2') || 
+                              url.searchParams.get('receiver_id');
 
           let messages: any[] = [];
 
           if (env.DB) {
-            if (user1 && user2) {
+            if (otherUserId) {
               const stmt = env.DB.prepare(`
                 SELECT * FROM messages 
-                WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+                WHERE (sender_id = ? AND receiver_id = ?) 
+                   OR (sender_id = ? AND receiver_id = ?)
                 ORDER BY created_at ASC
-              `).bind(user1, user2, user2, user1);
+              `).bind(authenticatedUserId, otherUserId, otherUserId, authenticatedUserId);
               const { results } = await stmt.all();
               messages = results || [];
-            } else if (contactId && myId) {
-              const stmt = env.DB.prepare(`
-                SELECT * FROM messages 
-                WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
-                ORDER BY created_at ASC
-              `).bind(myId, contactId, contactId, myId);
-              const { results } = await stmt.all();
-              messages = results || [];
-            } else if (myId) {
+            } else {
               const stmt = env.DB.prepare(`
                 SELECT * FROM messages 
                 WHERE sender_id = ? OR receiver_id = ?
                 ORDER BY created_at DESC LIMIT 100
-              `).bind(myId, myId);
+              `).bind(authenticatedUserId, authenticatedUserId);
               const { results } = await stmt.all();
               messages = results || [];
             }
@@ -781,7 +780,7 @@ export default {
         if (request.method === 'POST') {
           const body: any = await request.json().catch(() => ({}));
           const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `msg_${Date.now()}`);
-          const senderId = body.sender_id || body.senderId;
+          const senderId = authenticatedUserId;
           const receiverId = body.receiver_id || body.receiverId;
           const content = body.content || '';
           const imageUrl = body.image_url || body.imageUrl || null;
@@ -789,8 +788,8 @@ export default {
           const audioUrl = body.audio_url || body.audioUrl || null;
           const createdAt = body.created_at || new Date().toISOString();
 
-          if (!senderId || !receiverId) {
-            return jsonResponse({ success: false, error: 'sender_id and receiver_id are required' }, 400);
+          if (!receiverId) {
+            return jsonResponse({ success: false, error: 'receiver_id is required.' }, 400);
           }
 
           if (env.DB) {
@@ -1252,7 +1251,6 @@ export default {
             await env.DB.prepare('UPDATE posts SET likes_count = likes_count + 1 WHERE id = ?').bind(postId).run();
             isLiked = true;
 
-            // Notify post author
             const post = await env.DB.prepare('SELECT author_id, content FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
             if (post && post.author_id && post.author_id !== userId) {
               const notifId = `notif-like-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -1304,7 +1302,6 @@ export default {
 
             await env.DB.prepare('UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?').bind(postId).run();
 
-            // Notify post author
             const post = await env.DB.prepare('SELECT author_id, content FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
             if (post && post.author_id && post.author_id !== userId) {
               const notifId = `notif-comm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;

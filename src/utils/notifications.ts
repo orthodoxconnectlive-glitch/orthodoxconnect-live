@@ -12,10 +12,6 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   emailAlerts: false,
 };
 
-const LOCAL_NOTIFS_STORAGE_KEY = 'orthodox_notifications_cache_v5';
-const READ_NOTIF_IDS_KEY = 'orthodox_read_notif_ids_v5';
-const DELETED_NOTIF_IDS_KEY = 'orthodox_deleted_notif_ids_v5';
-
 export function getCurrentUserId(): string | null {
   try {
     if (typeof window !== 'undefined') {
@@ -47,16 +43,26 @@ export function setCurrentUserId(userId?: string | null): void {
   }
 }
 
-function getLocalNotifications(): NotificationItem[] {
+// User-scoped cache keys to prevent cross-user leakage
+function getUserCacheKey(base: string, userId?: string | null): string {
+  const uid = userId || getCurrentUserId() || 'guest';
+  return `${base}_${uid}`;
+}
+
+function getLocalNotifications(userId?: string | null): NotificationItem[] {
   try {
-    const raw = localStorage.getItem(LOCAL_NOTIFS_STORAGE_KEY);
+    const key = getUserCacheKey('orthodox_notifications_cache_v6', userId);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
+        const activeUid = userId || getCurrentUserId();
         return parsed.filter((n: any) => {
           const t = (n.title || '').toLowerCase();
           const b = (n.body || '').toLowerCase();
-          return !t.includes('test') && !b.includes('test');
+          const isNotTest = !t.includes('test') && !b.includes('test');
+          const isForUser = !activeUid || n.userId === 'all' || n.userId === activeUid;
+          return isNotTest && isForUser;
         });
       }
     }
@@ -66,23 +72,28 @@ function getLocalNotifications(): NotificationItem[] {
   return [];
 }
 
-function saveLocalNotifications(notifs: NotificationItem[]): void {
+function saveLocalNotifications(notifs: NotificationItem[], userId?: string | null): void {
   try {
+    const key = getUserCacheKey('orthodox_notifications_cache_v6', userId);
+    const activeUid = userId || getCurrentUserId();
     const cleaned = notifs.filter((n) => {
       const t = (n.title || '').toLowerCase();
       const b = (n.body || '').toLowerCase();
-      return !t.includes('test') && !b.includes('test');
+      const isNotTest = !t.includes('test') && !b.includes('test');
+      const isForUser = !activeUid || n.userId === 'all' || n.userId === activeUid;
+      return isNotTest && isForUser;
     });
-    localStorage.setItem(LOCAL_NOTIFS_STORAGE_KEY, JSON.stringify(cleaned));
+    localStorage.setItem(key, JSON.stringify(cleaned));
     window.dispatchEvent(new CustomEvent('orthodox:notifications_updated'));
   } catch (e) {
     console.warn('Error saving notifications cache:', e);
   }
 }
 
-function getReadNotifIds(): Set<string> {
+function getReadNotifIds(userId?: string | null): Set<string> {
   try {
-    const raw = localStorage.getItem(READ_NOTIF_IDS_KEY);
+    const key = getUserCacheKey('orthodox_read_notif_ids_v6', userId);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return new Set(parsed);
@@ -91,15 +102,17 @@ function getReadNotifIds(): Set<string> {
   return new Set();
 }
 
-function saveReadNotifIds(ids: Set<string>): void {
+function saveReadNotifIds(ids: Set<string>, userId?: string | null): void {
   try {
-    localStorage.setItem(READ_NOTIF_IDS_KEY, JSON.stringify(Array.from(ids)));
+    const key = getUserCacheKey('orthodox_read_notif_ids_v6', userId);
+    localStorage.setItem(key, JSON.stringify(Array.from(ids)));
   } catch (e) {}
 }
 
-function getDeletedNotifIds(): Set<string> {
+function getDeletedNotifIds(userId?: string | null): Set<string> {
   try {
-    const raw = localStorage.getItem(DELETED_NOTIF_IDS_KEY);
+    const key = getUserCacheKey('orthodox_deleted_notif_ids_v6', userId);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) return new Set(parsed);
@@ -108,9 +121,10 @@ function getDeletedNotifIds(): Set<string> {
   return new Set();
 }
 
-function saveDeletedNotifIds(ids: Set<string>): void {
+function saveDeletedNotifIds(ids: Set<string>, userId?: string | null): void {
   try {
-    localStorage.setItem(DELETED_NOTIF_IDS_KEY, JSON.stringify(Array.from(ids)));
+    const key = getUserCacheKey('orthodox_deleted_notif_ids_v6', userId);
+    localStorage.setItem(key, JSON.stringify(Array.from(ids)));
   } catch (e) {}
 }
 
@@ -137,9 +151,9 @@ try {
 
         if (isForMe && !isSentByMe) {
           const item = event.data.item as NotificationItem;
-          const existing = getLocalNotifications();
+          const existing = getLocalNotifications(currentUserId);
           const updated = [item, ...existing.filter((n) => n.id !== item.id)];
-          saveLocalNotifications(updated);
+          saveLocalNotifications(updated, currentUserId);
 
           soundSynth.playNotificationChime();
           triggerBrowserNotification(item.title, {
@@ -158,9 +172,9 @@ try {
 
 export async function loadNotifications(userId?: string): Promise<NotificationItem[]> {
   const effectiveUserId = userId || getCurrentUserId() || undefined;
-  const readIds = getReadNotifIds();
-  const deletedIds = getDeletedNotifIds();
-  const localItems = getLocalNotifications().filter((n) => !deletedIds.has(n.id));
+  const readIds = getReadNotifIds(effectiveUserId);
+  const deletedIds = getDeletedNotifIds(effectiveUserId);
+  const localItems = getLocalNotifications(effectiveUserId).filter((n) => !deletedIds.has(n.id));
 
   try {
     const queryParam = effectiveUserId ? `?recipient_id=${encodeURIComponent(effectiveUserId)}` : '';
@@ -172,6 +186,13 @@ export async function loadNotifications(userId?: string): Promise<NotificationIt
           .filter((d: any) => {
             const notifId = String(d.id);
             if (deletedIds.has(notifId)) return false;
+            
+            // Explicit user boundary check
+            const recipient = d.recipient_id || d.user_id;
+            if (effectiveUserId && recipient && recipient !== 'all' && recipient !== effectiveUserId) {
+              return false;
+            }
+
             const t = (d.title || '').toLowerCase();
             const m = (d.body || d.message || '').toLowerCase();
             return !t.includes('test') && !m.includes('test');
@@ -211,12 +232,12 @@ export async function loadNotifications(userId?: string): Promise<NotificationIt
         const merged = Array.from(map.values()).sort(
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
-        saveLocalNotifications(merged);
+        saveLocalNotifications(merged, effectiveUserId);
         return merged;
       }
     }
   } catch (d1Err) {
-    console.warn('[loadNotifications] Cloudflare D1 fetch notice:', d1Err);
+    console.warn('[loadNotifications] fetch notice:', d1Err);
   }
 
   return localItems.map((n) => (readIds.has(n.id) ? { ...n, isRead: true } : n));
@@ -249,7 +270,7 @@ export async function addNotification(
     createdAt: new Date().toISOString(),
   };
 
-  // 1. Sync to Cloudflare D1
+  // 1. Sync to backend
   try {
     await fetch(`${API_BASE_URL}/api/notifications`, {
       method: 'POST',
@@ -268,7 +289,7 @@ export async function addNotification(
       }),
     });
   } catch (d1Err) {
-    console.warn('[addNotification] Cloudflare D1 sync notice:', d1Err);
+    console.warn('[addNotification] sync notice:', d1Err);
   }
 
   // 2. Cross-tab real-time broadcast
@@ -286,9 +307,9 @@ export async function addNotification(
     return item;
   }
 
-  const existing = getLocalNotifications();
+  const existing = getLocalNotifications(currentUserId);
   const updated = [item, ...existing.filter((n) => n.id !== item.id)];
-  saveLocalNotifications(updated);
+  saveLocalNotifications(updated, currentUserId);
 
   if (!currentUserId || item.senderName !== 'You') {
     soundSynth.playNotificationChime();
@@ -303,53 +324,56 @@ export async function addNotification(
   return item;
 }
 
-export async function markNotificationAsRead(id: string): Promise<void> {
-  const readIds = getReadNotifIds();
+export async function markNotificationAsRead(id: string, userId?: string): Promise<void> {
+  const activeUserId = userId || getCurrentUserId();
+  const readIds = getReadNotifIds(activeUserId);
   readIds.add(id);
-  saveReadNotifIds(readIds);
+  saveReadNotifIds(readIds, activeUserId);
 
-  const existing = getLocalNotifications();
+  const existing = getLocalNotifications(activeUserId);
   const updated = existing.map((n) => (n.id === id ? { ...n, isRead: true } : n));
-  saveLocalNotifications(updated);
+  saveLocalNotifications(updated, activeUserId);
 
   try {
     await fetch(`${API_BASE_URL}/api/notifications/mark-read`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id, recipient_id: activeUserId }),
     });
   } catch (err) {}
 }
 
 export async function markAllNotificationsAsRead(userId?: string): Promise<void> {
-  const existing = getLocalNotifications();
-  const readIds = getReadNotifIds();
+  const activeUserId = userId || getCurrentUserId();
+  const existing = getLocalNotifications(activeUserId);
+  const readIds = getReadNotifIds(activeUserId);
   existing.forEach((n) => readIds.add(n.id));
-  saveReadNotifIds(readIds);
+  saveReadNotifIds(readIds, activeUserId);
 
   const updated = existing.map((n) => ({ ...n, isRead: true }));
-  saveLocalNotifications(updated);
+  saveLocalNotifications(updated, activeUserId);
 
   try {
     await fetch(`${API_BASE_URL}/api/notifications/mark-read`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ all: true, recipient_id: userId }),
+      body: JSON.stringify({ all: true, recipient_id: activeUserId }),
     });
   } catch (err) {}
 }
 
-export async function deleteNotification(id: string): Promise<void> {
-  const deletedIds = getDeletedNotifIds();
+export async function deleteNotification(id: string, userId?: string): Promise<void> {
+  const activeUserId = userId || getCurrentUserId();
+  const deletedIds = getDeletedNotifIds(activeUserId);
   deletedIds.add(id);
-  saveDeletedNotifIds(deletedIds);
+  saveDeletedNotifIds(deletedIds, activeUserId);
 
-  const existing = getLocalNotifications();
+  const existing = getLocalNotifications(activeUserId);
   const updated = existing.filter((n) => n.id !== id);
-  saveLocalNotifications(updated);
+  saveLocalNotifications(updated, activeUserId);
 
   try {
-    await fetch(`${API_BASE_URL}/api/notifications/${encodeURIComponent(id)}`, {
+    await fetch(`${API_BASE_URL}/api/notifications/${encodeURIComponent(id)}?recipient_id=${encodeURIComponent(activeUserId || '')}`, {
       method: 'DELETE',
     });
   } catch (err) {}
@@ -357,7 +381,8 @@ export async function deleteNotification(id: string): Promise<void> {
 
 export function loadNotificationPreferences(): NotificationPreferences {
   try {
-    const saved = localStorage.getItem('oc_notif_prefs');
+    const uid = getCurrentUserId() || 'guest';
+    const saved = localStorage.getItem(`oc_notif_prefs_${uid}`);
     if (saved) return JSON.parse(saved);
   } catch (e) {}
   return DEFAULT_PREFERENCES;
@@ -365,6 +390,7 @@ export function loadNotificationPreferences(): NotificationPreferences {
 
 export function saveNotificationPreferences(prefs: NotificationPreferences): void {
   try {
-    localStorage.setItem('oc_notif_prefs', JSON.stringify(prefs));
+    const uid = getCurrentUserId() || 'guest';
+    localStorage.setItem(`oc_notif_prefs_${uid}`, JSON.stringify(prefs));
   } catch (e) {}
 }

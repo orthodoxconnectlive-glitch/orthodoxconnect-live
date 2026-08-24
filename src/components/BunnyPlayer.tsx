@@ -21,7 +21,7 @@ const DEFAULT_POSTER = 'https://images.unsplash.com/photo-1548625361-1959779df5f
 
 export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
   mediaStream,
-  videoUrl,
+  videoUrl = '',
   posterUrl,
   title,
   isLive = false,
@@ -42,19 +42,17 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
   const webcamRef = useRef<HTMLVideoElement | null>(null);
   const directVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Bunny Stream Library & CDN Host
   const bunnyLibraryId = import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
   const bunnyCdnHost = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 
   const activeStream = mediaStream || localCameraStream;
 
-  // Reset error & mute state when videoUrl changes
   useEffect(() => {
     setHasError(false);
     setIsAudioMuted(muted ?? true);
   }, [videoUrl, muted]);
 
-  // Clean up streams & media connections on unmount (Hard Disconnect)
+  // Clean up streams & media connections on unmount
   useEffect(() => {
     return () => {
       if (webcamRef.current) {
@@ -62,24 +60,18 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
           webcamRef.current.pause();
           webcamRef.current.srcObject = null;
           webcamRef.current.src = '';
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       }
       if (directVideoRef.current) {
         try {
           directVideoRef.current.pause();
           directVideoRef.current.src = '';
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       }
       if (localCameraStream) {
         try {
           localCameraStream.getTracks().forEach((track) => track.stop());
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       }
       const media = document.querySelectorAll<HTMLMediaElement>('video, audio');
       media.forEach((m) => {
@@ -87,17 +79,15 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
           m.pause();
           m.src = '';
           m.srcObject = null;
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       });
     };
   }, [localCameraStream]);
 
-  // Attach MediaStream to video element whenever activeStream or ref changes
   useEffect(() => {
     if (webcamRef.current && activeStream) {
       webcamRef.current.srcObject = activeStream;
+      webcamRef.current.play().catch(() => {});
     }
   }, [activeStream]);
 
@@ -123,9 +113,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
     if (localCameraStream) {
       try {
         localCameraStream.getTracks().forEach((track) => track.stop());
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
       setLocalCameraStream(null);
     }
     if (onEndBroadcast) {
@@ -138,56 +126,37 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
     setIsAudioMuted(false);
     if (directVideoRef.current) {
       directVideoRef.current.muted = false;
-      directVideoRef.current.dataset.userInitiated = 'true';
     }
     if (webcamRef.current) {
       webcamRef.current.muted = false;
-      webcamRef.current.dataset.userInitiated = 'true';
     }
   };
 
-  // Graceful error handler: STOP playback and set error state
-  const handleVideoError = (_e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-    console.warn('[BunnyPlayer] Video stream loading error for URL:', videoUrl);
-    setHasError(true);
-  };
-
-  // Determine stream embed type & sanitize URLs
+  // Determine stream type & format URLs
   let embedSrc = '';
   let directSrc = '';
 
   if (videoUrl) {
-    let sanitized = videoUrl.trim();
-    if (sanitized.includes('bunnyinfra.net')) {
-      sanitized = sanitized.replace(/([a-zA-Z0-9_-]+)\.bunnyinfra\.net/g, bunnyCdnHost);
-    }
+    const sanitized = videoUrl.trim();
 
-    if (
-      sanitized === 'webcam-feed' ||
-      sanitized.includes('preview-stream') ||
-      sanitized.includes('vespers-stream') ||
-      sanitized.includes('chanting-stream')
-    ) {
-      // fallback
-    } else if (sanitized.includes('iframe.mediadelivery.net/embed/')) {
+    // 1. YouTube Live / Watch / Short Links
+    const ytMatch = sanitized.match(
+      /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|live\/|v\/))([a-zA-Z0-9_-]{11})/
+    );
+    if (ytMatch) {
+      embedSrc = `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&mute=${isAudioMuted ? 1 : 0}&playsinline=1&rel=0`;
+    }
+    // 2. Bunny Stream or generic iframe embed
+    else if (sanitized.includes('iframe.mediadelivery.net/embed/') || sanitized.includes('/embed/')) {
       const baseUrl = sanitized.split('?')[0];
-      embedSrc = `${baseUrl}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true&responsive=true`;
-    } else if (sanitized.includes(bunnyCdnHost) || sanitized.includes('b-cdn.net')) {
-      if (/\.(mp4|m3u8|webm|mov)(\?.*)?$/i.test(sanitized)) {
-        directSrc = sanitized;
-      } else {
-        const guidMatch = sanitized.match(
-          /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F-]{10,})/
-        );
-        if (guidMatch) {
-          embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${guidMatch[1]}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true&responsive=true`;
-        } else {
-          embedSrc = sanitized;
-        }
-      }
-    } else if (/^[0-9a-fA-F-]{10,}$/.test(sanitized)) {
-      embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${sanitized}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true&responsive=true`;
-    } else if (
+      embedSrc = `${baseUrl}?autoplay=1&loop=false&muted=${isAudioMuted}&preload=true&responsive=true`;
+    }
+    // 3. Bunny CDN Video GUID
+    else if (/^[0-9a-fA-F-]{10,}$/.test(sanitized) && !sanitized.startsWith('http')) {
+      embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${sanitized}?autoplay=1&loop=false&muted=${isAudioMuted}&preload=true&responsive=true`;
+    }
+    // 4. Direct Video Sources (MP4, HLS m3u8, WebM, Stream URLs)
+    else if (
       sanitized.startsWith('http://') ||
       sanitized.startsWith('https://') ||
       sanitized.startsWith('blob:') ||
@@ -197,19 +166,18 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
     }
   }
 
-  // Display "End Broadcast" ONLY if user is actively broadcasting or local/camera stream is active
-  const showEndBroadcastButton = isUserBroadcasting || !!activeStream;
+  const showEndBroadcastButton = isUserBroadcasting || Boolean(activeStream);
 
   return (
     <div
       className={`relative rounded-2xl overflow-hidden bg-stone-900 border border-amber-900/40 shadow-xl group ${className}`}
     >
-      {/* Top Header Overlay: Live Badge, Viewer Count, and END BROADCAST Button */}
+      {/* Top Header Overlay: Live Badge, Viewer Count, End Button */}
       <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto">
           {isLive && (
             <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-600 text-white text-xs font-bold tracking-wide uppercase shadow-lg animate-pulse">
-              <Radio className="w-3.5 h-3.5 animate-spin" /> {t('liveParishBadge')}
+              <Radio className="w-3.5 h-3.5" /> {t('liveParishBadge')}
             </span>
           )}
           <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-900/80 backdrop-blur-md text-amber-200 text-xs font-medium border border-amber-500/30 shadow-md">
@@ -217,7 +185,6 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
           </span>
         </div>
 
-        {/* End Broadcast Button (Rendered ONLY when actively broadcasting or streaming) */}
         {showEndBroadcastButton && (
           <button
             type="button"
@@ -231,9 +198,8 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
         )}
       </div>
 
-      {/* Video Display Content */}
+      {/* Video Content */}
       {hasError ? (
-        /* Graceful Error Fallback: Clean thumbnail card with Stream Unavailable message */
         <div className="relative w-full aspect-video bg-[#1c130c] flex flex-col items-center justify-center p-6 text-center border-b border-[#c5a059]/20 overflow-hidden">
           <img
             src={posterUrl || DEFAULT_POSTER}
@@ -249,8 +215,8 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             </h4>
             <p className="text-[#eedcb5]/70 text-xs max-w-sm mb-3 font-serif">
               {language === 'ar'
-                ? 'تعذر تحميل هذا البث المباشر. قد يكون رابط البث منتهياً أو أن الخدمة الكنسية غير متصلة حالياً.'
-                : 'This video or live stream could not be loaded from Bunny CDN. The stream link may have expired or is currently offline.'}
+                ? 'تعذر تشغيل هذا الرابط. قد يكون البث منتهياً أو أن الرابط غير متاح حالياً.'
+                : 'Could not connect to this stream URL. The broadcast may be finished or currently offline.'}
             </p>
             <button
               type="button"
@@ -263,11 +229,10 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
           </div>
         </div>
       ) : activeStream ? (
-        /* Render Active Webcam / Microphone Media Stream */
+        /* Device Webcam Stream */
         <div className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
           <video
             ref={webcamRef}
-            data-user-initiated="true"
             autoPlay
             playsInline
             muted={isAudioMuted}
@@ -278,40 +243,32 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
           </div>
         </div>
       ) : embedSrc ? (
-        /* Render Bunny Stream Embed iframe */
+        /* YouTube / Bunny / External Embed iframe */
         <div className="relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
-            style={{ backgroundImage: `url(${posterUrl || DEFAULT_POSTER})` }}
-          />
           <iframe
             src={embedSrc}
-            loading="lazy"
             className="w-full h-full border-0 relative z-10"
-            allow="accelerometer; gyroscope; encrypted-media; picture-in-picture;"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture;"
             allowFullScreen
-            title={title || 'Bunny Stream Live Video'}
+            title={title || 'Live Stream Broadcast'}
             onError={() => setHasError(true)}
           />
         </div>
       ) : directSrc ? (
-        /* Render Direct Video Source */
+        /* Direct Video File / HLS / MP4 Stream */
         <div className="relative w-full aspect-video bg-black flex items-center justify-center">
           <video
             ref={directVideoRef}
-            data-media-id={videoUrl || 'bunny-direct-video'}
             src={directSrc}
             poster={posterUrl || DEFAULT_POSTER}
             controls
+            autoPlay
             playsInline
-            autoPlay={false}
-            preload="none"
             muted={isAudioMuted}
-            onError={handleVideoError}
+            onError={() => setHasError(true)}
             className="w-full h-full max-h-[600px] object-contain"
           />
 
-          {/* Unmute Live Stream Overlay */}
           {isLive && isAudioMuted && (
             <div className="absolute bottom-4 left-4 rtl:left-auto rtl:right-4 z-30">
               <button
@@ -327,7 +284,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
           )}
         </div>
       ) : (
-        /* Fallback: Device Camera Feed / Interactive Live Feed Launcher */
+        /* Camera Launcher Fallback */
         <div className="relative w-full aspect-video bg-gradient-to-br from-amber-950 via-stone-900 to-amber-900/80 flex flex-col items-center justify-center p-6 text-center">
           <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-3 shadow-inner">
             <Camera className="w-7 h-7 text-amber-400 animate-pulse" />
@@ -357,7 +314,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
         </div>
       )}
 
-      {/* Priest Blessing Request Bar */}
+      {/* Priest Blessing Bar */}
       {isLive && (
         <div className="p-3 bg-stone-950/90 border-t border-amber-900/40 flex items-center justify-between text-xs">
           <span className="text-amber-200/90 font-serif flex items-center gap-1.5">

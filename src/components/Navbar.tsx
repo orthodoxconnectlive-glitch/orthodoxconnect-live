@@ -76,7 +76,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     window.addEventListener('orthodox:new_notification', handleLocalUpdate);
     window.addEventListener('storage', handleLocalUpdate);
 
-    // Periodic poll every 10 seconds for real-time notification synchronization
     const pollInterval = setInterval(() => {
       fetchNotifs();
     }, 10000);
@@ -140,10 +139,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       <header className="sticky top-0 z-40 bg-[#eedcb5] dark:bg-[#120e0b] border-b-2 border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] shadow-md">
-        {/* Top Header Bar */}
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
-          {/* Left: Hamburger Menu (Mobile/Tablet <lg:), Coptic Cross Icon, Brand Title */}
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+          {/* Left: Brand & Menu */}
+          <div className="flex items-center gap-2 shrink min-w-0">
             <button
               onClick={() => setIsDrawerOpen(true)}
               className="lg:hidden p-2 rounded-xl bg-[#e6d3ab]/80 dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059]/20 transition-all cursor-pointer shrink-0"
@@ -162,17 +160,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </div>
               <div className="min-w-0">
-                <h1 className="font-serif-coptic font-bold text-sm sm:text-lg text-[#3d2b18] dark:text-[#f5ebd9] tracking-tight leading-none truncate">
+                <h1 className="font-serif-coptic font-bold text-xs sm:text-lg text-[#3d2b18] dark:text-[#f5ebd9] tracking-tight leading-none truncate">
                   {t('appName')}
                 </h1>
-                <p className="text-[7px] sm:text-[9px] text-[#7c5f3d] dark:text-[#a89379] tracking-[0.18em] sm:tracking-[0.2em] uppercase font-serif mt-0.5 font-semibold truncate">
+                <p className="text-[7px] sm:text-[9px] text-[#7c5f3d] dark:text-[#a89379] tracking-[0.15em] sm:tracking-[0.2em] uppercase font-serif mt-0.5 font-semibold truncate">
                   {language === 'ar' ? 'إيمان · شركة مقدسة' : 'FAITH · FELLOWSHIP'}
                 </p>
               </div>
             </button>
           </div>
 
-          {/* Center Search Bar (Desktop lg: and up) */}
+          {/* Desktop Search Bar */}
           <div className="hidden lg:flex items-center flex-1 max-w-xs mx-4">
             <div className="relative w-full">
               <Search className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-[#7c5f3d] dark:text-[#a89379]" />
@@ -186,28 +184,28 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Right Action Circle Buttons */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Coptic Date Badge (Desktop/Tablet) */}
+          {/* Right Action Buttons */}
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {/* Coptic Date Badge */}
             <div className="hidden md:flex items-center gap-1.5 h-8 sm:h-9 px-3 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[11px] font-serif font-bold text-[#3d2b18] dark:text-[#f5ebd9] shadow-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-[#c5a059] animate-pulse" />
               <span>{formattedCopticDate}</span>
             </div>
 
-            {/* Quick Language Switcher Button */}
+            {/* Language Switcher */}
             <button
               onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-              className="h-8 sm:h-9 px-2.5 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white transition-all flex items-center gap-1.5 text-xs font-bold font-serif shadow-sm cursor-pointer"
+              className="h-8 sm:h-9 px-2.5 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white transition-all flex items-center gap-1 text-xs font-bold font-serif shadow-sm cursor-pointer shrink-0"
               title={language === 'en' ? 'التحويل إلى اللغة العربية' : 'Switch to English'}
             >
               <Globe className="w-3.5 h-3.5 text-[#a8833c] dark:text-[#d4af37]" />
               <span>{language === 'en' ? 'عربي' : 'EN'}</span>
             </button>
 
-            {/* Mobile Search Toggle Button (<lg:) */}
+            {/* Mobile Search Toggle */}
             <button
               onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-              className={`lg:hidden w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer shadow-sm ${
+              className={`lg:hidden w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0 ${
                 isMobileSearchOpen
                   ? 'bg-[#c5a059] text-white'
                   : 'bg-[#f6ebd6] dark:bg-[#1c1611] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white'
@@ -217,10 +215,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Search className="w-4 h-4" />
             </button>
 
-            {/* Live Broadcast button */}
+            {/* Live Broadcast Button */}
             <button
               onClick={() => onNavigate('live')}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm shrink-0 ${
                 currentView === 'live'
                   ? 'bg-[#c5a059] text-white'
                   : 'bg-[#f6ebd6] dark:bg-[#1c1611] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white'
@@ -234,10 +232,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </button>
 
-            {/* Messenger button */}
+            {/* Messages Button */}
             <button
               onClick={() => onNavigate('messages')}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm shrink-0 ${
                 currentView === 'messages'
                   ? 'bg-[#c5a059] text-white'
                   : 'bg-[#f6ebd6] dark:bg-[#1c1611] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white'
@@ -252,8 +250,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* Notifications Bell button */}
-            <div className="relative">
+            {/* Notifications Bell */}
+            <div className="relative shrink-0">
               <button
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
                 className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
@@ -283,7 +281,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Mobile Search Dropdown Panel (<lg:) */}
+        {/* Mobile Search Dropdown Panel */}
         {isMobileSearchOpen && (
           <div className="lg:hidden px-4 py-2 bg-[#f6ebd6] dark:bg-[#1c1611] border-t border-[#c5a059]/40">
             <div className="relative w-full">
@@ -300,7 +298,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         )}
 
-        {/* Sub-Navigation Tab Bar */}
+        {/* Sub-Navigation Tabs */}
         <div className="border-t border-[#c5a059]/40 bg-[#f3e3be]/90 dark:bg-[#18120e]/90 px-4">
           <div className="max-w-2xl mx-auto flex items-center justify-around h-11">
             {subTabs.map((tab) => {
@@ -325,7 +323,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               );
             })}
 
-            {/* Coptic Cross Icon Badge in Sub-Bar */}
             <button
               onClick={() => onNavigate('myNetwork')}
               className={`relative h-full px-3 flex items-center justify-center text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18] ${
@@ -341,19 +338,16 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      {/* Mobile / Side Menu Drawer */}
+      {/* Slide-out Navigation Drawer */}
       {isDrawerOpen && (
         <div className="fixed inset-0 z-50 flex">
-          {/* Backdrop */}
           <div
             onClick={() => setIsDrawerOpen(false)}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
           />
 
-          {/* Drawer Panel */}
           <div className="relative w-80 max-w-[85vw] bg-[#eddcb9] dark:bg-[#18120e] h-full shadow-2xl p-4 sm:p-5 flex flex-col justify-between overflow-y-auto border-r-2 rtl:border-r-0 rtl:border-l-2 border-[#c5a059] dark:border-[#8b6b4a] z-50">
             <div className="space-y-4">
-              {/* Top Branding & Close Button */}
               <div className="flex items-center justify-between pb-3 border-b border-[#c5a059]/40">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-[#c5a059] dark:bg-[#d4af37] p-0.5 shadow-md flex items-center justify-center shrink-0">
@@ -379,7 +373,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               </div>
 
-              {/* User Profile Header Card */}
               {profile ? (
                 <button
                   onClick={() => {
@@ -419,7 +412,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              {/* Start Prayer Meeting Callout Box */}
               <button
                 onClick={() => {
                   onNavigate('live');
@@ -440,7 +432,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </button>
 
-              {/* Drawer Menu Navigation Items */}
               <nav className="space-y-1.5 pt-1">
                 {drawerMenuItems.map((item: any) => {
                   const Icon = item.icon;
@@ -485,7 +476,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   );
                 })}
 
-                {/* Invite Friends Button */}
                 <button
                   onClick={() => {
                     onOpenInvite();
@@ -505,7 +495,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               </nav>
 
-              {/* Liturgical Widget in Drawer */}
               <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-3.5 shadow-lg text-xs space-y-2.5">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-[#3d2b18] dark:text-[#f5ebd9] font-serif font-bold text-[9px] uppercase tracking-wider">
                   <Sparkles className="w-3 h-3 text-[#a8833c]" />
@@ -542,7 +531,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </div>
 
-              {/* Language & Theme Controls */}
               <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-3 shadow-lg space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1">
@@ -608,7 +596,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             </div>
 
-            {/* Logout Button if signed in */}
             {profile && (
               <div className="pt-3 border-t border-[#c5a059]/40 flex items-center justify-between">
                 <span className="text-[10px] font-serif text-[#7c5f3d] dark:text-[#a89379] uppercase">

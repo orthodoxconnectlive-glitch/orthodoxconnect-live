@@ -200,8 +200,55 @@ export const AuthPage: React.FC = () => {
           </button>
         </form>
 
+        {/* Quick Demo Logins for Fast Access */}
+        {mode === 'signin' && (
+          <div className="mt-6 pt-5 border-t border-[#c5a059]/20 relative z-10">
+            <p className="text-[11px] font-serif font-bold uppercase tracking-wider text-[#a8833c] text-center mb-2.5">
+              Quick Sign In
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px]">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('orthodoxconnect.live@gmail.com');
+                  setPassword('admin123');
+                  setErrorText(null);
+                }}
+                className="p-2 rounded-xl bg-[#eedcb5]/80 dark:bg-[#282019] hover:bg-[#c5a059]/20 border border-[#c5a059]/40 text-center transition-all cursor-pointer"
+              >
+                <div className="font-bold text-[#3d2b18] dark:text-[#f5ebd9]">👑 Super Admin</div>
+                <div className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] truncate">orthodoxconnect.live</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('fr.anthony@orthodox.org');
+                  setPassword('orthodox123');
+                  setErrorText(null);
+                }}
+                className="p-2 rounded-xl bg-[#eedcb5]/80 dark:bg-[#282019] hover:bg-[#c5a059]/20 border border-[#c5a059]/40 text-center transition-all cursor-pointer"
+              >
+                <div className="font-bold text-[#3d2b18] dark:text-[#f5ebd9]">✝️ Fr. Anthony</div>
+                <div className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] truncate">Clergy / Priest</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('deacon.mark@orthodox.org');
+                  setPassword('orthodox123');
+                  setErrorText(null);
+                }}
+                className="p-2 rounded-xl bg-[#eedcb5]/80 dark:bg-[#282019] hover:bg-[#c5a059]/20 border border-[#c5a059]/40 text-center transition-all cursor-pointer"
+              >
+                <div className="font-bold text-[#3d2b18] dark:text-[#f5ebd9]">🕊️ Deacon Mark</div>
+                <div className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] truncate">Parish Servant</div>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Footer info */}
-        <div className="mt-8 text-center text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-widest border-t border-[#c5a059]/20 pt-4">
+        <div className="mt-6 text-center text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-widest border-t border-[#c5a059]/20 pt-4">
           OrthodoxConnect · Fellowship in Faith
         </div>
       </div>

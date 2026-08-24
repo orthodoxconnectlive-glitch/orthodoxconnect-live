@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, CheckCheck, Trash2, Filter, MessageSquare, AtSign, Calendar, Users, ShieldAlert, Settings, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, Filter, MessageSquare, AtSign, Calendar, Users, ShieldAlert, Settings, SlidersHorizontal, Sparkles, Heart, MessageCircle } from 'lucide-react';
 import { NotificationItem, NotificationPreferences } from '../types';
 import { loadNotifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification, loadNotificationPreferences, saveNotificationPreferences } from '../utils/notifications';
 import { TimeAgo } from '../components/TimeAgo';
@@ -34,7 +34,12 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     window.addEventListener('orthodox:new_notification', handleUpdate);
     window.addEventListener('storage', handleUpdate);
 
+    const pollInterval = setInterval(() => {
+      fetchNotifs();
+    }, 10000);
+
     return () => {
+      clearInterval(pollInterval);
       window.removeEventListener('orthodox:notifications_updated', handleUpdate);
       window.removeEventListener('orthodox:new_notification', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
@@ -242,13 +247,21 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                 className="flex items-start gap-3.5 flex-1 cursor-pointer"
                 onClick={() => handleNotificationClick(notif)}
               >
-                <div className="w-10 h-10 rounded-full bg-[#f5f2ed] border border-[#d4af37]/40 flex items-center justify-center shrink-0">
-                  {notif.type === 'message' && <MessageSquare className="w-5 h-5 text-amber-600" />}
-                  {notif.type === 'mention' && <AtSign className="w-5 h-5 text-emerald-600" />}
-                  {notif.type === 'event_invite' && <Calendar className="w-5 h-5 text-[#d4af37]" />}
-                  {notif.type === 'group_invite' && <Users className="w-5 h-5 text-blue-600" />}
-                  {notif.type === 'moderation_alert' && <ShieldAlert className="w-5 h-5 text-red-600" />}
-                  {notif.type === 'system' && <Bell className="w-5 h-5 text-[#8b6b4a]" />}
+                <div className="w-10 h-10 rounded-full bg-[#f5f2ed] border border-[#d4af37]/40 flex items-center justify-center shrink-0 overflow-hidden">
+                  {notif.senderAvatar ? (
+                    <img src={notif.senderAvatar} alt={notif.senderName || 'Avatar'} className="w-full h-full object-cover" />
+                  ) : (
+                    <>
+                      {notif.type === 'like' && <Heart className="w-5 h-5 text-red-500 fill-red-500" />}
+                      {notif.type === 'comment' && <MessageCircle className="w-5 h-5 text-[#d4af37]" />}
+                      {notif.type === 'message' && <MessageSquare className="w-5 h-5 text-amber-600" />}
+                      {notif.type === 'mention' && <AtSign className="w-5 h-5 text-emerald-600" />}
+                      {notif.type === 'event_invite' && <Calendar className="w-5 h-5 text-[#d4af37]" />}
+                      {notif.type === 'group_invite' && <Users className="w-5 h-5 text-blue-600" />}
+                      {notif.type === 'moderation_alert' && <ShieldAlert className="w-5 h-5 text-red-600" />}
+                      {notif.type === 'system' && <Bell className="w-5 h-5 text-[#8b6b4a]" />}
+                    </>
+                  )}
                 </div>
 
                 <div>

@@ -115,17 +115,14 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   const { t } = useTheme();
   const { initiateCall } = useCall();
 
-  // User-namespaced cache key to prevent local cache message leaking across accounts
-  const currentUserId = profile?.id?.replace(/^auth-/, '') || '';
-  const getLocalKey = () => `orthodox_local_messages_${currentUserId || 'anon'}`;
+  const LOCAL_MESSAGES_KEY = 'orthodox_local_messages_v2';
 
   const loadLocalMessagesForContact = (contactId: string): ExtendedMessage[] => {
-    if (!currentUserId) return [];
     try {
-      const raw = localStorage.getItem(getLocalKey());
+      const raw = localStorage.getItem(LOCAL_MESSAGES_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed[contactId] && Array.isArray(parsed[contactId])) {
+        if (parsed[contactId] && Array.isArray(parsed[contactId]) && parsed[contactId].length > 0) {
           return parsed[contactId];
         }
       }
@@ -136,12 +133,11 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   };
 
   const saveLocalMessagesForContact = (contactId: string, msgs: ExtendedMessage[]) => {
-    if (!currentUserId) return;
     try {
-      const raw = localStorage.getItem(getLocalKey());
+      const raw = localStorage.getItem(LOCAL_MESSAGES_KEY);
       const parsed = raw ? JSON.parse(raw) : {};
       parsed[contactId] = msgs;
-      localStorage.setItem(getLocalKey(), JSON.stringify(parsed));
+      localStorage.setItem(LOCAL_MESSAGES_KEY, JSON.stringify(parsed));
     } catch (e) {
       console.warn('Local messages write error:', e);
     }
@@ -183,9 +179,11 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   useEffect(() => {
     async function loadRealContacts() {
       try {
+        // 1. Fetch profiles table with full_name and parish from Cloudflare D1
         const profilesData = await profilesApi.getAll(undefined, profile?.id);
-        const activePartnerIds = new Set<string>();
 
+        // 2. Fetch active messages to identify contacts user has chatted with
+        const activePartnerIds = new Set<string>();
         if (profile?.id) {
           const myCleanId = profile.id.replace(/^auth-/, '');
           const msgsData = await messagesApi.getConversation(myCleanId);
@@ -214,6 +212,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
             };
           });
 
+          // Sort contacts so active conversation partners come first
           mapped.sort((a, b) => {
             const aHas = activePartnerIds.has(a.id) ? 1 : 0;
             const bHas = activePartnerIds.has(b.id) ? 1 : 0;
@@ -241,6 +240,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     loadRealContacts();
   }, [profile?.id]);
 
+  // Fetch individual profile details when activeContact has a raw UUID or default name
   useEffect(() => {
     if (!activeContact?.id) return;
 
@@ -335,7 +335,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   };
 
   const [messages, setMessages] = useState<ExtendedMessage[]>(() =>
-    activeContact ? loadLocalMessagesForContact(activeContact.id.replace(/^auth-/, '')) : []
+    activeContact ? loadLocalMessagesForContact(activeContact.id) : []
   );
   const [isMessagesLoading, setIsMessagesLoading] = useState<boolean>(true);
 
@@ -378,6 +378,9 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<any>(null);
 
+  // WebRTC Call state
+  const [activeCall, setActiveCall] = useState<CallState | null>(null);
+
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -389,15 +392,15 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
       setMessages([]);
       setIsMessagesLoading(false);
     }
-  }, [activeContact?.id, currentUserId]);
+  }, [activeContact?.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Real-time synchronization using BroadcastChannel (locked to recipient)
+  // Real-time synchronization using BroadcastChannel and storage events
   useEffect(() => {
-    if (!activeContact || !currentUserId) return;
+    if (!activeContact) return;
 
     let msgBroadcast: BroadcastChannel | null = null;
     try {
@@ -405,17 +408,11 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
       msgBroadcast.onmessage = (event) => {
         if (event.data?.type === 'NEW_MESSAGE' && event.data?.message) {
           const newM = event.data.message as ExtendedMessage;
-          const cleanActiveId = activeContact.id.replace(/^auth-/, '');
-
-          const isDirectlyRelevant =
-            (newM.sender_id === cleanActiveId && newM.receiver_id === currentUserId) ||
-            (newM.sender_id === currentUserId && newM.receiver_id === cleanActiveId);
-
-          if (isDirectlyRelevant) {
+          if (newM.sender_id === activeContact.id || newM.receiver_id === activeContact.id) {
             setMessages((prev) => {
               if (prev.some((m) => m.id === newM.id)) return prev;
               const updated = [...prev, newM];
-              saveLocalMessagesForContact(cleanActiveId, updated);
+              saveLocalMessagesForContact(activeContact.id, updated);
               return updated;
             });
           }
@@ -426,9 +423,8 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     }
 
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === getLocalKey()) {
-        const cleanContactId = activeContact.id.replace(/^auth-/, '');
-        setMessages(loadLocalMessagesForContact(cleanContactId));
+      if (e.key === LOCAL_MESSAGES_KEY) {
+        setMessages(loadLocalMessagesForContact(activeContact.id));
       }
     };
     window.addEventListener('storage', handleStorageChange);
@@ -437,20 +433,21 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
       msgBroadcast?.close();
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [activeContact?.id, currentUserId]);
+  }, [activeContact?.id]);
 
   const fetchMessages = async () => {
-    if (!activeContact || !currentUserId) return;
+    if (!activeContact) return;
     setIsMessagesLoading(true);
+    const localMsgs = loadLocalMessagesForContact(activeContact.id);
+    setMessages(localMsgs);
 
     const cleanContactId = activeContact.id.replace(/^auth-/, '');
-    const localMsgs = loadLocalMessagesForContact(cleanContactId);
-    setMessages(localMsgs);
 
     try {
       const data = await messagesApi.getConversation(cleanContactId);
 
-      if (data && Array.isArray(data)) {
+      if (data && data.length > 0) {
+        // Merge Cloudflare D1 messages with local messages
         const msgMap = new Map<string, ExtendedMessage>();
         localMsgs.forEach((m) => msgMap.set(m.id, m));
         data.forEach((m: any) => msgMap.set(m.id, m as ExtendedMessage));
@@ -460,7 +457,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
         );
 
         setMessages(merged);
-        saveLocalMessagesForContact(cleanContactId, merged);
+        saveLocalMessagesForContact(activeContact.id, merged);
       }
     } catch (err) {
       console.warn('Messages load notice:', err);
@@ -471,17 +468,14 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
 
   const handleSendMessage = async (customContent?: string, e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!activeContact || !currentUserId) return;
+    if (!activeContact) return;
     const sendText = customContent !== undefined ? customContent : inputContent;
     if (!sendText.trim() && !imageAttachment && !videoAttachment) return;
 
-    const cleanSenderId = currentUserId;
-    const cleanReceiverId = activeContact.id.replace(/^auth-/, '');
-
     const newMsg: ExtendedMessage = {
       id: 'msg-' + Date.now(),
-      sender_id: cleanSenderId,
-      receiver_id: cleanReceiverId,
+      sender_id: profile?.id || 'me',
+      receiver_id: activeContact.id,
       content: sendText.trim(),
       image_url: imageAttachment || undefined,
       video_url: videoAttachment || undefined,
@@ -490,7 +484,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
 
     setMessages((prev) => {
       const updated = [...prev, newMsg];
-      saveLocalMessagesForContact(cleanReceiverId, updated);
+      saveLocalMessagesForContact(activeContact.id, updated);
       return updated;
     });
 
@@ -506,6 +500,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     setVideoAttachment('');
     setShowEmojiPicker(false);
 
+    // Broadcast message to other tabs
     try {
       const msgBroadcast = new BroadcastChannel('orthodox_messenger_channel');
       msgBroadcast.postMessage({ type: 'NEW_MESSAGE', message: newMsg });
@@ -514,6 +509,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
       console.warn('Broadcast notice:', e);
     }
 
+    // Update last message in contacts list snippet
     setContactsList((prev) =>
       prev.map((c) =>
         c.id === activeContact.id
@@ -526,9 +522,12 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
       )
     );
 
+    const cleanSenderId = (profile?.id || '').replace(/^auth-/, '');
+    const cleanReceiverId = activeContact.id.replace(/^auth-/, '');
+
     try {
       await messagesApi.send({
-        sender_id: cleanSenderId,
+        sender_id: cleanSenderId || 'me',
         receiver_id: cleanReceiverId,
         content: newMsg.content,
         image_url: newMsg.image_url,
@@ -538,6 +537,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
       console.warn('Message send error:', err);
     }
 
+    // Trigger notification for recipient
     if (activeContact.id && profile?.id && activeContact.id !== profile.id) {
       addNotification(
         {
@@ -555,14 +555,11 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   };
 
   const handleToggleReaction = (msgId: string, emoji: string) => {
-    if (!activeContact) return;
-    const cleanReceiverId = activeContact.id.replace(/^auth-/, '');
-
     setMessages((prev) => {
       const updated = prev.map((m) =>
         m.id === msgId ? { ...m, reaction: m.reaction === emoji ? undefined : emoji } : m
       );
-      saveLocalMessagesForContact(cleanReceiverId, updated);
+      saveLocalMessagesForContact(activeContact.id, updated);
       return updated;
     });
   };
@@ -585,6 +582,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     e.target.value = '';
   };
 
+  // Voice Note Recording handlers
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -632,24 +630,17 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   };
 
   const sendAudioMessage = (audioUrl: string, duration: number) => {
-    if (!activeContact || !currentUserId) return;
-    const cleanReceiverId = activeContact.id.replace(/^auth-/, '');
-
     const newMsg: ExtendedMessage = {
       id: 'msg-audio-' + Date.now(),
-      sender_id: currentUserId,
-      receiver_id: cleanReceiverId,
+      sender_id: profile?.id || 'me',
+      receiver_id: activeContact.id,
       content: '🎙️ Voice Note (' + duration + 's)',
       audio_url: audioUrl,
       audio_duration: duration,
       created_at: new Date().toISOString(),
     };
 
-    setMessages((prev) => {
-      const updated = [...prev, newMsg];
-      saveLocalMessagesForContact(cleanReceiverId, updated);
-      return updated;
-    });
+    setMessages((prev) => [...prev, newMsg]);
   };
 
   const handleStartCall = (type: 'audio' | 'video') => {
@@ -669,15 +660,17 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
 
   return (
     <div className="bg-white dark:bg-[#18191a] text-gray-900 dark:text-gray-100 rounded-2xl md:rounded-3xl shadow-2xl border border-gray-200 dark:border-zinc-800 overflow-hidden flex flex-col md:flex-row h-[calc(100vh-6rem)] md:h-[700px] font-sans transition-colors">
+      {/* Hidden File Picker Inputs */}
       <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
       <input ref={videoInputRef} type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
 
-      {/* 1. LEFT SIDEBAR - MESSENGER CHATS LIST */}
+      {/* 1. LEFT SIDEBAR - MESSENGER CHATS LIST (VIEW A ON MOBILE) */}
       <div
         className={`w-full md:w-80 lg:w-84 border-b md:border-b-0 md:border-r border-gray-200 dark:border-zinc-800 flex-col bg-white dark:bg-[#18191a] shrink-0 h-full ${
           isMobileChatOpen ? 'hidden md:flex' : 'flex'
         }`}
       >
+        {/* Left Header */}
         <div className="p-4 pb-2 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -704,6 +697,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
           </div>
         </div>
 
+        {/* Messenger Search Input */}
         <div className="px-4 py-2">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -717,7 +711,9 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
           </div>
         </div>
 
+        {/* Active Stories Carousel (Active Now Row) */}
         <div className="px-4 py-2 overflow-x-auto no-scrollbar flex items-center gap-3 border-b border-gray-100 dark:border-zinc-800/60 pb-3">
+          {/* Your Story */}
           <div className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
             <div className="relative p-0.5 rounded-full border-2 border-dashed border-gray-300 dark:border-zinc-700 group-hover:border-blue-500 transition-colors">
               <img
@@ -737,6 +733,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
             </span>
           </div>
 
+          {/* Active Contacts */}
           {activeContactsStories.map((contact) => (
             <div
               key={`story-${contact.id}`}
@@ -754,6 +751,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
           ))}
         </div>
 
+        {/* Contacts List */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {contactsList
             .filter(
@@ -819,7 +817,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
         </div>
       </div>
 
-      {/* 2. MAIN CHAT AREA */}
+      {/* 2. MAIN CHAT AREA (VIEW B ON MOBILE) */}
       <div
         className={`flex-1 flex-col bg-white dark:bg-[#18191a] relative overflow-hidden h-full ${
           isMobileChatOpen ? 'flex' : 'hidden md:flex'
@@ -839,8 +837,10 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
           </div>
         ) : (
           <>
+            {/* Messenger Chat Header */}
             <div className="px-3 md:px-4 py-3 border-b border-gray-200 dark:border-zinc-800 flex items-center justify-between bg-white/90 dark:bg-[#18191a]/90 backdrop-blur-md z-10">
               <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                {/* Mobile Back Button */}
                 <button
                   onClick={handleBackToList}
                   className="md:hidden p-2 -ml-1 rounded-full text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0 flex items-center justify-center"
@@ -861,328 +861,348 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                     })
                   }
                 >
-                  <div className="relative">
-                    <img
-                      src={activeContact.avatar}
-                      alt={activeContact.name}
-                      className="w-10 h-10 rounded-full object-cover group-hover:opacity-90 transition-opacity"
-                    />
-                    {activeContact.isOnline && (
-                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-[#18191a]" />
-                    )}
-                  </div>
-
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-sm text-gray-900 dark:text-white truncate group-hover:underline">
-                      {activeContact.name}
-                    </h3>
-                    <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
-                      {activeContact.isOnline ? (
-                        <span className="text-emerald-500 font-medium">Active now</span>
-                      ) : (
-                        <span>Offline</span>
-                      )}
-                      <span>•</span>
-                      <span>{activeContact.parish}</span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => handleStartCall('audio')}
-                  className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 text-blue-600 dark:text-blue-400 transition-colors cursor-pointer"
-                  title="Start Voice Call"
-                >
-                  <Phone className="w-5 h-5" />
-                </button>
-
-                <button
-                  onClick={() => handleStartCall('video')}
-                  className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 text-blue-600 dark:text-blue-400 transition-colors cursor-pointer"
-                  title="Start Video Call"
-                >
-                  <VideoIcon className="w-5 h-5" />
-                </button>
-
-                <button
-                  onClick={() => setShowRightSidebar((prev) => !prev)}
-                  className={`p-2.5 rounded-full transition-colors cursor-pointer ${
-                    showRightSidebar
-                      ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
-                      : 'hover:bg-gray-100 dark:hover:bg-zinc-800 text-blue-600 dark:text-blue-400'
-                  }`}
-                  title="Conversation Information"
-                >
-                  <Info className="w-5 h-5" />
-                </button>
-              </div>
+            <div className="relative">
+              <img
+                src={activeContact.avatar}
+                alt={activeContact.name}
+                className="w-10 h-10 rounded-full object-cover group-hover:opacity-90 transition-opacity"
+              />
+              {activeContact.isOnline && (
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-[#18191a]" />
+              )}
             </div>
 
-            <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-white dark:bg-[#18191a]">
-              <div className="flex flex-col items-center justify-center my-6 text-center">
-                <img
-                  src={activeContact.avatar}
-                  alt={activeContact.name}
-                  className="w-20 h-20 rounded-full object-cover shadow-md mb-2"
-                />
-                <h4 className="font-bold text-lg text-gray-900 dark:text-white">{activeContact.name}</h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{activeContact.parish}</p>
-                <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                  You're connected on Messenger • OrthodoxConnect
-                </p>
-              </div>
+            <div className="min-w-0">
+              <h3 className="font-bold text-sm text-gray-900 dark:text-white truncate group-hover:underline">
+                {activeContact.name}
+              </h3>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
+                {activeContact.isOnline ? (
+                  <span className="text-emerald-500 font-medium">Active now</span>
+                ) : (
+                  <span>Offline</span>
+                )}
+                <span>•</span>
+                <span>{activeContact.parish}</span>
+              </p>
+            </div>
+          </div>
+        </div>
 
-              {messages.map((msg, index) => {
-                const isMe = msg.sender_id === currentUserId;
-                const isHovered = hoveredMsgId === msg.id;
+          {/* WebRTC Audio & Video Calling Header Actions */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => handleStartCall('audio')}
+              className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 text-blue-600 dark:text-blue-400 transition-colors cursor-pointer"
+              title="Start Voice Call"
+            >
+              <Phone className="w-5 h-5" />
+            </button>
 
-                return (
+            <button
+              onClick={() => handleStartCall('video')}
+              className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 text-blue-600 dark:text-blue-400 transition-colors cursor-pointer"
+              title="Start Video Call"
+            >
+              <VideoIcon className="w-5 h-5" />
+            </button>
+
+            <button
+              onClick={() => setShowRightSidebar((prev) => !prev)}
+              className={`p-2.5 rounded-full transition-colors cursor-pointer ${
+                showRightSidebar
+                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
+                  : 'hover:bg-gray-100 dark:hover:bg-zinc-800 text-blue-600 dark:text-blue-400'
+              }`}
+              title="Conversation Information"
+            >
+              <Info className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Message Log Thread */}
+        <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-white dark:bg-[#18191a]">
+          {/* Header Contact Intro */}
+          <div className="flex flex-col items-center justify-center my-6 text-center">
+            <img
+              src={activeContact.avatar}
+              alt={activeContact.name}
+              className="w-20 h-20 rounded-full object-cover shadow-md mb-2"
+            />
+            <h4 className="font-bold text-lg text-gray-900 dark:text-white">{activeContact.name}</h4>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{activeContact.parish}</p>
+            <p className="text-[11px] text-gray-400 dark:text-gray-500">
+              You're connected on Messenger • OrthodoxConnect
+            </p>
+          </div>
+
+          {messages.map((msg, index) => {
+            const isMe = msg.sender_id === (profile?.id || 'me');
+            const isHovered = hoveredMsgId === msg.id;
+
+            return (
+              <div
+                key={msg.id}
+                onMouseEnter={() => setHoveredMsgId(msg.id)}
+                onMouseLeave={() => setHoveredMsgId(null)}
+                className={`flex items-end gap-2 group ${isMe ? 'justify-end' : 'justify-start'}`}
+              >
+                {/* Receiver Avatar on left */}
+                {!isMe && (
+                  <img
+                    src={activeContact.avatar}
+                    alt={activeContact.name}
+                    className="w-7 h-7 rounded-full object-cover shrink-0 mb-1"
+                  />
+                )}
+
+                {/* Reaction Quick Picker on Hover */}
+                {isHovered && isMe && (
+                  <div className="flex items-center gap-0.5 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-lg rounded-full px-2 py-0.5 animate-fadeIn">
+                    {QUICK_EMOJIS.slice(0, 5).map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => handleToggleReaction(msg.id, emoji)}
+                        className="hover:scale-125 transition-transform text-xs p-1 cursor-pointer"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className={`relative max-w-xs sm:max-w-md flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                  {/* Message Bubble */}
                   <div
-                    key={msg.id}
-                    onMouseEnter={() => setHoveredMsgId(msg.id)}
-                    onMouseLeave={() => setHoveredMsgId(null)}
-                    className={`flex items-end gap-2 group ${isMe ? 'justify-end' : 'justify-start'}`}
+                    className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-xs relative ${
+                      isMe
+                        ? `${activeTheme.bubbleBg} text-white rounded-br-xs`
+                        : 'bg-[#e4e6eb] dark:bg-[#3a3b3c] text-gray-900 dark:text-gray-100 rounded-bl-xs'
+                    }`}
                   >
-                    {!isMe && (
+                    {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
+
+                    {/* Image Attachment */}
+                    {msg.image_url && (
                       <img
-                        src={activeContact.avatar}
-                        alt={activeContact.name}
-                        className="w-7 h-7 rounded-full object-cover shrink-0 mb-1"
+                        src={msg.image_url}
+                        alt="Attachment"
+                        className="mt-2 rounded-xl max-h-60 object-cover border border-black/10"
                       />
                     )}
 
-                    {isHovered && isMe && (
-                      <div className="flex items-center gap-0.5 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-lg rounded-full px-2 py-0.5 animate-fadeIn">
-                        {QUICK_EMOJIS.slice(0, 5).map((emoji) => (
-                          <button
-                            key={emoji}
-                            onClick={() => handleToggleReaction(msg.id, emoji)}
-                            className="hover:scale-125 transition-transform text-xs p-1 cursor-pointer"
-                          >
-                            {emoji}
-                          </button>
-                        ))}
+                    {/* Video Attachment */}
+                    {msg.video_url && (
+                      <video
+                        data-media-id={`msg-video-${msg.id}`}
+                        src={msg.video_url}
+                        controls
+                        playsInline
+                        autoPlay={false}
+                        preload="none"
+                        muted={true}
+                        onPointerDown={(e) => {
+                          e.currentTarget.dataset.userInitiated = 'true';
+                        }}
+                        className="mt-2 rounded-xl max-h-60 w-full object-contain bg-black"
+                      />
+                    )}
+
+                    {/* Audio Voice Note Player */}
+                    {msg.audio_url && (
+                      <div className="mt-2 p-2 rounded-xl bg-black/10 dark:bg-black/30 flex items-center gap-2">
+                        <Volume2 className="w-4 h-4 shrink-0 text-current" />
+                        <audio
+                          data-media-id={`msg-audio-${msg.id}`}
+                          src={msg.audio_url}
+                          controls
+                          autoPlay={false}
+                          preload="none"
+                          onPointerDown={(e) => {
+                            e.currentTarget.dataset.userInitiated = 'true';
+                          }}
+                          className="w-full h-8"
+                        />
                       </div>
                     )}
 
-                    <div className={`relative max-w-xs sm:max-w-md flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                      <div
-                        className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-xs relative ${
-                          isMe
-                            ? `${activeTheme.bubbleBg} text-white rounded-br-xs`
-                            : 'bg-[#e4e6eb] dark:bg-[#3a3b3c] text-gray-900 dark:text-gray-100 rounded-bl-xs'
-                        }`}
-                      >
-                        {msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>}
-
-                        {msg.image_url && (
-                          <img
-                            src={msg.image_url}
-                            alt="Attachment"
-                            className="mt-2 rounded-xl max-h-60 object-cover border border-black/10"
-                          />
-                        )}
-
-                        {msg.video_url && (
-                          <video
-                            data-media-id={`msg-video-${msg.id}`}
-                            src={msg.video_url}
-                            controls
-                            playsInline
-                            autoPlay={false}
-                            preload="none"
-                            muted={true}
-                            onPointerDown={(e) => {
-                              e.currentTarget.dataset.userInitiated = 'true';
-                            }}
-                            className="mt-2 rounded-xl max-h-60 w-full object-contain bg-black"
-                          />
-                        )}
-
-                        {msg.audio_url && (
-                          <div className="mt-2 p-2 rounded-xl bg-black/10 dark:bg-black/30 flex items-center gap-2">
-                            <Volume2 className="w-4 h-4 shrink-0 text-current" />
-                            <audio
-                              data-media-id={`msg-audio-${msg.id}`}
-                              src={msg.audio_url}
-                              controls
-                              autoPlay={false}
-                              preload="none"
-                              onPointerDown={(e) => {
-                                e.currentTarget.dataset.userInitiated = 'true';
-                              }}
-                              className="w-full h-8"
-                            />
-                          </div>
-                        )}
-
-                        {msg.reaction && (
-                          <span className="absolute -bottom-2.5 right-1 bg-white dark:bg-zinc-800 text-xs px-1.5 py-0.5 rounded-full border border-gray-200 dark:border-zinc-700 shadow-sm">
-                            {msg.reaction}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1 mt-1 px-1">
-                        <TimeAgo date={msg.created_at} className="text-[10px] text-gray-400 dark:text-gray-500 font-medium" />
-                        {isMe && index === messages.length - 1 && (
-                          <span className="text-[10px] text-blue-500 font-medium">· Seen</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {isHovered && !isMe && (
-                      <div className="flex items-center gap-0.5 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-lg rounded-full px-2 py-0.5 animate-fadeIn">
-                        {QUICK_EMOJIS.slice(0, 5).map((emoji) => (
-                          <button
-                            key={emoji}
-                            onClick={() => handleToggleReaction(msg.id, emoji)}
-                            className="hover:scale-125 transition-transform text-xs p-1 cursor-pointer"
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
+                    {/* Displayed Emoji Reaction Badge */}
+                    {msg.reaction && (
+                      <span className="absolute -bottom-2.5 right-1 bg-white dark:bg-zinc-800 text-xs px-1.5 py-0.5 rounded-full border border-gray-200 dark:border-zinc-700 shadow-sm">
+                        {msg.reaction}
+                      </span>
                     )}
                   </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
 
-            {(imageAttachment || videoAttachment) && (
-              <div className="p-2 px-4 bg-gray-100 dark:bg-zinc-800 border-t border-gray-200 dark:border-zinc-700 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">Media attachment ready</span>
-                  {imageAttachment && <span className="text-[11px] text-gray-500">📷 Image</span>}
-                  {videoAttachment && <span className="text-[11px] text-gray-500">🎥 Video</span>}
+                  {/* Timestamp & Seen Indicator */}
+                  <div className="flex items-center gap-1 mt-1 px-1">
+                    <TimeAgo date={msg.created_at} className="text-[10px] text-gray-400 dark:text-gray-500 font-medium" />
+                    {isMe && index === messages.length - 1 && (
+                      <span className="text-[10px] text-blue-500 font-medium">· Seen</span>
+                    )}
+                  </div>
                 </div>
+
+                {/* Reaction Quick Picker on Hover for Receiver */}
+                {isHovered && !isMe && (
+                  <div className="flex items-center gap-0.5 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-lg rounded-full px-2 py-0.5 animate-fadeIn">
+                    {QUICK_EMOJIS.slice(0, 5).map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => handleToggleReaction(msg.id, emoji)}
+                        className="hover:scale-125 transition-transform text-xs p-1 cursor-pointer"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Media Preview Box */}
+        {(imageAttachment || videoAttachment) && (
+          <div className="p-2 px-4 bg-gray-100 dark:bg-zinc-800 border-t border-gray-200 dark:border-zinc-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">Media attachment ready</span>
+              {imageAttachment && <span className="text-[11px] text-gray-500">📷 Image</span>}
+              {videoAttachment && <span className="text-[11px] text-gray-500">🎥 Video</span>}
+            </div>
+            <button
+              onClick={() => {
+                setImageAttachment('');
+                setVideoAttachment('');
+              }}
+              className="p-1 text-gray-500 hover:text-red-500"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Messenger Input Toolbar */}
+        <div className="p-3 border-t border-gray-200 dark:border-zinc-800 bg-white dark:bg-[#18191a]">
+          {isRecording ? (
+            /* Voice Note Recording Bar */
+            <div className="flex items-center justify-between p-2.5 rounded-full bg-red-600 text-white animate-pulse">
+              <div className="flex items-center gap-3 px-3">
+                <Mic className="w-5 h-5" />
+                <span className="text-xs font-bold uppercase tracking-wider">
+                  Recording Voice Note ({recordingSeconds}s)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={stopRecording}
+                className="px-4 py-1 bg-white text-red-600 hover:bg-gray-100 rounded-full text-xs font-bold uppercase tracking-wider shadow-md cursor-pointer"
+              >
+                Send
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={(e) => handleSendMessage(undefined, e)} className="flex items-center gap-2">
+              {/* Media Attach Buttons */}
+              <div className="flex items-center gap-1">
                 <button
-                  onClick={() => {
-                    setImageAttachment('');
-                    setVideoAttachment('');
-                  }}
-                  className="p-1 text-gray-500 hover:text-red-500"
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="p-2 rounded-full text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+                  title="Attach Photo"
                 >
-                  <X className="w-4 h-4" />
+                  <ImageIcon className="w-5 h-5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => videoInputRef.current?.click()}
+                  className="p-2 rounded-full text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+                  title="Attach Video"
+                >
+                  <Film className="w-5 h-5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={startRecording}
+                  className="p-2 rounded-full text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+                  title="Record Voice Note"
+                >
+                  <Mic className="w-5 h-5" />
                 </button>
               </div>
-            )}
 
-            <div className="p-3 border-t border-gray-200 dark:border-zinc-800 bg-white dark:bg-[#18191a]">
-              {isRecording ? (
-                <div className="flex items-center justify-between p-2.5 rounded-full bg-red-600 text-white animate-pulse">
-                  <div className="flex items-center gap-3 px-3">
-                    <Mic className="w-5 h-5" />
-                    <span className="text-xs font-bold uppercase tracking-wider">
-                      Recording Voice Note ({recordingSeconds}s)
-                    </span>
+              {/* Message Pill Input */}
+              <div className="flex-1 relative flex items-center">
+                <input
+                  type="text"
+                  value={inputContent}
+                  onChange={(e) => handleInputChange(e.target.value)}
+                  placeholder="Aa"
+                  className="w-full pl-4 pr-10 py-2.5 text-sm rounded-full bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
+
+                {/* Emoji Launcher Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowEmojiPicker((prev) => !prev)}
+                  className="absolute right-3 text-blue-600 dark:text-blue-400 hover:opacity-80 cursor-pointer"
+                  title="Pick Emoji"
+                >
+                  <Smile className="w-5 h-5" />
+                </button>
+
+                {/* Floating Emoji Picker */}
+                {showEmojiPicker && (
+                  <div className="absolute bottom-12 right-0 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-2xl rounded-2xl p-3 grid grid-cols-4 gap-2 z-50 animate-fadeIn">
+                    {QUICK_EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => {
+                          handleInputChange(inputContent + emoji);
+                          setShowEmojiPicker(false);
+                        }}
+                        className="text-xl p-2 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-xl cursor-pointer"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
                   </div>
-                  <button
-                    type="button"
-                    onClick={stopRecording}
-                    className="px-4 py-1 bg-white text-red-600 hover:bg-gray-100 rounded-full text-xs font-bold uppercase tracking-wider shadow-md cursor-pointer"
-                  >
-                    Send
-                  </button>
-                </div>
+                )}
+              </div>
+
+              {/* Dynamic Action Button: Send or Messenger Thumbs Up 👍 */}
+              {inputContent.trim() || imageAttachment || videoAttachment ? (
+                <button
+                  type="submit"
+                  className="p-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white transition-all cursor-pointer shadow-md shrink-0"
+                  title="Send Message"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
               ) : (
-                <form onSubmit={(e) => handleSendMessage(undefined, e)} className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => imageInputRef.current?.click()}
-                      className="p-2 rounded-full text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
-                      title="Attach Photo"
-                    >
-                      <ImageIcon className="w-5 h-5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => videoInputRef.current?.click()}
-                      className="p-2 rounded-full text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
-                      title="Attach Video"
-                    >
-                      <Film className="w-5 h-5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={startRecording}
-                      className="p-2 rounded-full text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
-                      title="Record Voice Note"
-                    >
-                      <Mic className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  <div className="flex-1 relative flex items-center">
-                    <input
-                      type="text"
-                      value={inputContent}
-                      onChange={(e) => handleInputChange(e.target.value)}
-                      placeholder="Aa"
-                      className="w-full pl-4 pr-10 py-2.5 text-sm rounded-full bg-gray-100 dark:bg-zinc-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                    />
-
-                    <button
-                      type="button"
-                      onClick={() => setShowEmojiPicker((prev) => !prev)}
-                      className="absolute right-3 text-blue-600 dark:text-blue-400 hover:opacity-80 cursor-pointer"
-                      title="Pick Emoji"
-                    >
-                      <Smile className="w-5 h-5" />
-                    </button>
-
-                    {showEmojiPicker && (
-                      <div className="absolute bottom-12 right-0 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 shadow-2xl rounded-2xl p-3 grid grid-cols-4 gap-2 z-50 animate-fadeIn">
-                        {QUICK_EMOJIS.map((emoji) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            onClick={() => {
-                              handleInputChange(inputContent + emoji);
-                              setShowEmojiPicker(false);
-                            }}
-                            className="text-xl p-2 hover:bg-gray-100 dark:hover:bg-zinc-700 rounded-xl cursor-pointer"
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {inputContent.trim() || imageAttachment || videoAttachment ? (
-                    <button
-                      type="submit"
-                      className="p-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white transition-all cursor-pointer shadow-md shrink-0"
-                      title="Send Message"
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleSendMessage(activeEmoji)}
-                      className="p-2 rounded-full text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
-                      title="Send Quick Emoji"
-                    >
-                      <span className="text-xl leading-none">{activeEmoji}</span>
-                    </button>
-                  )}
-                </form>
+                <button
+                  type="button"
+                  onClick={() => handleSendMessage(activeEmoji)}
+                  className="p-2 rounded-full text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+                  title="Send Quick Emoji"
+                >
+                  <span className="text-xl leading-none">{activeEmoji}</span>
+                </button>
               )}
-            </div>
-          </>
-        )}
-      </div>
+            </form>
+          )}
+        </div>
+      </>
+    )}
+  </div>
 
-      {/* 3. RIGHT SIDEBAR */}
-      {showRightSidebar && activeContact && (
+  {/* 3. RIGHT SIDEBAR - MESSENGER CONVERSATION DETAILS & CUSTOMIZATION */}
+  {showRightSidebar && activeContact && (
         <div className="w-72 lg:w-80 border-l border-gray-200 dark:border-zinc-800 bg-white dark:bg-[#18191a] p-4 flex flex-col overflow-y-auto hidden xl:flex shrink-0">
           <div className="flex flex-col items-center text-center pb-4 border-b border-gray-100 dark:border-zinc-800/80">
             <img
@@ -1193,6 +1213,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
             <h4 className="font-bold text-base text-gray-900 dark:text-white">{activeContact.name}</h4>
             <p className="text-xs text-gray-500 dark:text-gray-400">{activeContact.parish}</p>
 
+            {/* Quick Actions Row */}
             <div className="flex items-center justify-center gap-4 mt-4">
               <button
                 onClick={() =>
@@ -1227,7 +1248,9 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
             </div>
           </div>
 
+          {/* Messenger Settings Accordion */}
           <div className="mt-4 space-y-4">
+            {/* Theme Customizer */}
             <div>
               <div className="flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider">
                 <span className="flex items-center gap-1.5">
@@ -1252,6 +1275,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                 </div>
               </div>
 
+              {/* Change Quick Emoji */}
               <div className="mt-3">
                 <p className="text-xs text-gray-600 dark:text-gray-300 font-medium mb-1">Quick Reaction Emoji</p>
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
@@ -1270,6 +1294,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
               </div>
             </div>
 
+            {/* Shared Media */}
             <div className="pt-2 border-t border-gray-100 dark:border-zinc-800">
               <div className="flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider">
                 <span className="flex items-center gap-1.5">
@@ -1296,6 +1321,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
               </div>
             </div>
 
+            {/* Privacy & Safety */}
             <div className="pt-2 border-t border-gray-100 dark:border-zinc-800 space-y-2">
               <div className="flex items-center justify-between text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <span className="flex items-center gap-1.5">

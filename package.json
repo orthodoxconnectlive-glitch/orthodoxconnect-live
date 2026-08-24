@@ -1,14 +1,17 @@
 {
-  "name": "orthodoxconnect-live",
+  "name": "react-example",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
-    "deploy": "npx wrangler deploy",
+    "deploy": "wrangler deploy",
+    "deploy:pages": "vite build && wrangler pages deploy dist",
+    "d1:init": "wrangler d1 execute orthodoxconnect --file=./schema.sql --remote",
+    "d1:local": "wrangler d1 execute orthodoxconnect --file=./schema.sql --local",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "rm -rf dist .d1.sqlite*",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

@@ -4,6 +4,7 @@ import { BunnyPlayer } from '../components/BunnyPlayer';
 import { ParishLiveChat } from '../components/ParishLiveChat';
 import { GoLiveModal, StreamData } from '../components/GoLiveModal';
 import { liveStreamsApi } from '../lib/api';
+import { useTheme } from '../context/ThemeContext';
 
 interface LiveStreamItem {
   id: string;
@@ -15,7 +16,7 @@ interface LiveStreamItem {
   isLive: boolean;
 }
 
-const INITIAL_STREAMS: LiveStreamItem[] = [
+const INITIAL_STREAMS_EN: LiveStreamItem[] = [
   {
     id: 'stream-1',
     title: 'Divine Liturgy of St. John Chrysostom & Homily',
@@ -45,9 +46,43 @@ const INITIAL_STREAMS: LiveStreamItem[] = [
   },
 ];
 
+const INITIAL_STREAMS_AR: LiveStreamItem[] = [
+  {
+    id: 'stream-1',
+    title: 'القداس الإلهي للقديس يوحنا فم الذهب والعظة الروحية',
+    parish: 'كاتدرائية الثالوث الأقدس',
+    priestName: 'الأب نقولا فاسيليو',
+    viewers: 284,
+    videoUrl: 'https://iframe.mediadelivery.net/embed/713265/preview-stream',
+    isLive: true,
+  },
+  {
+    id: 'stream-2',
+    title: 'صلاة الغروب الكبرى والليتية لعيد التجلي الإلهي',
+    parish: 'كاتدرائية القديس جاورجيوس، دمشق',
+    priestName: 'الأب جبرائيل حداد',
+    viewers: 195,
+    videoUrl: 'https://iframe.mediadelivery.net/embed/713265/vespers-stream',
+    isLive: true,
+  },
+  {
+    id: 'stream-3',
+    title: 'ترانيم بيزنطية مقدسة والقداس الإلهي المباشر',
+    parish: 'معهد القديس فلاديمير اللاهوتي',
+    priestName: 'الأب تشاد هاتفيلد',
+    viewers: 312,
+    videoUrl: 'https://iframe.mediadelivery.net/embed/713265/chanting-stream',
+    isLive: true,
+  },
+];
+
 const LOCAL_STORAGE_KEY = 'orthodox_live_streams';
 
 export const LiveBroadcastView: React.FC = () => {
+  const { t, language } = useTheme();
+
+  const defaultStreams = language === 'ar' ? INITIAL_STREAMS_AR : INITIAL_STREAMS_EN;
+
   const [streams, setStreams] = useState<LiveStreamItem[]>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -60,8 +95,23 @@ export const LiveBroadcastView: React.FC = () => {
     } catch (e) {
       console.warn('Error reading local live streams:', e);
     }
-    return INITIAL_STREAMS;
+    return defaultStreams;
   });
+
+  // When language changes, update stream labels if they are defaults
+  useEffect(() => {
+    setStreams((prev) => {
+      const isArabic = language === 'ar';
+      const targetDefaults = isArabic ? INITIAL_STREAMS_AR : INITIAL_STREAMS_EN;
+      return prev.map((s) => {
+        const match = targetDefaults.find((d) => d.id === s.id);
+        if (match) {
+          return { ...s, title: match.title, parish: match.parish, priestName: match.priestName };
+        }
+        return s;
+      });
+    });
+  }, [language]);
 
   const [activeStreamId, setActiveStreamId] = useState<string>(() => streams[0]?.id || 'stream-1');
   const [isGoLiveOpen, setIsGoLiveOpen] = useState(false);
@@ -134,9 +184,9 @@ export const LiveBroadcastView: React.FC = () => {
         if (data && data.length > 0) {
           const mapped: LiveStreamItem[] = data.map((row) => ({
             id: row.id || `stream-${Date.now()}`,
-            title: row.title || 'Parish Live Service',
-            parish: row.host_parish || row.parish || 'Orthodox Church',
-            priestName: row.priest_name || 'Priest / Host',
+            title: row.title || (language === 'ar' ? 'خدمة الرعية المباشرة' : 'Parish Live Service'),
+            parish: row.host_parish || row.parish || (language === 'ar' ? 'الكنيسة الأرثوذكسية' : 'Orthodox Church'),
+            priestName: row.priest_name || (language === 'ar' ? 'الكاهن الخادم' : 'Priest / Host'),
             viewers: row.viewers_count || row.viewers || 1,
             videoUrl: row.media_url || row.video_url || row.videoUrl || 'https://iframe.mediadelivery.net/embed/713265/preview-stream',
             isLive: row.is_live ?? true,
@@ -157,17 +207,17 @@ export const LiveBroadcastView: React.FC = () => {
       }
     }
     fetchRemoteStreams();
-  }, []);
+  }, [language]);
 
-  const activeStream = streams.find((s) => s.id === activeStreamId) || streams[0] || INITIAL_STREAMS[0];
+  const activeStream = streams.find((s) => s.id === activeStreamId) || streams[0] || defaultStreams[0];
 
   const handleStartStream = (data: StreamData, mediaStream?: MediaStream | null) => {
     const newStreamId = 'stream-' + Date.now();
     const newStream: LiveStreamItem = {
       id: newStreamId,
       title: data.title,
-      parish: data.host_parish || data.parish || 'Orthodox Parish',
-      priestName: 'You (Priest / Host)',
+      parish: data.host_parish || data.parish || (language === 'ar' ? 'الرعية الأرثوذكسية' : 'Orthodox Parish'),
+      priestName: language === 'ar' ? 'أنت (الكاهن / المستضيف)' : 'You (Priest / Host)',
       viewers: 1,
       videoUrl: data.media_url || data.videoUrl || 'webcam-feed',
       isLive: true,
@@ -178,45 +228,28 @@ export const LiveBroadcastView: React.FC = () => {
     }
     setIsUserBroadcasting(true);
 
-    const updatedStreams = [newStream, ...streams];
-    setStreams(updatedStreams);
+    const updated = [newStream, ...streams];
+    setStreams(updated);
     setActiveStreamId(newStreamId);
-
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedStreams));
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {
-      console.warn('Failed to save live streams to localStorage:', e);
+      // ignore
     }
-
-    showToast('🔴 Live Broadcast Started! You are now broadcasting.');
+    showToast(language === 'ar' ? 'بدأ البث المباشر بنجاح!' : 'Live broadcast started successfully!');
   };
 
   const handleEndBroadcast = () => {
     if (activeWebcamStream) {
       try {
-        activeWebcamStream.getTracks().forEach((track) => track.stop());
+        activeWebcamStream.getTracks().forEach((t) => t.stop());
       } catch (e) {
         // ignore
       }
       setActiveWebcamStream(null);
     }
     setIsUserBroadcasting(false);
-
-    // Update active stream live status and persist
-    setStreams((prev) => {
-      const updated = prev.map((s) => (s.id === activeStreamId ? { ...s, isLive: false } : s));
-      try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-      } catch (e) {}
-      return updated;
-    });
-
-    // If currently on a custom webcam broadcast stream, reset to an official active parish stream
-    if (activeStream.videoUrl === 'webcam-feed' || activeStream.priestName.includes('You')) {
-      setActiveStreamId(INITIAL_STREAMS[0].id);
-    }
-
-    showToast('⏹️ Live Broadcast finished. Camera & microphone stopped.');
+    showToast(language === 'ar' ? 'تم إنهاء البث المباشر.' : 'Live broadcast ended.');
   };
 
   const handleLikeToggle = () => {
@@ -224,25 +257,23 @@ export const LiveBroadcastView: React.FC = () => {
     setLikeCount((prev) => (isLiked ? prev - 1 : prev + 1));
   };
 
+  const handleLightVirtualCandle = () => {
+    showToast(t('candleLitNotice'));
+  };
+
   const handleShareStream = () => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(window.location.href);
-      showToast('Stream link copied to clipboard!');
-    } else {
-      showToast('Live Broadcast URL ready to share!');
+      showToast(language === 'ar' ? 'تم نسخ رابط البث المباشر!' : 'Live stream link copied to clipboard!');
     }
   };
 
-  const handleLightVirtualCandle = () => {
-    showToast('🕯️ Virtual Candle Lit for Parish Intentions.');
-  };
-
   return (
-    <div className="space-y-6 relative">
-      {/* Toast Feedback Notification */}
+    <div className="space-y-6">
+      {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-2xl bg-[#1c1611] border border-[#c5a059] text-[#f5ebd9] font-serif font-bold text-xs shadow-2xl flex items-center gap-2 animate-bounce">
-          <CheckCircle className="w-4 h-4 text-[#c5a059]" />
+        <div className="fixed top-20 right-6 z-50 p-4 rounded-2xl bg-[#1c1611] border-2 border-amber-500 text-amber-200 text-sm font-serif font-bold shadow-2xl flex items-center gap-3 animate-bounce">
+          <CheckCircle className="w-5 h-5 text-amber-400" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -254,10 +285,10 @@ export const LiveBroadcastView: React.FC = () => {
             <span className="w-4 h-4 rounded-full bg-red-500 animate-ping" />
             <div>
               <h3 className="font-serif font-bold text-sm text-red-100 uppercase tracking-wider">
-                You Are Currently Broadcasting Live
+                {t('youAreBroadcasting')}
               </h3>
               <p className="text-xs text-red-200/80">
-                Device camera and microphone are live and streaming to parishioners.
+                {t('broadcastingSub')}
               </p>
             </div>
           </div>
@@ -266,7 +297,7 @@ export const LiveBroadcastView: React.FC = () => {
             className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center gap-2 shadow-xl cursor-pointer border border-red-400"
           >
             <Square className="w-4 h-4 fill-current" />
-            <span>End Broadcast Now</span>
+            <span>{t('endBroadcastNow')}</span>
           </button>
         </div>
       )}
@@ -279,10 +310,10 @@ export const LiveBroadcastView: React.FC = () => {
           </div>
           <div>
             <h2 className="font-serif font-bold text-xl text-amber-100">
-              Live Parish Broadcasts
+              {t('liveParishBroadcasts')}
             </h2>
             <p className="text-xs text-stone-400">
-              Watch Divine Liturgy and Church Services live via Device Camera or Bunny Stream
+              {t('liveParishBroadcastsSub')}
             </p>
           </div>
         </div>
@@ -292,7 +323,7 @@ export const LiveBroadcastView: React.FC = () => {
           className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg transition-all transform hover:scale-105 cursor-pointer shrink-0"
         >
           <PlusCircle className="w-4 h-4" />
-          <span>Start Live Broadcast</span>
+          <span>{t('startLiveBroadcast')}</span>
         </button>
       </div>
 
@@ -318,7 +349,7 @@ export const LiveBroadcastView: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white font-bold text-[10px] tracking-wider uppercase animate-pulse">
-                    LIVE PARISH BROADCAST
+                    {t('liveParishBadge')}
                   </span>
                   <span className="text-xs text-amber-400 font-semibold">
                     {activeStream.parish}
@@ -332,7 +363,7 @@ export const LiveBroadcastView: React.FC = () => {
               {/* Viewers Badge */}
               <div className="flex items-center gap-2">
                 <span className="px-3.5 py-1.5 rounded-full bg-red-600/20 border border-red-500/40 text-red-400 text-xs font-bold flex items-center gap-1.5">
-                  <Eye className="w-4 h-4" /> {activeStream.viewers} Watching
+                  <Eye className="w-4 h-4" /> {activeStream.viewers} {t('watchingCount')}
                 </span>
               </div>
             </div>
@@ -348,7 +379,7 @@ export const LiveBroadcastView: React.FC = () => {
                     {activeStream.parish}
                   </h3>
                   <p className="text-xs text-stone-400">
-                    Celebrant: {activeStream.priestName}
+                    {t('celebrant')}: {activeStream.priestName}
                   </p>
                 </div>
               </div>
@@ -373,7 +404,7 @@ export const LiveBroadcastView: React.FC = () => {
                   title="Light a candle in memory or prayer"
                 >
                   <Flame className="w-4 h-4 text-amber-400" />
-                  <span>Light Candle</span>
+                  <span>{t('lightCandle')}</span>
                 </button>
 
                 <button
@@ -381,16 +412,18 @@ export const LiveBroadcastView: React.FC = () => {
                   className="px-3.5 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-200 border border-amber-900/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
                 >
                   <Share2 className="w-4 h-4" />
-                  <span>Share</span>
+                  <span>{t('shareStream')}</span>
                 </button>
               </div>
             </div>
 
             {/* Service Description Box */}
             <div className="p-3.5 rounded-xl bg-stone-900/70 border border-amber-900/20 text-xs text-stone-300 space-y-1">
-              <p className="font-semibold text-amber-200">Broadcast Information:</p>
+              <p className="font-semibold text-amber-200">{t('broadcastInfo')}:</p>
               <p>
-                Streamed directly from {activeStream.parish}. All faithful are invited to unite in prayer during divine services.
+                {language === 'ar'
+                  ? `يتم البث مباشرة من ${activeStream.parish}. جميع المؤمنين مدعوون للاتحاد في الصلاة والبركة خلال الخدمة الإلهية.`
+                  : `Streamed directly from ${activeStream.parish}. All faithful are invited to unite in prayer during divine services.`}
               </p>
             </div>
           </div>
@@ -405,7 +438,7 @@ export const LiveBroadcastView: React.FC = () => {
       {/* Other Parish Live Broadcasts Section */}
       <div className="space-y-3 pt-4">
         <h3 className="font-serif font-bold text-sm text-amber-300 uppercase tracking-wider">
-          More Parish Broadcasts
+          {t('moreParishBroadcasts')}
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -413,7 +446,7 @@ export const LiveBroadcastView: React.FC = () => {
             <button
               key={s.id}
               onClick={() => setActiveStreamId(s.id)}
-              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+              className={`p-4 rounded-2xl border text-left rtl:text-right transition-all cursor-pointer flex flex-col justify-between ${
                 s.id === activeStreamId
                   ? 'bg-amber-950/40 border-amber-500 shadow-xl ring-1 ring-amber-500/40'
                   : 'bg-stone-950 border-amber-900/30 hover:border-amber-500/40'
@@ -422,7 +455,7 @@ export const LiveBroadcastView: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider">
-                    {s.isLive ? 'LIVE' : 'OFFLINE'}
+                    {s.isLive ? (language === 'ar' ? 'مباشر' : 'LIVE') : (language === 'ar' ? 'غير متصل' : 'OFFLINE')}
                   </span>
                   <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1">
                     <Eye className="w-3 h-3" /> {s.viewers}
@@ -434,7 +467,7 @@ export const LiveBroadcastView: React.FC = () => {
                 <p className="text-[11px] text-stone-400 line-clamp-1">{s.parish}</p>
               </div>
               <p className="text-[10px] text-amber-400/80 mt-3 font-medium">
-                Celebrant: {s.priestName}
+                {t('celebrant')}: {s.priestName}
               </p>
             </button>
           ))}
@@ -449,4 +482,3 @@ export const LiveBroadcastView: React.FC = () => {
     </div>
   );
 };
-

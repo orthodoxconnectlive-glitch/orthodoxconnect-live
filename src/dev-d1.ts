@@ -32,6 +32,14 @@ export function getDevD1Database(): D1Database {
     console.warn('[D1 Dev Emulator] Schema init note:', err);
   }
 
+  // Ensure post_likes columns exist for migrations
+  try {
+    db.exec('ALTER TABLE post_likes ADD COLUMN user_name TEXT;');
+  } catch (e) {}
+  try {
+    db.exec('ALTER TABLE post_likes ADD COLUMN user_avatar TEXT;');
+  } catch (e) {}
+
   // Seed default demo content if tables are empty
   try {
     const postCountStmt = db.prepare('SELECT COUNT(*) as cnt FROM posts');
@@ -48,6 +56,17 @@ export function getDevD1Database(): D1Database {
         VALUES 
           ('post-seed-1', 'Blessed Feast of the Transfiguration of our Lord and Savior Jesus Christ! "Lord, it is good for us to be here; if You wish, let us make here three tabernacles: one for You, one for Moses, and one for Elijah." (Matthew 17:4)', NULL, 'user-fr-anthony', 'Fr. Anthony Shenouda', 'St. Mark Coptic Orthodox Cathedral', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200', 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800', 14, 1, 5, datetime('now', '-2 hours')),
           ('post-seed-2', 'Glory to God! The youth choir has uploaded the live recording of the midnight praises (Tasbeha) from Friday night.', 'sample-bunny-guid-01', 'user-deacon-mark', 'Deacon Mark Mikhail', 'St. George Coptic Orthodox Church', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200', NULL, 22, 0, 4, datetime('now', '-5 hours'));
+
+        INSERT INTO post_likes (post_id, user_id, user_name, user_avatar, created_at)
+        VALUES
+          ('post-seed-1', 'user-deacon-mark', 'Deacon Mark Mikhail', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200', datetime('now', '-1 hour')),
+          ('post-seed-1', 'user-mary-youssef', 'Mary Youssef', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200', datetime('now', '-1 hour')),
+          ('post-seed-1', 'user-kyrollos-m', 'Kyrollos Mansour', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200', datetime('now', '-1 hour')),
+          ('post-seed-1', 'user-peter-hanna', 'Peter Hanna', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200', datetime('now', '-2 hours')),
+          ('post-seed-1', 'user-marina-ibrahim', 'Marina Ibrahim', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200', datetime('now', '-2 hours')),
+          ('post-seed-2', 'user-fr-anthony', 'Fr. Anthony Shenouda', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200', datetime('now', '-2 hours')),
+          ('post-seed-2', 'user-david-shenouda', 'David Shenouda', 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=200', datetime('now', '-3 hours')),
+          ('post-seed-2', 'user-sarah-boulos', 'Sarah Boulos', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=200', datetime('now', '-4 hours'));
 
         INSERT INTO post_comments (id, post_id, user_id, author_name, author_avatar, content, created_at)
         VALUES 

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Cross,
   Search,
   MessageSquare,
   Plus,
@@ -156,12 +155,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ☨
                 </div>
               </div>
-              <div className="text-left">
+              <div className="text-left rtl:text-right">
                 <h1 className="font-serif-coptic font-bold text-sm sm:text-lg text-[#3d2b18] dark:text-[#f5ebd9] tracking-tight leading-none truncate max-w-[120px] sm:max-w-none">
                   {t('appName')}
                 </h1>
                 <p className="text-[7px] sm:text-[9px] text-[#7c5f3d] dark:text-[#a89379] tracking-[0.18em] sm:tracking-[0.2em] uppercase font-serif mt-0.5 font-semibold">
-                  FAITH · FELLOWSHIP
+                  {language === 'ar' ? 'إيمان · شركة مقدسة' : 'FAITH · FELLOWSHIP'}
                 </p>
               </div>
             </button>
@@ -170,19 +169,29 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Center Search Bar (Desktop lg: and up) */}
           <div className="hidden lg:flex items-center flex-1 max-w-xs mx-4">
             <div className="relative w-full">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#7c5f3d] dark:text-[#a89379]" />
+              <Search className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-[#7c5f3d] dark:text-[#a89379]" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('searchParish')}
-                className="w-full pl-9 pr-3 py-1.5 text-[11px] font-serif uppercase tracking-wider rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#7c5f3d]/60 focus:outline-none focus:border-[#a8833c]"
+                className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-1.5 text-[11px] font-serif uppercase tracking-wider rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#7c5f3d]/60 focus:outline-none focus:border-[#a8833c]"
               />
             </div>
           </div>
 
           {/* Right Action Circle Buttons */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {/* Quick Language Switcher Button (Desktop & Mobile) */}
+            <button
+              onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+              className="h-8 sm:h-9 px-2.5 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white transition-all flex items-center gap-1.5 text-xs font-bold font-serif shadow-sm cursor-pointer"
+              title={language === 'en' ? 'التحويل إلى اللغة العربية' : 'Switch to English'}
+            >
+              <Globe className="w-3.5 h-3.5 text-[#a8833c] dark:text-[#d4af37]" />
+              <span>{language === 'en' ? 'عربي' : 'EN'}</span>
+            </button>
+
             {/* Mobile Search Toggle Button (<lg:) */}
             <button
               onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
@@ -195,11 +204,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Search className="w-4 h-4" />
             </button>
+
             {/* Create Post / Meeting (+) button */}
             <button
               onClick={() => onNavigate('feed')}
-              className="w-9 h-9 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] flex items-center justify-center hover:bg-[#c5a059] hover:text-white transition-all cursor-pointer shadow-sm"
-              title="Create Post or Meeting"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] flex items-center justify-center hover:bg-[#c5a059] hover:text-white transition-all cursor-pointer shadow-sm"
+              title={language === 'ar' ? 'إنشاء منشور أو فعالية' : 'Create Post or Meeting'}
             >
               <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
@@ -207,12 +217,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Live Broadcast button */}
             <button
               onClick={() => onNavigate('live')}
-              className={`w-9 h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
                 currentView === 'live'
                   ? 'bg-[#c5a059] text-white'
                   : 'bg-[#f6ebd6] dark:bg-[#1c1611] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white'
               }`}
-              title="Go Live / Stream"
+              title={t('goLive')}
             >
               <Radio className="w-4 h-4 text-red-600 dark:text-red-400" />
               <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
@@ -224,12 +234,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Messenger button */}
             <button
               onClick={() => onNavigate('messages')}
-              className={`w-9 h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
                 currentView === 'messages'
                   ? 'bg-[#c5a059] text-white'
                   : 'bg-[#f6ebd6] dark:bg-[#1c1611] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white'
               }`}
-              title="Messenger"
+              title={t('messages')}
             >
               <MessageSquare className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
               {notifications.filter((n) => n.type === 'message' && !n.isRead).length > 0 && (
@@ -243,12 +253,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="relative">
               <button
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
-                className={`w-9 h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
                   isNotifOpen || currentView === 'notifications'
                     ? 'bg-[#c5a059] text-white'
                     : 'bg-[#f6ebd6] dark:bg-[#1c1611] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white'
                 }`}
-                title="Notifications"
+                title={t('notifications')}
               >
                 <Bell className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
                 {unreadCount > 0 && (
@@ -274,14 +284,14 @@ export const Navbar: React.FC<NavbarProps> = ({
         {isMobileSearchOpen && (
           <div className="lg:hidden px-4 py-2 bg-[#f6ebd6] dark:bg-[#1c1611] border-t border-[#c5a059]/40">
             <div className="relative w-full">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7c5f3d] dark:text-[#a89379]" />
+              <Search className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-[#7c5f3d] dark:text-[#a89379]" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('searchParish')}
                 autoFocus
-                className="w-full pl-10 pr-4 py-2 text-xs font-serif uppercase tracking-wider rounded-full bg-[#eddcb9] dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#7c5f3d]/60 focus:outline-none focus:border-[#a8833c]"
+                className="w-full pl-10 rtl:pl-4 rtl:pr-10 pr-4 py-2 text-xs font-serif uppercase tracking-wider rounded-full bg-[#eddcb9] dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#7c5f3d]/60 focus:outline-none focus:border-[#a8833c]"
               />
             </div>
           </div>
@@ -318,7 +328,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className={`relative h-full px-3 flex items-center justify-center text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18] ${
                 currentView === 'myNetwork' ? 'text-[#a8833c]' : ''
               }`}
-              title="Coptic Parish Rooms"
+              title={language === 'ar' ? 'غرف الرعايا القبطية' : 'Coptic Parish Rooms'}
             >
               <div className="w-6 h-6 rounded-full bg-[#3d2b18] text-[#c5a059] flex items-center justify-center font-bold text-xs shadow-sm">
                 ☨
@@ -328,7 +338,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      {/* Mobile / Side Menu Drawer (Matching Desktop Sidebar 100%) */}
+      {/* Mobile / Side Menu Drawer */}
       {isDrawerOpen && (
         <div className="fixed inset-0 z-50 flex">
           {/* Backdrop */}
@@ -338,7 +348,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           />
 
           {/* Drawer Panel */}
-          <div className="relative w-80 max-w-[85vw] bg-[#eddcb9] dark:bg-[#18120e] h-full shadow-2xl p-4 sm:p-5 flex flex-col justify-between overflow-y-auto border-r-2 border-[#c5a059] dark:border-[#8b6b4a] z-50">
+          <div className="relative w-80 max-w-[85vw] bg-[#eddcb9] dark:bg-[#18120e] h-full shadow-2xl p-4 sm:p-5 flex flex-col justify-between overflow-y-auto border-r-2 rtl:border-r-0 rtl:border-l-2 border-[#c5a059] dark:border-[#8b6b4a] z-50">
             <div className="space-y-4">
               {/* Top Branding & Close Button */}
               <div className="flex items-center justify-between pb-3 border-b border-[#c5a059]/40">
@@ -353,7 +363,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {t('appName')}
                     </h2>
                     <p className="text-[8px] text-[#7c5f3d] dark:text-[#a89379] tracking-[0.2em] font-serif uppercase">
-                      FAITH · FELLOWSHIP
+                      {language === 'ar' ? 'إيمان · شركة مقدسة' : 'FAITH · FELLOWSHIP'}
                     </p>
                   </div>
                 </div>
@@ -366,14 +376,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               </div>
 
-              {/* User Profile Header Card (LUCAS OWNER & ADMIN Widget - Identical to Desktop Sidebar) */}
+              {/* User Profile Header Card */}
               {profile ? (
                 <button
                   onClick={() => {
                     onNavigate('profile');
                     setIsDrawerOpen(false);
                   }}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-2xl bg-[#f6ebd6] dark:bg-[#282019] hover:bg-[#e6d3ab] transition-all text-left group cursor-pointer border-2 border-[#c5a059] dark:border-[#8b6b4a] shadow-md"
+                  className="w-full flex items-center gap-3 p-2.5 rounded-2xl bg-[#f6ebd6] dark:bg-[#282019] hover:bg-[#e6d3ab] transition-all text-left rtl:text-right group cursor-pointer border-2 border-[#c5a059] dark:border-[#8b6b4a] shadow-md"
                 >
                   <img
                     src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
@@ -385,7 +395,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {profile.full_name}
                     </h3>
                     <p className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-wider truncate">
-                      {profile.parish || 'ST. MARK'}
+                      {profile.parish || (language === 'ar' ? 'كنيسة مارمرقس' : 'ST. MARK')}
                     </p>
                   </div>
                   {profile.role && (
@@ -400,9 +410,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                     openAuthModal();
                     setIsDrawerOpen(false);
                   }}
-                  className="w-full py-2.5 rounded-2xl bg-[#c5a059] text-white font-serif font-bold text-xs tracking-wider uppercase shadow-md"
+                  className="w-full py-2.5 rounded-2xl bg-[#c5a059] text-white font-serif font-bold text-xs tracking-wider uppercase shadow-md cursor-pointer"
                 >
-                  SIGN IN / REGISTER
+                  {t('signInRegister')}
                 </button>
               )}
 
@@ -412,22 +422,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onNavigate('live');
                   setIsDrawerOpen(false);
                 }}
-                className="w-full p-3 rounded-2xl bg-[#f6ebd6] dark:bg-[#241c15] border-2 border-[#c5a059] dark:border-[#8b6b4a] shadow-md flex items-center gap-3 text-left group cursor-pointer hover:border-[#a8833c] transition-all"
+                className="w-full p-3 rounded-2xl bg-[#f6ebd6] dark:bg-[#241c15] border-2 border-[#c5a059] dark:border-[#8b6b4a] shadow-md flex items-center gap-3 text-left rtl:text-right group cursor-pointer hover:border-[#a8833c] transition-all"
               >
                 <div className="w-9 h-9 rounded-xl bg-[#e6d3ab] dark:bg-[#32251a] flex items-center justify-center text-[#a8833c] shrink-0 border border-[#c5a059]/50">
                   <Video className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="font-serif-coptic font-bold text-xs text-[#3d2b18] dark:text-[#f5ebd9] tracking-wide">
-                    START PRAYER MEETING
+                    {language === 'ar' ? 'بدء اجتماع صلاة مباشر' : 'START PRAYER MEETING'}
                   </h3>
                   <p className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] tracking-wider uppercase font-serif">
-                    PRAY TOGETHER OVER VIDEO
+                    {language === 'ar' ? 'الصلاة معاً عبر الفيديو' : 'PRAY TOGETHER OVER VIDEO'}
                   </p>
                 </div>
               </button>
 
-              {/* Drawer Menu Navigation Items (Identical to Desktop Sidebar) */}
+              {/* Drawer Menu Navigation Items */}
               <nav className="space-y-1.5 pt-1">
                 {drawerMenuItems.map((item: any) => {
                   const Icon = item.icon;
@@ -462,12 +472,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                           </span>
                         )}
 
-                        {item.badge && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#3d2b18] text-[#c5a059] shadow-sm">
-                            {item.badge}
-                          </span>
-                        )}
-
                         {item.count ? (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#eedcb5] dark:bg-[#32251a] text-[#3d2b18] dark:text-[#f5ebd9] border border-[#c5a059]">
                             {item.count}
@@ -484,7 +488,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onOpenInvite();
                     setIsDrawerOpen(false);
                   }}
-                  className="w-full p-3 rounded-2xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] hover:border-[#a8833c] transition-all text-left group cursor-pointer shadow-sm mt-2"
+                  className="w-full p-3 rounded-2xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] hover:border-[#a8833c] transition-all text-left rtl:text-right group cursor-pointer shadow-sm mt-2"
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <QrCode className="w-4 h-4 text-[#a8833c] group-hover:scale-110 transition-transform" />
@@ -529,7 +533,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <p className="text-[10px] text-[#3d2b18] dark:text-[#f5ebd9] italic font-serif leading-relaxed">
                     "{todayData.scriptureText}"
                   </p>
-                  <span className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] font-serif font-bold uppercase block text-right">
+                  <span className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] font-serif font-bold uppercase block text-right rtl:text-left">
                     — {todayData.scriptureRef}
                   </span>
                 </div>
@@ -541,7 +545,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="flex items-center gap-1">
                     <Globe className="w-4 h-4 text-[#a8833c]" />
                     <span className="font-serif text-[10px] font-bold uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9]">
-                      LANGUAGE
+                      {language === 'ar' ? 'اللغة' : 'LANGUAGE'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
@@ -566,7 +570,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <div className="flex items-center justify-between pt-2 border-t border-[#c5a059]/30">
                   <span className="font-serif text-[10px] font-bold uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9]">
-                    THEME
+                    {language === 'ar' ? 'المظهر' : 'THEME'}
                   </span>
                   <div className="flex items-center gap-1">
                     <button
@@ -598,22 +602,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </button>
                   </div>
                 </div>
-
-                {/* ANCIENT VIEW Button */}
-                <button
-                  onClick={() => {
-                    setTheme(theme === 'ancient' ? 'dark' : 'ancient');
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#e8d6b0]/90 dark:bg-[#32251a] border-2 border-[#a8833c] text-[#3d2b18] dark:text-[#f5ebd9] font-serif font-bold text-xs tracking-wider uppercase shadow-sm cursor-pointer mt-1"
-                >
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-[#a8833c]" />
-                    <span>ANCIENT VIEW</span>
-                  </div>
-                  <span className="text-[9px] font-sans px-2 py-0.5 rounded-full bg-[#c5a059] text-white">
-                    {theme.toUpperCase()}
-                  </span>
-                </button>
               </div>
             </div>
 
@@ -621,17 +609,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             {profile && (
               <div className="pt-3 border-t border-[#c5a059]/40 flex items-center justify-between">
                 <span className="text-[10px] font-serif text-[#7c5f3d] dark:text-[#a89379] uppercase">
-                  Logged in as {profile.full_name}
+                  {language === 'ar' ? `تسجيل الدخول باسم ${profile.full_name}` : `Logged in as ${profile.full_name}`}
                 </span>
                 <button
                   onClick={() => {
                     signOut();
                     setIsDrawerOpen(false);
                   }}
-                  className="p-1.5 rounded-lg text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950 transition-colors flex items-center gap-1 text-xs font-serif font-bold"
+                  className="p-1.5 rounded-lg text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950 transition-colors flex items-center gap-1 text-xs font-serif font-bold cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span>Logout</span>
+                  <span>{t('signOut')}</span>
                 </button>
               </div>
             )}
@@ -641,5 +629,3 @@ export const Navbar: React.FC<NavbarProps> = ({
     </>
   );
 };
-
-

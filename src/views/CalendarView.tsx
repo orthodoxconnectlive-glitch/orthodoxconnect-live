@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Plus, MapPin, Video, Users, CheckCircle, Star, Clock, Church, Sparkles, Filter, Search } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, MapPin, Video, Church, Sparkles, Filter, Search } from 'lucide-react';
 import { getTodayLiturgicalDay, getUpcomingFeasts } from '../data/liturgical';
 import { EventItem } from '../types';
 import { loadEvents, setEventRsvp } from '../utils/events';
@@ -47,7 +47,7 @@ export const CalendarView: React.FC = () => {
       event.id,
       {
         id: profile?.id || 'me',
-        name: profile?.full_name || 'Orthodox Member',
+        name: profile?.full_name || (language === 'ar' ? 'عضو أرثوذكسي' : 'Orthodox Member'),
         avatar: profile?.avatar_url,
       },
       status
@@ -66,6 +66,15 @@ export const CalendarView: React.FC = () => {
       event.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
   });
+
+  const categories = [
+    { id: 'all', label: language === 'ar' ? 'الكل' : 'All' },
+    { id: 'liturgy', label: language === 'ar' ? 'القداسات' : 'Liturgy' },
+    { id: 'feast', label: language === 'ar' ? 'الأعياد' : 'Feasts' },
+    { id: 'bible_study', label: language === 'ar' ? 'دراسة الكتاب' : 'Bible Study' },
+    { id: 'youth', label: language === 'ar' ? 'الشباب' : 'Youth' },
+    { id: 'pilgrimage', label: language === 'ar' ? 'رحلات الحج' : 'Pilgrimages' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -127,26 +136,19 @@ export const CalendarView: React.FC = () => {
           {/* Filters and Search Bar */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#fdfaf5] p-3 rounded-2xl border border-[#d4af37]/30 shadow-md">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8b6b4a]" />
+              <Search className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-[#8b6b4a]" />
               <input
                 type="text"
-                placeholder="Search events, parishes, or liturgies..."
+                placeholder={language === 'ar' ? 'ابحث في الفعاليات، الرعايا، أو القداسات...' : 'Search events, parishes, or liturgies...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-xl bg-[#f5f2ed] border border-[#d4af37]/20 text-xs text-[#2c2c2c] placeholder-[#8b6b4a]/60 focus:outline-none focus:border-[#d4af37]"
+                className="w-full pl-10 rtl:pl-4 rtl:pr-10 pr-4 py-2 rounded-xl bg-[#f5f2ed] border border-[#d4af37]/20 text-xs text-[#2c2c2c] placeholder-[#8b6b4a]/60 focus:outline-none focus:border-[#d4af37]"
               />
             </div>
 
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-              <Filter className="w-4 h-4 text-[#d4af37] shrink-0 ml-1" />
-              {[
-                { id: 'all', label: 'All' },
-                { id: 'liturgy', label: 'Liturgy' },
-                { id: 'feast', label: 'Feasts' },
-                { id: 'bible_study', label: 'Bible Study' },
-                { id: 'youth', label: 'Youth' },
-                { id: 'pilgrimage', label: 'Pilgrimages' },
-              ].map((cat) => (
+              <Filter className="w-4 h-4 text-[#d4af37] shrink-0 ml-1 rtl:ml-0 rtl:mr-1" />
+              {categories.map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
@@ -166,7 +168,9 @@ export const CalendarView: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredEvents.length === 0 ? (
               <div className="col-span-full p-8 text-center bg-[#fdfaf5] rounded-2xl border border-[#d4af37]/30 text-[#8b6b4a] text-xs">
-                No events found in this category. Click "Create Parish Event" to publish one!
+                {language === 'ar'
+                  ? 'لا توجد فعاليات في هذا التصنيف. انقر على "إضافة فعالية كنسية" لنشر فعالية جديدة!'
+                  : 'No events found in this category. Click "Create Parish Event" to publish one!'}
               </div>
             ) : (
               filteredEvents.map((evt) => {
@@ -193,11 +197,11 @@ export const CalendarView: React.FC = () => {
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-[#2c2c2c]/80 via-transparent to-transparent" />
 
-                      <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-[#d4af37] text-white font-bold text-[10px] uppercase shadow-md">
+                      <span className="absolute top-3 left-3 rtl:left-auto rtl:right-3 px-2.5 py-1 rounded-full bg-[#d4af37] text-white font-bold text-[10px] uppercase shadow-md">
                         {evt.category.replace('_', ' ')}
                       </span>
 
-                      <div className="absolute bottom-3 left-3 right-3 text-white flex items-center justify-between text-xs">
+                      <div className="absolute bottom-3 left-3 rtl:left-auto rtl:right-3 right-3 rtl:right-auto rtl:left-3 text-white flex items-center justify-between text-xs">
                         <span className="font-bold flex items-center gap-1 text-amber-200">
                           <CalendarIcon className="w-3.5 h-3.5 text-[#d4af37]" /> {evt.date} • {evt.time}
                         </span>
@@ -227,8 +231,8 @@ export const CalendarView: React.FC = () => {
                           )}
                           <span className="truncate max-w-[140px]">
                             {evt.locationType === 'physical'
-                              ? evt.locationAddress || 'Parish Venue'
-                              : 'Virtual Room'}
+                              ? evt.locationAddress || (language === 'ar' ? 'مقر الرعية' : 'Parish Venue')
+                              : (language === 'ar' ? 'غرفة افتراضية' : 'Virtual Room')}
                           </span>
                         </div>
 
@@ -236,24 +240,24 @@ export const CalendarView: React.FC = () => {
                         <div className="flex items-center gap-1">
                           <button
                             onClick={(e) => handleRsvpQuick(e, evt, 'going')}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
                               userRsvp === 'going'
                                 ? 'bg-emerald-600 text-white shadow-sm'
                                 : 'bg-[#f1ebd7] text-[#5a4632] hover:bg-emerald-100'
                             }`}
                           >
-                            Going ({evt.goingCount})
+                            {language === 'ar' ? `سأحضر (${evt.goingCount})` : `Going (${evt.goingCount})`}
                           </button>
 
                           <button
                             onClick={(e) => handleRsvpQuick(e, evt, 'interested')}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
                               userRsvp === 'interested'
                                 ? 'bg-[#d4af37] text-white shadow-sm'
                                 : 'bg-[#f1ebd7] text-[#5a4632] hover:bg-amber-100'
                             }`}
                           >
-                            Interested
+                            {language === 'ar' ? 'مهتم' : 'Interested'}
                           </button>
                         </div>
                       </div>

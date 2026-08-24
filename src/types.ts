@@ -68,6 +68,30 @@ export interface Post {
   quoted_post?: Post | null;
   reshareKind?: 'reshare' | 'quote';
   reshare_kind?: string;
+  likers?: { userId: string; userName: string; userAvatar?: string }[];
+}
+
+export interface PostComment {
+  id: string;
+  post_id: string;
+  postId?: string;
+  user_id?: string;
+  userId?: string;
+  author_name: string;
+  authorName?: string;
+  author_avatar: string;
+  authorAvatar?: string;
+  content: string;
+  created_at: string;
+  createdAt?: string;
+}
+
+export interface PostLike {
+  post_id: string;
+  user_id: string;
+  user_name?: string;
+  user_avatar?: string;
+  created_at: string;
 }
 
 export interface Message {

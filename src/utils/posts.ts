@@ -488,7 +488,7 @@ export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
 export async function togglePostLike(
   postId: string,
   userProfile?: any
-): Promise<{ success: boolean; liked: boolean; likes_count: number }> {
+): Promise<{ success: boolean; liked: boolean; likes_count?: number; likers?: any[] }> {
   let profile = userProfile;
   if (!profile) {
     try {
@@ -497,15 +497,9 @@ export async function togglePostLike(
     } catch (e) {}
   }
 
-  const userId = profile?.id || '';
+  const userId = profile?.id || (profile?.email ? `user-${profile.email}` : 'anonymous-user');
   const authorName = profile?.full_name || 'Orthodox Parishioner';
   const authorAvatar = profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
-
-  // Local optimistic map update
-  const likesMap = loadLocalLikesMap();
-  const nextLiked = !likesMap[postId];
-  likesMap[postId] = nextLiked;
-  saveLocalLikesMap(likesMap);
 
   try {
     const headers = {
@@ -524,17 +518,42 @@ export async function togglePostLike(
 
     if (res.ok) {
       const data = await res.json();
+      invalidatePostsCache();
       return {
         success: true,
-        liked: Boolean(data.liked),
-        likes_count: typeof data.likes_count === 'number' ? data.likes_count : (nextLiked ? 1 : 0),
+        liked: Boolean(data.is_liked ?? data.liked),
+        likes_count: typeof data.likes_count === 'number' ? data.likes_count : undefined,
+        likers: data.likers || [],
       };
     }
   } catch (err) {
     console.warn('[Cloudflare D1 togglePostLike notice]:', err);
   }
 
-  return { success: true, liked: nextLiked, likes_count: nextLiked ? 1 : 0 };
+  return { success: false, liked: false };
+}
+
+/**
+ * Fetches the list of likers for a specific post.
+ */
+export async function fetchPostLikes(postId: string): Promise<{ userId: string; userName: string; userAvatar?: string; parish?: string }[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/likes`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.likes && Array.isArray(data.likes)) {
+        return data.likes.map((r: any) => ({
+          userId: r.user_id || r.userId,
+          userName: r.user_name || r.userName || 'Orthodox Member',
+          userAvatar: r.user_avatar || r.userAvatar,
+          parish: r.parish || 'Orthodox Parish',
+        }));
+      }
+    }
+  } catch (err) {
+    console.warn('[Cloudflare D1 fetchPostLikes notice]:', err);
+  }
+  return [];
 }
 
 /**
@@ -546,7 +565,20 @@ export async function fetchPostComments(postId: string): Promise<any[]> {
     if (res.ok) {
       const data = await res.json();
       if (data?.comments && Array.isArray(data.comments)) {
-        return data.comments;
+        return data.comments.map((c: any) => ({
+          id: c.id,
+          postId: c.post_id || postId,
+          post_id: c.post_id || postId,
+          userId: c.user_id,
+          user_id: c.user_id,
+          authorName: c.author_name || 'Orthodox Parishioner',
+          author_name: c.author_name || 'Orthodox Parishioner',
+          authorAvatar: c.author_avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+          author_avatar: c.author_avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+          content: c.content,
+          createdAt: c.created_at || new Date().toISOString(),
+          created_at: c.created_at || new Date().toISOString(),
+        }));
       }
     }
   } catch (err) {
@@ -558,10 +590,14 @@ export async function fetchPostComments(postId: string): Promise<any[]> {
   const strings = localMap[postId] || [];
   return strings.map((text, idx) => ({
     id: `local-comm-${idx}`,
+    postId,
     post_id: postId,
     content: text,
+    authorName: 'Orthodox Parishioner',
     author_name: 'Orthodox Parishioner',
+    authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
     author_avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+    createdAt: new Date().toISOString(),
     created_at: new Date().toISOString(),
   }));
 }
@@ -573,7 +609,7 @@ export async function addPostComment(
   postId: string,
   content: string,
   userProfile?: any
-): Promise<{ success: boolean; comment?: any; error?: any }> {
+): Promise<{ success: boolean; comment?: any; comments_count?: number; error?: any }> {
   const text = content.trim();
   if (!text) return { success: false, error: 'Empty comment' };
 
@@ -585,23 +621,23 @@ export async function addPostComment(
     } catch (e) {}
   }
 
-  const userId = profile?.id || null;
+  const userId = profile?.id || (profile?.email ? `user-${profile.email}` : null);
   const authorName = profile?.full_name || 'Orthodox Parishioner';
   const authorAvatar = profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
-
-  // Save to local cache map too
-  const localMap = loadLocalPostCommentsMap();
-  localMap[postId] = [...(localMap[postId] || []), text];
-  saveLocalPostCommentsMap(localMap);
 
   const newComment = {
     id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `comm-${Date.now()}`,
     post_id: postId,
+    postId,
     user_id: userId,
+    userId,
     author_name: authorName,
+    authorName,
     author_avatar: authorAvatar,
+    authorAvatar,
     content: text,
     created_at: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
   };
 
   try {
@@ -617,13 +653,45 @@ export async function addPostComment(
 
     if (res.ok) {
       const data = await res.json();
-      return { success: true, comment: data?.comment || newComment };
+      invalidatePostsCache();
+      return {
+        success: true,
+        comment: data?.comment || newComment,
+        comments_count: data?.comments_count,
+      };
     }
   } catch (err: any) {
     console.warn('[Cloudflare D1 addPostComment notice]:', err);
   }
 
   return { success: true, comment: newComment };
+}
+
+/**
+ * Deletes a comment from Cloudflare D1.
+ */
+export async function deletePostComment(
+  postId: string,
+  commentId: string,
+  userProfile?: any
+): Promise<{ success: boolean; comments_count?: number; error?: any }> {
+  try {
+    const headers = getAuthHeaders(userProfile);
+    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`, {
+      method: 'DELETE',
+      headers,
+    });
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      invalidatePostsCache();
+      return { success: true, comments_count: data?.comments_count };
+    }
+    const errData = await res.json().catch(() => ({}));
+    return { success: false, error: errData.error || `HTTP ${res.status}` };
+  } catch (err: any) {
+    console.warn('[Cloudflare D1 deletePostComment notice]:', err);
+    return { success: false, error: err?.message || 'Network error' };
+  }
 }
 
 /**

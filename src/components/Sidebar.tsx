@@ -14,7 +14,6 @@ import {
   Sun,
   Moon,
   Globe,
-  PlusCircle,
   Utensils,
   BookOpen,
 } from 'lucide-react';
@@ -103,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Top Controls: Language Selector & Dark/Light Theme Toggle */}
         <div className="flex items-center justify-between p-2 mb-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] shadow-sm text-xs">
           <div className="flex items-center gap-1">
-            <Globe className="w-3.5 h-3.5 text-[#a8833c] mr-1 shrink-0" />
+            <Globe className="w-3.5 h-3.5 text-[#a8833c] mr-1 rtl:mr-0 rtl:ml-1 shrink-0" />
             <button
               onClick={() => setLanguage('en')}
               className={`px-2 py-0.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
@@ -157,7 +156,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {profile ? (
           <button
             onClick={() => onNavigate('profile')}
-            className="w-full flex items-center gap-3 p-2.5 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] hover:bg-[#e6d3ab] transition-all text-left mb-3 group cursor-pointer border-2 border-[#c5a059] dark:border-[#8b6b4a] shadow-md"
+            className="w-full flex items-center gap-3 p-2.5 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] hover:bg-[#e6d3ab] transition-all text-left rtl:text-right mb-3 group cursor-pointer border-2 border-[#c5a059] dark:border-[#8b6b4a] shadow-md"
           >
             <img
               src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
@@ -169,7 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {profile.full_name}
               </h3>
               <p className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-wider truncate">
-                {profile.parish || 'ORTHODOX CHURCH'}
+                {profile.parish || (language === 'ar' ? 'كنيسة أرثوذكسية' : 'ORTHODOX CHURCH')}
               </p>
             </div>
             {profile.role && (
@@ -184,7 +183,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="w-full flex items-center justify-center gap-2 p-2.5 rounded-2xl bg-[#a8833c] hover:bg-[#8f6e30] text-white transition-all mb-3 text-center cursor-pointer shadow-md font-serif font-bold text-xs uppercase tracking-wider border-2 border-[#c5a059]"
           >
             <User className="w-4 h-4" />
-            <span>Sign In / Guest</span>
+            <span>{t('signInRegister')}</span>
           </button>
         )}
 
@@ -240,7 +239,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="mt-4 pt-3 border-t border-[#c5a059]/30">
           <button
             onClick={onOpenInvite}
-            className="w-full p-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] hover:border-[#a8833c] transition-all text-left group cursor-pointer shadow-sm"
+            className="w-full p-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] hover:border-[#a8833c] transition-all text-left rtl:text-right group cursor-pointer shadow-sm"
           >
             <div className="flex items-center gap-2 mb-1">
               <QrCode className="w-4 h-4 text-[#a8833c] group-hover:scale-110 transition-transform" />
@@ -291,7 +290,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <p className="text-[11px] text-[#3d2b18] dark:text-[#f5ebd9] italic font-serif leading-relaxed">
             "{todayData.scriptureText}"
           </p>
-          <span className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] font-serif font-bold uppercase block text-right">
+          <span className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] font-serif font-bold uppercase block text-right rtl:text-left">
             — {todayData.scriptureRef}
           </span>
         </div>
@@ -308,4 +307,3 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </aside>
   );
 };
-

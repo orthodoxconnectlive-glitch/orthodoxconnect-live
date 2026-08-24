@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 
 export const AuthPage: React.FC = () => {
   const { signIn, signUp } = useAuth();
-  const { t } = useTheme();
+  const { t, language } = useTheme();
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -24,28 +24,47 @@ export const AuthPage: React.FC = () => {
       if (mode === 'signin') {
         const { error } = await signIn(email, password);
         if (error) {
-          setErrorText(error.message || 'Invalid email or password. Please try again.');
+          setErrorText(
+            error.message ||
+              (language === 'ar'
+                ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى.'
+                : 'Invalid email or password. Please try again.')
+          );
         }
       } else {
         if (!fullName.trim() || !parish.trim()) {
-          setErrorText('Please enter your full name and parish.');
+          setErrorText(
+            language === 'ar'
+              ? 'يرجى إدخال اسمك الكامل واسم رعيتك.'
+              : 'Please enter your full name and parish.'
+          );
           setLoading(false);
           return;
         }
         const { error } = await signUp(email, password, fullName, parish);
         if (error) {
-          setErrorText(error.message || 'Sign up failed. Please check your credentials.');
+          setErrorText(
+            error.message ||
+              (language === 'ar'
+                ? 'فشل إنشاء الحساب. يرجى التحقق من صحة البيانات.'
+                : 'Sign up failed. Please check your credentials.')
+          );
         }
       }
     } catch (err: any) {
-      setErrorText(err?.message || 'An unexpected authentication error occurred.');
+      setErrorText(
+        err?.message ||
+          (language === 'ar'
+            ? 'حدث خطأ غير متوقع أثناء تسجيل الدخول.'
+            : 'An unexpected authentication error occurred.')
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#eddcb9] dark:bg-[#0f0c09] text-[#3d2b18] dark:text-[#f5ebd9] flex items-center justify-center p-4 selection:bg-[#c5a059] selection:text-white transition-colors">
+    <div className="min-h-screen bg-[#eddcb9] dark:bg-[#0f0c09] text-[#3d2b18] dark:text-[#f5ebd9] flex items-center justify-center p-4 selection:bg-[#c5a059] selection:text-white transition-colors text-left rtl:text-right">
       <div className="w-full max-w-md bg-[#f6ebd6] dark:bg-[#1a140e] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-8 shadow-2xl relative overflow-hidden">
         {/* Ambient Glow */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-[#c5a059]/15 rounded-full blur-3xl pointer-events-none" />
@@ -61,7 +80,11 @@ export const AuthPage: React.FC = () => {
           </h1>
           <p className="text-xs font-serif text-[#7c5f3d] dark:text-[#a89379]">
             {mode === 'signin'
-              ? 'Welcome back. Sign in to join your Orthodox parish community.'
+              ? language === 'ar'
+                ? 'أهلاً بك مجدداً. سجّل الدخول للانضمام إلى مجتمع رعيتك الأرثوذكسي.'
+                : 'Welcome back. Sign in to join your Orthodox parish community.'
+              : language === 'ar'
+              ? 'أنشئ حسابك للتواصل مع إخوتك وأخواتك في الإيمان الأرثوذكسي.'
               : 'Register to connect with your Orthodox brothers and sisters.'}
           </p>
         </div>
@@ -115,14 +138,14 @@ export const AuthPage: React.FC = () => {
                   {t('fullName')}
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#a8833c]" />
+                  <User className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-[#a8833c]" />
                   <input
                     type="text"
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. John Chrysostom"
-                    className="w-full pl-10 pr-3.5 py-3 rounded-2xl bg-[#eedcb5]/60 dark:bg-[#282019] border border-[#c5a059]/50 text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#a8833c]/60 focus:outline-none focus:border-[#c5a059] transition-colors"
+                    placeholder={language === 'ar' ? 'مثال: يوحنا ذهبي الفم' : 'e.g. John Chrysostom'}
+                    className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-[#eedcb5]/60 dark:bg-[#282019] border border-[#c5a059]/50 text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#a8833c]/60 focus:outline-none focus:border-[#c5a059] transition-colors"
                   />
                 </div>
               </div>
@@ -132,14 +155,14 @@ export const AuthPage: React.FC = () => {
                   {t('parish')}
                 </label>
                 <div className="relative">
-                  <Church className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#a8833c]" />
+                  <Church className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-[#a8833c]" />
                   <input
                     type="text"
                     required
                     value={parish}
                     onChange={(e) => setParish(e.target.value)}
-                    placeholder="e.g. Holy Trinity Cathedral"
-                    className="w-full pl-10 pr-3.5 py-3 rounded-2xl bg-[#eedcb5]/60 dark:bg-[#282019] border border-[#c5a059]/50 text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#a8833c]/60 focus:outline-none focus:border-[#c5a059] transition-colors"
+                    placeholder={language === 'ar' ? 'مثال: كاتدرائية الثالوث الأقدس' : 'e.g. Holy Trinity Cathedral'}
+                    className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-[#eedcb5]/60 dark:bg-[#282019] border border-[#c5a059]/50 text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#a8833c]/60 focus:outline-none focus:border-[#c5a059] transition-colors"
                   />
                 </div>
               </div>
@@ -148,34 +171,34 @@ export const AuthPage: React.FC = () => {
 
           <div>
             <label className="block text-[#a8833c] font-bold uppercase tracking-wider text-[10px] mb-1">
-              Email Address
+              {language === 'ar' ? 'البريد الإلكتروني' : 'Email Address'}
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#a8833c]" />
+              <Mail className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-[#a8833c]" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full pl-10 pr-3.5 py-3 rounded-2xl bg-[#eedcb5]/60 dark:bg-[#282019] border border-[#c5a059]/50 text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#a8833c]/60 focus:outline-none focus:border-[#c5a059] transition-colors"
+                className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-[#eedcb5]/60 dark:bg-[#282019] border border-[#c5a059]/50 text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#a8833c]/60 focus:outline-none focus:border-[#c5a059] transition-colors"
               />
             </div>
           </div>
 
           <div>
             <label className="block text-[#a8833c] font-bold uppercase tracking-wider text-[10px] mb-1">
-              Password
+              {language === 'ar' ? 'كلمة المرور' : 'Password'}
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#a8833c]" />
+              <Lock className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-[#a8833c]" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-3.5 py-3 rounded-2xl bg-[#eedcb5]/60 dark:bg-[#282019] border border-[#c5a059]/50 text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#a8833c]/60 focus:outline-none focus:border-[#c5a059] transition-colors"
+                className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-[#eedcb5]/60 dark:bg-[#282019] border border-[#c5a059]/50 text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#a8833c]/60 focus:outline-none focus:border-[#c5a059] transition-colors"
               />
             </div>
           </div>
@@ -188,11 +211,13 @@ export const AuthPage: React.FC = () => {
             {loading ? (
               <Sparkles className="w-4 h-4 animate-spin text-white" />
             ) : (
-              <LogIn className="w-4 h-4" />
+              <LogIn className="w-4 h-4 rtl:rotate-180" />
             )}
             <span>
               {loading
-                ? 'Authenticating...'
+                ? language === 'ar'
+                  ? 'جارٍ التحقق...'
+                  : 'Authenticating...'
                 : mode === 'signin'
                 ? t('signIn')
                 : t('signUp')}
@@ -204,7 +229,7 @@ export const AuthPage: React.FC = () => {
         {mode === 'signin' && (
           <div className="mt-6 pt-5 border-t border-[#c5a059]/20 relative z-10">
             <p className="text-[11px] font-serif font-bold uppercase tracking-wider text-[#a8833c] text-center mb-2.5">
-              Quick Sign In
+              {language === 'ar' ? 'تسجيل دخول سريع للتجربة' : 'Quick Sign In'}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[10px]">
               <button
@@ -216,7 +241,7 @@ export const AuthPage: React.FC = () => {
                 }}
                 className="p-2 rounded-xl bg-[#eedcb5]/80 dark:bg-[#282019] hover:bg-[#c5a059]/20 border border-[#c5a059]/40 text-center transition-all cursor-pointer"
               >
-                <div className="font-bold text-[#3d2b18] dark:text-[#f5ebd9]">👑 Super Admin</div>
+                <div className="font-bold text-[#3d2b18] dark:text-[#f5ebd9]">👑 {language === 'ar' ? 'المدير العام' : 'Super Admin'}</div>
                 <div className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] truncate">orthodoxconnect.live</div>
               </button>
               <button
@@ -228,8 +253,8 @@ export const AuthPage: React.FC = () => {
                 }}
                 className="p-2 rounded-xl bg-[#eedcb5]/80 dark:bg-[#282019] hover:bg-[#c5a059]/20 border border-[#c5a059]/40 text-center transition-all cursor-pointer"
               >
-                <div className="font-bold text-[#3d2b18] dark:text-[#f5ebd9]">✝️ Fr. Anthony</div>
-                <div className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] truncate">Clergy / Priest</div>
+                <div className="font-bold text-[#3d2b18] dark:text-[#f5ebd9]">✝️ {language === 'ar' ? 'أبونا أنطونيوس' : 'Fr. Anthony'}</div>
+                <div className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] truncate">{language === 'ar' ? 'كاهن / إكليروس' : 'Clergy / Priest'}</div>
               </button>
               <button
                 type="button"
@@ -240,8 +265,8 @@ export const AuthPage: React.FC = () => {
                 }}
                 className="p-2 rounded-xl bg-[#eedcb5]/80 dark:bg-[#282019] hover:bg-[#c5a059]/20 border border-[#c5a059]/40 text-center transition-all cursor-pointer"
               >
-                <div className="font-bold text-[#3d2b18] dark:text-[#f5ebd9]">🕊️ Deacon Mark</div>
-                <div className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] truncate">Parish Servant</div>
+                <div className="font-bold text-[#3d2b18] dark:text-[#f5ebd9]">🕊️ {language === 'ar' ? 'الشماس مرقس' : 'Deacon Mark'}</div>
+                <div className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] truncate">{language === 'ar' ? 'خادم الرعية' : 'Parish Servant'}</div>
               </button>
             </div>
           </div>

@@ -21,7 +21,7 @@ import {
   AlertCircle,
   RefreshCw,
 } from 'lucide-react';
-import { Post } from '../types';
+import { Post, PostComment } from '../types';
 import { addNotification } from '../utils/notifications';
 import { TimeAgo } from '../components/TimeAgo';
 import {
@@ -29,7 +29,9 @@ import {
   savePost,
   deletePost,
   togglePostLike,
+  fetchPostComments,
   addPostComment,
+  deletePostComment,
   getLocalSavedPosts,
   BUNNY_STREAM_BASE,
   SEED_VIDEOS,
@@ -62,7 +64,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
   onOpenCalendar,
 }) => {
   const { profile } = useAuth();
-  const { t } = useTheme();
+  const { t, language } = useTheme();
 
   // Instant non-blank initial post state from local/seed storage
   const [posts, setPosts] = useState<Post[]>(() => getLocalSavedPosts());
@@ -95,7 +97,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
   // Comments drawer / modal state
   const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
   const [commentInput, setCommentInput] = useState('');
-  const [commentsMap, setCommentsMap] = useState<Record<string, string[]>>(() => loadLocalPostCommentsMap());
+  const [commentsMap, setCommentsMap] = useState<Record<string, PostComment[]>>({});
 
   // Reshare modal state
   const [reshareTargetPost, setReshareTargetPost] = useState<Post | null>(null);
@@ -126,7 +128,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
     return () => {
       clearInterval(interval);
     };
-  }, []);
+  }, [profile?.id, profile?.email]);
 
   // Pause all media elements when sub-tab changes or FeedView unmounts
   useEffect(() => {
@@ -137,120 +139,51 @@ export const FeedView: React.FC<FeedViewProps> = ({
           if (!media.paused) {
             media.pause();
           }
-          media.currentTime = 0;
-        } catch (err) {
-          console.warn('Error pausing media on Feed unmount:', err);
+        } catch (e) {
+          // ignore
         }
       });
     };
   }, [feedTab]);
 
-  useEffect(() => {
-    return () => {
-      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-      allMedia.forEach((media) => {
-        try {
-          if (!media.paused) {
-            media.pause();
-          }
-          media.currentTime = 0;
-        } catch (err) {
-          console.warn('Error pausing media on Feed unmount:', err);
-        }
-      });
-    };
-  }, []);
-
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2500);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3000);
   };
 
   const fetchPosts = async (silent = false) => {
     if (!silent) setLoading(true);
+    setFeedError(null);
     try {
-      let loaded: Post[] = [];
+      const currentUserName = profile?.full_name || '';
+      const localLikes = loadLocalLikesMap();
+      const localCommentsMap = loadLocalPostCommentsMap();
 
-      // Direct fetch from /api/posts with field mapping
-      try {
-        const res = await fetch('/api/posts?limit=50', {
-          headers: { Accept: 'application/json' },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const list = Array.isArray(data) ? data : (data?.posts || []);
-          loaded = list.map((p: any) => ({
-            ...p,
-            id: String(p.id),
-            text: (p.content ?? p.text ?? '').trim(),
-            content: (p.content ?? p.text ?? '').trim(),
-            imageUrl: p.video_id ? null : (p.image_url || p.imageUrl || p.image || null),
-            image: p.video_id ? null : (p.image_url || p.imageUrl || p.image || null),
-            image_url: p.video_id ? null : (p.image_url || p.imageUrl || p.image || null),
-            videoId: p.video_id || p.videoId || p.video || null,
-            video: p.video_id || p.videoId || p.video || null,
-            video_id: p.video_id || p.videoId || p.video || null,
-            authorName: p.author_name || p.authorName || 'Orthodox Parishioner',
-            author_name: p.author_name || p.authorName || 'Orthodox Parishioner',
-            authorParish: p.author_parish || p.authorParish || 'Orthodox Church',
-            author_parish: p.author_parish || p.authorParish || 'Orthodox Church',
-            authorAvatar:
-              p.author_avatar ||
-              p.authorAvatar ||
-              'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-            author_avatar:
-              p.author_avatar ||
-              p.authorAvatar ||
-              'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-            authorId: p.author_id || p.authorId || undefined,
-            author_id: p.author_id || p.authorId || undefined,
-            createdAt: p.created_at || p.createdAt || new Date().toISOString(),
-            created_at: p.created_at || p.createdAt || new Date().toISOString(),
-            groupId: p.group_id || p.groupId || undefined,
-            group_id: p.group_id || p.groupId || undefined,
-            likesCount: typeof p.likes_count === 'number' ? p.likes_count : (typeof p.likesCount === 'number' ? p.likesCount : 0),
-            commentsCount: typeof p.comments_count === 'number' ? p.comments_count : (typeof p.commentsCount === 'number' ? p.commentsCount : 0),
-            resharesCount: typeof p.reshares_count === 'number' ? p.reshares_count : (typeof p.resharesCount === 'number' ? p.resharesCount : 0),
-            isLiked: Boolean(p.is_liked || p.isLiked),
-            isReshared: Boolean(p.is_reshared || p.isReshared),
-          }));
-        }
-      } catch (directErr) {
-        console.warn('[FeedView] Direct /api/posts fetch notice, falling back:', directErr);
+      const { posts: fetchedPosts, error } = await loadPosts(undefined, { limit: 50 });
+      if (error) {
+        setFeedError(error);
       }
 
-      if (loaded.length === 0) {
-        const { posts: fallbackLoaded, error } = await loadPosts(undefined, { limit: 50 });
-        if (error) {
-          console.warn('[FeedView] Feed fetch error notice:', error);
-          setFeedError(typeof error === 'string' ? error : 'Unable to connect to database.');
-        } else {
-          setFeedError(null);
-        }
-        loaded = fallbackLoaded || [];
-      } else {
-        setFeedError(null);
-      }
+      let activePosts = fetchedPosts && fetchedPosts.length > 0 ? fetchedPosts : getLocalSavedPosts();
 
-      const activePosts = loaded && loaded.length > 0 ? loaded : [];
-      const likesMap = loadLocalLikesMap();
-
-      // Apply local saved likes
-      const postsWithLikes = activePosts.map((p) => {
-        if (likesMap[p.id] !== undefined) {
-          return {
-            ...p,
-            isLiked: likesMap[p.id],
-          };
-        }
-        return p;
+      // Merge local likes and comments
+      activePosts = activePosts.map((p) => {
+        const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : p.isLiked;
+        const localComments = localCommentsMap[p.id] || [];
+        return {
+          ...p,
+          isLiked: Boolean(isLocallyLiked),
+          commentsCount: Math.max(p.commentsCount || 0, localComments.length),
+        };
       });
 
-      setPosts(postsWithLikes);
+      setPosts(activePosts);
 
-      // Initialize follow status map for authors
+      // Refresh follow status
       const fMap: Record<string, boolean> = {};
-      postsWithLikes.forEach((p) => {
+      activePosts.forEach((p) => {
         const name = p.authorName || p.author_name || '';
         if (name) fMap[name] = isFollowing(name);
       });
@@ -269,19 +202,19 @@ export const FeedView: React.FC<FeedViewProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
-        triggerToast('Please select a valid image file.');
+        triggerToast(language === 'ar' ? 'يرجى اختيار ملف صورة صالح.' : 'Please select a valid image file.');
         return;
       }
       try {
-        triggerToast('Compressing photo...');
+        triggerToast(language === 'ar' ? 'جارٍ تجهيز وضغط الصورة...' : 'Compressing photo...');
         const compressedUrl = await compressImageToDataUrl(file, 800, 0.7);
         setImageUrl(compressedUrl);
-        triggerToast('Photo attached!');
+        triggerToast(language === 'ar' ? 'تم إرفاق الصورة!' : 'Photo attached!');
       } catch (err) {
         console.warn('Error compressing photo, falling back to uploadMediaFile:', err);
         const url = await uploadMediaFile(file, 'post-photos');
         setImageUrl(url);
-        triggerToast('Photo attached!');
+        triggerToast(language === 'ar' ? 'تم إرفاق الصورة!' : 'Photo attached!');
       }
     }
     e.target.value = '';
@@ -291,7 +224,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('video/')) {
-        triggerToast('Please select a valid video file.');
+        triggerToast(language === 'ar' ? 'يرجى اختيار ملف فيديو صالح.' : 'Please select a valid video file.');
         return;
       }
       setSelectedVideoFile(file);
@@ -299,7 +232,11 @@ export const FeedView: React.FC<FeedViewProps> = ({
       // Create instant local preview URL
       const localPreviewUrl = URL.createObjectURL(file);
       setVideoUrl(localPreviewUrl);
-      triggerToast('Video attached. Click "Publish Reflection" to upload.');
+      triggerToast(
+        language === 'ar'
+          ? 'تم إرفاق الفيديو. اضغط "نشر" للرفع والتأكيد.'
+          : 'Video attached. Click "Publish Reflection" to upload.'
+      );
     }
     e.target.value = '';
   };
@@ -312,7 +249,11 @@ export const FeedView: React.FC<FeedViewProps> = ({
     }));
     triggerToast(
       isNowFollowing
-        ? `Now following ${authorName}. You will see all their reflections!`
+        ? language === 'ar'
+          ? `أنت الآن تتابع ${authorName}. ستظهر منشوراته في صفحتك!`
+          : `Now following ${authorName}. You will see all their reflections!`
+        : language === 'ar'
+        ? `تم إلغاء متابعة ${authorName}.`
         : `Unfollowed ${authorName}.`
     );
   };
@@ -323,25 +264,33 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
     setIsSubmitting(true);
     setUploadProgress(0);
-    setSubmitStatusText('Preparing reflection...');
+    setSubmitStatusText(language === 'ar' ? 'جارٍ إعداد المنشور...' : 'Preparing reflection...');
 
     try {
       let finalVideoId: string | null = null;
 
-      // 1. Asynchronous Upload Order:
-      // When the user selects a video file and clicks "POST":
-      // a. First, call POST /api/bunny/create-video to get container guid
-      // b. Second, await binary upload PUT request to Bunny Stream
       if (selectedVideoFile) {
-        setSubmitStatusText('Uploading video to Bunny Stream (0%)...');
-        triggerToast('Uploading video directly to Bunny Stream CDN...');
+        setSubmitStatusText(
+          language === 'ar'
+            ? 'جارٍ رفع الفيديو إلى Bunny Stream (0%)...'
+            : 'Uploading video to Bunny Stream (0%)...'
+        );
+        triggerToast(
+          language === 'ar'
+            ? 'جارٍ رفع الفيديو مباشرة إلى سحابة Bunny Stream...'
+            : 'Uploading video directly to Bunny Stream CDN...'
+        );
 
         const uploadedGuid = await uploadVideoToBunnyStream(
           selectedVideoFile,
           newPostText || selectedVideoFile.name,
           (percent) => {
             setUploadProgress(percent);
-            setSubmitStatusText(`Uploading video to Bunny Stream (${percent}%)...`);
+            setSubmitStatusText(
+              language === 'ar'
+                ? `جارٍ رفع الفيديو إلى Bunny Stream (${percent}%)...`
+                : `Uploading video to Bunny Stream (${percent}%)...`
+            );
           }
         );
 
@@ -353,21 +302,21 @@ export const FeedView: React.FC<FeedViewProps> = ({
         finalVideoId = videoUrl;
       }
 
-      // c. Third, ONLY AFTER the PUT request returns status 200/OK, send POST /api/posts containing video_id: finalVideoId
-      setSubmitStatusText('Saving reflection to database...');
+      setSubmitStatusText(language === 'ar' ? 'جارٍ حفظ المنشور...' : 'Saving reflection to database...');
 
-      const postId = typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `post-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const postId =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `post-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
       const postPayload = {
         id: postId,
         content: newPostText.trim(),
-        image_url: finalVideoId ? null : (imageUrl || null),
+        image_url: finalVideoId ? null : imageUrl || null,
         video_id: finalVideoId,
         author_id: profile?.id || null,
-        author_name: profile?.full_name || 'Orthodox Parishioner',
-        author_parish: profile?.parish || 'Orthodox Church',
+        author_name: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
+        author_parish: profile?.parish || (language === 'ar' ? 'كنيسة أرثوذكسية' : 'Orthodox Church'),
         author_avatar:
           profile?.avatar_url ||
           'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
@@ -414,8 +363,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
         created_at: postPayload.created_at,
       });
 
-      console.log('[FeedView] Post created in Cloudflare D1 with ID:', postId, 'video_id:', finalVideoId);
-
       // Clear form inputs upon successful submission
       setNewPostText('');
       setImageUrl('');
@@ -427,7 +374,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       // Immediately refresh feed directly from D1 upon success
       await fetchPosts(true);
 
-      triggerToast('Reflection published to parish feed!');
+      triggerToast(language === 'ar' ? 'تم نشر المنشور في خلاصة الرعية!' : 'Reflection published to parish feed!');
     } catch (err: any) {
       console.error('[FeedView] Post submission error:', err);
       triggerToast('Error submitting post: ' + (err?.message || 'Database error'));
@@ -440,26 +387,78 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
   const handleToggleLike = async (postId: string) => {
     // Optimistic local state update
+    const myLikerId = profile?.id || 'me';
+    const myLikerName = profile?.full_name || (language === 'ar' ? 'أنت' : 'You');
+    const myLikerAvatar = profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
+
     setPosts((prev) =>
       prev.map((p) => {
         if (p.id === postId) {
           const isLiked = !p.isLiked;
+          const currentCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
+          const nextCount = isLiked ? currentCount + 1 : Math.max(0, currentCount - 1);
+
+          let updatedLikers = p.likers ? [...p.likers] : [];
+          if (isLiked) {
+            const myLiker = {
+              userId: myLikerId,
+              userName: myLikerName,
+              userAvatar: myLikerAvatar,
+            };
+            updatedLikers = [myLiker, ...updatedLikers.filter((l) => l.userId !== myLikerId && l.userId !== 'me' && l.userId !== profile?.id)];
+          } else {
+            updatedLikers = updatedLikers.filter((l) => l.userId !== myLikerId && l.userId !== 'me' && l.userId !== profile?.id);
+          }
+
           return {
             ...p,
             isLiked,
-            likesCount: isLiked ? (p.likesCount || 0) + 1 : Math.max(0, (p.likesCount || 1) - 1),
+            likesCount: nextCount,
+            likes_count: nextCount,
+            likers: updatedLikers,
           };
         }
         return p;
       })
     );
 
-    // Call Cloudflare D1 endpoint (which also records like and dispatches notification)
-    const res = await togglePostLike(postId, profile);
-    if (res && typeof res.likes_count === 'number') {
-      setPosts((prev) =>
-        prev.map((p) => (p.id === postId ? { ...p, isLiked: res.liked, likesCount: res.likes_count } : p))
-      );
+    // Call Cloudflare D1 endpoint
+    try {
+      const res = await togglePostLike(postId, profile);
+      if (res && res.success && typeof res.likes_count === 'number') {
+        setPosts((prev) =>
+          prev.map((p) => {
+            if (p.id === postId) {
+              return {
+                ...p,
+                isLiked: res.liked,
+                likesCount: res.likes_count,
+                likes_count: res.likes_count,
+                likers: res.likers && res.likers.length > 0 ? res.likers : p.likers,
+              };
+            }
+            return p;
+          })
+        );
+      }
+    } catch (err) {
+      console.warn('Error syncing like:', err);
+    }
+  };
+
+  const handleToggleComments = async (postId: string) => {
+    const isOpening = activeCommentPostId !== postId;
+    setActiveCommentPostId(isOpening ? postId : null);
+
+    if (isOpening && !commentsMap[postId]) {
+      try {
+        const fetched = await fetchPostComments(postId);
+        if (fetched) {
+          setCommentsMap((prev) => ({ ...prev, [postId]: fetched }));
+        }
+      } catch (err) {
+        console.warn('Error fetching post comments:', err);
+      }
     }
   };
 
@@ -467,18 +466,70 @@ export const FeedView: React.FC<FeedViewProps> = ({
     const text = commentText.trim();
     if (!text) return;
 
+    const tempId = `temp-${Date.now()}`;
+    const optimisticComment: PostComment = {
+      id: tempId,
+      postId,
+      post_id: postId,
+      userId: profile?.id,
+      user_id: profile?.id,
+      authorName: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
+      author_name: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
+      authorAvatar:
+        profile?.avatar_url ||
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      author_avatar:
+        profile?.avatar_url ||
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      content: text,
+      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+
     // Optimistic local state updates
     setCommentsMap((prev) => ({
       ...prev,
-      [postId]: [...(prev[postId] || []), text],
+      [postId]: [...(prev[postId] || []), optimisticComment],
     }));
 
     setPosts((prev) =>
       prev.map((p) => (p.id === postId ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p))
     );
 
-    // Call Cloudflare D1 endpoint (which also saves comment and notifies post author)
-    await addPostComment(postId, text, profile);
+    // Call Cloudflare D1 endpoint
+    const res = await addPostComment(postId, text, profile);
+    if (res.success && res.comment) {
+      setCommentsMap((prev) => ({
+        ...prev,
+        [postId]: (prev[postId] || []).map((c) => (c.id === tempId ? res.comment : c)),
+      }));
+      if (typeof res.comments_count === 'number') {
+        setPosts((prev) =>
+          prev.map((p) => (p.id === postId ? { ...p, commentsCount: res.comments_count! } : p))
+        );
+      }
+    }
+  };
+
+  const handleDeleteComment = async (postId: string, commentId: string) => {
+    // Optimistically remove comment
+    setCommentsMap((prev) => ({
+      ...prev,
+      [postId]: (prev[postId] || []).filter((c) => c.id !== commentId),
+    }));
+
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId ? { ...p, commentsCount: Math.max(0, (p.commentsCount || 1) - 1) } : p
+      )
+    );
+
+    const res = await deletePostComment(postId, commentId, profile);
+    if (res.success && typeof res.comments_count === 'number') {
+      setPosts((prev) =>
+        prev.map((p) => (p.id === postId ? { ...p, commentsCount: res.comments_count! } : p))
+      );
+    }
   };
 
   const handleDelete = async (postId: string) => {
@@ -518,7 +569,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
     <div className="space-y-6">
       {/* Toast notification message */}
       {toastMessage && (
-        <div className="fixed top-20 right-6 z-50 px-4 py-2.5 rounded-2xl bg-[#3d2b18] text-[#f5ebd9] border-2 border-[#c5a059] shadow-2xl font-serif text-xs flex items-center gap-2 animate-bounce">
+        <div className="fixed top-20 right-6 rtl:right-auto rtl:left-6 z-50 px-4 py-2.5 rounded-2xl bg-[#3d2b18] text-[#f5ebd9] border-2 border-[#c5a059] shadow-2xl font-serif text-xs flex items-center gap-2 animate-bounce">
           <Check className="w-4 h-4 text-[#c5a059]" />
           <span>{toastMessage}</span>
         </div>
@@ -530,7 +581,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
           <div className="flex items-center gap-2.5 min-w-0">
             <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
             <div className="truncate">
-              <span className="font-bold">Feed Notice: </span>
+              <span className="font-bold">{language === 'ar' ? 'تنبيه الخلاصة: ' : 'Feed Notice: '}</span>
               <span>{feedError}</span>
             </div>
           </div>
@@ -540,7 +591,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
               className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-serif font-bold flex items-center gap-1 transition-colors cursor-pointer"
             >
               <RefreshCw className="w-3 h-3" />
-              <span>Retry</span>
+              <span>{language === 'ar' ? 'إعادة المحاولة' : 'Retry'}</span>
             </button>
             <button
               onClick={() => setFeedError(null)}
@@ -578,7 +629,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="p-1 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#c5a059]/20 transition-colors shrink-0 cursor-pointer"
-                title="Upload photo from device"
+                title={language === 'ar' ? 'رفع صورة من الجهاز' : 'Upload photo from device'}
               >
                 <Image className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
               </button>
@@ -586,7 +637,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 type="button"
                 onClick={() => videoFileInputRef.current?.click()}
                 className="p-1 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#c5a059]/20 transition-colors shrink-0 cursor-pointer"
-                title="Upload video from device"
+                title={language === 'ar' ? 'رفع فيديو من الجهاز' : 'Upload video from device'}
               >
                 <Video className="w-4 h-4 text-[#a8833c]" />
               </button>
@@ -618,27 +669,27 @@ export const FeedView: React.FC<FeedViewProps> = ({
                   alt="Selected local photo preview"
                   className="w-full h-auto max-h-80 object-cover rounded-xl"
                 />
-                <div className="absolute top-2 right-2 flex items-center gap-2">
+                <div className="absolute top-2 right-2 rtl:right-auto rtl:left-2 flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="px-2.5 py-1.5 rounded-full bg-[#3d2b18]/90 text-[#c5a059] hover:bg-[#3d2b18] hover:text-white transition-all shadow-md text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer border border-[#c5a059]/50"
-                    title="Replace Photo"
+                    title={language === 'ar' ? 'استبدال الصورة' : 'Replace Photo'}
                   >
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Replace</span>
+                    <span>{language === 'ar' ? 'استبدال' : 'Replace'}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setImageUrl('')}
                     className="p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-[#c5a059]/50"
-                    title="Remove Photo"
+                    title={language === 'ar' ? 'إزالة الصورة' : 'Remove Photo'}
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-[#3d2b18]/80 text-[#c5a059] text-[10px] font-serif font-bold uppercase tracking-wider backdrop-blur-sm border border-[#c5a059]/30">
-                  Photo Attached
+                <div className="absolute bottom-2 left-2 rtl:left-auto rtl:right-2 px-2.5 py-1 rounded-lg bg-[#3d2b18]/80 text-[#c5a059] text-[10px] font-serif font-bold uppercase tracking-wider backdrop-blur-sm border border-[#c5a059]/30">
+                  {language === 'ar' ? 'تم إرفاق صورة' : 'Photo Attached'}
                 </div>
               </div>
             </div>
@@ -664,15 +715,15 @@ export const FeedView: React.FC<FeedViewProps> = ({
                   }}
                   className="w-full h-auto max-h-80 rounded-xl object-contain bg-black"
                 />
-                <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                <div className="absolute top-2 right-2 rtl:right-auto rtl:left-2 z-10 flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => videoFileInputRef.current?.click()}
                     className="px-2.5 py-1.5 rounded-full bg-[#3d2b18]/90 text-[#c5a059] hover:bg-[#3d2b18] hover:text-white transition-all shadow-md text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer border border-[#c5a059]/50"
-                    title="Replace Video"
+                    title={language === 'ar' ? 'استبدال الفيديو' : 'Replace Video'}
                   >
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Replace</span>
+                    <span>{language === 'ar' ? 'استبدال' : 'Replace'}</span>
                   </button>
                   <button
                     type="button"
@@ -682,14 +733,20 @@ export const FeedView: React.FC<FeedViewProps> = ({
                       setVideoFileName('');
                     }}
                     className="p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-[#c5a059]/50"
-                    title="Remove Video"
+                    title={language === 'ar' ? 'إزالة الفيديو' : 'Remove Video'}
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="absolute bottom-2 left-2 z-10 px-2.5 py-1 rounded-lg bg-[#3d2b18]/80 text-[#c5a059] text-[10px] font-serif font-bold uppercase tracking-wider backdrop-blur-sm border border-[#c5a059]/30 flex items-center gap-1">
+                <div className="absolute bottom-2 left-2 rtl:left-auto rtl:right-2 z-10 px-2.5 py-1 rounded-lg bg-[#3d2b18]/80 text-[#c5a059] text-[10px] font-serif font-bold uppercase tracking-wider backdrop-blur-sm border border-[#c5a059]/30 flex items-center gap-1">
                   <Video className="w-3.5 h-3.5 text-[#c5a059]" />
-                  <span>{videoFileName ? `Video: ${videoFileName}` : 'Bunny Stream Video Attached'}</span>
+                  <span>
+                    {videoFileName
+                      ? `${language === 'ar' ? 'فيديو: ' : 'Video: '}${videoFileName}`
+                      : language === 'ar'
+                      ? 'تم إرفاق فيديو Bunny Stream'
+                      : 'Bunny Stream Video Attached'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -715,7 +772,13 @@ export const FeedView: React.FC<FeedViewProps> = ({
               >
                 <Image className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                 <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
-                  {imageUrl ? 'Photo Attached' : 'Photo'}
+                  {imageUrl
+                    ? language === 'ar'
+                      ? 'تم إرفاق صورة'
+                      : 'Photo Attached'
+                    : language === 'ar'
+                    ? 'صورة'
+                    : 'Photo'}
                 </span>
               </button>
 
@@ -727,7 +790,13 @@ export const FeedView: React.FC<FeedViewProps> = ({
               >
                 <Video className="w-4 h-4 text-[#a8833c]" />
                 <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
-                  {videoUrl || selectedVideoFile ? 'Video Attached' : 'Video'}
+                  {videoUrl || selectedVideoFile
+                    ? language === 'ar'
+                      ? 'تم إرفاق فيديو'
+                      : 'Video Attached'
+                    : language === 'ar'
+                    ? 'فيديو'
+                    : 'Video'}
                 </span>
               </button>
             </div>
@@ -740,11 +809,11 @@ export const FeedView: React.FC<FeedViewProps> = ({
               {isSubmitting ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>{submitStatusText || 'Publishing...'}</span>
+                  <span>{submitStatusText || (language === 'ar' ? 'جارٍ النشر...' : 'Publishing...')}</span>
                 </>
               ) : (
                 <>
-                  <Send className="w-3.5 h-3.5" />
+                  <Send className="w-3.5 h-3.5 rtl:rotate-180" />
                   <span>{t('post')}</span>
                 </>
               )}
@@ -782,23 +851,33 @@ export const FeedView: React.FC<FeedViewProps> = ({
         {loading ? (
           <div className="p-8 text-center bg-[#f6ebd6] dark:bg-[#1c1611] rounded-3xl border-2 border-[#c5a059]">
             <Sparkles className="w-8 h-8 mx-auto text-[#a8833c] animate-spin mb-2" />
-            <p className="text-xs text-[#7c5f3d] font-serif uppercase tracking-wider">Loading parish feed...</p>
+            <p className="text-xs text-[#7c5f3d] font-serif uppercase tracking-wider">
+              {language === 'ar' ? 'جارٍ تحميل خلاصة الرعية...' : 'Loading parish feed...'}
+            </p>
           </div>
         ) : filteredPosts.length === 0 ? (
           <div className="p-8 text-center bg-[#f6ebd6] dark:bg-[#1c1611] rounded-3xl border-2 border-[#c5a059] text-[#7c5f3d] text-xs font-serif uppercase space-y-3 shadow-md">
             <Church className="w-8 h-8 mx-auto text-[#a8833c]" />
             <p className="font-bold text-[#3d2b18] dark:text-[#f5ebd9] text-sm">
               {feedTab === 'following'
-                ? "You aren't following anyone with active posts yet."
+                ? language === 'ar'
+                  ? 'أنت لا تتابع أي شخص لديه منشورات نشطة بعد.'
+                  : "You aren't following anyone with active posts yet."
+                : language === 'ar'
+                ? 'لا توجد منشورات في خلاصة الرعية.'
                 : 'No posts found in the parish feed.'}
             </p>
             {feedTab === 'following' ? (
               <p className="text-[11px] text-[#a8833c]">
-                Switch to "All Parish Feed" to discover and follow other parish members!
+                {language === 'ar'
+                  ? 'انتقل إلى "خلاصة الرعية العامة" لاكتشاف ومتابعة أعضاء آخرين!'
+                  : 'Switch to "All Parish Feed" to discover and follow other parish members!'}
               </p>
             ) : (
               <p className="text-[11px] text-[#a8833c]">
-                Be the first to share a reflection, announcement, or prayer request above!
+                {language === 'ar'
+                  ? 'كن أول من يشارك خاطرة، إعلاناً، أو طلب صلاة أعلاه!'
+                  : 'Be the first to share a reflection, announcement, or prayer request above!'}
               </p>
             )}
           </div>
@@ -831,10 +910,9 @@ export const FeedView: React.FC<FeedViewProps> = ({
               onReshare={(p) => setReshareTargetPost(p)}
               comments={commentsMap[post.id] || []}
               isCommentsOpen={activeCommentPostId === post.id}
-              onToggleComments={() =>
-                setActiveCommentPostId(activeCommentPostId === post.id ? null : post.id)
-              }
+              onToggleComments={() => handleToggleComments(post.id)}
               onAddComment={handleAddComment}
+              onDeleteComment={handleDeleteComment}
             />
           ))
         )}
@@ -860,4 +938,3 @@ export const FeedView: React.FC<FeedViewProps> = ({
     </div>
   );
 };
-

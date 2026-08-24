@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Circle, ChevronRight, User } from 'lucide-react';
+import { MessageSquare, ChevronRight, User } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { profilesApi } from '../lib/api';
@@ -20,7 +20,7 @@ interface ActiveChatsPanelProps {
   onSelectUser?: (userData: UserProfileData) => void;
 }
 
-const DEFAULT_ACTIVE_MEMBERS: ActiveChatUser[] = [
+const DEFAULT_ACTIVE_MEMBERS_EN: ActiveChatUser[] = [
   {
     id: 'user-fr-athanasios',
     name: 'Fr. Athanasios',
@@ -55,10 +55,47 @@ const DEFAULT_ACTIVE_MEMBERS: ActiveChatUser[] = [
   },
 ];
 
+const DEFAULT_ACTIVE_MEMBERS_AR: ActiveChatUser[] = [
+  {
+    id: 'user-fr-athanasios',
+    name: 'أبونا أثناسيوس',
+    parish: 'دير القديس أنطونيوس',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+    isOnline: true,
+    lastMessage: 'سلام ونعمة للجميع. ☨',
+  },
+  {
+    id: 'user-deacon-mark',
+    name: 'الشماس مرقس',
+    parish: 'كنيسة البشارة الأرثوذكسية',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
+    isOnline: true,
+    lastMessage: 'تمرين الكورال غداً بعد صلاة العشية.',
+  },
+  {
+    id: 'user-maria-sophia',
+    name: 'ماريا صوفيا',
+    parish: 'كاتدرائية الثالوث الأقدس',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+    isOnline: true,
+    lastMessage: 'عيد مبارك ومقدس!',
+  },
+  {
+    id: 'user-kyrillos-alexander',
+    name: 'كيرلس إسكندر',
+    parish: 'كنيسة مارجرجس القبطية',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
+    isOnline: false,
+    lastMessage: 'المجد لله على كل شيء.',
+  },
+];
+
 export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessenger, onSelectUser }) => {
-  const { t } = useTheme();
+  const { t, language } = useTheme();
   const { profile: currentProfile } = useAuth();
-  const [users, setUsers] = useState<ActiveChatUser[]>(DEFAULT_ACTIVE_MEMBERS);
+  const [users, setUsers] = useState<ActiveChatUser[]>(() =>
+    language === 'ar' ? DEFAULT_ACTIVE_MEMBERS_AR : DEFAULT_ACTIVE_MEMBERS_EN
+  );
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -68,16 +105,18 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
         if (data && data.length > 0) {
           const mappedUsers: ActiveChatUser[] = data.slice(0, 10).map((p) => ({
             id: p.id,
-            name: p.full_name || 'Parish Member',
-            parish: p.parish || 'Orthodox Church',
+            name: p.full_name || (language === 'ar' ? 'عضو الرعية' : 'Parish Member'),
+            parish: p.parish || (language === 'ar' ? 'كنيسة أرثوذكسية' : 'Orthodox Church'),
             avatar:
               p.avatar_url ||
               'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
             isOnline: true,
-            lastMessage: 'Tap to open chat',
+            lastMessage: language === 'ar' ? 'اضغط لفتح المحادثة' : 'Tap to open chat',
           }));
 
           setUsers(mappedUsers);
+        } else {
+          setUsers(language === 'ar' ? DEFAULT_ACTIVE_MEMBERS_AR : DEFAULT_ACTIVE_MEMBERS_EN);
         }
       } catch (err) {
         console.warn('Error fetching real active users for panel:', err);
@@ -87,7 +126,7 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
     }
 
     fetchRealUsers();
-  }, [currentProfile?.id]);
+  }, [currentProfile?.id, language]);
 
   return (
     <aside className="w-full space-y-6">
@@ -104,16 +143,18 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
 
         {loading ? (
           <div className="py-6 text-center text-xs text-[#7c5f3d] dark:text-[#a89379] font-serif">
-            Loading active members...
+            {language === 'ar' ? 'جارٍ تحميل الأعضاء النشطين...' : 'Loading active members...'}
           </div>
         ) : users.length === 0 ? (
           <div className="py-6 px-3 text-center space-y-2 rounded-2xl bg-[#eedcb5]/40 dark:bg-[#282019]/40 border border-[#c5a059]/30">
             <User className="w-6 h-6 text-[#a8833c] mx-auto opacity-70" />
             <p className="text-xs font-serif font-bold text-[#3d2b18] dark:text-[#f5ebd9]">
-              No members online
+              {language === 'ar' ? 'لا يوجد أعضاء متصلون حالياً' : 'No members online'}
             </p>
             <p className="text-[11px] text-[#7c5f3d] dark:text-[#a89379] font-serif">
-              Invite parish friends or check back when other members join!
+              {language === 'ar'
+                ? 'قم بدعوة أصدقاء الرعية أو تحقق لاحقاً عند انضمام أعضاء آخرين!'
+                : 'Invite parish friends or check back when other members join!'}
             </p>
           </div>
         ) : (
@@ -121,12 +162,12 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
             {users.map((user) => (
               <div
                 key={user.id}
-                className="w-full flex items-center justify-between p-2.5 rounded-2xl bg-[#eedcb5]/60 dark:bg-[#282019]/60 hover:bg-[#eedcb5] dark:hover:bg-[#282019] transition-all text-left group border border-[#c5a059]/40"
+                className="w-full flex items-center justify-between p-2.5 rounded-2xl bg-[#eedcb5]/60 dark:bg-[#282019]/60 hover:bg-[#eedcb5] dark:hover:bg-[#282019] transition-all text-left rtl:text-right group border border-[#c5a059]/40 cursor-pointer"
               >
                 <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
                   <div
                     className="relative shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-                    title="View Profile"
+                    title={language === 'ar' ? 'عرض الملف الشخصي' : 'View Profile'}
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelectUser?.({
@@ -143,7 +184,7 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
                       className="w-9 h-9 rounded-full object-cover border-2 border-[#c5a059]"
                     />
                     {user.isOnline && (
-                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-600 rounded-full border-2 border-[#f6ebd6]" />
+                      <span className="absolute bottom-0 right-0 rtl:right-auto rtl:left-0 w-2.5 h-2.5 bg-emerald-600 rounded-full border-2 border-[#f6ebd6]" />
                     )}
                   </div>
 
@@ -171,7 +212,7 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
                   </div>
                 </div>
 
-                <ChevronRight className="w-3.5 h-3.5 text-[#7c5f3d] group-hover:text-[#a8833c] transition-colors shrink-0" />
+                <ChevronRight className="w-3.5 h-3.5 text-[#7c5f3d] group-hover:text-[#a8833c] transition-colors shrink-0 rtl:rotate-180" />
               </div>
             ))}
           </div>
@@ -181,10 +222,9 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
           onClick={() => onOpenMessenger()}
           className="w-full mt-4 py-2.5 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] hover:bg-[#c5a059] hover:text-white text-[#3d2b18] dark:text-[#f5ebd9] font-serif font-bold text-xs uppercase tracking-wider border border-[#c5a059] transition-all text-center cursor-pointer shadow-sm"
         >
-          View All Messages
+          {language === 'ar' ? 'عرض جميع الرسائل' : 'View All Messages'}
         </button>
       </div>
     </aside>
   );
 };
-

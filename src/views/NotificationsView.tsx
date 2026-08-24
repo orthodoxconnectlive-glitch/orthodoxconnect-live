@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, CheckCheck, Trash2, Filter, MessageSquare, AtSign, Calendar, Users, ShieldAlert, Settings, SlidersHorizontal, Sparkles, Heart, MessageCircle } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, MessageSquare, AtSign, Calendar, Users, ShieldAlert, Settings, SlidersHorizontal, Heart, MessageCircle } from 'lucide-react';
 import { NotificationItem, NotificationPreferences } from '../types';
 import { loadNotifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification, loadNotificationPreferences, saveNotificationPreferences } from '../utils/notifications';
 import { TimeAgo } from '../components/TimeAgo';
-import { triggerBrowserNotification, soundSynth } from '../utils/ringtone';
 import { UserProfileData } from './ProfileView';
+import { useTheme } from '../context/ThemeContext';
 
 interface NotificationsViewProps {
   onNavigate?: (view: string) => void;
@@ -13,6 +13,7 @@ interface NotificationsViewProps {
 }
 
 export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate, onSelectUser, onOpenMessengerWithUser }) => {
+  const { t, language } = useTheme();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'messages' | 'events' | 'mentions'>('all');
   const [showPreferences, setShowPreferences] = useState(false);
@@ -103,20 +104,39 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     return true;
   });
 
+  const getPrefLabel = (key: string) => {
+    if (language === 'ar') {
+      switch (key) {
+        case 'emailNotifications': return 'إشعارات البريد الإلكتروني';
+        case 'pushNotifications': return 'إشعارات الهاتف المباشرة';
+        case 'messageAlerts': return 'تنبيهات الرسائل';
+        case 'mentionAlerts': return 'تنبيهات الإشارات (@)';
+        case 'eventReminders': return 'تذكيرات المناسبات والقداسات';
+        case 'groupUpdates': return 'تحديثات المجموعات الرعوية';
+        case 'moderationAlerts': return 'تنبيهات الإشراف';
+        case 'soundEnabled': return 'الأصوات والتنبيهات';
+        default: return key;
+      }
+    }
+    return key.replace(/([A-Z])/g, ' $1');
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-[#f1ebd7] via-[#fdfaf5] to-[#f1ebd7] border border-[#d4af37]/30 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-[#f1ebd7] via-[#fdfaf5] to-[#f1ebd7] dark:from-[#282019] dark:via-[#1c1611] dark:to-[#282019] border border-[#d4af37]/30 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-[#d4af37] text-white flex items-center justify-center shadow-md">
             <Bell className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="font-serif font-bold text-2xl text-[#5a4632]">
-              Real-Time Notifications
+            <h2 className="font-serif font-bold text-2xl text-[#5a4632] dark:text-[#f5ebd9]">
+              {language === 'ar' ? 'الإشعارات المباشرة' : 'Real-Time Notifications'}
             </h2>
-            <p className="text-xs text-[#8b6b4a]">
-              Direct messages, mentions, group invitations, and parish event alerts
+            <p className="text-xs text-[#8b6b4a] dark:text-[#a89379]">
+              {language === 'ar'
+                ? 'الرسائل الخاصة، الإشارات، دعوات المجموعات وتنبيهات فعاليات الرعية'
+                : 'Direct messages, mentions, group invitations, and parish event alerts'}
             </p>
           </div>
         </div>
@@ -124,10 +144,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
         <div className="flex items-center gap-2">
           <button
             onClick={handleReadAll}
-            className="px-3.5 py-2 rounded-xl bg-white border border-[#d4af37]/30 text-[#8b6b4a] hover:text-[#5a4632] font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-white dark:bg-[#1c1611] border border-[#d4af37]/30 text-[#8b6b4a] dark:text-[#c5a059] hover:text-[#5a4632] font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
           >
             <CheckCheck className="w-4 h-4 text-[#d4af37]" />
-            <span>Mark All Read</span>
+            <span>{language === 'ar' ? 'تحديد الكل كمقروء' : 'Mark All Read'}</span>
           </button>
 
           <button
@@ -135,27 +155,27 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
             className="px-3.5 py-2 rounded-xl bg-[#d4af37] hover:bg-[#b89528] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
           >
             <Settings className="w-4 h-4" />
-            <span>Preferences</span>
+            <span>{language === 'ar' ? 'الإعدادات' : 'Preferences'}</span>
           </button>
         </div>
       </div>
 
       {/* Preferences Drawer / Modal Panel */}
       {showPreferences && (
-        <div className="p-5 rounded-2xl bg-[#fdfaf5] border border-[#d4af37]/30 shadow-xl space-y-4 animate-fadeIn">
-          <h3 className="font-serif font-bold text-base text-[#5a4632] flex items-center gap-2 pb-2 border-b border-[#d4af37]/20">
+        <div className="p-5 rounded-2xl bg-[#fdfaf5] dark:bg-[#1c1611] border border-[#d4af37]/30 shadow-xl space-y-4 animate-fadeIn">
+          <h3 className="font-serif font-bold text-base text-[#5a4632] dark:text-[#f5ebd9] flex items-center gap-2 pb-2 border-b border-[#d4af37]/20">
             <SlidersHorizontal className="w-4 h-4 text-[#d4af37]" />
-            <span>Notification Preferences</span>
+            <span>{language === 'ar' ? 'خيارات وتفضيلات الإشعارات' : 'Notification Preferences'}</span>
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
             {Object.entries(prefs).map(([key, val]) => (
               <label
                 key={key}
-                className="flex items-center justify-between p-3 rounded-xl bg-[#f5f2ed] border border-[#d4af37]/20 cursor-pointer hover:border-[#d4af37]/40"
+                className="flex items-center justify-between p-3 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/20 cursor-pointer hover:border-[#d4af37]/40 text-[#5a4632] dark:text-[#f5ebd9]"
               >
-                <span className="font-semibold text-[#5a4632] capitalize">
-                  {key.replace(/([A-Z])/g, ' $1')}
+                <span className="font-semibold capitalize">
+                  {getPrefLabel(key)}
                 </span>
                 <input
                   type="checkbox"
@@ -176,10 +196,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'all'
               ? 'bg-[#d4af37] text-white shadow-md'
-              : 'bg-[#fdfaf5] text-[#8b6b4a] hover:bg-[#f1ebd7]'
+              : 'bg-[#fdfaf5] dark:bg-[#1c1611] text-[#8b6b4a] dark:text-[#c5a059] hover:bg-[#f1ebd7]'
           }`}
         >
-          All ({notifications.length})
+          {language === 'ar' ? 'الكل' : 'All'} ({notifications.length})
         </button>
 
         <button
@@ -187,10 +207,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'unread'
               ? 'bg-[#d4af37] text-white shadow-md'
-              : 'bg-[#fdfaf5] text-[#8b6b4a] hover:bg-[#f1ebd7]'
+              : 'bg-[#fdfaf5] dark:bg-[#1c1611] text-[#8b6b4a] dark:text-[#c5a059] hover:bg-[#f1ebd7]'
           }`}
         >
-          Unread ({notifications.filter((n) => !n.isRead).length})
+          {language === 'ar' ? 'غير المقروء' : 'Unread'} ({notifications.filter((n) => !n.isRead).length})
         </button>
 
         <button
@@ -198,10 +218,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'messages'
               ? 'bg-[#d4af37] text-white shadow-md'
-              : 'bg-[#fdfaf5] text-[#8b6b4a] hover:bg-[#f1ebd7]'
+              : 'bg-[#fdfaf5] dark:bg-[#1c1611] text-[#8b6b4a] dark:text-[#c5a059] hover:bg-[#f1ebd7]'
           }`}
         >
-          Messages
+          {language === 'ar' ? 'الرسائل' : 'Messages'}
         </button>
 
         <button
@@ -209,10 +229,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'events'
               ? 'bg-[#d4af37] text-white shadow-md'
-              : 'bg-[#fdfaf5] text-[#8b6b4a] hover:bg-[#f1ebd7]'
+              : 'bg-[#fdfaf5] dark:bg-[#1c1611] text-[#8b6b4a] dark:text-[#c5a059] hover:bg-[#f1ebd7]'
           }`}
         >
-          Events
+          {language === 'ar' ? 'المناسبات' : 'Events'}
         </button>
 
         <button
@@ -220,18 +240,18 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'mentions'
               ? 'bg-[#d4af37] text-white shadow-md'
-              : 'bg-[#fdfaf5] text-[#8b6b4a] hover:bg-[#f1ebd7]'
+              : 'bg-[#fdfaf5] dark:bg-[#1c1611] text-[#8b6b4a] dark:text-[#c5a059] hover:bg-[#f1ebd7]'
           }`}
         >
-          Mentions
+          {language === 'ar' ? 'الإشارات' : 'Mentions'}
         </button>
       </div>
 
       {/* Notifications List */}
       <div className="space-y-3">
         {filteredNotifs.length === 0 ? (
-          <div className="p-8 text-center bg-[#fdfaf5] rounded-2xl border border-[#d4af37]/30 text-[#8b6b4a] text-xs">
-            No notifications in this category.
+          <div className="p-8 text-center bg-[#fdfaf5] dark:bg-[#1c1611] rounded-2xl border border-[#d4af37]/30 text-[#8b6b4a] dark:text-[#a89379] text-xs">
+            {language === 'ar' ? 'لا توجد إشعارات في هذا القسم.' : 'No notifications in this category.'}
           </div>
         ) : (
           filteredNotifs.map((notif) => (
@@ -239,15 +259,15 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
               key={notif.id}
               className={`p-4 rounded-2xl border shadow-md flex items-start justify-between gap-4 transition-all ${
                 notif.isRead
-                  ? 'bg-[#fdfaf5] border-[#d4af37]/20 opacity-80'
-                  : 'bg-[#f1ebd7] border-[#d4af37] font-medium'
+                  ? 'bg-[#fdfaf5] dark:bg-[#1c1611] border-[#d4af37]/20 opacity-80'
+                  : 'bg-[#f1ebd7] dark:bg-[#282019] border-[#d4af37] font-medium'
               }`}
             >
               <div
                 className="flex items-start gap-3.5 flex-1 cursor-pointer"
                 onClick={() => handleNotificationClick(notif)}
               >
-                <div className="w-10 h-10 rounded-full bg-[#f5f2ed] border border-[#d4af37]/40 flex items-center justify-center shrink-0 overflow-hidden">
+                <div className="w-10 h-10 rounded-full bg-[#f5f2ed] dark:bg-[#342a20] border border-[#d4af37]/40 flex items-center justify-center shrink-0 overflow-hidden">
                   {notif.senderAvatar ? (
                     <img src={notif.senderAvatar} alt={notif.senderName || 'Avatar'} className="w-full h-full object-cover" />
                   ) : (
@@ -266,17 +286,17 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
 
                 <div>
                   <div className="flex items-center gap-2">
-                    <h4 className="font-serif font-bold text-sm text-[#5a4632]">
+                    <h4 className="font-serif font-bold text-sm text-[#5a4632] dark:text-[#f5ebd9]">
                       {notif.title}
                     </h4>
                     {!notif.isRead && (
                       <span className="w-2 h-2 rounded-full bg-red-500" />
                     )}
                   </div>
-                  <p className="text-xs text-[#4a3e31] mt-0.5 leading-relaxed">
+                  <p className="text-xs text-[#4a3e31] dark:text-[#d3c2a9] mt-0.5 leading-relaxed">
                     {notif.body}
                   </p>
-                  <TimeAgo date={notif.createdAt} className="text-[10px] text-[#8b6b4a] block mt-1.5 font-bold uppercase" />
+                  <TimeAgo date={notif.createdAt} className="text-[10px] text-[#8b6b4a] dark:text-[#a89379] block mt-1.5 font-bold uppercase" />
                 </div>
               </div>
 
@@ -284,18 +304,18 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                 {onOpenMessengerWithUser && (notif.senderName || notif.type === 'message') && (
                   <button
                     onClick={() => onOpenMessengerWithUser(notif.senderName || 'user-1')}
-                    className="p-2 rounded-xl text-[#8b6b4a] hover:bg-[#d4af37]/20 hover:text-[#3d2b18] transition-colors cursor-pointer"
-                    title="Direct 1-on-1 Chat"
+                    className="p-2 rounded-xl text-[#8b6b4a] dark:text-[#c5a059] hover:bg-[#d4af37]/20 hover:text-[#3d2b18] transition-colors cursor-pointer"
+                    title={language === 'ar' ? 'محادثة خاصة 1 على 1' : 'Direct 1-on-1 Chat'}
                   >
-                    <MessageSquare className="w-4 h-4 text-[#a8833c]" />
+                    <MessageSquare className="w-4 h-4 text-[#a8833c] dark:text-[#c5a059]" />
                   </button>
                 )}
 
                 {!notif.isRead && (
                   <button
                     onClick={() => handleRead(notif.id)}
-                    className="p-2 rounded-xl text-[#8b6b4a] hover:bg-[#d4af37]/10 hover:text-[#5a4632] transition-colors cursor-pointer"
-                    title="Mark as read"
+                    className="p-2 rounded-xl text-[#8b6b4a] dark:text-[#c5a059] hover:bg-[#d4af37]/10 hover:text-[#5a4632] transition-colors cursor-pointer"
+                    title={language === 'ar' ? 'تحديد كمقروء' : 'Mark as read'}
                   >
                     <CheckCheck className="w-4 h-4" />
                   </button>
@@ -303,8 +323,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
 
                 <button
                   onClick={() => handleDelete(notif.id)}
-                  className="p-2 rounded-xl text-[#8b6b4a] hover:bg-red-100 hover:text-red-600 transition-colors cursor-pointer"
-                  title="Delete notification"
+                  className="p-2 rounded-xl text-[#8b6b4a] hover:bg-red-100 dark:hover:bg-red-950/50 hover:text-red-600 transition-colors cursor-pointer"
+                  title={language === 'ar' ? 'حذف الإشعار' : 'Delete notification'}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Eye, Radio, Sparkles, Square, Camera, AlertCircle, RefreshCw, Volume2, VolumeX } from 'lucide-react';
+import { Eye, Radio, Sparkles, Square, Camera, AlertCircle, RefreshCw, VolumeX } from 'lucide-react';
 import { addNotification } from '../utils/notifications';
+import { useTheme } from '../context/ThemeContext';
 
 interface BunnyPlayerProps {
   mediaStream?: MediaStream | null;
@@ -31,6 +32,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
   isUserBroadcasting = false,
   onEndBroadcast,
 }) => {
+  const { t, language } = useTheme();
   const [hasBlessingRequested, setHasBlessingRequested] = useState<boolean>(false);
   const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -109,7 +111,11 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
       setLocalCameraStream(stream);
     } catch (err: any) {
       console.warn('[BunnyPlayer] Local player webcam error:', err?.message || String(err));
-      setCameraError(err?.message || 'Unable to access camera or microphone.');
+      setCameraError(
+        language === 'ar'
+          ? 'تعذر الوصول إلى الكاميرا أو الميكروفون.'
+          : err?.message || 'Unable to access camera or microphone.'
+      );
     }
   };
 
@@ -149,7 +155,6 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
   // Determine stream embed type & sanitize URLs
   let embedSrc = '';
   let directSrc = '';
-  let isFallbackDummyUrl = false;
 
   if (videoUrl) {
     let sanitized = videoUrl.trim();
@@ -163,7 +168,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
       sanitized.includes('vespers-stream') ||
       sanitized.includes('chanting-stream')
     ) {
-      isFallbackDummyUrl = true;
+      // fallback
     } else if (sanitized.includes('iframe.mediadelivery.net/embed/')) {
       const baseUrl = sanitized.split('?')[0];
       embedSrc = `${baseUrl}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true&responsive=true`;
@@ -171,7 +176,9 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
       if (/\.(mp4|m3u8|webm|mov)(\?.*)?$/i.test(sanitized)) {
         directSrc = sanitized;
       } else {
-        const guidMatch = sanitized.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F-]{10,})/);
+        const guidMatch = sanitized.match(
+          /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F-]{10,})/
+        );
         if (guidMatch) {
           embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${guidMatch[1]}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true&responsive=true`;
         } else {
@@ -180,30 +187,33 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
       }
     } else if (/^[0-9a-fA-F-]{10,}$/.test(sanitized)) {
       embedSrc = `https://iframe.mediadelivery.net/embed/${bunnyLibraryId}/${sanitized}?autoplay=${autoplay}&loop=false&muted=${isAudioMuted}&preload=true&responsive=true`;
-    } else if (sanitized.startsWith('http://') || sanitized.startsWith('https://') || sanitized.startsWith('blob:') || sanitized.startsWith('data:')) {
+    } else if (
+      sanitized.startsWith('http://') ||
+      sanitized.startsWith('https://') ||
+      sanitized.startsWith('blob:') ||
+      sanitized.startsWith('data:')
+    ) {
       directSrc = sanitized;
-    } else {
-      isFallbackDummyUrl = true;
     }
-  } else {
-    isFallbackDummyUrl = true;
   }
 
   // Display "End Broadcast" ONLY if user is actively broadcasting or local/camera stream is active
   const showEndBroadcastButton = isUserBroadcasting || !!activeStream;
 
   return (
-    <div className={`relative rounded-2xl overflow-hidden bg-stone-900 border border-amber-900/40 shadow-xl group ${className}`}>
+    <div
+      className={`relative rounded-2xl overflow-hidden bg-stone-900 border border-amber-900/40 shadow-xl group ${className}`}
+    >
       {/* Top Header Overlay: Live Badge, Viewer Count, and END BROADCAST Button */}
       <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto">
           {isLive && (
             <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-600 text-white text-xs font-bold tracking-wide uppercase shadow-lg animate-pulse">
-              <Radio className="w-3.5 h-3.5 animate-spin" /> LIVE PARISH BROADCAST
+              <Radio className="w-3.5 h-3.5 animate-spin" /> {t('liveParishBadge')}
             </span>
           )}
           <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-900/80 backdrop-blur-md text-amber-200 text-xs font-medium border border-amber-500/30 shadow-md">
-            <Eye className="w-3.5 h-3.5 text-amber-400" /> {viewerCount} Viewers
+            <Eye className="w-3.5 h-3.5 text-amber-400" /> {viewerCount} {t('watchingCount')}
           </span>
         </div>
 
@@ -216,7 +226,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             title="Finish stream and stop device camera/mic"
           >
             <Square className="w-3.5 h-3.5 fill-current" />
-            <span>End Broadcast</span>
+            <span>{t('endBroadcastNow')}</span>
           </button>
         )}
       </div>
@@ -235,10 +245,12 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
               <AlertCircle className="w-6 h-6" />
             </div>
             <h4 className="text-[#f5ebd9] font-serif font-bold text-sm mb-1 uppercase tracking-wider">
-              Stream Unavailable
+              {language === 'ar' ? 'البث غير متصل حالياً' : 'Stream Unavailable'}
             </h4>
             <p className="text-[#eedcb5]/70 text-xs max-w-sm mb-3 font-serif">
-              This video or live stream could not be loaded from Bunny CDN. The stream link may have expired or is currently offline.
+              {language === 'ar'
+                ? 'تعذر تحميل هذا البث المباشر. قد يكون رابط البث منتهياً أو أن الخدمة الكنسية غير متصلة حالياً.'
+                : 'This video or live stream could not be loaded from Bunny CDN. The stream link may have expired or is currently offline.'}
             </p>
             <button
               type="button"
@@ -246,7 +258,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
               className="px-3.5 py-1.5 rounded-xl bg-[#3d2b18] hover:bg-[#c5a059] text-[#c5a059] hover:text-[#1c130c] font-serif font-bold text-xs flex items-center gap-1.5 transition-colors border border-[#c5a059]/40 cursor-pointer shadow-md"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>Retry Connection</span>
+              <span>{language === 'ar' ? 'إعادة المحاولة' : 'Retry Connection'}</span>
             </button>
           </div>
         </div>
@@ -261,14 +273,13 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             muted={isAudioMuted}
             className="w-full h-full object-cover transform scale-x-[-1]"
           />
-          <div className="absolute bottom-4 left-4 z-10 px-3 py-1 rounded-lg bg-stone-950/80 backdrop-blur border border-amber-500/40 text-amber-200 text-xs font-mono">
-            🔴 Live Device Camera & Microphone
+          <div className="absolute bottom-4 left-4 rtl:left-auto rtl:right-4 z-10 px-3 py-1 rounded-lg bg-stone-950/80 backdrop-blur border border-amber-500/40 text-amber-200 text-xs font-mono">
+            {t('liveCameraAndMic')}
           </div>
         </div>
       ) : embedSrc ? (
-        /* Render Bunny Stream Embed iframe (canonical iframe.mediadelivery.net endpoint) */
+        /* Render Bunny Stream Embed iframe */
         <div className="relative w-full aspect-video bg-black overflow-hidden flex items-center justify-center">
-          {/* Ambient blurred backdrop */}
           <div
             className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
             style={{ backgroundImage: `url(${posterUrl || DEFAULT_POSTER})` }}
@@ -284,7 +295,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
           />
         </div>
       ) : directSrc ? (
-        /* Render Direct Video Source with strict autoplay blocker and error trap */
+        /* Render Direct Video Source */
         <div className="relative w-full aspect-video bg-black flex items-center justify-center">
           <video
             ref={directVideoRef}
@@ -302,7 +313,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
 
           {/* Unmute Live Stream Overlay */}
           {isLive && isAudioMuted && (
-            <div className="absolute bottom-4 left-4 z-30">
+            <div className="absolute bottom-4 left-4 rtl:left-auto rtl:right-4 z-30">
               <button
                 type="button"
                 onClick={handleUnmuteAudio}
@@ -310,7 +321,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
                 title="Click to enable audio"
               >
                 <VolumeX className="w-4 h-4 text-red-900" />
-                <span>Unmute Live Stream</span>
+                <span>{t('unmuteStream')}</span>
               </button>
             </div>
           )}
@@ -322,10 +333,10 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             <Camera className="w-7 h-7 text-amber-400 animate-pulse" />
           </div>
           <h4 className="text-amber-100 font-serif font-bold text-lg mb-1">
-            {title || 'Parish Divine Service Broadcast'}
+            {title || t('parishServiceBroadcast')}
           </h4>
           <p className="text-stone-400 text-xs max-w-md mb-4 font-serif">
-            No external Bunny stream link attached. Click below to launch your device camera and stream live directly to your parish.
+            {t('noStreamAttached')}
           </p>
 
           {cameraError && (
@@ -341,7 +352,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold text-xs flex items-center gap-2 shadow-xl transition-all transform hover:scale-105 cursor-pointer font-serif uppercase tracking-wider"
           >
             <Radio className="w-4 h-4" />
-            <span>Launch Device Webcam Stream</span>
+            <span>{t('launchWebcamStream')}</span>
           </button>
         </div>
       )}
@@ -350,7 +361,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
       {isLive && (
         <div className="p-3 bg-stone-950/90 border-t border-amber-900/40 flex items-center justify-between text-xs">
           <span className="text-amber-200/90 font-serif flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-amber-400" /> Ask for priest blessing during divine service
+            <Sparkles className="w-4 h-4 text-amber-400" /> {t('askForPriestBlessing')}
           </span>
           <button
             type="button"
@@ -362,10 +373,13 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
                   {
                     userId: 'all',
                     type: 'system',
-                    title: 'Priest Blessing Requested',
-                    body: 'A parishioner requested a priest blessing during live service.',
+                    title: language === 'ar' ? 'طلب بركة الكاهن' : 'Priest Blessing Requested',
+                    body:
+                      language === 'ar'
+                        ? 'طلب أحد أبناء الرعية بركة الكاهن أثناء الخدمة الإلهية.'
+                        : 'A parishioner requested a priest blessing during live service.',
                     link: 'live',
-                    senderName: 'Parishioner',
+                    senderName: language === 'ar' ? 'أحد أبناء الرعية' : 'Parishioner',
                   },
                   'self'
                 );
@@ -377,7 +391,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
                 : 'bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-500/20'
             }`}
           >
-            {hasBlessingRequested ? '✓ Blessing Requested' : '🙏 Request Blessing'}
+            {hasBlessingRequested ? t('blessingRequested') : `🙏 ${t('requestBlessing')}`}
           </button>
         </div>
       )}

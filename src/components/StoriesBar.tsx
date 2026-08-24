@@ -3,6 +3,7 @@ import { Plus, Sparkles, X, ChevronLeft, ChevronRight, Send, Image as ImageIcon,
 import { storiesApi } from '../lib/api';
 import { Story, loadStories, saveStory } from '../utils/stories';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { UserProfileData } from '../views/ProfileView';
 
 interface StoriesBarProps {
@@ -18,6 +19,7 @@ const SAMPLE_STORY_IMAGES = [
 
 export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
   const { profile } = useAuth();
+  const { t, language } = useTheme();
   const [stories, setStories] = useState<Story[]>([]);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
 
@@ -35,12 +37,12 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
         if (data && data.length > 0) {
           const mapped: Story[] = data.map((d: any) => ({
             id: d.id,
-            authorName: d.author_name || d.authorName || 'Parish Member',
+            authorName: d.author_name || d.authorName || (language === 'ar' ? 'عضو الرعية' : 'Parish Member'),
             authorAvatar:
               d.author_avatar ||
               d.authorAvatar ||
               'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-            authorParish: d.author_parish || d.authorParish || 'Orthodox Church',
+            authorParish: d.author_parish || d.authorParish || (language === 'ar' ? 'كنيسة أرثوذكسية' : 'Orthodox Church'),
             imageUrl: d.image_url || d.imageUrl || '',
             caption: d.caption || '',
             createdAt: d.created_at || new Date().toISOString(),
@@ -62,7 +64,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
     }
 
     fetchRealStories();
-  }, []);
+  }, [language]);
 
   const handleOpenStory = (index: number) => {
     setActiveStoryIndex(index);
@@ -89,9 +91,11 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
     setIsSubmitting(true);
 
     const created = saveStory({
-      authorName: profile?.full_name || 'Orthodox Parishioner',
-      authorAvatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-      authorParish: profile?.parish || 'Holy Trinity Cathedral',
+      authorName: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
+      authorAvatar:
+        profile?.avatar_url ||
+        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      authorParish: profile?.parish || (language === 'ar' ? 'كاتدرائية الثالوث الأقدس' : 'Holy Trinity Cathedral'),
       imageUrl: imageUrl.trim(),
       caption: caption.trim(),
     });
@@ -138,7 +142,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
             </div>
           </div>
           <span className="text-[10px] font-serif font-bold text-[#3d2b18] dark:text-[#f5ebd9] uppercase tracking-wider">
-            Share Story
+            {language === 'ar' ? 'قصة جديدة' : 'Share Story'}
           </span>
         </button>
 
@@ -171,7 +175,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
           {/* Close button */}
           <button
             onClick={() => setActiveStoryIndex(null)}
-            className="absolute top-6 right-6 z-50 p-2.5 rounded-full bg-stone-900/80 text-white hover:bg-[#c5a059] hover:text-[#3d2b18] transition-colors cursor-pointer"
+            className="absolute top-6 right-6 rtl:right-auto rtl:left-6 z-50 p-2.5 rounded-full bg-stone-900/80 text-white hover:bg-[#c5a059] hover:text-[#3d2b18] transition-colors cursor-pointer"
           >
             <X className="w-6 h-6" />
           </button>
@@ -180,16 +184,16 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
           <button
             onClick={handlePrevStory}
             disabled={activeStoryIndex === 0}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-40 p-3 rounded-full bg-black/60 text-white hover:bg-[#c5a059] hover:text-[#3d2b18] disabled:opacity-20 cursor-pointer transition-all"
+            className="absolute left-4 rtl:left-auto rtl:right-4 top-1/2 -translate-y-1/2 z-40 p-3 rounded-full bg-black/60 text-white hover:bg-[#c5a059] hover:text-[#3d2b18] disabled:opacity-20 cursor-pointer transition-all"
           >
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeft className="w-6 h-6 rtl:rotate-180" />
           </button>
 
           <button
             onClick={handleNextStory}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-40 p-3 rounded-full bg-black/60 text-white hover:bg-[#c5a059] hover:text-[#3d2b18] cursor-pointer transition-all"
+            className="absolute right-4 rtl:right-auto rtl:left-4 top-1/2 -translate-y-1/2 z-40 p-3 rounded-full bg-black/60 text-white hover:bg-[#c5a059] hover:text-[#3d2b18] cursor-pointer transition-all"
           >
-            <ChevronRight className="w-6 h-6" />
+            <ChevronRight className="w-6 h-6 rtl:rotate-180" />
           </button>
 
           {/* Story Container Card */}
@@ -237,8 +241,8 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
                 <p className="text-sm text-[#f5ebd9] font-serif leading-relaxed bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-[#c5a059]/40">
                   {activeStory.caption}
                 </p>
-                <span className="text-[9px] text-[#c5a059] font-serif uppercase tracking-wider block text-right font-bold">
-                  Parish Story · 24h
+                <span className="text-[9px] text-[#c5a059] font-serif uppercase tracking-wider block text-right rtl:text-left font-bold">
+                  {language === 'ar' ? 'قصة الرعية · 24 س' : 'Parish Story · 24h'}
                 </span>
               </div>
             )}
@@ -252,7 +256,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
           <div className="relative w-full max-w-md bg-[#1c1611] border-2 border-[#c5a059] rounded-3xl p-6 shadow-2xl text-[#f5ebd9]">
             <button
               onClick={() => setIsCreateOpen(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-full text-[#a89379] hover:text-[#f5ebd9] hover:bg-[#282019] transition-colors cursor-pointer"
+              className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-1.5 rounded-full text-[#a89379] hover:text-[#f5ebd9] hover:bg-[#282019] transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -260,24 +264,24 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[#c5a059]/30">
               <Sparkles className="w-5 h-5 text-[#c5a059]" />
               <h3 className="font-serif-coptic font-bold text-sm text-[#f5ebd9] uppercase tracking-wider">
-                Share Parish Story
+                {language === 'ar' ? 'مشاركة قصة للرعية' : 'Share Parish Story'}
               </h3>
             </div>
 
             <form onSubmit={handlePublishStory} className="space-y-4 text-xs font-serif">
               <div>
                 <label className="block text-[#c5a059] font-bold uppercase tracking-wider mb-1.5">
-                  Story Image URL
+                  {language === 'ar' ? 'رابط صورة القصة' : 'Story Image URL'}
                 </label>
                 <div className="relative">
-                  <ImageIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#a89379]" />
+                  <ImageIcon className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-[#a89379]" />
                   <input
                     type="url"
                     required
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
                     placeholder="https://images.unsplash.com/..."
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#282019] border border-[#c5a059] text-[#f5ebd9] placeholder-[#a89379] focus:outline-none"
+                    className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2.5 rounded-xl bg-[#282019] border border-[#c5a059] text-[#f5ebd9] placeholder-[#a89379] focus:outline-none"
                   />
                 </div>
               </div>
@@ -285,7 +289,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
               {/* Sample Photo Pickers */}
               <div>
                 <span className="block text-[10px] text-[#a89379] uppercase tracking-wider mb-2 font-bold">
-                  Or select a sample Orthodox photo:
+                  {language === 'ar' ? 'أو اختر صورة أرثوذكسية نموذجية:' : 'Or select a sample Orthodox photo:'}
                 </span>
                 <div className="grid grid-cols-4 gap-2">
                   {SAMPLE_STORY_IMAGES.map((url, i) => (
@@ -305,13 +309,17 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
 
               <div>
                 <label className="block text-[#c5a059] font-bold uppercase tracking-wider mb-1.5">
-                  Caption / Spiritual Note
+                  {language === 'ar' ? 'تسمية توضيحية / خاطرة روحية' : 'Caption / Spiritual Note'}
                 </label>
                 <textarea
                   rows={3}
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
-                  placeholder="Share a thought, verse, or blessing with your parish..."
+                  placeholder={
+                    language === 'ar'
+                      ? 'شارك فكرة، آية، أو بركة مع رعيتك...'
+                      : 'Share a thought, verse, or blessing with your parish...'
+                  }
                   className="w-full p-3 rounded-xl bg-[#282019] border border-[#c5a059] text-[#f5ebd9] placeholder-[#a89379] focus:outline-none"
                 />
               </div>
@@ -322,15 +330,15 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
                   onClick={() => setIsCreateOpen(false)}
                   className="px-4 py-2 rounded-xl bg-[#282019] text-[#f5ebd9] font-bold uppercase tracking-wider cursor-pointer"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !imageUrl.trim()}
                   className="px-5 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-white font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-40"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Publish Story</span>
+                  <Send className="w-3.5 h-3.5 rtl:rotate-180" />
+                  <span>{language === 'ar' ? 'نشر القصة' : 'Publish Story'}</span>
                 </button>
               </div>
             </form>

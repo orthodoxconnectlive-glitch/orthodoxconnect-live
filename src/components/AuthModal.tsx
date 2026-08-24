@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 
 export const AuthModal: React.FC = () => {
   const { isAuthModalOpen, closeAuthModal, signIn, signUp } = useAuth();
-  const { t } = useTheme();
+  const { t, language } = useTheme();
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -25,19 +25,25 @@ export const AuthModal: React.FC = () => {
     if (mode === 'signin') {
       const { error } = await signIn(email, password);
       if (error) {
-        setErrorText(error.message || 'Invalid login credentials');
+        setErrorText(
+          error.message || (language === 'ar' ? 'بيانات تسجيل الدخول غير صحيحة' : 'Invalid login credentials')
+        );
       } else {
         closeAuthModal();
       }
     } else {
       if (!fullName || !parish) {
-        setErrorText('Please fill in your full name and parish name.');
+        setErrorText(
+          language === 'ar'
+            ? 'يرجى إدخال الاسم الكامل واسم الرعية.'
+            : 'Please fill in your full name and parish name.'
+        );
         setLoading(false);
         return;
       }
       const { error } = await signUp(email, password, fullName, parish);
       if (error) {
-        setErrorText(error.message || 'Sign up failed');
+        setErrorText(error.message || (language === 'ar' ? 'فشل إنشاء الحساب' : 'Sign up failed'));
       } else {
         closeAuthModal();
       }
@@ -48,10 +54,10 @@ export const AuthModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-md bg-stone-950 border border-amber-600/40 rounded-2xl p-6 shadow-2xl text-stone-100">
+      <div className="relative w-full max-w-md bg-stone-950 border border-amber-600/40 rounded-2xl p-6 shadow-2xl text-stone-100 text-left rtl:text-right">
         <button
           onClick={closeAuthModal}
-          className="absolute top-4 right-4 p-1.5 rounded-full text-stone-400 hover:text-amber-300 hover:bg-stone-900 transition-colors cursor-pointer"
+          className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-1.5 rounded-full text-stone-400 hover:text-amber-300 hover:bg-stone-900 transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -66,7 +72,11 @@ export const AuthModal: React.FC = () => {
           </h3>
           <p className="text-xs text-stone-400">
             {mode === 'signin'
-              ? 'Sign in to connect with your Orthodox community'
+              ? language === 'ar'
+                ? 'سجّل الدخول للتواصل مع مجتمعك الأرثوذكسي'
+                : 'Sign in to connect with your Orthodox community'
+              : language === 'ar'
+              ? 'أنشئ حسابك للانضمام إلى شبكة أورثوذكس كونكت'
               : 'Create your account to join OrthodoxConnect'}
           </p>
         </div>
@@ -114,14 +124,14 @@ export const AuthModal: React.FC = () => {
                   {t('fullName')}
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+                  <User className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-stone-400" />
                   <input
                     type="text"
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. John Chrysostom / Maria Markos"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
+                    placeholder={language === 'ar' ? 'مثال: يوحنا ذهبي الفم / مريم مرقس' : 'e.g. John Chrysostom / Maria Markos'}
+                    className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
@@ -131,14 +141,14 @@ export const AuthModal: React.FC = () => {
                   {t('parish')}
                 </label>
                 <div className="relative">
-                  <Church className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+                  <Church className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-stone-400" />
                   <input
                     type="text"
                     required
                     value={parish}
                     onChange={(e) => setParish(e.target.value)}
-                    placeholder="e.g. St. George Antiochian Church"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
+                    placeholder={language === 'ar' ? 'مثال: كنيسة القديس جاورجيوس الأنطاكية' : 'e.g. St. George Antiochian Church'}
+                    className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
@@ -147,34 +157,34 @@ export const AuthModal: React.FC = () => {
 
           <div>
             <label className="block text-amber-300 font-semibold mb-1">
-              Email Address
+              {language === 'ar' ? 'البريد الإلكتروني' : 'Email Address'}
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+              <Mail className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-stone-400" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="orthodox@example.com"
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
+                className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
               />
             </div>
           </div>
 
           <div>
             <label className="block text-amber-300 font-semibold mb-1">
-              Password
+              {language === 'ar' ? 'كلمة المرور' : 'Password'}
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+              <Lock className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-stone-400" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
+                className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
               />
             </div>
           </div>
@@ -184,10 +194,12 @@ export const AuthModal: React.FC = () => {
             disabled={loading}
             className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-stone-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer disabled:opacity-50"
           >
-            <LogIn className="w-4 h-4" />
+            <LogIn className="w-4 h-4 rtl:rotate-180" />
             <span>
               {loading
-                ? 'Processing...'
+                ? language === 'ar'
+                  ? 'جارٍ المعالجة...'
+                  : 'Processing...'
                 : mode === 'signin'
                 ? t('signIn')
                 : t('signUp')}

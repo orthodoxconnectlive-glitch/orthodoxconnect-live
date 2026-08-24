@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Send, Sparkles, MessageSquare, Shield, CheckCircle } from 'lucide-react';
 import { addNotification } from '../utils/notifications';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 export interface ChatMessage {
   id: string;
@@ -13,7 +14,7 @@ export interface ChatMessage {
   avatarUrl?: string;
 }
 
-const INITIAL_MESSAGES: ChatMessage[] = [
+const INITIAL_MESSAGES_EN: ChatMessage[] = [
   {
     id: 'msg-1',
     author: 'Deacon Andrew',
@@ -48,15 +49,69 @@ const INITIAL_MESSAGES: ChatMessage[] = [
   },
 ];
 
+const INITIAL_MESSAGES_AR: ChatMessage[] = [
+  {
+    id: 'msg-1',
+    author: 'الشماس أندراوس',
+    role: 'clergy',
+    text: 'أهلاً بكم يا أبناء الرعية الأحباء في الخدمة الإلهية اليوم! نعمة وسلام للجميع.',
+    timestamp: '10:00 ص',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150',
+  },
+  {
+    id: 'msg-2',
+    author: 'إليني بابادوبولوس',
+    role: 'member',
+    text: 'يا رب ارحم 🙏 عيد مبارك ومقدس للجميع!',
+    timestamp: '10:02 ص',
+    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150',
+  },
+  {
+    id: 'msg-3',
+    author: 'المساعد الشماسي مرقس',
+    role: 'clergy',
+    text: 'اذكروا في صلواتكم صحة وخلاص عبد الله توما.',
+    timestamp: '10:05 ص',
+    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150',
+  },
+  {
+    id: 'msg-4',
+    author: 'ماريّا ك.',
+    role: 'member',
+    text: 'آمين! ترانيم الجوقة تفيض بالخشوع والبركة 🕯️',
+    timestamp: '10:08 ص',
+    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150',
+  },
+];
+
 interface ParishLiveChatProps {
   parishName?: string;
 }
 
 export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) => {
   const { profile } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
+  const { t, language } = useTheme();
+
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    language === 'ar' ? INITIAL_MESSAGES_AR : INITIAL_MESSAGES_EN
+  );
   const [inputText, setInputText] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Update initial messages when switching language
+  useEffect(() => {
+    setMessages((prev) => {
+      const isArabic = language === 'ar';
+      const targetDefaults = isArabic ? INITIAL_MESSAGES_AR : INITIAL_MESSAGES_EN;
+      return prev.map((msg) => {
+        const found = targetDefaults.find((d) => d.id === msg.id);
+        if (found) {
+          return { ...msg, author: found.author, text: found.text, timestamp: found.timestamp };
+        }
+        return msg;
+      });
+    });
+  }, [language]);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -78,15 +133,20 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
     const textToSend = (customText || inputText).trim();
     if (!textToSend) return;
 
-    const authorName = profile?.full_name || 'Parish Member';
+    const authorName = profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Parish Member');
 
     const newMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
       author: authorName,
       role: profile?.role || 'member',
       text: textToSend,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      avatarUrl: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150',
+      timestamp: new Date().toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      avatarUrl:
+        profile?.avatar_url ||
+        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150',
     };
 
     setMessages((prev) => [...prev, newMessage]);
@@ -94,16 +154,25 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
   };
 
   const handleRequestBlessing = () => {
-    const authorName = profile?.full_name || 'Parish Member';
+    const authorName = profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Parish Member');
+    const blessingText =
+      language === 'ar'
+        ? '🙏 أطلب بركة الكاهن للعائلة والصحة والسلام.'
+        : '🙏 Requesting priest’s blessing for family & health.';
 
     const blessingMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
       author: authorName,
       role: profile?.role || 'member',
-      text: '🙏 Requesting priest’s blessing for family & health.',
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      text: blessingText,
+      timestamp: new Date().toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
       isBlessingRequest: true,
-      avatarUrl: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150',
+      avatarUrl:
+        profile?.avatar_url ||
+        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150',
     };
 
     setMessages((prev) => [...prev, blessingMessage]);
@@ -111,15 +180,15 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
       {
         userId: 'all',
         type: 'system',
-        title: `Blessing Request from ${authorName}`,
-        body: 'Requesting priest’s blessing for family & health.',
+        title: language === 'ar' ? `طلب بركة من ${authorName}` : `Blessing Request from ${authorName}`,
+        body: blessingText,
         senderName: authorName,
         senderAvatar: profile?.avatar_url,
         link: 'live',
       },
       profile?.id
     );
-    showToast('Blessing request submitted to priest!');
+    showToast(language === 'ar' ? 'تم إرسال طلب البركة للكاهن الخادم!' : 'Blessing request submitted to priest!');
   };
 
   return (
@@ -137,20 +206,20 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
         <div className="flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-amber-400" />
           <h3 className="font-serif font-bold text-xs text-amber-100 uppercase tracking-wider">
-            Parish Live Chat
+            {t('parishLiveChat')}
           </h3>
           <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold">
-            LIVE FEED
+            {t('liveFeed')}
           </span>
         </div>
 
         <button
           onClick={handleRequestBlessing}
           className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm"
-          title="Send blessing request to clergy"
+          title={t('askForPriestBlessing')}
         >
           <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          <span>Request Blessing</span>
+          <span>{t('requestBlessing')}</span>
         </button>
       </div>
 
@@ -169,7 +238,10 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
             }`}
           >
             <img
-              src={msg.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150'}
+              src={
+                msg.avatarUrl ||
+                'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150'
+              }
               alt={msg.author}
               className="w-6 h-6 rounded-full object-cover border border-amber-600/30 shrink-0 mt-0.5"
             />
@@ -178,10 +250,10 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
                 <span className="font-bold text-xs text-amber-200">{msg.author}</span>
                 {msg.role === 'clergy' && (
                   <span className="px-1.5 py-0.2 rounded bg-amber-600 text-stone-950 text-[9px] font-black uppercase flex items-center gap-0.5">
-                    <Shield className="w-2.5 h-2.5" /> CLERGY
+                    <Shield className="w-2.5 h-2.5" /> {t('clergy')}
                   </span>
                 )}
-                <span className="text-[10px] text-stone-500 ml-auto">{msg.timestamp}</span>
+                <span className="text-[10px] text-stone-500 ltr:ml-auto rtl:mr-auto">{msg.timestamp}</span>
               </div>
               <p
                 className={`text-xs mt-0.5 break-words ${
@@ -198,28 +270,28 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
       {/* Quick Reaction Action Chips */}
       <div className="px-3 py-2 bg-stone-900/60 border-t border-amber-900/30 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
         <button
-          onClick={() => handleSendMessage(undefined, 'Lord Have Mercy 🙏')}
+          onClick={() => handleSendMessage(undefined, language === 'ar' ? '🙏 يا رب ارحم' : 'Lord Have Mercy 🙏')}
           className="px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-amber-300 text-[10px] font-semibold whitespace-nowrap transition-colors cursor-pointer"
         >
-          🙏 Lord Have Mercy
+          {t('lordHaveMercy')}
         </button>
         <button
-          onClick={() => handleSendMessage(undefined, '☦️ Amen')}
+          onClick={() => handleSendMessage(undefined, language === 'ar' ? '☦️ آمين' : '☦️ Amen')}
           className="px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-amber-300 text-[10px] font-semibold whitespace-nowrap transition-colors cursor-pointer"
         >
-          ☦️ Amen
+          {t('amen')}
         </button>
         <button
-          onClick={() => handleSendMessage(undefined, '🕯️ Light a Candle')}
+          onClick={() => handleSendMessage(undefined, language === 'ar' ? '🕯️ إيقاد شمعة' : '🕯️ Light a Candle')}
           className="px-2.5 py-1 rounded-full bg-stone-800 hover:bg-stone-700 text-amber-300 text-[10px] font-semibold whitespace-nowrap transition-colors cursor-pointer"
         >
-          🕯️ Light a Candle
+          {t('lightCandleReaction')}
         </button>
         <button
           onClick={handleRequestBlessing}
           className="px-2.5 py-1 rounded-full bg-amber-900/40 hover:bg-amber-900/60 text-amber-200 border border-amber-500/30 text-[10px] font-semibold whitespace-nowrap transition-colors cursor-pointer"
         >
-          ✝️ Request Blessing
+          {t('requestBlessingReaction')}
         </button>
       </div>
 
@@ -232,7 +304,7 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder={`Chat with ${parishName || 'parishioners'}...`}
+          placeholder={language === 'ar' ? `اكتب رسالة لـ ${parishName || 'أبناء الرعية'}...` : `Chat with ${parishName || 'parishioners'}...`}
           className="flex-1 px-3 py-2 rounded-xl bg-stone-950 border border-amber-900/40 text-xs text-amber-100 placeholder-stone-500 focus:outline-none focus:border-amber-500"
         />
         <button

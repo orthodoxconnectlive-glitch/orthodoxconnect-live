@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Users, Plus, Shield, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { X, Users, Plus } from 'lucide-react';
 import { GroupRoom } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -17,13 +17,15 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   onGroupCreated,
 }) => {
   const { profile } = useAuth();
-  const { t } = useTheme();
+  const { t, language } = useTheme();
 
   const [name, setName] = useState('');
   const [type, setType] = useState<GroupRoom['type']>('bible_study');
   const [description, setDescription] = useState('');
   const [icon, setIcon] = useState('☦️');
-  const [parish, setParish] = useState(profile?.parish || 'St. George Parish');
+  const [parish, setParish] = useState(
+    profile?.parish || (language === 'ar' ? 'رعية مار جرجس' : 'St. George Parish')
+  );
 
   if (!isOpen) return null;
 
@@ -36,7 +38,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
       type,
       description: description.trim(),
       icon,
-      hostName: profile?.full_name || 'Parish Admin',
+      hostName: profile?.full_name || (language === 'ar' ? 'مسؤول الرعية' : 'Parish Admin'),
       parish: parish.trim(),
     });
 
@@ -50,10 +52,10 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-lg bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-6 shadow-2xl text-[#3d2b18] dark:text-[#f5ebd9]">
+      <div className="relative w-full max-w-lg bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-6 shadow-2xl text-[#3d2b18] dark:text-[#f5ebd9] text-left rtl:text-right">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 rtl:left-4 rtl:right-auto p-1.5 rounded-full text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18] hover:bg-[#eedcb5] transition-colors cursor-pointer"
+          className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-1.5 rounded-full text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18] hover:bg-[#eedcb5] transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -67,7 +69,9 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               {t('createCustomGroup')}
             </h3>
             <p className="text-xs font-serif text-[#7c5f3d] dark:text-[#a89379]">
-              Form an Orthodox fellowship circle or ministry group.
+              {language === 'ar'
+                ? 'تأسيس دائرة زمالة أرثوذكسية أو خدمة رعوية جديدة.'
+                : 'Form an Orthodox fellowship circle or ministry group.'}
             </p>
           </div>
         </div>
@@ -82,7 +86,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. St. Nektarios Healing Ministry"
+              placeholder={language === 'ar' ? 'مثال: خدمة القديس نكتاريوس للشفاء' : 'e.g. St. Nektarios Healing Ministry'}
               className="w-full p-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-xs text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none focus:ring-2 focus:ring-[#c5a059]"
             />
           </div>
@@ -97,13 +101,13 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                 onChange={(e) => setType(e.target.value as GroupRoom['type'])}
                 className="w-full p-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-xs text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none"
               >
-                <option value="bible_study">📖 Bible Study</option>
-                <option value="youth">☦️ Youth Fellowship</option>
-                <option value="choir">🎶 Choral Rehearsal</option>
-                <option value="women_prayer">🌹 Women Prayer Circle</option>
-                <option value="parish_live">⛪ Parish Ministry</option>
-                <option value="philanthropy">🕊️ Philanthropy & Charity</option>
-                <option value="general">✨ General Fellowship</option>
+                <option value="bible_study">{language === 'ar' ? '📖 دراسة الكتاب المقدس' : '📖 Bible Study'}</option>
+                <option value="youth">{language === 'ar' ? '☦️ زمالة الشبيبة' : '☦️ Youth Fellowship'}</option>
+                <option value="choir">{language === 'ar' ? '🎶 تمارين الخورس الكنسي' : '🎶 Choral Rehearsal'}</option>
+                <option value="women_prayer">{language === 'ar' ? '🌹 حلقة صلاة السيدات' : '🌹 Women Prayer Circle'}</option>
+                <option value="parish_live">{language === 'ar' ? '⛪ خدمة وأنشطة الرعية' : '⛪ Parish Ministry'}</option>
+                <option value="philanthropy">{language === 'ar' ? '🕊️ أعمال البر والرحمة' : '🕊️ Philanthropy & Charity'}</option>
+                <option value="general">{language === 'ar' ? '✨ زمالة روحية عامة' : '✨ General Fellowship'}</option>
               </select>
             </div>
 
@@ -137,20 +141,24 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe the purpose, meeting schedule, and Patristic study goals..."
+              placeholder={
+                language === 'ar'
+                  ? 'اكتب هدف المجموعة، مواعيد اللقاءات، وأهداف الدراسة الآبائية...'
+                  : 'Describe the purpose, meeting schedule, and Patristic study goals...'
+              }
               className="w-full p-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-xs text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none focus:ring-2 focus:ring-[#c5a059]"
             />
           </div>
 
           <div>
             <label className="block text-xs font-serif font-bold uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9] mb-1">
-              Parish / Monastery Affiliation
+              {language === 'ar' ? 'التبعية الكنسية / الدير' : 'Parish / Monastery Affiliation'}
             </label>
             <input
               type="text"
               value={parish}
               onChange={(e) => setParish(e.target.value)}
-              placeholder="e.g. St. George Antiochian Church"
+              placeholder={language === 'ar' ? 'مثال: كنيسة القديس جاورجيوس الأنطاكية' : 'e.g. St. George Antiochian Church'}
               className="w-full p-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-xs text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none"
             />
           </div>
@@ -161,7 +169,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               onClick={onClose}
               className="px-5 py-2.5 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] text-[#3d2b18] dark:text-[#f5ebd9] font-serif font-bold text-xs uppercase tracking-wider border border-[#c5a059]"
             >
-              Cancel
+              {t('cancel')}
             </button>
             <button
               type="submit"

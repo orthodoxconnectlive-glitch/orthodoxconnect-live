@@ -11,7 +11,7 @@ interface InviteModalProps {
 
 export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => {
   const { profile } = useAuth();
-  const { t } = useTheme();
+  const { t, language } = useTheme();
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -27,24 +27,28 @@ export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => 
 
   const handleWhatsApp = () => {
     const text = encodeURIComponent(
-      `Christ is in our Midst! Join me on OrthodoxConnect—the fellowship network for Orthodox Christians: ${referralUrl}`
+      language === 'ar'
+        ? `المسيح في وسطنا! انضم إليّ على شبكة أورثوذكس كونكت للتواصل الأرثوذكسي: ${referralUrl}`
+        : `Christ is in our Midst! Join me on OrthodoxConnect—the fellowship network for Orthodox Christians: ${referralUrl}`
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
 
   const handleSMS = () => {
     const text = encodeURIComponent(
-      `Join me on OrthodoxConnect fellowship network: ${referralUrl}`
+      language === 'ar'
+        ? `انضم إليّ على شبكة أورثوذكس كونكت: ${referralUrl}`
+        : `Join me on OrthodoxConnect fellowship network: ${referralUrl}`
     );
     window.open(`sms:?body=${text}`, '_blank');
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-md bg-stone-950 border border-amber-600/40 rounded-2xl p-6 shadow-2xl text-stone-100">
+      <div className="relative w-full max-w-md bg-stone-950 border border-amber-600/40 rounded-2xl p-6 shadow-2xl text-stone-100 text-left rtl:text-right">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-full text-stone-400 hover:text-amber-300 hover:bg-stone-900 transition-colors cursor-pointer"
+          className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-1.5 rounded-full text-stone-400 hover:text-amber-300 hover:bg-stone-900 transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -66,7 +70,7 @@ export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => 
           <div className="p-3 bg-white rounded-xl shadow-lg">
             <QRCodeSVG value={referralUrl} size={170} level="H" includeMargin />
           </div>
-          <span className="text-[11px] text-amber-300 font-mono mt-3 break-all px-2 text-center">
+          <span className="text-[11px] text-amber-300 font-mono mt-3 break-all px-2 text-center" dir="ltr">
             {referralUrl}
           </span>
         </div>
@@ -80,7 +84,7 @@ export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => 
             {copied ? (
               <>
                 <Check className="w-4 h-4 text-stone-950" />
-                <span>Link Copied to Clipboard!</span>
+                <span>{language === 'ar' ? 'تم نسخ الرابط إلى الحافظة!' : 'Link Copied to Clipboard!'}</span>
               </>
             ) : (
               <>
@@ -96,7 +100,7 @@ export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => 
               className="py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
             >
               <MessageCircle className="w-4 h-4" />
-              <span>WhatsApp</span>
+              <span>واتساب</span>
             </button>
 
             <button
@@ -104,7 +108,7 @@ export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => 
               className="py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-500/30 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
               <Share2 className="w-4 h-4" />
-              <span>SMS / Share</span>
+              <span>{language === 'ar' ? 'رسالة نصية / مشاركة' : 'SMS / Share'}</span>
             </button>
           </div>
         </div>

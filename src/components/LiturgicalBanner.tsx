@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Calendar, BookOpen, Utensils, Share2, Check, Sparkles } from 'lucide-react';
-import { TODAY_LITURGICAL_DAY } from '../data/liturgical';
+import { getTodayLiturgicalDay } from '../data/liturgical';
 import { useTheme } from '../context/ThemeContext';
 
 interface LiturgicalBannerProps {
@@ -8,11 +8,13 @@ interface LiturgicalBannerProps {
 }
 
 export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalendar }) => {
-  const { t, theme } = useTheme();
+  const { t, language } = useTheme();
   const [copied, setCopied] = useState(false);
+  const todayData = getTodayLiturgicalDay(language);
 
   const handleShareScripture = () => {
-    const textToShare = `Daily Orthodox Scripture (${TODAY_LITURGICAL_DAY.scriptureRef}): "${TODAY_LITURGICAL_DAY.scriptureText}" - via OrthodoxConnect.live`;
+    const prefix = language === 'ar' ? 'القراءة الأرثوذكسية اليومية' : 'Daily Orthodox Scripture';
+    const textToShare = `${prefix} (${todayData.scriptureRef}): "${todayData.scriptureText}" - via OrthodoxConnect.live`;
     navigator.clipboard.writeText(textToShare);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -30,20 +32,20 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
           <div className="flex items-center gap-2 flex-wrap text-xs">
             <span className="px-3 py-1 rounded-full bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-[#3d2b18] dark:text-[#f5ebd9] font-serif font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-[#a8833c]" />
-              {TODAY_LITURGICAL_DAY.date}
+              {todayData.date}
             </span>
             <span className="px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-400 text-emerald-900 dark:text-emerald-200 font-serif font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
               <Utensils className="w-3 h-3 text-emerald-700 dark:text-emerald-400" />
-              {TODAY_LITURGICAL_DAY.fastingInfo}
+              {todayData.fastingInfo}
             </span>
           </div>
 
           <div>
             <h2 className="text-lg md:text-xl font-serif-coptic font-bold text-[#3d2b18] dark:text-[#f5ebd9] flex items-center gap-2 uppercase tracking-wider">
-              <span>⛪ {TODAY_LITURGICAL_DAY.saintName}</span>
+              <span>⛪ {todayData.saintName}</span>
             </h2>
             <p className="text-xs text-[#7c5f3d] dark:text-[#a89379] italic font-serif">
-              {TODAY_LITURGICAL_DAY.saintTitle}
+              {todayData.saintTitle}
             </p>
           </div>
 
@@ -53,10 +55,10 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
               <BookOpen className="w-4 h-4 text-[#a8833c] shrink-0 mt-0.5" />
               <div>
                 <p className="text-xs text-[#3d2b18] dark:text-[#f5ebd9] italic font-serif leading-relaxed">
-                  "{TODAY_LITURGICAL_DAY.scriptureText}"
+                  "{todayData.scriptureText}"
                 </p>
                 <span className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif font-bold uppercase tracking-wider mt-1 block">
-                  — {TODAY_LITURGICAL_DAY.scriptureRef}
+                  — {todayData.scriptureRef}
                 </span>
               </div>
             </div>
@@ -85,4 +87,5 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
     </div>
   );
 };
+
 

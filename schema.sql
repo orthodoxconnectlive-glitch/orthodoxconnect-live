@@ -59,6 +59,8 @@ CREATE INDEX IF NOT EXISTS idx_posts_group_id ON posts(group_id);
 CREATE TABLE IF NOT EXISTS post_likes (
   post_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
+  user_name TEXT,
+  user_avatar TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (post_id, user_id)
 );

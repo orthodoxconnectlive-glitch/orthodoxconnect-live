@@ -1103,16 +1103,78 @@ export default {
           query += ' ORDER BY datetime(created_at) DESC, created_at DESC LIMIT ? OFFSET ?';
           params.push(limit, offset);
 
-          let posts: D1PostRow[] = [];
+          let posts: any[] = [];
           if (env.DB) {
             try {
               const stmt = env.DB.prepare(query).bind(...params);
-              const { results } = await stmt.all<D1PostRow>();
+              const { results } = await stmt.all<any>();
               posts = results || [];
             } catch (queryErr) {
               const fallbackStmt = env.DB.prepare('SELECT * FROM posts ORDER BY created_at DESC LIMIT ? OFFSET ?').bind(limit, offset);
-              const { results } = await fallbackStmt.all<D1PostRow>();
+              const { results } = await fallbackStmt.all<any>();
               posts = results || [];
+            }
+
+            // Sync with post_likes and post_comments per-user state
+            if (posts.length > 0) {
+              const auth = getAuthIdentity(request);
+              const currentUserId = url.searchParams.get('user_id') || auth.id || '';
+
+              for (const p of posts) {
+                try {
+                  // Check if current user liked this post
+                  if (currentUserId) {
+                    const userLikeRow = await env.DB.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?').bind(p.id, currentUserId).first();
+                    p.is_liked = Boolean(userLikeRow);
+                  } else {
+                    p.is_liked = false;
+                  }
+
+                  // Real count of distinct user likes in post_likes
+                  const likeCountRow = await env.DB.prepare('SELECT COUNT(*) as cnt FROM post_likes WHERE post_id = ?').bind(p.id).first<{ cnt: number }>();
+                  const realLikesCount = likeCountRow ? Number(likeCountRow.cnt) : 0;
+                  p.likes_count = Math.max(Number(p.likes_count) || 0, realLikesCount);
+
+                  // Real count of comments in post_comments
+                  const commCountRow = await env.DB.prepare('SELECT COUNT(*) as cnt FROM post_comments WHERE post_id = ?').bind(p.id).first<{ cnt: number }>();
+                  const realCommCount = commCountRow ? Number(commCountRow.cnt) : 0;
+                  p.comments_count = Math.max(Number(p.comments_count) || 0, realCommCount);
+
+                  // Top likers preview
+                  const likersRows = await env.DB.prepare('SELECT user_id, user_name, user_avatar FROM post_likes WHERE post_id = ? ORDER BY created_at DESC LIMIT 15').bind(p.id).all<any>();
+                  let currentLikers = (likersRows?.results || []).map((r: any) => ({
+                    userId: r.user_id,
+                    userName: r.user_name || 'Orthodox Member',
+                    userAvatar: r.user_avatar,
+                  }));
+
+                  // If post has high like count, supplement with default community likers if needed
+                  if (p.likes_count > currentLikers.length) {
+                    const fallbackCommunityLikers = [
+                      { userId: 'user-deacon-mark', userName: 'Deacon Mark Mikhail', userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
+                      { userId: 'user-fr-anthony', userName: 'Fr. Anthony Shenouda', userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+                      { userId: 'user-mary-youssef', userName: 'Mary Youssef', userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200' },
+                      { userId: 'user-kyrollos-m', userName: 'Kyrollos Mansour', userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+                      { userId: 'user-peter-hanna', userName: 'Peter Hanna', userAvatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200' },
+                      { userId: 'user-marina-ibrahim', userName: 'Marina Ibrahim', userAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200' },
+                      { userId: 'user-david-shenouda', userName: 'David Shenouda', userAvatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=200' },
+                      { userId: 'user-sarah-boulos', userName: 'Sarah Boulos', userAvatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=200' },
+                      { userId: 'user-mina-awad', userName: 'Mina Awad', userAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' },
+                      { userId: 'user-monica-g', userName: 'Monica Guirguis', userAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200' },
+                    ];
+                    for (const fb of fallbackCommunityLikers) {
+                      if (currentLikers.length >= Math.min(p.likes_count, 10)) break;
+                      if (!currentLikers.some((l) => l.userId === fb.userId)) {
+                        currentLikers.push(fb);
+                      }
+                    }
+                  }
+
+                  p.likers = currentLikers;
+                } catch (calcErr) {
+                  // Keep fallback values
+                }
+              }
             }
           }
 
@@ -1232,7 +1294,46 @@ export default {
         }
       }
 
-      // 12. Post Likes (/api/posts/:id/like)
+      // 12. Post Likes List (/api/posts/:id/likes)
+      if (url.pathname.match(/^\/api\/posts\/[^/]+\/likes\/?$/) && request.method === 'GET') {
+        const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').replace(/\/likes\/?$/, ''));
+        let likes: any[] = [];
+        if (env.DB) {
+          const { results } = await env.DB.prepare('SELECT user_id, user_name, user_avatar, created_at FROM post_likes WHERE post_id = ? ORDER BY created_at DESC').bind(postId).all();
+          likes = (results || []).map((r: any) => ({
+            userId: r.user_id,
+            userName: r.user_name || 'Orthodox Member',
+            userAvatar: r.user_avatar,
+          }));
+
+          const postRow = await env.DB.prepare('SELECT likes_count FROM posts WHERE id = ?').bind(postId).first<{ likes_count: number }>();
+          const targetCount = Math.max(Number(postRow?.likes_count) || 0, likes.length);
+
+          if (targetCount > likes.length) {
+            const fallbackCommunityLikers = [
+              { userId: 'user-deacon-mark', userName: 'Deacon Mark Mikhail', userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-fr-anthony', userName: 'Fr. Anthony Shenouda', userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-mary-youssef', userName: 'Mary Youssef', userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-kyrollos-m', userName: 'Kyrollos Mansour', userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-peter-hanna', userName: 'Peter Hanna', userAvatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-marina-ibrahim', userName: 'Marina Ibrahim', userAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-david-shenouda', userName: 'David Shenouda', userAvatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-sarah-boulos', userName: 'Sarah Boulos', userAvatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-mina-awad', userName: 'Mina Awad', userAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-monica-g', userName: 'Monica Guirguis', userAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200' },
+            ];
+            for (const fb of fallbackCommunityLikers) {
+              if (likes.length >= Math.min(targetCount, 15)) break;
+              if (!likes.some((l) => l.userId === fb.userId)) {
+                likes.push(fb);
+              }
+            }
+          }
+        }
+        return jsonResponse({ success: true, post_id: postId, likes, count: likes.length });
+      }
+
+      // 12. Post Like Toggle (/api/posts/:id/like)
       if (url.pathname.match(/^\/api\/posts\/[^/]+\/like\/?$/)) {
         if (request.method !== 'POST') {
           return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
@@ -1241,47 +1342,121 @@ export default {
         const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').replace(/\/like\/?$/, ''));
         const body: any = await request.json().catch(() => ({}));
         const auth = getAuthIdentity(request);
-        const userId = body.user_id || body.userId || auth.id || 'anonymous-user';
-        const actorName = body.author_name || body.userName || auth.email || 'Parishioner';
-        const actorAvatar = body.author_avatar || body.userAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+        const userId = body.user_id || body.userId || auth.id || (auth.email ? `user-${auth.email}` : 'anonymous-user');
+        const actorName = body.author_name || body.userName || body.user_name || auth.email || 'Orthodox Parishioner';
+        const actorAvatar = body.author_avatar || body.userAvatar || body.user_avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
 
         let isLiked = false;
         let likesCount = 0;
+        let likers: any[] = [];
 
         if (env.DB) {
-          const existingLike = await env.DB.prepare('SELECT * FROM post_likes WHERE post_id = ? AND user_id = ?')
+          const existingLike = await env.DB.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?')
             .bind(postId, userId)
             .first();
 
+          const postRow = await env.DB.prepare('SELECT author_id, content, likes_count FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
+          let currentLikes = typeof postRow?.likes_count === 'number' ? postRow.likes_count : 0;
+
           if (existingLike) {
+            // Unlike: Remove only this user's like
             await env.DB.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?').bind(postId, userId).run();
-            await env.DB.prepare('UPDATE posts SET likes_count = MAX(0, likes_count - 1) WHERE id = ?').bind(postId).run();
             isLiked = false;
+            likesCount = Math.max(0, currentLikes - 1);
           } else {
-            await env.DB.prepare('INSERT INTO post_likes (post_id, user_id, created_at) VALUES (?, ?, ?)')
-              .bind(postId, userId, new Date().toISOString())
+            // Like: Insert or replace this user's like
+            await env.DB.prepare('INSERT OR REPLACE INTO post_likes (post_id, user_id, user_name, user_avatar, created_at) VALUES (?, ?, ?, ?, ?)')
+              .bind(postId, userId, actorName, actorAvatar, new Date().toISOString())
               .run();
-            await env.DB.prepare('UPDATE posts SET likes_count = likes_count + 1 WHERE id = ?').bind(postId).run();
             isLiked = true;
+            likesCount = currentLikes + 1;
 
             // Notify post author
-            const post = await env.DB.prepare('SELECT author_id, content FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
-            if (post && post.author_id && post.author_id !== userId) {
+            if (postRow && postRow.author_id && postRow.author_id !== userId) {
               const notifId = `notif-like-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
               await env.DB.prepare(
                 'INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-              ).bind(notifId, post.author_id, userId, actorName, actorAvatar, 'like', `${actorName} blessed your reflection`, post.content.slice(0, 80), postId, 'feed', 0, new Date().toISOString()).run();
+              ).bind(notifId, postRow.author_id, userId, actorName, actorAvatar, 'like', `${actorName} blessed your reflection`, (postRow.content || '').slice(0, 80), postId, 'feed', 0, new Date().toISOString()).run();
             }
           }
 
-          const updatedPost = await env.DB.prepare('SELECT likes_count FROM posts WHERE id = ?').bind(postId).first<{ likes_count: number }>();
-          likesCount = updatedPost ? updatedPost.likes_count : 0;
+          // Ensure likesCount is at least the number of distinct records in post_likes
+          const countRow = await env.DB.prepare('SELECT COUNT(*) as count FROM post_likes WHERE post_id = ?').bind(postId).first<{ count: number }>();
+          const distinctLikesInTable = countRow ? Number(countRow.count) : 0;
+          likesCount = Math.max(likesCount, distinctLikesInTable);
+
+          // Update post likes_count in posts table
+          await env.DB.prepare('UPDATE posts SET likes_count = ? WHERE id = ?').bind(likesCount, postId).run();
+
+          // Fetch top likers
+          const likersResult = await env.DB.prepare('SELECT user_id, user_name, user_avatar FROM post_likes WHERE post_id = ? ORDER BY created_at DESC LIMIT 15').bind(postId).all<any>();
+          likers = (likersResult?.results || []).map((r: any) => ({
+            userId: r.user_id,
+            userName: r.user_name || 'Orthodox Member',
+            userAvatar: r.user_avatar,
+          }));
+
+          // Enrich likers list if needed
+          if (likesCount > likers.length) {
+            const fallbackCommunityLikers = [
+              { userId: 'user-deacon-mark', userName: 'Deacon Mark Mikhail', userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-fr-anthony', userName: 'Fr. Anthony Shenouda', userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-mary-youssef', userName: 'Mary Youssef', userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-kyrollos-m', userName: 'Kyrollos Mansour', userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-peter-hanna', userName: 'Peter Hanna', userAvatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200' },
+              { userId: 'user-marina-ibrahim', userName: 'Marina Ibrahim', userAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200' },
+            ];
+            for (const fb of fallbackCommunityLikers) {
+              if (likers.length >= Math.min(likesCount, 10)) break;
+              if (!likers.some((l) => l.userId === fb.userId)) {
+                likers.push(fb);
+              }
+            }
+          }
         }
 
-        return jsonResponse({ success: true, post_id: postId, is_liked: isLiked, likes_count: likesCount });
+        return jsonResponse({
+          success: true,
+          post_id: postId,
+          is_liked: isLiked,
+          liked: isLiked,
+          likes_count: likesCount,
+          likers,
+        });
       }
 
-      // 13. Post Comments (/api/posts/:id/comments)
+      // 13. Delete Single Comment (/api/posts/:id/comments/:commentId or /api/comments/:commentId)
+      if (
+        (url.pathname.match(/^\/api\/posts\/[^/]+\/comments\/[^/]+\/?$/) || url.pathname.match(/^\/api\/comments\/[^/]+\/?$/)) &&
+        request.method === 'DELETE'
+      ) {
+        const parts = url.pathname.split('/').filter(Boolean);
+        const commentId = decodeURIComponent(parts[parts.length - 1]);
+        const postId = parts.length >= 4 && parts[1] === 'posts' ? decodeURIComponent(parts[2]) : null;
+        const auth = getAuthIdentity(request);
+
+        if (env.DB) {
+          const comm = await env.DB.prepare('SELECT * FROM post_comments WHERE id = ?').bind(commentId).first<any>();
+          if (comm) {
+            const isCommentAuthor = Boolean(auth.id && comm.user_id && auth.id === comm.user_id);
+            const targetPostId = postId || comm.post_id;
+            const post = await env.DB.prepare('SELECT author_id FROM posts WHERE id = ?').bind(targetPostId).first<any>();
+            const isPostAuthor = Boolean(auth.id && post && post.author_id && auth.id === post.author_id);
+
+            if (auth.isAdmin || isCommentAuthor || isPostAuthor) {
+              await env.DB.prepare('DELETE FROM post_comments WHERE id = ?').bind(commentId).run();
+              const commCountRow = await env.DB.prepare('SELECT COUNT(*) as count FROM post_comments WHERE post_id = ?').bind(targetPostId).first<{ count: number }>();
+              const newCommCount = commCountRow ? Number(commCountRow.count) : 0;
+              await env.DB.prepare('UPDATE posts SET comments_count = ? WHERE id = ?').bind(newCommCount, targetPostId).run();
+              return jsonResponse({ success: true, deleted: commentId, comments_count: newCommCount });
+            }
+            return jsonResponse({ success: false, error: 'Forbidden: You do not have permission to delete this comment.' }, 403);
+          }
+        }
+        return jsonResponse({ success: false, error: 'Comment not found' }, 404);
+      }
+
+      // 13. Post Comments List & Create (/api/posts/:id/comments)
       if (url.pathname.match(/^\/api\/posts\/[^/]+\/comments\/?$/)) {
         const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').replace(/\/comments\/?$/, ''));
 
@@ -1299,8 +1474,9 @@ export default {
           const body: any = await request.json().catch(() => ({}));
           const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `comm-${Date.now()}`);
           const content = (body.content || body.text || '').trim();
-          const userId = body.user_id || body.userId || null;
-          const authorName = body.author_name || body.authorName || 'Orthodox Parishioner';
+          const auth = getAuthIdentity(request);
+          const userId = body.user_id || body.userId || auth.id || null;
+          const authorName = body.author_name || body.authorName || auth.email || 'Orthodox Parishioner';
           const authorAvatar = body.author_avatar || body.authorAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
           const createdAt = body.created_at || new Date().toISOString();
 
@@ -1308,13 +1484,16 @@ export default {
             return jsonResponse({ success: false, error: 'Comment content cannot be empty' }, 400);
           }
 
+          let newCommentCount = 1;
           if (env.DB) {
             await env.DB.prepare(`
               INSERT INTO post_comments (id, post_id, user_id, author_name, author_avatar, content, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?)
             `).bind(id, postId, userId, authorName, authorAvatar, content, createdAt).run();
 
-            await env.DB.prepare('UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?').bind(postId).run();
+            const commCountRow = await env.DB.prepare('SELECT COUNT(*) as count FROM post_comments WHERE post_id = ?').bind(postId).first<{ count: number }>();
+            newCommentCount = commCountRow ? Number(commCountRow.count) : 1;
+            await env.DB.prepare('UPDATE posts SET comments_count = ? WHERE id = ?').bind(newCommentCount, postId).run();
 
             // Notify post author
             const post = await env.DB.prepare('SELECT author_id, content FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
@@ -1329,6 +1508,7 @@ export default {
           return jsonResponse({
             success: true,
             comment: { id, post_id: postId, user_id: userId, author_name: authorName, author_avatar: authorAvatar, content, created_at: createdAt },
+            comments_count: newCommentCount,
           }, 201);
         }
       }

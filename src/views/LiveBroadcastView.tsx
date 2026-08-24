@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Radio, Eye, PlusCircle, Heart, Share2, Flame, CheckCircle, Square } from 'lucide-react';
+import { Radio, Eye, PlusCircle, Heart, Share2, Flame, CheckCircle, Square, Link2, X, Send } from 'lucide-react';
 import { BunnyPlayer } from '../components/BunnyPlayer';
 import { ParishLiveChat } from '../components/ParishLiveChat';
 import { GoLiveModal, StreamData } from '../components/GoLiveModal';
 import { liveStreamsApi } from '../lib/api';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 interface LiveStreamItem {
   id: string;
@@ -76,10 +77,11 @@ const INITIAL_STREAMS_AR: LiveStreamItem[] = [
   },
 ];
 
-const LOCAL_STORAGE_KEY = 'orthodox_live_streams';
+const LOCAL_STORAGE_KEY = 'orthodox_live_streams_v2';
 
 export const LiveBroadcastView: React.FC = () => {
   const { t, language } = useTheme();
+  const { profile } = useAuth();
 
   const defaultStreams = language === 'ar' ? INITIAL_STREAMS_AR : INITIAL_STREAMS_EN;
 
@@ -98,7 +100,6 @@ export const LiveBroadcastView: React.FC = () => {
     return defaultStreams;
   });
 
-  // When language changes, update stream labels if they are defaults
   useEffect(() => {
     setStreams((prev) => {
       const isArabic = language === 'ar';
@@ -115,6 +116,15 @@ export const LiveBroadcastView: React.FC = () => {
 
   const [activeStreamId, setActiveStreamId] = useState<string>(() => streams[0]?.id || 'stream-1');
   const [isGoLiveOpen, setIsGoLiveOpen] = useState(false);
+  const [isShareLinkOpen, setIsShareLinkOpen] = useState(false);
+  
+  // Custom Live Stream Form State
+  const [linkTitle, setLinkTitle] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkParish, setLinkParish] = useState(profile?.parish || '');
+  const [linkCelebrant, setLinkCelebrant] = useState(profile?.full_name || '');
+  const [isSubmittingLink, setIsSubmittingLink] = useState(false);
+
   const [likeCount, setLikeCount] = useState<number>(142);
   const [isLiked, setIsLiked] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -124,27 +134,20 @@ export const LiveBroadcastView: React.FC = () => {
   const [isUserBroadcasting, setIsUserBroadcasting] = useState<boolean>(false);
   const playerRef = useRef<HTMLVideoElement | null>(null);
 
-  // Unmount cleanup: Hard Disconnect Live Stream on Tab Switch & silence all media
   useEffect(() => {
     return () => {
-      // Stop HLS/WebRTC/Bunny Stream connections
       if (playerRef.current) {
         try {
           playerRef.current.pause();
           playerRef.current.srcObject = null;
           playerRef.current.src = '';
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       }
       if (activeWebcamStream) {
         try {
           activeWebcamStream.getTracks().forEach((track) => track.stop());
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       }
-      // Hard disconnect & clear all audio and video elements
       const media = document.querySelectorAll<HTMLMediaElement>('video, audio');
       media.forEach((m) => {
         try {
@@ -152,20 +155,15 @@ export const LiveBroadcastView: React.FC = () => {
           m.muted = true;
           m.src = '';
           m.srcObject = null;
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       });
-      // Clear iframe streams
       const iframes = document.querySelectorAll<HTMLIFrameElement>('iframe');
       iframes.forEach((ifr) => {
         try {
           if (ifr.src.includes('mediadelivery.net') || ifr.src.includes('bunny')) {
             ifr.src = 'about:blank';
           }
-        } catch (e) {
-          // ignore
-        }
+        } catch (e) {}
       });
     };
   }, [activeWebcamStream]);
@@ -175,7 +173,6 @@ export const LiveBroadcastView: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Sync remote Cloudflare D1 live_streams if available
   useEffect(() => {
     async function fetchRemoteStreams() {
       try {
@@ -203,7 +200,7 @@ export const LiveBroadcastView: React.FC = () => {
           });
         }
       } catch (err) {
-        console.warn('Cloudflare D1 live streams query notice:', err);
+        console.warn('Live streams query notice:', err);
       }
     }
     fetchRemoteStreams();
@@ -233,19 +230,66 @@ export const LiveBroadcastView: React.FC = () => {
     setActiveStreamId(newStreamId);
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     showToast(language === 'ar' ? 'بدأ البث المباشر بنجاح!' : 'Live broadcast started successfully!');
+  };
+
+  const handleShareCustomLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!linkUrl.trim() || !linkTitle.trim()) return;
+
+    setIsSubmittingLink(true);
+    const newStreamId = 'stream-' + Date.now();
+
+    // Standardize YouTube URLs into embed links if applicable
+    let finalUrl = linkUrl.trim();
+    const ytMatch = finalUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|live\/))([a-zA-Z0-9_-]+)/);
+    if (ytMatch) {
+      finalUrl = `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&mute=0`;
+    }
+
+    const newStream: LiveStreamItem = {
+      id: newStreamId,
+      title: linkTitle.trim(),
+      parish: linkParish.trim() || (language === 'ar' ? 'الرعية الأرثوذكسية' : 'Orthodox Parish'),
+      priestName: linkCelebrant.trim() || (language === 'ar' ? 'الكاهن الخادم' : 'Priest / Celebrant'),
+      viewers: 1,
+      videoUrl: finalUrl,
+      isLive: true,
+    };
+
+    try {
+      await liveStreamsApi.create({
+        id: newStreamId,
+        title: newStream.title,
+        host_parish: newStream.parish,
+        priest_name: newStream.priestName,
+        media_url: newStream.videoUrl,
+        is_live: true,
+      });
+    } catch (err) {
+      console.warn('Error persisting stream to API:', err);
+    }
+
+    const updated = [newStream, ...streams];
+    setStreams(updated);
+    setActiveStreamId(newStreamId);
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
+    setIsSubmittingLink(false);
+    setIsShareLinkOpen(false);
+    setLinkTitle('');
+    setLinkUrl('');
+    showToast(language === 'ar' ? 'تمت مشاركة رابط البث المباشر بنجاح!' : 'Live stream link shared successfully!');
   };
 
   const handleEndBroadcast = () => {
     if (activeWebcamStream) {
       try {
         activeWebcamStream.getTracks().forEach((t) => t.stop());
-      } catch (e) {
-        // ignore
-      }
+      } catch (e) {}
       setActiveWebcamStream(null);
     }
     setIsUserBroadcasting(false);
@@ -302,7 +346,7 @@ export const LiveBroadcastView: React.FC = () => {
         </div>
       )}
 
-      {/* Top Banner & Go Live Action */}
+      {/* Top Banner & Go Live / Share Link Action Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-red-950/60 via-stone-950 to-amber-950/50 border border-red-500/30 shadow-xl">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400 animate-pulse">
@@ -313,23 +357,36 @@ export const LiveBroadcastView: React.FC = () => {
               {t('liveParishBroadcasts')}
             </h2>
             <p className="text-xs text-stone-400">
-              {t('liveParishBroadcastsSub')}
+              {language === 'ar'
+                ? 'متابعة القداسات والعظات والصلوات مباشرة عبر الكاميرا أو مشاركة روابط البث'
+                : 'Watch Divine Liturgy and Church Services live via Camera, YouTube, or Stream Link'}
             </p>
           </div>
         </div>
 
-        <button
-          onClick={() => setIsGoLiveOpen(true)}
-          className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg transition-all transform hover:scale-105 cursor-pointer shrink-0"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>{t('startLiveBroadcast')}</span>
-        </button>
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          {/* Share Stream Link Button */}
+          <button
+            onClick={() => setIsShareLinkOpen(true)}
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer shrink-0 uppercase tracking-wider"
+          >
+            <Link2 className="w-4 h-4" />
+            <span>{language === 'ar' ? 'مشاركة رابط بث' : 'Share Stream Link'}</span>
+          </button>
+
+          {/* Camera Broadcast Button */}
+          <button
+            onClick={() => setIsGoLiveOpen(true)}
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-serif font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all transform hover:scale-105 cursor-pointer shrink-0 uppercase tracking-wider"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>{t('startLiveBroadcast')}</span>
+          </button>
+        </div>
       </div>
 
       {/* Theatre View Layout: Bunny Player + Live Chat Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Left / Main Column: Bunny Stream Player & Metadata */}
         <div className="lg:col-span-2 space-y-4">
           <BunnyPlayer
             mediaStream={activeWebcamStream}
@@ -343,7 +400,7 @@ export const LiveBroadcastView: React.FC = () => {
             onEndBroadcast={handleEndBroadcast}
           />
 
-          {/* Under Video Header & Info Panel */}
+          {/* Info Panel Under Video */}
           <div className="p-5 rounded-2xl bg-stone-950 border border-amber-900/30 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-900/30 pb-4">
               <div>
@@ -360,7 +417,6 @@ export const LiveBroadcastView: React.FC = () => {
                 </h1>
               </div>
 
-              {/* Viewers Badge */}
               <div className="flex items-center gap-2">
                 <span className="px-3.5 py-1.5 rounded-full bg-red-600/20 border border-red-500/40 text-red-400 text-xs font-bold flex items-center gap-1.5">
                   <Eye className="w-4 h-4" /> {activeStream.viewers} {t('watchingCount')}
@@ -368,7 +424,6 @@ export const LiveBroadcastView: React.FC = () => {
               </div>
             </div>
 
-            {/* Parish & Priest Metadata + Interaction Buttons */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-1">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/40 flex items-center justify-center font-serif font-bold text-amber-300">
@@ -384,7 +439,6 @@ export const LiveBroadcastView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Action Buttons Row */}
               <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                 <button
                   onClick={handleLikeToggle}
@@ -401,7 +455,6 @@ export const LiveBroadcastView: React.FC = () => {
                 <button
                   onClick={handleLightVirtualCandle}
                   className="px-3.5 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 border border-amber-900/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-                  title="Light a candle in memory or prayer"
                 >
                   <Flame className="w-4 h-4 text-amber-400" />
                   <span>{t('lightCandle')}</span>
@@ -417,7 +470,6 @@ export const LiveBroadcastView: React.FC = () => {
               </div>
             </div>
 
-            {/* Service Description Box */}
             <div className="p-3.5 rounded-xl bg-stone-900/70 border border-amber-900/20 text-xs text-stone-300 space-y-1">
               <p className="font-semibold text-amber-200">{t('broadcastInfo')}:</p>
               <p>
@@ -429,13 +481,13 @@ export const LiveBroadcastView: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column: Live Chat Sidebar */}
+        {/* Live Chat Sidebar */}
         <div className="lg:col-span-1">
           <ParishLiveChat parishName={activeStream.parish} />
         </div>
       </div>
 
-      {/* Other Parish Live Broadcasts Section */}
+      {/* Other Parish Live Broadcasts List */}
       <div className="space-y-3 pt-4">
         <h3 className="font-serif font-bold text-sm text-amber-300 uppercase tracking-wider">
           {t('moreParishBroadcasts')}
@@ -474,11 +526,114 @@ export const LiveBroadcastView: React.FC = () => {
         </div>
       </div>
 
+      {/* Webcam GoLive Modal */}
       <GoLiveModal
         isOpen={isGoLiveOpen}
         onClose={() => setIsGoLiveOpen(false)}
         onStartStream={handleStartStream}
       />
+
+      {/* Share Live Stream Link Modal */}
+      {isShareLinkOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="relative w-full max-w-lg bg-[#eddcb9] dark:bg-[#18120e] border-2 border-[#c5a059] rounded-3xl p-6 shadow-2xl space-y-4 text-[#3d2b18] dark:text-[#f5ebd9]">
+            <div className="flex items-center justify-between pb-3 border-b border-[#c5a059]/40">
+              <div className="flex items-center gap-2">
+                <Radio className="w-5 h-5 text-red-600 animate-pulse" />
+                <h3 className="font-serif-coptic font-bold text-base">
+                  {language === 'ar' ? 'مشاركة رابط بث مباشر' : 'Share Live Stream Link'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsShareLinkOpen(false)}
+                className="p-1.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] hover:bg-[#c5a059] hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleShareCustomLink} className="space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-serif uppercase tracking-wider font-bold text-[#7c5f3d] dark:text-[#a89379] mb-1">
+                  {language === 'ar' ? 'عنوان البث أو القداس' : 'Broadcast / Liturgy Title'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={linkTitle}
+                  onChange={(e) => setLinkTitle(e.target.value)}
+                  placeholder={language === 'ar' ? 'القداس الإلهي وعظة الأحد' : 'Sunday Divine Liturgy & Sermon'}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] text-xs font-serif text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none focus:border-[#a8833c]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-serif uppercase tracking-wider font-bold text-[#7c5f3d] dark:text-[#a89379] mb-1">
+                  {language === 'ar' ? 'رابط البث (YouTube / Facebook / Bunny / HLS / MP4)' : 'Stream URL (YouTube, Facebook, Bunny, HLS)'}
+                </label>
+                <input
+                  type="url"
+                  required
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=... or https://iframe.mediadelivery.net/..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] text-xs font-serif text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none focus:border-[#a8833c]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-serif uppercase tracking-wider font-bold text-[#7c5f3d] dark:text-[#a89379] mb-1">
+                    {language === 'ar' ? 'اسم الكنيسة / الرعية' : 'Parish Name'}
+                  </label>
+                  <input
+                    type="text"
+                    value={linkParish}
+                    onChange={(e) => setLinkParish(e.target.value)}
+                    placeholder="St. Mark Coptic Church"
+                    className="w-full px-3 py-2 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] text-xs font-serif text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none focus:border-[#a8833c]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-serif uppercase tracking-wider font-bold text-[#7c5f3d] dark:text-[#a89379] mb-1">
+                    {language === 'ar' ? 'الكاهن / الخادم' : 'Priest / Celebrant'}
+                  </label>
+                  <input
+                    type="text"
+                    value={linkCelebrant}
+                    onChange={(e) => setLinkCelebrant(e.target.value)}
+                    placeholder="Fr. Mina"
+                    className="w-full px-3 py-2 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] text-xs font-serif text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none focus:border-[#a8833c]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#c5a059]/30">
+                <button
+                  type="button"
+                  onClick={() => setIsShareLinkOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-[#c5a059] text-xs font-serif uppercase font-bold text-[#7c5f3d] dark:text-[#a89379] hover:bg-[#f6ebd6] transition-colors cursor-pointer"
+                >
+                  {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingLink || !linkUrl.trim() || !linkTitle.trim()}
+                  className="px-5 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Send className="w-3.5 h-3.5 rtl:rotate-180" />
+                  <span>
+                    {isSubmittingLink
+                      ? (language === 'ar' ? 'جارٍ النشر...' : 'Publishing...')
+                      : (language === 'ar' ? 'بدء البث المباشر' : 'Publish Live Stream')}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

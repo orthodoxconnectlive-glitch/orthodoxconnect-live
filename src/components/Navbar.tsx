@@ -28,6 +28,7 @@ import { NotificationItem } from '../types';
 import { NotificationDropdown } from './NotificationDropdown';
 import { loadNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../utils/notifications';
 import { getTodayLiturgicalDay } from '../data/liturgical';
+import { gregorianToCoptic } from '../utils/copticDate';
 
 interface NavbarProps {
   onOpenInvite: () => void;
@@ -52,6 +53,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   const todayData = getTodayLiturgicalDay(language);
+  const copticDate = gregorianToCoptic(new Date());
+
+  const formattedCopticDate =
+    language === 'ar'
+      ? `${copticDate.day} ${copticDate.monthNameAr} ${copticDate.year} ش`
+      : `${copticDate.day} ${copticDate.monthNameEn} ${copticDate.year} AM`;
 
   const fetchNotifs = async () => {
     const data = await loadNotifications(profile?.id);
@@ -181,6 +188,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Action Circle Buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Coptic Date Badge (Desktop/Tablet) */}
+            <div className="hidden md:flex items-center gap-1.5 h-8 sm:h-9 px-3 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[11px] font-serif font-bold text-[#3d2b18] dark:text-[#f5ebd9] shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#c5a059] animate-pulse" />
+              <span>{formattedCopticDate}</span>
+            </div>
+
             {/* Quick Language Switcher Button */}
             <button
               onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
@@ -494,9 +507,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Liturgical Widget in Drawer */}
               <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-3.5 shadow-lg text-xs space-y-2.5">
-                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-[#3d2b18] dark:text-[#f5ebd9] font-serif font-bold text-[9px] uppercase tracking-wider">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-[#3d2b18] dark:text-[#f5ebd9] font-serif font-bold text-[9px] uppercase tracking-wider">
                   <Sparkles className="w-3 h-3 text-[#a8833c]" />
-                  {todayData.date}
+                  <span>{formattedCopticDate}</span>
                 </div>
 
                 <div className="block p-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-400 text-emerald-900 dark:text-emerald-200 font-serif font-bold text-[10px] uppercase tracking-wider text-center">

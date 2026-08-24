@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Plus, MapPin, Video, Church, Sparkles, Filter, Search } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, MapPin, Video, Church, Sparkles, Filter, Search, BookOpen, Utensils } from 'lucide-react';
 import { getTodayLiturgicalDay, getUpcomingFeasts } from '../data/liturgical';
 import { EventItem } from '../types';
 import { loadEvents, setEventRsvp } from '../utils/events';
@@ -7,6 +7,7 @@ import { CreateEventModal } from '../components/CreateEventModal';
 import { EventDetailModal } from '../components/EventDetailModal';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { gregorianToCoptic } from '../utils/copticDate';
 
 export const CalendarView: React.FC = () => {
   const { profile } = useAuth();
@@ -14,6 +15,12 @@ export const CalendarView: React.FC = () => {
 
   const todayData = getTodayLiturgicalDay(language);
   const upcomingFeastsList = getUpcomingFeasts(language);
+  const copticDate = gregorianToCoptic(new Date());
+
+  const formattedCopticDate =
+    language === 'ar'
+      ? `${copticDate.day} ${copticDate.monthNameAr} ${copticDate.year} ش`
+      : `${copticDate.day} ${copticDate.monthNameEn} ${copticDate.year} AM`;
 
   const [activeTab, setActiveTab] = useState<'events' | 'liturgical'>('events');
   const [eventsList, setEventsList] = useState<EventItem[]>([]);
@@ -273,11 +280,39 @@ export const CalendarView: React.FC = () => {
       {/* TAB 2: LITURGICAL FEASTS & FASTING */}
       {activeTab === 'liturgical' && (
         <div className="space-y-6">
+          {/* Coptic Liturgical Date & Fasting Overview Banner */}
+          <div className="p-5 rounded-2xl bg-[#eedcb5]/70 border-2 border-[#c5a059] shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-[#c5a059] text-white flex items-center justify-center font-bold text-xl shadow-md shrink-0">
+                ☨
+              </div>
+              <div>
+                <p className="text-[10px] font-serif uppercase tracking-wider text-[#7c5f3d]">
+                  {language === 'ar' ? 'التقويم القبطي الليترجي' : 'Coptic Liturgical Calendar'}
+                </p>
+                <h3 className="font-serif font-bold text-lg sm:text-xl text-[#3d2b18]">
+                  {formattedCopticDate}
+                </h3>
+              </div>
+            </div>
+
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 border border-emerald-400 text-emerald-900 font-serif font-bold text-xs">
+              <Utensils className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+              <span>{todayData.fastingInfo}</span>
+            </div>
+          </div>
+
           {/* Today Feast Focus */}
           <div className="p-6 rounded-2xl bg-[#fdfaf5] border border-[#d4af37] shadow-xl space-y-3">
-            <span className="px-3 py-1 rounded-full bg-[#d4af37] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
-              {t('todaysCommemoration')}
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="px-3 py-1 rounded-full bg-[#d4af37] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                {t('todaysCommemoration')}
+              </span>
+              <span className="text-xs font-serif font-bold text-[#8b6b4a]">
+                {todayData.date}
+              </span>
+            </div>
+
             <h3 className="font-serif font-bold text-2xl text-[#5a4632]">
               {todayData.saintName}
             </h3>
@@ -285,8 +320,9 @@ export const CalendarView: React.FC = () => {
               {todayData.saintTitle}
             </p>
             <div className="p-4 rounded-xl bg-[#f1ebd7] border border-[#d4af37]/20 text-xs text-[#4a3e31] space-y-1">
-              <p className="font-serif font-bold text-[#5a4632]">
-                {t('dailyScripture')} ({todayData.scriptureRef}):
+              <p className="font-serif font-bold text-[#5a4632] flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-[#d4af37]" />
+                <span>{t('dailyScripture')} ({todayData.scriptureRef}):</span>
               </p>
               <p className="italic">"{todayData.scriptureText}"</p>
             </div>

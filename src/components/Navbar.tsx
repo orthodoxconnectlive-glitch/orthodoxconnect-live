@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Search,
   MessageSquare,
-  Plus,
   Menu,
   X,
   Bell,
@@ -137,7 +136,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Top Header Bar */}
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
           {/* Left: Hamburger Menu (Mobile/Tablet <lg:), Coptic Cross Icon, Brand Title */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <button
               onClick={() => setIsDrawerOpen(true)}
               className="lg:hidden p-2 rounded-xl bg-[#e6d3ab]/80 dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059]/20 transition-all cursor-pointer shrink-0"
@@ -148,18 +147,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => onNavigate('feed')}
-              className="flex items-center gap-2 cursor-pointer group"
+              className="flex items-center gap-2 cursor-pointer group min-w-0 text-left rtl:text-right"
             >
               <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#c5a059] dark:bg-[#d4af37] p-0.5 shadow-md flex items-center justify-center shrink-0">
                 <div className="w-full h-full bg-[#3d2b18] dark:bg-[#120e0b] rounded-[10px] flex items-center justify-center text-[#c5a059] font-bold text-sm sm:text-base">
                   ☨
                 </div>
               </div>
-              <div className="text-left rtl:text-right">
-                <h1 className="font-serif-coptic font-bold text-sm sm:text-lg text-[#3d2b18] dark:text-[#f5ebd9] tracking-tight leading-none truncate max-w-[120px] sm:max-w-none">
+              <div className="min-w-0">
+                <h1 className="font-serif-coptic font-bold text-sm sm:text-lg text-[#3d2b18] dark:text-[#f5ebd9] tracking-tight leading-none truncate">
                   {t('appName')}
                 </h1>
-                <p className="text-[7px] sm:text-[9px] text-[#7c5f3d] dark:text-[#a89379] tracking-[0.18em] sm:tracking-[0.2em] uppercase font-serif mt-0.5 font-semibold">
+                <p className="text-[7px] sm:text-[9px] text-[#7c5f3d] dark:text-[#a89379] tracking-[0.18em] sm:tracking-[0.2em] uppercase font-serif mt-0.5 font-semibold truncate">
                   {language === 'ar' ? 'إيمان · شركة مقدسة' : 'FAITH · FELLOWSHIP'}
                 </p>
               </div>
@@ -181,8 +180,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Right Action Circle Buttons */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            {/* Quick Language Switcher Button (Desktop & Mobile) */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Quick Language Switcher Button */}
             <button
               onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
               className="h-8 sm:h-9 px-2.5 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white transition-all flex items-center gap-1.5 text-xs font-bold font-serif shadow-sm cursor-pointer"
@@ -205,15 +204,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Search className="w-4 h-4" />
             </button>
 
-            {/* Create Post / Meeting (+) button */}
-            <button
-              onClick={() => onNavigate('feed')}
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] flex items-center justify-center hover:bg-[#c5a059] hover:text-white transition-all cursor-pointer shadow-sm"
-              title={language === 'ar' ? 'إنشاء منشور أو فعالية' : 'Create Post or Meeting'}
-            >
-              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
-
             {/* Live Broadcast button */}
             <button
               onClick={() => onNavigate('live')}
@@ -225,9 +215,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               title={t('goLive')}
             >
               <Radio className="w-4 h-4 text-red-600 dark:text-red-400" />
-              <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+              <span className="absolute top-0 right-0 flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-2 ring-[#eedcb5] dark:ring-[#120e0b]"></span>
               </span>
             </button>
 
@@ -242,9 +232,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               title={t('messages')}
             >
               <MessageSquare className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-              {notifications.filter((n) => n.type === 'message' && !n.isRead).length > 0 && (
-                <span className="absolute -top-1 -right-1 px-1.5 py-0.2 min-w-[16px] h-4 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center shadow-sm">
-                  {notifications.filter((n) => n.type === 'message' && !n.isRead).length}
+              {unreadMessageCount > 0 && (
+                <span className="absolute -top-1 -right-1 px-1 min-w-[16px] h-4 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center shadow-sm ring-2 ring-[#eedcb5] dark:ring-[#120e0b]">
+                  {unreadMessageCount}
                 </span>
               )}
             </button>
@@ -262,7 +252,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Bell className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center shadow-md animate-pulse">
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-bold flex items-center justify-center shadow-md animate-pulse ring-2 ring-[#eedcb5] dark:ring-[#120e0b]">
                     {unreadCount}
                   </span>
                 )}

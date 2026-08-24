@@ -66,7 +66,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const { profile } = useAuth();
   const { t, language } = useTheme();
 
-  // Instant non-blank initial post state from local/seed storage
   const [posts, setPosts] = useState<Post[]>(() => getLocalSavedPosts());
   const [loading, setLoading] = useState<boolean>(false);
   const [feedError, setFeedError] = useState<string | null>(null);
@@ -94,15 +93,11 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Comments drawer / modal state
+  // Comments & Modal state
   const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
   const [commentInput, setCommentInput] = useState('');
   const [commentsMap, setCommentsMap] = useState<Record<string, PostComment[]>>({});
-
-  // Reshare modal state
   const [reshareTargetPost, setReshareTargetPost] = useState<Post | null>(null);
-
-  // Report modal state
   const [reportModalData, setReportModalData] = useState<{
     isOpen: boolean;
     contentType: 'post' | 'comment';
@@ -120,7 +115,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
   useEffect(() => {
     fetchPosts();
 
-    // Periodic refresh from Cloudflare D1 every 30 seconds
     const interval = setInterval(() => {
       fetchPosts(true);
     }, 30000);
@@ -130,18 +124,13 @@ export const FeedView: React.FC<FeedViewProps> = ({
     };
   }, [profile?.id, profile?.email]);
 
-  // Pause all media elements when sub-tab changes or FeedView unmounts
   useEffect(() => {
     return () => {
       const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
       allMedia.forEach((media) => {
         try {
-          if (!media.paused) {
-            media.pause();
-          }
-        } catch (e) {
-          // ignore
-        }
+          if (!media.paused) media.pause();
+        } catch (e) {}
       });
     };
   }, [feedTab]);
@@ -157,18 +146,18 @@ export const FeedView: React.FC<FeedViewProps> = ({
     if (!silent) setLoading(true);
     setFeedError(null);
     try {
-      const currentUserName = profile?.full_name || '';
       const localLikes = loadLocalLikesMap();
       const localCommentsMap = loadLocalPostCommentsMap();
 
-      const { posts: fetchedPosts, error } = await loadPosts(undefined, { limit: 50 });
+      // Pass undefined for authorId to load ALL parish posts
+      const { posts: fetchedPosts, error } = await loadPosts(undefined, { limit: 100 });
+      
       if (error) {
         setFeedError(error);
       }
 
       let activePosts = fetchedPosts && fetchedPosts.length > 0 ? fetchedPosts : getLocalSavedPosts();
 
-      // Merge local likes and comments
       activePosts = activePosts.map((p) => {
         const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : p.isLiked;
         const localComments = localCommentsMap[p.id] || [];
@@ -181,7 +170,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
       setPosts(activePosts);
 
-      // Refresh follow status
       const fMap: Record<string, boolean> = {};
       activePosts.forEach((p) => {
         const name = p.authorName || p.author_name || '';
@@ -189,10 +177,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
       });
       setFollowedMap(fMap);
     } catch (err: any) {
-      console.warn('[FeedView] Feed fetch exception handled:', err);
+      console.warn('[FeedView] Feed fetch exception:', err);
       setFeedError(err?.message || 'Database error');
-      const { posts: fallbackPosts } = await loadPosts(undefined, { limit: 30 });
-      setPosts(fallbackPosts || []);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -211,7 +197,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
         setImageUrl(compressedUrl);
         triggerToast(language === 'ar' ? 'تم إرفاق الصورة!' : 'Photo attached!');
       } catch (err) {
-        console.warn('Error compressing photo, falling back to uploadMediaFile:', err);
         const url = await uploadMediaFile(file, 'post-photos');
         setImageUrl(url);
         triggerToast(language === 'ar' ? 'تم إرفاق الصورة!' : 'Photo attached!');
@@ -229,7 +214,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
       }
       setSelectedVideoFile(file);
       setVideoFileName(file.name);
-      // Create instant local preview URL
       const localPreviewUrl = URL.createObjectURL(file);
       setVideoUrl(localPreviewUrl);
       triggerToast(
@@ -250,8 +234,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
     triggerToast(
       isNowFollowing
         ? language === 'ar'
-          ? `أنت الآن تتابع ${authorName}. ستظهر منشوراته في صفحتك!`
-          : `Now following ${authorName}. You will see all their reflections!`
+          ? `أنت الآن تتابع ${authorName}.`
+          : `Now following ${authorName}.`
         : language === 'ar'
         ? `تم إلغاء متابعة ${authorName}.`
         : `Unfollowed ${authorName}.`
@@ -272,13 +256,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
       if (selectedVideoFile) {
         setSubmitStatusText(
           language === 'ar'
-            ? 'جارٍ رفع الفيديو إلى Bunny Stream (0%)...'
-            : 'Uploading video to Bunny Stream (0%)...'
-        );
-        triggerToast(
-          language === 'ar'
-            ? 'جارٍ رفع الفيديو مباشرة إلى سحابة Bunny Stream...'
-            : 'Uploading video directly to Bunny Stream CDN...'
+            ? 'جارٍ رفع الفيديو إلى Bunny Stream...'
+            : 'Uploading video to Bunny Stream...'
         );
 
         const uploadedGuid = await uploadVideoToBunnyStream(
@@ -286,11 +265,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
           newPostText || selectedVideoFile.name,
           (percent) => {
             setUploadProgress(percent);
-            setSubmitStatusText(
-              language === 'ar'
-                ? `جارٍ رفع الفيديو إلى Bunny Stream (${percent}%)...`
-                : `Uploading video to Bunny Stream (${percent}%)...`
-            );
           }
         );
 
@@ -302,7 +276,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         finalVideoId = videoUrl;
       }
 
-      setSubmitStatusText(language === 'ar' ? 'جارٍ حفظ المنشور...' : 'Saving reflection to database...');
+      setSubmitStatusText(language === 'ar' ? 'جارٍ حفظ المنشور...' : 'Saving reflection...');
 
       const postId =
         typeof crypto !== 'undefined' && crypto.randomUUID
@@ -324,23 +298,15 @@ export const FeedView: React.FC<FeedViewProps> = ({
       };
 
       try {
-        const res = await fetch('/api/posts', {
+        await fetch('/api/posts', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(postPayload),
         });
-
-        if (!res.ok) {
-          console.warn('[FeedView] /api/posts POST non-200 response:', res.status);
-        }
       } catch (postErr) {
-        console.warn('[FeedView] /api/posts fetch error:', postErr);
+        console.warn('[FeedView] API save warning:', postErr);
       }
 
-      // Also persist to local cache / state
       await savePost({
         id: postPayload.id,
         text: postPayload.content,
@@ -363,7 +329,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
         created_at: postPayload.created_at,
       });
 
-      // Clear form inputs upon successful submission
       setNewPostText('');
       setImageUrl('');
       setVideoUrl('');
@@ -371,13 +336,11 @@ export const FeedView: React.FC<FeedViewProps> = ({
       setVideoFileName('');
       setUploadProgress(0);
 
-      // Immediately refresh feed directly from D1 upon success
       await fetchPosts(true);
-
-      triggerToast(language === 'ar' ? 'تم نشر المنشور في خلاصة الرعية!' : 'Reflection published to parish feed!');
+      triggerToast(language === 'ar' ? 'تم نشر المنشور!' : 'Reflection published!');
     } catch (err: any) {
       console.error('[FeedView] Post submission error:', err);
-      triggerToast('Error submitting post: ' + (err?.message || 'Database error'));
+      triggerToast('Error: ' + (err?.message || 'Failed to submit post'));
     } finally {
       setIsSubmitting(false);
       setSubmitStatusText('');
@@ -386,7 +349,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
   };
 
   const handleToggleLike = async (postId: string) => {
-    // Optimistic local state update
     const myLikerId = profile?.id || 'me';
     const myLikerName = profile?.full_name || (language === 'ar' ? 'أنت' : 'You');
     const myLikerAvatar = profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
@@ -400,12 +362,10 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
           let updatedLikers = p.likers ? [...p.likers] : [];
           if (isLiked) {
-            const myLiker = {
-              userId: myLikerId,
-              userName: myLikerName,
-              userAvatar: myLikerAvatar,
-            };
-            updatedLikers = [myLiker, ...updatedLikers.filter((l) => l.userId !== myLikerId && l.userId !== 'me' && l.userId !== profile?.id)];
+            updatedLikers = [
+              { userId: myLikerId, userName: myLikerName, userAvatar: myLikerAvatar },
+              ...updatedLikers.filter((l) => l.userId !== myLikerId && l.userId !== 'me' && l.userId !== profile?.id),
+            ];
           } else {
             updatedLikers = updatedLikers.filter((l) => l.userId !== myLikerId && l.userId !== 'me' && l.userId !== profile?.id);
           }
@@ -422,25 +382,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
       })
     );
 
-    // Call Cloudflare D1 endpoint
     try {
-      const res = await togglePostLike(postId, profile);
-      if (res && res.success && typeof res.likes_count === 'number') {
-        setPosts((prev) =>
-          prev.map((p) => {
-            if (p.id === postId) {
-              return {
-                ...p,
-                isLiked: res.liked,
-                likesCount: res.likes_count,
-                likes_count: res.likes_count,
-                likers: res.likers && res.likers.length > 0 ? res.likers : p.likers,
-              };
-            }
-            return p;
-          })
-        );
-      }
+      await togglePostLike(postId, profile);
     } catch (err) {
       console.warn('Error syncing like:', err);
     }
@@ -457,7 +400,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
           setCommentsMap((prev) => ({ ...prev, [postId]: fetched }));
         }
       } catch (err) {
-        console.warn('Error fetching post comments:', err);
+        console.warn('Error fetching comments:', err);
       }
     }
   };
@@ -475,18 +418,13 @@ export const FeedView: React.FC<FeedViewProps> = ({
       user_id: profile?.id,
       authorName: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
       author_name: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
-      authorAvatar:
-        profile?.avatar_url ||
-        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-      author_avatar:
-        profile?.avatar_url ||
-        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      authorAvatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      author_avatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
       content: text,
       createdAt: new Date().toISOString(),
       created_at: new Date().toISOString(),
     };
 
-    // Optimistic local state updates
     setCommentsMap((prev) => ({
       ...prev,
       [postId]: [...(prev[postId] || []), optimisticComment],
@@ -496,23 +434,10 @@ export const FeedView: React.FC<FeedViewProps> = ({
       prev.map((p) => (p.id === postId ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p))
     );
 
-    // Call Cloudflare D1 endpoint
-    const res = await addPostComment(postId, text, profile);
-    if (res.success && res.comment) {
-      setCommentsMap((prev) => ({
-        ...prev,
-        [postId]: (prev[postId] || []).map((c) => (c.id === tempId ? res.comment : c)),
-      }));
-      if (typeof res.comments_count === 'number') {
-        setPosts((prev) =>
-          prev.map((p) => (p.id === postId ? { ...p, commentsCount: res.comments_count! } : p))
-        );
-      }
-    }
+    await addPostComment(postId, text, profile);
   };
 
   const handleDeleteComment = async (postId: string, commentId: string) => {
-    // Optimistically remove comment
     setCommentsMap((prev) => ({
       ...prev,
       [postId]: (prev[postId] || []).filter((c) => c.id !== commentId),
@@ -524,20 +449,13 @@ export const FeedView: React.FC<FeedViewProps> = ({
       )
     );
 
-    const res = await deletePostComment(postId, commentId, profile);
-    if (res.success && typeof res.comments_count === 'number') {
-      setPosts((prev) =>
-        prev.map((p) => (p.id === postId ? { ...p, commentsCount: res.comments_count! } : p))
-      );
-    }
+    await deletePostComment(postId, commentId, profile);
   };
 
   const handleDelete = async (postId: string) => {
     const res = await deletePost(postId, profile);
     if (res.success) {
       setPosts((prev) => prev.filter((p) => p.id !== postId));
-    } else {
-      console.warn('Failed to delete post:', res.error);
     }
   };
 
@@ -556,6 +474,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
     });
   };
 
+  // Switch between All Community Posts and Following
   const filteredPosts =
     feedTab === 'all'
       ? posts
@@ -567,7 +486,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Toast notification message */}
+      {/* Toast Notice */}
       {toastMessage && (
         <div className="fixed top-20 right-6 rtl:right-auto rtl:left-6 z-50 px-4 py-2.5 rounded-2xl bg-[#3d2b18] text-[#f5ebd9] border-2 border-[#c5a059] shadow-2xl font-serif text-xs flex items-center gap-2 animate-bounce">
           <Check className="w-4 h-4 text-[#c5a059]" />
@@ -596,7 +515,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
             <button
               onClick={() => setFeedError(null)}
               className="p-1.5 hover:bg-amber-200 dark:hover:bg-amber-900 rounded-xl transition-colors shrink-0 cursor-pointer"
-              title="Dismiss notice"
             >
               <X className="w-4 h-4 text-amber-700 dark:text-amber-300" />
             </button>
@@ -604,13 +522,13 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </div>
       )}
 
-      {/* Daily Liturgical Scripture, Saint of Day & Fasting Banner */}
+      {/* Liturgical Banner */}
       <LiturgicalBanner onOpenCalendar={onOpenCalendar} />
 
-      {/* Stories Bar Component */}
+      {/* Stories Bar */}
       <StoriesBar onSelectUser={onSelectUser} />
 
-      {/* Post Creation Box (Facebook Style Direct Upload) */}
+      {/* Post Creation Box */}
       <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg">
         <form onSubmit={handleCreatePost} className="space-y-3">
           <div className="flex items-center gap-3">
@@ -629,7 +547,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="p-1 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#c5a059]/20 transition-colors shrink-0 cursor-pointer"
-                title={language === 'ar' ? 'رفع صورة من الجهاز' : 'Upload photo from device'}
               >
                 <Image className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
               </button>
@@ -637,14 +554,12 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 type="button"
                 onClick={() => videoFileInputRef.current?.click()}
                 className="p-1 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#c5a059]/20 transition-colors shrink-0 cursor-pointer"
-                title={language === 'ar' ? 'رفع فيديو من الجهاز' : 'Upload video from device'}
               >
                 <Video className="w-4 h-4 text-[#a8833c]" />
               </button>
             </div>
           </div>
 
-          {/* Hidden File Picker Inputs */}
           <input
             ref={fileInputRef}
             type="file"
@@ -660,71 +575,39 @@ export const FeedView: React.FC<FeedViewProps> = ({
             className="hidden"
           />
 
-          {/* Facebook-style Local Photo Preview */}
           {imageUrl && (
             <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
               <div className="relative max-h-80 overflow-hidden rounded-xl bg-black/20 flex items-center justify-center">
                 <img
                   src={imageUrl}
-                  alt="Selected local photo preview"
+                  alt="Selected photo preview"
                   className="w-full h-auto max-h-80 object-cover rounded-xl"
                 />
                 <div className="absolute top-2 right-2 rtl:right-auto rtl:left-2 flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-2.5 py-1.5 rounded-full bg-[#3d2b18]/90 text-[#c5a059] hover:bg-[#3d2b18] hover:text-white transition-all shadow-md text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer border border-[#c5a059]/50"
-                    title={language === 'ar' ? 'استبدال الصورة' : 'Replace Photo'}
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>{language === 'ar' ? 'استبدال' : 'Replace'}</span>
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setImageUrl('')}
                     className="p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-[#c5a059]/50"
-                    title={language === 'ar' ? 'إزالة الصورة' : 'Remove Photo'}
                   >
                     <X className="w-4 h-4" />
                   </button>
-                </div>
-                <div className="absolute bottom-2 left-2 rtl:left-auto rtl:right-2 px-2.5 py-1 rounded-lg bg-[#3d2b18]/80 text-[#c5a059] text-[10px] font-serif font-bold uppercase tracking-wider backdrop-blur-sm border border-[#c5a059]/30">
-                  {language === 'ar' ? 'تم إرفاق صورة' : 'Photo Attached'}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Facebook-style Local Video Preview */}
           {videoUrl && (
             <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
               <div className="relative max-h-80 overflow-hidden rounded-xl bg-black flex items-center justify-center">
                 <video
-                  data-media-id="new-post-video-preview"
                   src={videoUrl}
                   controls
                   playsInline
                   autoPlay={false}
-                  preload="none"
                   muted={true}
-                  onPointerDown={(e) => {
-                    e.currentTarget.dataset.userInitiated = 'true';
-                  }}
-                  onError={(e) => {
-                    console.warn('[FeedView] Preview video error:', e);
-                  }}
                   className="w-full h-auto max-h-80 rounded-xl object-contain bg-black"
                 />
                 <div className="absolute top-2 right-2 rtl:right-auto rtl:left-2 z-10 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => videoFileInputRef.current?.click()}
-                    className="px-2.5 py-1.5 rounded-full bg-[#3d2b18]/90 text-[#c5a059] hover:bg-[#3d2b18] hover:text-white transition-all shadow-md text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer border border-[#c5a059]/50"
-                    title={language === 'ar' ? 'استبدال الفيديو' : 'Replace Video'}
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>{language === 'ar' ? 'استبدال' : 'Replace'}</span>
-                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -733,26 +616,14 @@ export const FeedView: React.FC<FeedViewProps> = ({
                       setVideoFileName('');
                     }}
                     className="p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-[#c5a059]/50"
-                    title={language === 'ar' ? 'إزالة الفيديو' : 'Remove Video'}
                   >
                     <X className="w-4 h-4" />
                   </button>
-                </div>
-                <div className="absolute bottom-2 left-2 rtl:left-auto rtl:right-2 z-10 px-2.5 py-1 rounded-lg bg-[#3d2b18]/80 text-[#c5a059] text-[10px] font-serif font-bold uppercase tracking-wider backdrop-blur-sm border border-[#c5a059]/30 flex items-center gap-1">
-                  <Video className="w-3.5 h-3.5 text-[#c5a059]" />
-                  <span>
-                    {videoFileName
-                      ? `${language === 'ar' ? 'فيديو: ' : 'Video: '}${videoFileName}`
-                      : language === 'ar'
-                      ? 'تم إرفاق فيديو Bunny Stream'
-                      : 'Bunny Stream Video Attached'}
-                  </span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Progress Bar during Video Upload */}
           {isSubmitting && selectedVideoFile && (
             <div className="w-full bg-[#eedcb5] dark:bg-[#282019] rounded-full h-2 overflow-hidden border border-[#c5a059]/40 mt-1">
               <div
@@ -768,17 +639,10 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#eedcb5] dark:hover:bg-[#282019]"
-                title="Select photo from PC or gallery"
               >
                 <Image className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                 <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
-                  {imageUrl
-                    ? language === 'ar'
-                      ? 'تم إرفاق صورة'
-                      : 'Photo Attached'
-                    : language === 'ar'
-                    ? 'صورة'
-                    : 'Photo'}
+                  {imageUrl ? (language === 'ar' ? 'تم إرفاق صورة' : 'Photo Attached') : (language === 'ar' ? 'صورة' : 'Photo')}
                 </span>
               </button>
 
@@ -786,17 +650,10 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 type="button"
                 onClick={() => videoFileInputRef.current?.click()}
                 className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#eedcb5] dark:hover:bg-[#282019]"
-                title="Select video from PC or gallery"
               >
                 <Video className="w-4 h-4 text-[#a8833c]" />
                 <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
-                  {videoUrl || selectedVideoFile
-                    ? language === 'ar'
-                      ? 'تم إرفاق فيديو'
-                      : 'Video Attached'
-                    : language === 'ar'
-                    ? 'فيديو'
-                    : 'Video'}
+                  {videoUrl || selectedVideoFile ? (language === 'ar' ? 'تم إرفاق فيديو' : 'Video Attached') : (language === 'ar' ? 'فيديو' : 'Video')}
                 </span>
               </button>
             </div>
@@ -822,7 +679,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </form>
       </div>
 
-      {/* Feed Mode Switcher (ALL POSTS vs FOLLOWING) */}
+      {/* Feed Filter Mode Switcher */}
       <div className="flex items-center justify-between bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] p-1.5 rounded-2xl shadow-md font-serif text-xs">
         <button
           onClick={() => setFeedTab('all')}
@@ -846,7 +703,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </button>
       </div>
 
-      {/* Main Feed Posts List */}
+      {/* Posts List */}
       <div className="space-y-4">
         {loading ? (
           <div className="p-8 text-center bg-[#f6ebd6] dark:bg-[#1c1611] rounded-3xl border-2 border-[#c5a059]">
@@ -860,26 +717,13 @@ export const FeedView: React.FC<FeedViewProps> = ({
             <Church className="w-8 h-8 mx-auto text-[#a8833c]" />
             <p className="font-bold text-[#3d2b18] dark:text-[#f5ebd9] text-sm">
               {feedTab === 'following'
-                ? language === 'ar'
-                  ? 'أنت لا تتابع أي شخص لديه منشورات نشطة بعد.'
-                  : "You aren't following anyone with active posts yet."
-                : language === 'ar'
-                ? 'لا توجد منشورات في خلاصة الرعية.'
-                : 'No posts found in the parish feed.'}
+                ? (language === 'ar'
+                    ? 'أنت لا تتابع أي شخص لديه منشورات نشطة بعد.'
+                    : "You aren't following anyone with active posts yet.")
+                : (language === 'ar'
+                    ? 'لا توجد منشورات في خلاصة الرعية.'
+                    : 'No posts found in the parish feed.')}
             </p>
-            {feedTab === 'following' ? (
-              <p className="text-[11px] text-[#a8833c]">
-                {language === 'ar'
-                  ? 'انتقل إلى "خلاصة الرعية العامة" لاكتشاف ومتابعة أعضاء آخرين!'
-                  : 'Switch to "All Parish Feed" to discover and follow other parish members!'}
-              </p>
-            ) : (
-              <p className="text-[11px] text-[#a8833c]">
-                {language === 'ar'
-                  ? 'كن أول من يشارك خاطرة، إعلاناً، أو طلب صلاة أعلاه!'
-                  : 'Be the first to share a reflection, announcement, or prayer request above!'}
-              </p>
-            )}
           </div>
         ) : (
           filteredPosts.map((post) => (
@@ -918,7 +762,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
         )}
       </div>
 
-      {/* Reshare Modal */}
       <ReshareModal
         post={reshareTargetPost}
         isOpen={Boolean(reshareTargetPost)}
@@ -926,7 +769,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
         onReshareCreated={(newPost) => setPosts([newPost, ...posts])}
       />
 
-      {/* Content Flagging & Reporting Modal */}
       <ReportContentModal
         isOpen={reportModalData.isOpen}
         onClose={() => setReportModalData((prev) => ({ ...prev, isOpen: false }))}

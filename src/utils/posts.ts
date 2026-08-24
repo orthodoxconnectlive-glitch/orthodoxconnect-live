@@ -18,26 +18,22 @@ const API_BASE_URL = ''; // Relative path against Worker or dev server
 
 /**
  * Extracts a canonical Bunny Stream video GUID from any string format
- * (e.g. pure GUID, embed iframe URL, or CDN stream URL).
  */
 export function extractBunnyVideoGuid(input?: string | null): string | undefined {
   if (!input || typeof input !== 'string') return undefined;
   const trimmed = input.trim();
   if (!trimmed) return undefined;
 
-  // 1. Standard 36-char UUID regex (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
   const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/;
   const match = trimmed.match(guidRegex);
   if (match) {
     return match[1];
   }
 
-  // 2. Direct alphanumeric ID (10+ characters without path/protocol)
   if (/^[0-9a-fA-F-]{10,}$/.test(trimmed) && !trimmed.startsWith('http') && !trimmed.includes('/')) {
     return trimmed;
   }
 
-  // 3. Extract from Bunny iframe or mediadelivery URL
   if (trimmed.includes('mediadelivery.net') || trimmed.includes('bunnycdn.com') || trimmed.includes('b-cdn.net')) {
     const parts = trimmed.split('?')[0].split('/');
     const lastPart = parts[parts.length - 1];
@@ -93,14 +89,12 @@ export function mapRowToPost(row: any): Post {
 
   const authorId = row.author_id || row.authorId || undefined;
 
-  // Bunny Stream video GUID / URL resolution
   const rawVideo = row.video_id || row.videoId || row.video || row.video_url || undefined;
   const videoGuid = extractBunnyVideoGuid(rawVideo);
   const cleanVideo = videoGuid || (rawVideo && /^[0-9a-fA-F-]{10,}$/.test(rawVideo.trim()) ? rawVideo.trim() : undefined);
 
   const text = (row.content ?? row.text ?? '').trim();
   const rawImage = row.image_url || row.imageUrl || row.image || undefined;
-  // Clean media separation: if video is present, suppress image unless explicitly marked
   const finalImage = cleanVideo ? undefined : rawImage;
   const createdAt = row.created_at || row.createdAt || new Date().toISOString();
   const groupId = row.group_id || row.groupId || undefined;
@@ -155,10 +149,11 @@ export function mapRowToPost(row: any): Post {
   };
 }
 
-const SAVED_COMMENTS_KEY = 'orthodox_local_comments_v3';
-const SAVED_REEL_COMMENTS_KEY = 'orthodox_local_reel_comments_v3';
-const SAVED_LIKES_KEY = 'orthodox_local_likes_v3';
-const SAVED_LOCAL_POSTS_KEY = 'orthodox_d1_posts_cache_v1';
+const SAVED_COMMENTS_KEY = 'orthodox_local_comments_v4';
+const SAVED_REEL_COMMENTS_KEY = 'orthodox_local_reel_comments_v4';
+const SAVED_LIKES_KEY = 'orthodox_local_likes_v4';
+// Upgraded key to purge legacy seed cache from localStorage
+const SAVED_LOCAL_POSTS_KEY = 'orthodox_d1_posts_cache_v2';
 
 export function loadLocalPostCommentsMap(): Record<string, string[]> {
   try {
@@ -206,7 +201,7 @@ export function getLocalSavedPosts(): Post[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(mapRowToPost);
+        return parsed.map(mapRowToPost).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       }
     }
   } catch (e: any) {
@@ -220,7 +215,7 @@ export function saveLocalPostToCache(post: Post) {
     const cleanPost = sanitizePost(post);
     const existing = getLocalSavedPosts();
     const filtered = existing.filter((p) => p.id !== cleanPost.id);
-    const updated = [cleanPost, ...filtered];
+    const updated = [cleanPost, ...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(updated.slice(0, 100)));
   } catch (e: any) {
     console.warn('[Post Cache] Error saving local post to cache:', e?.message || String(e));
@@ -245,12 +240,14 @@ export function saveLocalLikesMap(map: Record<string, boolean>) {
   }
 }
 
-// In-memory cache for fast navigation transitions
 let cachedPosts: { data: Post[]; timestamp: number; key: string } | null = null;
-const CACHE_TTL_MS = 10000;
+const CACHE_TTL_MS = 5000;
 
 export function invalidatePostsCache() {
   cachedPosts = null;
+  try {
+    localStorage.removeItem('orthodox_d1_posts_cache_v1');
+  } catch (e) {}
 }
 
 /**
@@ -260,14 +257,14 @@ export async function loadPosts(
   groupId?: string,
   options?: { limit?: number; offset?: number; forceRefresh?: boolean }
 ): Promise<{ posts: Post[]; error: any }> {
-  const cacheKey = `posts-${groupId || 'all'}-${options?.offset || 0}-${options?.limit || 30}`;
+  const cacheKey = `posts-${groupId || 'all'}-${options?.offset || 0}-${options?.limit || 50}`;
   const localFallback = getLocalSavedPosts().filter((p) => !groupId || p.groupId === groupId);
 
   if (!options?.forceRefresh && cachedPosts && cachedPosts.key === cacheKey && Date.now() - cachedPosts.timestamp < CACHE_TTL_MS) {
     return { posts: cachedPosts.data, error: null };
   }
 
-  const limit = options?.limit ?? 30;
+  const limit = options?.limit ?? 50;
   const offset = options?.offset ?? 0;
   const params = new URLSearchParams({
     limit: String(limit),
@@ -279,7 +276,7 @@ export async function loadPosts(
 
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
+    const timer = setTimeout(() => controller.abort(), 6000);
 
     const res = await fetch(`${API_BASE_URL}/api/posts?${params.toString()}`, {
       method: 'GET',
@@ -296,11 +293,14 @@ export async function loadPosts(
 
     const data = await res.json();
     const rawList = Array.isArray(data) ? data : (data?.posts || []);
-    const mapped = rawList.map(mapRowToPost);
+    const mapped = rawList
+      .map(mapRowToPost)
+      .sort((a: Post, b: Post) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    // Sync to local storage cache
     if (mapped.length > 0) {
-      mapped.forEach(saveLocalPostToCache);
+      try {
+        localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(mapped.slice(0, 100)));
+      } catch (e) {}
     }
 
     cachedPosts = {
@@ -338,7 +338,9 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
     if (res.ok) {
       const data = await res.json();
       const rawList = Array.isArray(data) ? data : (data?.posts || []);
-      const mapped = rawList.map(mapRowToPost);
+      const mapped = rawList
+        .map(mapRowToPost)
+        .sort((a: Post, b: Post) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       if (mapped.length > 0) return mapped;
     }
   } catch (err) {
@@ -367,7 +369,8 @@ export async function loadVideos(): Promise<Post[]> {
       const rawList = Array.isArray(data) ? data : (data?.posts || []);
       const mapped = rawList
         .map(mapRowToPost)
-        .filter((p: Post) => Boolean((p.video_id && p.video_id.trim() !== '') || (p.video && p.video.trim() !== '')));
+        .filter((p: Post) => Boolean((p.video_id && p.video_id.trim() !== '') || (p.video && p.video.trim() !== '')))
+        .sort((a: Post, b: Post) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       if (mapped.length > 0) return mapped;
     }
   } catch (err) {
@@ -381,7 +384,6 @@ export const loadReels = loadVideos;
 
 /**
  * Inserts a new post into Cloudflare D1 via POST /api/posts.
- * Extracts and persists Bunny Stream video GUID.
  */
 export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   const videoGuid = postPartial.video_id || extractBunnyVideoGuid(postPartial.video);
@@ -395,7 +397,6 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
       postPartial.authorAvatar ||
       'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
     authorId: postPartial.authorId,
-    // Clean Media Separation: If video is present, ensure image is undefined
     image: videoGuid ? undefined : postPartial.image,
     video: videoGuid,
     video_id: videoGuid,
@@ -411,7 +412,6 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     reshareKind: postPartial.reshareKind,
   };
 
-  // Optimistic local cache update
   saveLocalPostToCache(newPost);
   invalidatePostsCache();
 
@@ -423,7 +423,6 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     author_name: newPost.authorName,
     author_parish: newPost.authorParish,
     author_avatar: newPost.authorAvatar,
-    // Clean Media Separation: If video_id exists, image_url must be null in D1 insert payload
     image_url: videoGuid ? null : (postPartial.image || null),
     group_id: newPost.groupId || null,
     likes_count: newPost.likesCount,
@@ -449,19 +448,14 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
         saveLocalPostToCache(saved);
         return saved;
       }
-    } else {
-      console.warn('[Cloudflare D1 Post Insert HTTP]:', res.status);
     }
   } catch (err: any) {
-    console.warn('[Cloudflare D1 savePost error, using cached]:', err?.message || err);
+    console.warn('[Cloudflare D1 savePost error]:', err?.message || err);
   }
 
   return newPost;
 }
 
-/**
- * Extracts current user identity headers for role-based Cloudflare Worker requests.
- */
 export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
   let profile = overrideProfile;
   if (!profile) {
@@ -482,9 +476,6 @@ export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
   };
 }
 
-/**
- * Toggles like on a post in Cloudflare D1 / Worker backend with optimistic updates.
- */
 export async function togglePostLike(
   postId: string,
   userProfile?: any
@@ -533,9 +524,6 @@ export async function togglePostLike(
   return { success: false, liked: false };
 }
 
-/**
- * Fetches the list of likers for a specific post.
- */
 export async function fetchPostLikes(postId: string): Promise<{ userId: string; userName: string; userAvatar?: string; parish?: string }[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/likes`);
@@ -556,9 +544,6 @@ export async function fetchPostLikes(postId: string): Promise<{ userId: string; 
   return [];
 }
 
-/**
- * Fetches comments for a specific post from Cloudflare D1.
- */
 export async function fetchPostComments(postId: string): Promise<any[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/comments`);
@@ -585,7 +570,6 @@ export async function fetchPostComments(postId: string): Promise<any[]> {
     console.warn('[Cloudflare D1 fetchPostComments notice]:', err);
   }
 
-  // Fallback to local map comments
   const localMap = loadLocalPostCommentsMap();
   const strings = localMap[postId] || [];
   return strings.map((text, idx) => ({
@@ -602,9 +586,6 @@ export async function fetchPostComments(postId: string): Promise<any[]> {
   }));
 }
 
-/**
- * Adds a comment to a post in Cloudflare D1.
- */
 export async function addPostComment(
   postId: string,
   content: string,
@@ -667,9 +648,6 @@ export async function addPostComment(
   return { success: true, comment: newComment };
 }
 
-/**
- * Deletes a comment from Cloudflare D1.
- */
 export async function deletePostComment(
   postId: string,
   commentId: string,
@@ -694,9 +672,6 @@ export async function deletePostComment(
   }
 }
 
-/**
- * Deletes a post from Cloudflare D1 via DELETE /api/posts/:id with user identity headers.
- */
 export async function deletePost(postId: string, userProfile?: any): Promise<{ success: boolean; error: any }> {
   try {
     const existing = getLocalSavedPosts();
@@ -723,9 +698,6 @@ export async function deletePost(postId: string, userProfile?: any): Promise<{ s
   }
 }
 
-/**
- * Deletes a user account from Cloudflare D1 via DELETE /api/users/:id with user identity headers.
- */
 export async function deleteUserApi(
   userId: string,
   targetEmail?: string,
@@ -761,9 +733,6 @@ export async function deleteUserApi(
   }
 }
 
-/**
- * Creates a post reshare or quote post.
- */
 export async function createReshare(
   originalPostId: string,
   kind: 'reshare' | 'quote',
@@ -781,9 +750,7 @@ export async function createReshare(
           originalPost = mapRowToPost(data.post);
         }
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
   }
 
   let userProfile: any = null;

@@ -16,9 +16,6 @@ export const SEED_VIDEOS: string[] = [];
 
 const API_BASE_URL = ''; // Relative path against Worker or dev server
 
-/**
- * Extracts a canonical Bunny Stream video GUID from any string format
- */
 export function extractBunnyVideoGuid(input?: string | null): string | undefined {
   if (!input || typeof input !== 'string') return undefined;
   const trimmed = input.trim();
@@ -26,9 +23,7 @@ export function extractBunnyVideoGuid(input?: string | null): string | undefined
 
   const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/;
   const match = trimmed.match(guidRegex);
-  if (match) {
-    return match[1];
-  }
+  if (match) return match[1];
 
   if (/^[0-9a-fA-F-]{10,}$/.test(trimmed) && !trimmed.startsWith('http') && !trimmed.includes('/')) {
     return trimmed;
@@ -46,9 +41,6 @@ export function extractBunnyVideoGuid(input?: string | null): string | undefined
   return trimmed;
 }
 
-/**
- * Helper to convert a Cloudflare D1 database row to the frontend Post model
- */
 export function mapRowToPost(row: any): Post {
   if (!row || typeof row !== 'object') {
     return {
@@ -88,7 +80,6 @@ export function mapRowToPost(row: any): Post {
     'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
 
   const authorId = row.author_id || row.authorId || undefined;
-
   const rawVideo = row.video_id || row.videoId || row.video || row.video_url || undefined;
   const videoGuid = extractBunnyVideoGuid(rawVideo);
   const cleanVideo = videoGuid || (rawVideo && /^[0-9a-fA-F-]{10,}$/.test(rawVideo.trim()) ? rawVideo.trim() : undefined);
@@ -149,46 +140,37 @@ export function mapRowToPost(row: any): Post {
   };
 }
 
-const SAVED_COMMENTS_KEY = 'orthodox_local_comments_v4';
-const SAVED_REEL_COMMENTS_KEY = 'orthodox_local_reel_comments_v4';
-const SAVED_LIKES_KEY = 'orthodox_local_likes_v4';
-// Upgraded key to purge legacy seed cache from localStorage
-const SAVED_LOCAL_POSTS_KEY = 'orthodox_d1_posts_cache_v2';
+const SAVED_COMMENTS_KEY = 'orthodox_local_comments_v5';
+const SAVED_REEL_COMMENTS_KEY = 'orthodox_local_reel_comments_v5';
+const SAVED_LIKES_KEY = 'orthodox_local_likes_v5';
+const SAVED_LOCAL_POSTS_KEY = 'orthodox_d1_posts_cache_v5';
 
 export function loadLocalPostCommentsMap(): Record<string, string[]> {
   try {
     const saved = localStorage.getItem(SAVED_COMMENTS_KEY);
     if (saved) return JSON.parse(saved);
-  } catch (e) {
-    console.warn('Error loading local comments map:', e);
-  }
+  } catch (e) {}
   return {};
 }
 
 export function saveLocalPostCommentsMap(map: Record<string, string[]>) {
   try {
     localStorage.setItem(SAVED_COMMENTS_KEY, JSON.stringify(map));
-  } catch (e) {
-    console.warn('Error saving local comments map:', e);
-  }
+  } catch (e) {}
 }
 
 export function loadLocalReelCommentsMap(): Record<string, any[]> {
   try {
     const saved = localStorage.getItem(SAVED_REEL_COMMENTS_KEY);
     if (saved) return JSON.parse(saved);
-  } catch (e) {
-    console.warn('Error loading reel comments map:', e);
-  }
+  } catch (e) {}
   return {};
 }
 
 export function saveLocalReelCommentsMap(map: Record<string, any[]>) {
   try {
     localStorage.setItem(SAVED_REEL_COMMENTS_KEY, JSON.stringify(map));
-  } catch (e) {
-    console.warn('Error saving reel comments map:', e);
-  }
+  } catch (e) {}
 }
 
 export function sanitizePost(post: any): Post {
@@ -204,9 +186,7 @@ export function getLocalSavedPosts(): Post[] {
         return parsed.map(mapRowToPost).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       }
     }
-  } catch (e: any) {
-    console.warn('Error reading local saved posts:', e?.message || String(e));
-  }
+  } catch (e) {}
   return [];
 }
 
@@ -217,36 +197,34 @@ export function saveLocalPostToCache(post: Post) {
     const filtered = existing.filter((p) => p.id !== cleanPost.id);
     const updated = [cleanPost, ...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(updated.slice(0, 100)));
-  } catch (e: any) {
-    console.warn('[Post Cache] Error saving local post to cache:', e?.message || String(e));
-  }
+  } catch (e) {}
 }
 
 export function loadLocalLikesMap(): Record<string, boolean> {
   try {
     const saved = localStorage.getItem(SAVED_LIKES_KEY);
     if (saved) return JSON.parse(saved);
-  } catch (e) {
-    console.warn('Error loading likes map:', e);
-  }
+  } catch (e) {}
   return {};
 }
 
 export function saveLocalLikesMap(map: Record<string, boolean>) {
   try {
     localStorage.setItem(SAVED_LIKES_KEY, JSON.stringify(map));
-  } catch (e) {
-    console.warn('Error saving likes map:', e);
-  }
+  } catch (e) {}
 }
 
 let cachedPosts: { data: Post[]; timestamp: number; key: string } | null = null;
-const CACHE_TTL_MS = 5000;
+const CACHE_TTL_MS = 2000;
 
 export function invalidatePostsCache() {
   cachedPosts = null;
   try {
     localStorage.removeItem('orthodox_d1_posts_cache_v1');
+    localStorage.removeItem('orthodox_d1_posts_cache_v2');
+    localStorage.removeItem('orthodox_d1_posts_cache_v3');
+    localStorage.removeItem('orthodox_d1_posts_cache_v4');
+    localStorage.removeItem('orthodox_d1_posts_cache_v5');
   } catch (e) {}
 }
 
@@ -258,7 +236,6 @@ export async function loadPosts(
   options?: { limit?: number; offset?: number; forceRefresh?: boolean }
 ): Promise<{ posts: Post[]; error: any }> {
   const cacheKey = `posts-${groupId || 'all'}-${options?.offset || 0}-${options?.limit || 50}`;
-  const localFallback = getLocalSavedPosts().filter((p) => !groupId || p.groupId === groupId);
 
   if (!options?.forceRefresh && cachedPosts && cachedPosts.key === cacheKey && Date.now() - cachedPosts.timestamp < CACHE_TTL_MS) {
     return { posts: cachedPosts.data, error: null };
@@ -275,20 +252,16 @@ export async function loadPosts(
   }
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 6000);
-
     const res = await fetch(`${API_BASE_URL}/api/posts?${params.toString()}`, {
       method: 'GET',
       headers: {
         Accept: 'application/json',
       },
-      signal: controller.signal,
     });
-    clearTimeout(timer);
 
     if (!res.ok) {
-      throw new Error(`Worker API HTTP ${res.status}`);
+      const errText = await res.text().catch(() => '');
+      throw new Error(`API Error ${res.status}: ${errText || res.statusText}`);
     }
 
     const data = await res.json();
@@ -297,39 +270,27 @@ export async function loadPosts(
       .map(mapRowToPost)
       .sort((a: Post, b: Post) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    if (mapped.length > 0) {
-      try {
-        localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(mapped.slice(0, 100)));
-      } catch (e) {}
-    }
+    try {
+      localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(mapped.slice(0, 100)));
+    } catch (e) {}
 
     cachedPosts = {
-      data: mapped.length > 0 ? mapped : localFallback,
+      data: mapped,
       timestamp: Date.now(),
       key: cacheKey,
     };
 
-    return { posts: mapped.length > 0 ? mapped : localFallback, error: null };
+    return { posts: mapped, error: null };
   } catch (err: any) {
-    console.warn('[Cloudflare D1 loadPosts notice]:', err?.message || err);
-    return { posts: localFallback, error: err?.message || null };
+    console.error('[Cloudflare D1 loadPosts error]:', err?.message || err);
+    // Return empty array and the actual error so it displays in FeedView rather than masking with stale data
+    return { posts: getLocalSavedPosts(), error: err?.message || 'Database connection error' };
   }
 }
 
-/**
- * Loads posts filtered by author from Cloudflare Worker API.
- */
 export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
-  const localFallback = getLocalSavedPosts().filter(
-    (p) => p.authorId === authorId || p.authorName.toLowerCase().includes(authorId.toLowerCase())
-  );
-
   try {
-    const params = new URLSearchParams({
-      author_id: authorId,
-      limit: '50',
-    });
-
+    const params = new URLSearchParams({ author_id: authorId, limit: '50' });
     const res = await fetch(`${API_BASE_URL}/api/posts?${params.toString()}`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
@@ -338,26 +299,15 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
     if (res.ok) {
       const data = await res.json();
       const rawList = Array.isArray(data) ? data : (data?.posts || []);
-      const mapped = rawList
+      return rawList
         .map(mapRowToPost)
         .sort((a: Post, b: Post) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      if (mapped.length > 0) return mapped;
     }
-  } catch (err) {
-    console.warn('[Cloudflare D1 loadPostsByAuthor notice]:', err);
-  }
-
-  return localFallback;
+  } catch (err) {}
+  return [];
 }
 
-/**
- * Loads videos / reels from Cloudflare Worker API (GET /api/posts?video_only=true).
- */
 export async function loadVideos(): Promise<Post[]> {
-  const localVideos = getLocalSavedPosts().filter(
-    (p) => (p.video_id && String(p.video_id).trim() !== '') || (p.video && String(p.video).trim() !== '')
-  );
-
   try {
     const res = await fetch(`${API_BASE_URL}/api/posts?video_only=true&limit=50`, {
       method: 'GET',
@@ -367,24 +317,17 @@ export async function loadVideos(): Promise<Post[]> {
     if (res.ok) {
       const data = await res.json();
       const rawList = Array.isArray(data) ? data : (data?.posts || []);
-      const mapped = rawList
+      return rawList
         .map(mapRowToPost)
         .filter((p: Post) => Boolean((p.video_id && p.video_id.trim() !== '') || (p.video && p.video.trim() !== '')))
         .sort((a: Post, b: Post) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      if (mapped.length > 0) return mapped;
     }
-  } catch (err) {
-    console.warn('[Cloudflare D1 loadVideos notice]:', err);
-  }
-
-  return localVideos;
+  } catch (err) {}
+  return [];
 }
 
 export const loadReels = loadVideos;
 
-/**
- * Inserts a new post into Cloudflare D1 via POST /api/posts.
- */
 export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   const videoGuid = postPartial.video_id || extractBunnyVideoGuid(postPartial.video);
 
@@ -412,7 +355,6 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     reshareKind: postPartial.reshareKind,
   };
 
-  saveLocalPostToCache(newPost);
   invalidatePostsCache();
 
   const d1Payload = {
@@ -444,9 +386,7 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     if (res.ok) {
       const result = await res.json();
       if (result?.post) {
-        const saved = mapRowToPost(result.post);
-        saveLocalPostToCache(saved);
-        return saved;
+        return mapRowToPost(result.post);
       }
     }
   } catch (err: any) {
@@ -465,14 +405,10 @@ export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
     } catch (e) {}
   }
 
-  const email = profile?.email || '';
-  const role = profile?.role || 'user';
-  const id = profile?.id || '';
-
   return {
-    'x-user-email': email,
-    'x-user-role': role,
-    'x-user-id': id,
+    'x-user-email': profile?.email || '',
+    'x-user-role': profile?.role || 'user',
+    'x-user-id': profile?.id || '',
   };
 }
 
@@ -517,9 +453,7 @@ export async function togglePostLike(
         likers: data.likers || [],
       };
     }
-  } catch (err) {
-    console.warn('[Cloudflare D1 togglePostLike notice]:', err);
-  }
+  } catch (err) {}
 
   return { success: false, liked: false };
 }
@@ -538,9 +472,7 @@ export async function fetchPostLikes(postId: string): Promise<{ userId: string; 
         }));
       }
     }
-  } catch (err) {
-    console.warn('[Cloudflare D1 fetchPostLikes notice]:', err);
-  }
+  } catch (err) {}
   return [];
 }
 
@@ -566,24 +498,8 @@ export async function fetchPostComments(postId: string): Promise<any[]> {
         }));
       }
     }
-  } catch (err) {
-    console.warn('[Cloudflare D1 fetchPostComments notice]:', err);
-  }
-
-  const localMap = loadLocalPostCommentsMap();
-  const strings = localMap[postId] || [];
-  return strings.map((text, idx) => ({
-    id: `local-comm-${idx}`,
-    postId,
-    post_id: postId,
-    content: text,
-    authorName: 'Orthodox Parishioner',
-    author_name: 'Orthodox Parishioner',
-    authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-    author_avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-    createdAt: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-  }));
+  } catch (err) {}
+  return [];
 }
 
 export async function addPostComment(
@@ -641,9 +557,7 @@ export async function addPostComment(
         comments_count: data?.comments_count,
       };
     }
-  } catch (err: any) {
-    console.warn('[Cloudflare D1 addPostComment notice]:', err);
-  }
+  } catch (err) {}
 
   return { success: true, comment: newComment };
 }
@@ -667,7 +581,6 @@ export async function deletePostComment(
     const errData = await res.json().catch(() => ({}));
     return { success: false, error: errData.error || `HTTP ${res.status}` };
   } catch (err: any) {
-    console.warn('[Cloudflare D1 deletePostComment notice]:', err);
     return { success: false, error: err?.message || 'Network error' };
   }
 }
@@ -680,7 +593,6 @@ export async function deletePost(postId: string, userProfile?: any): Promise<{ s
     invalidatePostsCache();
 
     const headers = getAuthHeaders(userProfile);
-
     const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}`, {
       method: 'DELETE',
       headers,
@@ -693,7 +605,6 @@ export async function deletePost(postId: string, userProfile?: any): Promise<{ s
 
     return { success: true, error: null };
   } catch (err: any) {
-    console.warn('[Cloudflare D1 deletePost notice]:', err);
     return { success: false, error: err?.message || err };
   }
 }
@@ -728,7 +639,6 @@ export async function deleteUserApi(
 
     return { success: true, error: null };
   } catch (err: any) {
-    console.warn('[Cloudflare D1 deleteUserApi notice]:', err);
     return { success: false, error: err?.message || err };
   }
 }

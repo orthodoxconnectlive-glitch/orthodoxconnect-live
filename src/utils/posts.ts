@@ -95,6 +95,7 @@ export function mapRowToPost(row: any): Post {
   const resharesCount = typeof row.reshares_count === 'number' ? row.reshares_count : (typeof row.resharesCount === 'number' ? row.resharesCount : 0);
   const isLiked = Boolean(row.is_liked || row.isLiked);
   const isReshared = Boolean(row.is_reshared || row.isReshared);
+  const likers = Array.isArray(row.likers) ? row.likers : [];
 
   return {
     id: String(row.id),
@@ -125,6 +126,7 @@ export function mapRowToPost(row: any): Post {
     group_id: groupId,
     likesCount,
     likes_count: likesCount,
+    likers,
     commentsCount,
     comments_count: commentsCount,
     resharesCount,
@@ -140,10 +142,11 @@ export function mapRowToPost(row: any): Post {
   };
 }
 
-const SAVED_COMMENTS_KEY = 'orthodox_local_comments_v5';
-const SAVED_REEL_COMMENTS_KEY = 'orthodox_local_reel_comments_v5';
-const SAVED_LIKES_KEY = 'orthodox_local_likes_v5';
-const SAVED_LOCAL_POSTS_KEY = 'orthodox_d1_posts_cache_v5';
+const SAVED_COMMENTS_KEY = 'orthodox_local_comments_v6';
+const SAVED_REEL_COMMENTS_KEY = 'orthodox_local_reel_comments_v6';
+const SAVED_LIKES_KEY = 'orthodox_local_likes_v6';
+const SAVED_LIKERS_KEY = 'orthodox_local_likers_v6';
+const SAVED_LOCAL_POSTS_KEY = 'orthodox_d1_posts_cache_v6';
 
 export function loadLocalPostCommentsMap(): Record<string, string[]> {
   try {
@@ -173,6 +176,34 @@ export function saveLocalReelCommentsMap(map: Record<string, any[]>) {
   } catch (e) {}
 }
 
+export function loadLocalLikesMap(): Record<string, boolean> {
+  try {
+    const saved = localStorage.getItem(SAVED_LIKES_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return {};
+}
+
+export function saveLocalLikesMap(map: Record<string, boolean>) {
+  try {
+    localStorage.setItem(SAVED_LIKES_KEY, JSON.stringify(map));
+  } catch (e) {}
+}
+
+export function loadLocalLikersMap(): Record<string, any[]> {
+  try {
+    const saved = localStorage.getItem(SAVED_LIKERS_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return {};
+}
+
+export function saveLocalLikersMap(map: Record<string, any[]>) {
+  try {
+    localStorage.setItem(SAVED_LIKERS_KEY, JSON.stringify(map));
+  } catch (e) {}
+}
+
 export function sanitizePost(post: any): Post {
   return mapRowToPost(post);
 }
@@ -180,10 +211,27 @@ export function sanitizePost(post: any): Post {
 export function getLocalSavedPosts(): Post[] {
   try {
     const raw = localStorage.getItem(SAVED_LOCAL_POSTS_KEY);
+    const localLikes = loadLocalLikesMap();
+    const localLikersMap = loadLocalLikersMap();
+
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(mapRowToPost).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return parsed.map((p) => {
+          const mapped = mapRowToPost(p);
+          const isLocallyLiked = localLikes[mapped.id] !== undefined ? localLikes[mapped.id] : Boolean(mapped.isLiked);
+          const baseCount = typeof mapped.likesCount === 'number' ? mapped.likesCount : (mapped.likes_count || 0);
+          const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
+          const likers = localLikersMap[mapped.id] || mapped.likers || [];
+
+          return {
+            ...mapped,
+            isLiked: isLocallyLiked,
+            likesCount: adjustedCount,
+            likes_count: adjustedCount,
+            likers,
+          };
+        }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       }
     }
   } catch (e) {}
@@ -200,36 +248,15 @@ export function saveLocalPostToCache(post: Post) {
   } catch (e) {}
 }
 
-export function loadLocalLikesMap(): Record<string, boolean> {
-  try {
-    const saved = localStorage.getItem(SAVED_LIKES_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch (e) {}
-  return {};
-}
-
-export function saveLocalLikesMap(map: Record<string, boolean>) {
-  try {
-    localStorage.setItem(SAVED_LIKES_KEY, JSON.stringify(map));
-  } catch (e) {}
-}
-
 let cachedPosts: { data: Post[]; timestamp: number; key: string } | null = null;
 const CACHE_TTL_MS = 2000;
 
 export function invalidatePostsCache() {
   cachedPosts = null;
-  try {
-    localStorage.removeItem('orthodox_d1_posts_cache_v1');
-    localStorage.removeItem('orthodox_d1_posts_cache_v2');
-    localStorage.removeItem('orthodox_d1_posts_cache_v3');
-    localStorage.removeItem('orthodox_d1_posts_cache_v4');
-    localStorage.removeItem('orthodox_d1_posts_cache_v5');
-  } catch (e) {}
 }
 
 /**
- * Loads posts from Cloudflare Worker API (GET /api/posts).
+ * Loads posts from Cloudflare Worker API (GET /api/posts) and merges with local likes.
  */
 export async function loadPosts(
   groupId?: string,
@@ -251,6 +278,9 @@ export async function loadPosts(
     params.set('group_id', groupId);
   }
 
+  const localLikes = loadLocalLikesMap();
+  const localLikersMap = loadLocalLikersMap();
+
   try {
     const res = await fetch(`${API_BASE_URL}/api/posts?${params.toString()}`, {
       method: 'GET',
@@ -267,7 +297,21 @@ export async function loadPosts(
     const data = await res.json();
     const rawList = Array.isArray(data) ? data : (data?.posts || []);
     const mapped = rawList
-      .map(mapRowToPost)
+      .map((row: any) => {
+        const p = mapRowToPost(row);
+        const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : Boolean(p.isLiked);
+        const baseCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
+        const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
+        const likers = localLikersMap[p.id] || p.likers || [];
+
+        return {
+          ...p,
+          isLiked: isLocallyLiked,
+          likesCount: adjustedCount,
+          likes_count: adjustedCount,
+          likers,
+        };
+      })
       .sort((a: Post, b: Post) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     try {
@@ -283,7 +327,6 @@ export async function loadPosts(
     return { posts: mapped, error: null };
   } catch (err: any) {
     console.error('[Cloudflare D1 loadPosts error]:', err?.message || err);
-    // Return empty array and the actual error so it displays in FeedView rather than masking with stale data
     return { posts: getLocalSavedPosts(), error: err?.message || 'Database connection error' };
   }
 }
@@ -349,6 +392,7 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     createdAt: postPartial.createdAt || new Date().toISOString(),
     groupId: postPartial.groupId,
     likesCount: postPartial.likesCount || 0,
+    likers: postPartial.likers || [],
     commentsCount: postPartial.commentsCount || 0,
     resharesCount: postPartial.resharesCount || 0,
     quotedPost: postPartial.quotedPost,

@@ -66,7 +66,23 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const { profile } = useAuth();
   const { t, language } = useTheme();
 
-  const [posts, setPosts] = useState<Post[]>(() => getLocalSavedPosts());
+  // Instant render from local cache with like resolution
+  const [posts, setPosts] = useState<Post[]>(() => {
+    const cached = getLocalSavedPosts();
+    const localLikes = loadLocalLikesMap();
+    return cached.map((p) => {
+      const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : Boolean(p.isLiked);
+      const baseCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
+      const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
+      return {
+        ...p,
+        isLiked: isLocallyLiked,
+        likesCount: adjustedCount,
+        likes_count: adjustedCount,
+      };
+    });
+  });
+
   const [loading, setLoading] = useState<boolean>(false);
   const [feedError, setFeedError] = useState<string | null>(null);
   const [feedTab, setFeedTab] = useState<'all' | 'following'>('all');
@@ -95,7 +111,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
   // Comments & Modal state
   const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
-  const [commentInput, setCommentInput] = useState('');
   const [commentsMap, setCommentsMap] = useState<Record<string, PostComment[]>>({});
   const [reshareTargetPost, setReshareTargetPost] = useState<Post | null>(null);
   const [reportModalData, setReportModalData] = useState<{
@@ -115,9 +130,10 @@ export const FeedView: React.FC<FeedViewProps> = ({
   useEffect(() => {
     fetchPosts();
 
+    // 45s periodic background refresh to prevent mobile network congestion
     const interval = setInterval(() => {
       fetchPosts(true);
-    }, 30000);
+    }, 45000);
 
     return () => {
       clearInterval(interval);
@@ -143,35 +159,42 @@ export const FeedView: React.FC<FeedViewProps> = ({
   };
 
   const fetchPosts = async (silent = false) => {
-    if (!silent) setLoading(true);
+    // Only show full spinner if no posts exist in state (prevents visual blinking)
+    if (!silent && posts.length === 0) setLoading(true);
     setFeedError(null);
+
     try {
       const localLikes = loadLocalLikesMap();
       const localCommentsMap = loadLocalPostCommentsMap();
 
-      // Pass undefined for authorId to load ALL parish posts
-      const { posts: fetchedPosts, error } = await loadPosts(undefined, { limit: 100 });
-      
+      const { posts: fetchedPosts, error } = await loadPosts(undefined, { limit: 50 });
+
       if (error) {
         setFeedError(error);
       }
 
-      let activePosts = fetchedPosts && fetchedPosts.length > 0 ? fetchedPosts : getLocalSavedPosts();
+      const activePosts = fetchedPosts && fetchedPosts.length > 0 ? fetchedPosts : getLocalSavedPosts();
 
-      activePosts = activePosts.map((p) => {
-        const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : p.isLiked;
+      // Merge server results with local likes and comments
+      const syncedPosts = activePosts.map((p) => {
+        const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : Boolean(p.isLiked);
         const localComments = localCommentsMap[p.id] || [];
+        const baseCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
+        const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
+
         return {
           ...p,
-          isLiked: Boolean(isLocallyLiked),
+          isLiked: isLocallyLiked,
+          likesCount: adjustedCount,
+          likes_count: adjustedCount,
           commentsCount: Math.max(p.commentsCount || 0, localComments.length),
         };
       });
 
-      setPosts(activePosts);
+      setPosts(syncedPosts);
 
       const fMap: Record<string, boolean> = {};
-      activePosts.forEach((p) => {
+      syncedPosts.forEach((p) => {
         const name = p.authorName || p.author_name || '';
         if (name) fMap[name] = isFollowing(name);
       });
@@ -351,28 +374,36 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const handleToggleLike = async (postId: string) => {
     const myLikerId = profile?.id || 'me';
     const myLikerName = profile?.full_name || (language === 'ar' ? 'أنت' : 'You');
-    const myLikerAvatar = profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
+    const myLikerAvatar =
+      profile?.avatar_url ||
+      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
+
+    let nextIsLiked = false;
 
     setPosts((prev) =>
       prev.map((p) => {
         if (p.id === postId) {
-          const isLiked = !p.isLiked;
+          nextIsLiked = !p.isLiked;
           const currentCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
-          const nextCount = isLiked ? currentCount + 1 : Math.max(0, currentCount - 1);
+          const nextCount = nextIsLiked ? currentCount + 1 : Math.max(0, currentCount - 1);
 
           let updatedLikers = p.likers ? [...p.likers] : [];
-          if (isLiked) {
+          if (nextIsLiked) {
             updatedLikers = [
               { userId: myLikerId, userName: myLikerName, userAvatar: myLikerAvatar },
-              ...updatedLikers.filter((l) => l.userId !== myLikerId && l.userId !== 'me' && l.userId !== profile?.id),
+              ...updatedLikers.filter(
+                (l) => l.userId !== myLikerId && l.userId !== 'me' && l.userId !== profile?.id
+              ),
             ];
           } else {
-            updatedLikers = updatedLikers.filter((l) => l.userId !== myLikerId && l.userId !== 'me' && l.userId !== profile?.id);
+            updatedLikers = updatedLikers.filter(
+              (l) => l.userId !== myLikerId && l.userId !== 'me' && l.userId !== profile?.id
+            );
           }
 
           return {
             ...p,
-            isLiked,
+            isLiked: nextIsLiked,
             likesCount: nextCount,
             likes_count: nextCount,
             likers: updatedLikers,
@@ -382,6 +413,14 @@ export const FeedView: React.FC<FeedViewProps> = ({
       })
     );
 
+    // 1. Persist like state directly in LocalStorage so it stays after browser refresh
+    const currentLocalLikes = loadLocalLikesMap();
+    saveLocalLikesMap({
+      ...currentLocalLikes,
+      [postId]: nextIsLiked,
+    });
+
+    // 2. Sync to Cloudflare D1 backend
     try {
       await togglePostLike(postId, profile);
     } catch (err) {
@@ -418,8 +457,12 @@ export const FeedView: React.FC<FeedViewProps> = ({
       user_id: profile?.id,
       authorName: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
       author_name: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
-      authorAvatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-      author_avatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      authorAvatar:
+        profile?.avatar_url ||
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      author_avatar:
+        profile?.avatar_url ||
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
       content: text,
       createdAt: new Date().toISOString(),
       created_at: new Date().toISOString(),
@@ -474,7 +517,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
     });
   };
 
-  // Switch between All Community Posts and Following
   const filteredPosts =
     feedTab === 'all'
       ? posts
@@ -705,7 +747,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
       {/* Posts List */}
       <div className="space-y-4">
-        {loading ? (
+        {loading && posts.length === 0 ? (
           <div className="p-8 text-center bg-[#f6ebd6] dark:bg-[#1c1611] rounded-3xl border-2 border-[#c5a059]">
             <Sparkles className="w-8 h-8 mx-auto text-[#a8833c] animate-spin mb-2" />
             <p className="text-xs text-[#7c5f3d] font-serif uppercase tracking-wider">

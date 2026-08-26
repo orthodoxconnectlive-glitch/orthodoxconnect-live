@@ -39,10 +39,46 @@ interface PostCardProps {
   onDeleteComment?: (postId: string, commentId: string) => void;
 }
 
+export function parseVideoEmbed(raw?: string | null): { type: 'youtube' | 'vimeo' | 'direct'; embedUrl: string } | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const cleanUrl = raw.trim();
+
+  // YouTube (standard, shorts, youtu.be, embed)
+  const ytMatch = cleanUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/i);
+  if (ytMatch && ytMatch[1]) {
+    return {
+      type: 'youtube',
+      embedUrl: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}`,
+    };
+  }
+
+  // Vimeo
+  const vimeoMatch = cleanUrl.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+  if (vimeoMatch && vimeoMatch[1]) {
+    return {
+      type: 'vimeo',
+      embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}`,
+    };
+  }
+
+  // Direct MP4 / WebM / OGG
+  if (/\.(mp4|webm|ogg)$/i.test(cleanUrl)) {
+    return {
+      type: 'direct',
+      embedUrl: cleanUrl,
+    };
+  }
+
+  return null;
+}
+
 export function extractCleanVideoId(raw?: string): string | null {
   if (!raw || typeof raw !== 'string') return null;
   const trimmed = raw.trim();
   if (!trimmed) return null;
+
+  // Don't treat external video links as Bunny GUIDs
+  if (parseVideoEmbed(trimmed)) return null;
 
   const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/i;
   const match = trimmed.match(guidRegex);
@@ -88,7 +124,6 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [isLoadingLikers, setIsLoadingLikers] = useState<boolean>(false);
   const [isVideoLoaded, setIsVideoLoaded] = useState<boolean>(false);
 
-  // Synchronized internal state so likes don't revert on prop changes
   const [isLiked, setIsLiked] = useState<boolean>(Boolean(post.isLiked || post.is_liked));
   const [likesCount, setLikesCount] = useState<number>(
     typeof post.likesCount === 'number' ? post.likesCount : (post.likes_count || 0)
@@ -110,7 +145,10 @@ export const PostCard: React.FC<PostCardProps> = ({
   const authorId = post.authorId || post.author_id || rawPost.author_id;
   const postContent = (post.content ?? post.text ?? '').trim();
   const postImage = post.imageUrl || post.image || post.image_url || null;
-  const cleanVideoId = extractCleanVideoId(post.videoId || post.video_id || post.video || undefined);
+
+  const rawVideoSource = post.videoId || post.video_id || post.video || undefined;
+  const parsedEmbed = parseVideoEmbed(rawVideoSource);
+  const cleanVideoId = extractCleanVideoId(rawVideoSource);
 
   const libraryId = BUNNY_LIBRARY_ID || '713265';
   const cdnHost = BUNNY_CDN_HOSTNAME || 'vz-840ad26e-6fe.b-cdn.net';
@@ -192,8 +230,8 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   const hasAudio = Boolean(post.audio || post.audioUrl || post.audio_url);
   const audioSource = post.audio || post.audioUrl || post.audio_url;
-  const hasGenericVideo = Boolean(post.video || post.broadcastUrl || post.broadcast_url);
-  const genericVideoSource = post.video || post.broadcastUrl || post.broadcast_url;
+  const hasGenericVideo = Boolean(post.broadcastUrl || post.broadcast_url);
+  const genericVideoSource = post.broadcastUrl || post.broadcast_url;
 
   const formattedComments: PostComment[] = comments.map((c, idx) => {
     if (typeof c === 'string') {
@@ -388,8 +426,27 @@ export const PostCard: React.FC<PostCardProps> = ({
         </p>
       )}
 
-      {/* Bunny Stream Video Embed Player with Skeleton Loading */}
-      {cleanVideoId ? (
+      {/* Video Media Embed Priority: External URL -> Bunny Stream -> Broadcast Card */}
+      {parsedEmbed ? (
+        <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-[#c5a059]/40 mb-3.5">
+          {parsedEmbed.type === 'youtube' || parsedEmbed.type === 'vimeo' ? (
+            <iframe
+              src={parsedEmbed.embedUrl}
+              title={postContent ? postContent.slice(0, 40) + '...' : 'External Video'}
+              className="w-full h-full border-0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          ) : (
+            <video
+              src={parsedEmbed.embedUrl}
+              controls
+              playsInline
+              className="w-full h-full object-contain bg-black"
+            />
+          )}
+        </div>
+      ) : cleanVideoId ? (
         <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-[#c5a059]/40 mb-3.5 flex items-center justify-center">
           {!isVideoLoaded && (
             <div className="absolute inset-0 bg-stone-950 flex flex-col items-center justify-center z-10 p-4 text-center">
@@ -430,7 +487,7 @@ export const PostCard: React.FC<PostCardProps> = ({
       ) : null}
 
       {/* Image Media */}
-      {postImage && (!cleanVideoId || (post as any).show_image_with_video) && (
+      {postImage && (!cleanVideoId && !parsedEmbed || (post as any).show_image_with_video) && (
         <div className="rounded-2xl overflow-hidden mb-3.5 border-2 border-[#c5a059]/40 bg-[#3d2b18]/10 w-full max-h-[500px] flex items-center justify-center shadow-inner">
           <img
             src={postImage}

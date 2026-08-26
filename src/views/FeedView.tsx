@@ -20,6 +20,7 @@ import {
   Upload,
   AlertCircle,
   RefreshCw,
+  Link2,
 } from 'lucide-react';
 import { Post, PostComment } from '../types';
 import { addNotification } from '../utils/notifications';
@@ -53,6 +54,40 @@ import { StoriesBar } from '../components/StoriesBar';
 import { PostCard } from '../components/PostCard';
 import { LiturgicalBanner } from '../components/LiturgicalBanner';
 import { UserProfileData } from './ProfileView';
+
+// Helper to extract embed links
+export function parseVideoEmbed(url?: string | null): { type: 'youtube' | 'vimeo' | 'direct'; embedUrl: string } | null {
+  if (!url) return null;
+  const cleanUrl = url.trim();
+
+  // YouTube match (standard, share links, shorts)
+  const ytMatch = cleanUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/i);
+  if (ytMatch && ytMatch[1]) {
+    return {
+      type: 'youtube',
+      embedUrl: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}`,
+    };
+  }
+
+  // Vimeo match
+  const vimeoMatch = cleanUrl.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+  if (vimeoMatch && vimeoMatch[1]) {
+    return {
+      type: 'vimeo',
+      embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}`,
+    };
+  }
+
+  // Direct MP4 / WebM / Bunny Stream CDN
+  if (/\.(mp4|webm|ogg)$/i.test(cleanUrl) || cleanUrl.includes('.b-cdn.net/')) {
+    return {
+      type: 'direct',
+      embedUrl: cleanUrl,
+    };
+  }
+
+  return null;
+}
 
 interface FeedViewProps {
   onSelectUser?: (userData: UserProfileData) => void;
@@ -110,6 +145,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const [newPostText, setNewPostText] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [showVideoUrlInput, setShowVideoUrlInput] = useState(false);
   const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
   const [videoFileName, setVideoFileName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -140,7 +176,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
   useEffect(() => {
     fetchPosts();
 
-    // Refresh every 45s silently without clearing the screen
     const interval = setInterval(() => {
       fetchPosts(true);
     }, 45000);
@@ -249,6 +284,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       setVideoFileName(file.name);
       const localPreviewUrl = URL.createObjectURL(file);
       setVideoUrl(localPreviewUrl);
+      setShowVideoUrlInput(false);
       triggerToast(
         language === 'ar'
           ? 'تم إرفاق الفيديو. اضغط "نشر" للرفع والتأكيد.'
@@ -277,7 +313,17 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPostText.trim() && !imageUrl && !videoUrl && !selectedVideoFile) return;
+
+    // Auto-detect link in text if videoUrl is empty
+    let detectedVideoLink = videoUrl.trim();
+    if (!detectedVideoLink && !selectedVideoFile) {
+      const match = newPostText.match(/https?:\/\/[^\s]+/i);
+      if (match && parseVideoEmbed(match[0])) {
+        detectedVideoLink = match[0];
+      }
+    }
+
+    if (!newPostText.trim() && !imageUrl && !detectedVideoLink && !selectedVideoFile) return;
 
     setIsSubmitting(true);
     setUploadProgress(0);
@@ -305,8 +351,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
           throw new Error('Bunny Stream upload failed to return a valid video GUID.');
         }
         finalVideoId = uploadedGuid;
-      } else if (videoUrl && !videoUrl.startsWith('blob:') && !videoUrl.startsWith('data:')) {
-        finalVideoId = videoUrl;
+      } else if (detectedVideoLink && !detectedVideoLink.startsWith('blob:') && !detectedVideoLink.startsWith('data:')) {
+        finalVideoId = detectedVideoLink;
       }
 
       setSubmitStatusText(language === 'ar' ? 'جارٍ حفظ المنشور...' : 'Saving reflection...');
@@ -365,6 +411,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       setNewPostText('');
       setImageUrl('');
       setVideoUrl('');
+      setShowVideoUrlInput(false);
       setSelectedVideoFile(null);
       setVideoFileName('');
       setUploadProgress(0);
@@ -426,21 +473,18 @@ export const FeedView: React.FC<FeedViewProps> = ({
       })
     );
 
-    // 1. Save like status in localStorage
     const currentLocalLikes = loadLocalLikesMap();
     saveLocalLikesMap({
       ...currentLocalLikes,
       [postId]: nextIsLiked,
     });
 
-    // 2. Save likers array in localStorage
     const currentLikersMap = loadLocalLikersMap();
     saveLocalLikersMap({
       ...currentLikersMap,
       [postId]: updatedLikersList,
     });
 
-    // 3. Sync to API / Cloudflare D1
     try {
       await togglePostLike(postId, profile);
     } catch (err) {
@@ -537,6 +581,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
     });
   };
 
+  const parsedPreviewEmbed = parseVideoEmbed(videoUrl);
+
   const filteredPosts =
     feedTab === 'all'
       ? posts
@@ -614,13 +660,37 @@ export const FeedView: React.FC<FeedViewProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => videoFileInputRef.current?.click()}
+                onClick={() => setShowVideoUrlInput((prev) => !prev)}
                 className="p-1 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#c5a059]/20 transition-colors shrink-0 cursor-pointer"
               >
                 <Video className="w-4 h-4 text-[#a8833c]" />
               </button>
             </div>
           </div>
+
+          {/* Link / Video Input Drawer */}
+          {showVideoUrlInput && (
+            <div className="p-3 bg-[#eedcb5]/60 dark:bg-[#282019]/70 border border-[#c5a059]/50 rounded-2xl space-y-2">
+              <div className="flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-[#a8833c] shrink-0" />
+                <input
+                  type="url"
+                  placeholder={language === 'ar' ? 'ضع رابط يوتيوب أو فيديو مباشر...' : 'Paste YouTube, Vimeo, or video URL...'}
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  className="w-full bg-[#f6ebd6] dark:bg-[#1c1611] text-xs px-3 py-1.5 rounded-xl border border-[#c5a059]/40 text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => videoFileInputRef.current?.click()}
+                  className="px-2.5 py-1.5 bg-[#3d2b18] text-[#c5a059] border border-[#c5a059] rounded-xl text-[10px] font-serif uppercase tracking-wider shrink-0 hover:bg-[#282019] flex items-center gap-1"
+                >
+                  <Upload className="w-3 h-3" />
+                  <span>{language === 'ar' ? 'رفع ملف' : 'File'}</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           <input
             ref={fileInputRef}
@@ -637,6 +707,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
             className="hidden"
           />
 
+          {/* Image Preview */}
           {imageUrl && (
             <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
               <div className="relative max-h-80 overflow-hidden rounded-xl bg-black/20 flex items-center justify-center">
@@ -658,17 +729,28 @@ export const FeedView: React.FC<FeedViewProps> = ({
             </div>
           )}
 
+          {/* Video Preview (Embed or Direct File) */}
           {videoUrl && (
             <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
-              <div className="relative max-h-80 overflow-hidden rounded-xl bg-black flex items-center justify-center">
-                <video
-                  src={videoUrl}
-                  controls
-                  playsInline
-                  autoPlay={false}
-                  muted={true}
-                  className="w-full h-auto max-h-80 rounded-xl object-contain bg-black"
-                />
+              <div className="relative aspect-video rounded-xl bg-black overflow-hidden flex items-center justify-center">
+                {parsedPreviewEmbed?.type === 'youtube' || parsedPreviewEmbed?.type === 'vimeo' ? (
+                  <iframe
+                    src={parsedPreviewEmbed.embedUrl}
+                    title="Video Preview"
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video
+                    src={videoUrl}
+                    controls
+                    playsInline
+                    autoPlay={false}
+                    muted={true}
+                    className="w-full h-full object-contain bg-black"
+                  />
+                )}
                 <div className="absolute top-2 right-2 rtl:right-auto rtl:left-2 z-10 flex items-center gap-2">
                   <button
                     type="button"
@@ -710,12 +792,12 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
               <button
                 type="button"
-                onClick={() => videoFileInputRef.current?.click()}
+                onClick={() => setShowVideoUrlInput((prev) => !prev)}
                 className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#eedcb5] dark:hover:bg-[#282019]"
               >
                 <Video className="w-4 h-4 text-[#a8833c]" />
                 <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
-                  {videoUrl || selectedVideoFile ? (language === 'ar' ? 'تم إرفاق فيديو' : 'Video Attached') : (language === 'ar' ? 'فيديو' : 'Video')}
+                  {videoUrl || selectedVideoFile ? (language === 'ar' ? 'تم إرفاق فيديو' : 'Video Attached') : (language === 'ar' ? 'فيديو / رابط' : 'Video / Link')}
                 </span>
               </button>
             </div>

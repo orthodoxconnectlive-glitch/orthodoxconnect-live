@@ -22,6 +22,7 @@ import { ProfileView, UserProfileData } from './views/ProfileView';
 import { AdminPanelView } from './views/AdminPanelView';
 import { CalendarView } from './views/CalendarView';
 import { NotificationsView } from './views/NotificationsView';
+import { LibraryView } from './views/LibraryView';
 import { updateSEOForView } from './utils/seo';
 
 function AppContent() {
@@ -96,6 +97,8 @@ function AppContent() {
       case 'videos':
       case 'reels':
         return <VideosView onSelectUser={handleSelectUser} onOpenMessengerWithUser={handleOpenMessengerWithUser} />;
+      case 'library':
+        return <LibraryView />;
       case 'live':
         return <LiveBroadcastView />;
       case 'myNetwork':
@@ -165,7 +168,7 @@ function AppContent() {
             </div>
           </div>
         ) : (
-          /* Focused Dedicated View Layout for Reels, Messages, Live, Calendar, Groups, Profile, Admin, etc. */
+          /* Dedicated View Layout */
           <div className="w-full min-h-[calc(100vh-8rem)]">
             {renderView()}
           </div>
@@ -224,4 +227,3 @@ export default function App() {
     </ThemeProvider>
   );
 }
-

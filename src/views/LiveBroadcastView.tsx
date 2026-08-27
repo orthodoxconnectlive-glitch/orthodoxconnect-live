@@ -81,10 +81,14 @@ const LOCAL_STORAGE_KEY = 'orthodox_live_streams_v2';
 
 export const LiveBroadcastView: React.FC = () => {
   const { t, language } = useTheme();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
 
-  // Admin permission check
-  const isAdmin = Boolean((profile as any)?.is_admin || (profile as any)?.role === 'admin');
+  // Admin permission check (profile flag, role, or fallback admin email)
+  const isAdmin = Boolean(
+    (profile as any)?.is_admin ||
+    (profile as any)?.role === 'admin' ||
+    user?.email === 'hsyz9625@gmail.com'
+  );
 
   const defaultStreams = language === 'ar' ? INITIAL_STREAMS_AR : INITIAL_STREAMS_EN;
 
@@ -305,7 +309,7 @@ export const LiveBroadcastView: React.FC = () => {
         await (liveStreamsApi as any).delete(streamId);
       }
     } catch (err) {
-      console.warn('Delete stream API call fallback/notice:', err);
+      console.warn('Delete stream API call notice:', err);
     }
 
     const updated = streams.filter((s) => s.id !== streamId);
@@ -457,12 +461,12 @@ export const LiveBroadcastView: React.FC = () => {
                 <span className="px-3.5 py-1.5 rounded-full bg-red-600/20 border border-red-500/40 text-red-400 text-xs font-bold flex items-center gap-1.5">
                   <Eye className="w-4 h-4" /> {activeStream.viewers} {t('watchingCount')}
                 </span>
-                
+
                 {/* Admin Delete for Currently Playing Stream */}
                 {isAdmin && (
                   <button
                     onClick={(e) => handleDeleteStream(e, activeStream.id)}
-                    className="p-1.5 rounded-lg bg-red-950/60 border border-red-500/40 text-red-400 hover:bg-red-600 hover:text-white transition-colors cursor-pointer"
+                    className="p-1.5 rounded-lg bg-red-950/80 border border-red-500/60 text-red-400 hover:bg-red-600 hover:text-white transition-colors cursor-pointer"
                     title={language === 'ar' ? 'حذف البث الحالي' : 'Delete Current Stream'}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -556,10 +560,10 @@ export const LiveBroadcastView: React.FC = () => {
                   <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider">
                     {s.isLive ? (language === 'ar' ? 'مباشر' : 'LIVE') : (language === 'ar' ? 'غير متصل' : 'OFFLINE')}
                   </span>
-                  
+
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1">
-                      <Eye className="w-3 h-3" /> {s.viewers}
+                      <Eye className="w-3.5 h-3.5" /> {s.viewers}
                     </span>
 
                     {/* Admin Delete Action Button for each card */}
@@ -567,7 +571,7 @@ export const LiveBroadcastView: React.FC = () => {
                       <button
                         type="button"
                         onClick={(e) => handleDeleteStream(e, s.id)}
-                        className="p-1 rounded-lg text-red-400/80 hover:text-red-300 hover:bg-red-600/20 transition-all cursor-pointer z-10"
+                        className="p-1.5 rounded-lg bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white border border-red-500/40 transition-all cursor-pointer z-20"
                         title={language === 'ar' ? 'حذف البث' : 'Delete Stream'}
                       >
                         <Trash2 className="w-3.5 h-3.5" />

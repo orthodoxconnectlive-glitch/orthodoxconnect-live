@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, BookOpen, Download, Plus, X } from 'lucide-react';
+import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,6 +24,14 @@ export const LibraryView: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Upload type toggles: 'upload' | 'url'
+  const [pdfSourceType, setPdfSourceType] = useState<'upload' | 'url'>('upload');
+  const [coverSourceType, setCoverSourceType] = useState<'upload' | 'url'>('url');
+
+  // File states
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -66,17 +74,52 @@ export const LibraryView: React.FC = () => {
     fetchBooks();
   }, [search, selectedCategory]);
 
+  const uploadFile = async (file: File, folder: string): Promise<string> => {
+    const data = new FormData();
+    data.append('file', file);
+    data.append('folder', folder);
+
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      body: data,
+    });
+
+    if (!res.ok) throw new Error('Failed to upload file');
+    const result = await res.json();
+    return result.url;
+  };
+
   const handleAddBook = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
 
     try {
+      let finalPdfUrl = formData.file_url;
+      let finalCoverUrl = formData.cover_image_url;
+
+      // Upload PDF if selected from device
+      if (pdfSourceType === 'upload') {
+        if (!pdfFile) {
+          alert(language === 'ar' ? 'يرجى اختيار ملف PDF' : 'Please select a PDF file');
+          setSubmitting(false);
+          return;
+        }
+        finalPdfUrl = await uploadFile(pdfFile, 'books');
+      }
+
+      // Upload Cover if selected from device
+      if (coverSourceType === 'upload' && coverFile) {
+        finalCoverUrl = await uploadFile(coverFile, 'covers');
+      }
+
       const res = await fetch('/api/books', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: `book-${Date.now()}`,
           ...formData,
+          file_url: finalPdfUrl,
+          cover_image_url: finalCoverUrl || null,
         }),
       });
 
@@ -92,13 +135,15 @@ export const LibraryView: React.FC = () => {
           file_url: '',
           description: '',
         });
+        setPdfFile(null);
+        setCoverFile(null);
         fetchBooks();
       } else {
         alert(language === 'ar' ? 'فشل حفظ الكتاب' : 'Failed to save book');
       }
     } catch (err) {
       console.error(err);
-      alert(language === 'ar' ? 'حدث خطأ أثناء حفظ الكتاب' : 'Error saving book');
+      alert(language === 'ar' ? 'حدث خطأ أثناء رفع وحفظ الكتاب' : 'Error uploading and saving book');
     } finally {
       setSubmitting(false);
     }
@@ -210,8 +255,8 @@ export const LibraryView: React.FC = () => {
 
       {/* Admin Add Book Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="bg-[#eedcb5] dark:bg-[#18120e] border-2 border-[#c5a059] dark:border-[#8b6b4a] w-full max-w-lg rounded-3xl p-6 shadow-2xl relative text-[#3d2b18] dark:text-[#f5ebd9]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#eedcb5] dark:bg-[#18120e] border-2 border-[#c5a059] dark:border-[#8b6b4a] w-full max-w-lg rounded-3xl p-6 shadow-2xl relative text-[#3d2b18] dark:text-[#f5ebd9] my-8">
             <button
               onClick={() => setIsAddModalOpen(false)}
               className="absolute top-4 left-4 rtl:left-auto rtl:right-4 text-[#7c5f3d] hover:text-[#3d2b18] dark:hover:text-white"
@@ -223,7 +268,7 @@ export const LibraryView: React.FC = () => {
               {language === 'ar' ? 'إضافة كتاب جديد للمكتبة' : 'Add New Book'}
             </h2>
 
-            <form onSubmit={handleAddBook} className="space-y-3 text-xs">
+            <form onSubmit={handleAddBook} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-bold mb-1">{language === 'ar' ? 'اسم الكتاب (عربي) *' : 'Title (Arabic) *'}</label>
                 <input
@@ -286,35 +331,112 @@ export const LibraryView: React.FC = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="block font-bold mb-1">{language === 'ar' ? 'رابط ملف الـ PDF *' : 'PDF File URL *'}</label>
-                <input
-                  required
-                  type="url"
-                  placeholder="https://.../book.pdf"
-                  value={formData.file_url}
-                  onChange={(e) => setFormData({ ...formData, file_url: e.target.value })}
-                  className="w-full p-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] outline-none text-[#3d2b18] dark:text-[#f5ebd9]"
-                />
+              {/* PDF Selection (Upload or URL) */}
+              <div className="p-3 rounded-2xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059]/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-[#a8833c]" />
+                    <span>{language === 'ar' ? 'ملف الـ PDF *' : 'PDF File *'}</span>
+                  </label>
+                  <div className="flex bg-[#eedcb5] dark:bg-[#18120e] p-0.5 rounded-lg border border-[#c5a059]/40">
+                    <button
+                      type="button"
+                      onClick={() => setPdfSourceType('upload')}
+                      className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 transition-all ${
+                        pdfSourceType === 'upload' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d]'
+                      }`}
+                    >
+                      <Upload className="w-3 h-3" />
+                      <span>{language === 'ar' ? 'رفع ملف' : 'Upload'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPdfSourceType('url')}
+                      className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 transition-all ${
+                        pdfSourceType === 'url' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d]'
+                      }`}
+                    >
+                      <LinkIcon className="w-3 h-3" />
+                      <span>{language === 'ar' ? 'رابط مباشر' : 'Link'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {pdfSourceType === 'upload' ? (
+                  <input
+                    required={pdfSourceType === 'upload'}
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                    className="w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#c5a059] file:text-white hover:file:bg-[#b08b43] file:cursor-pointer"
+                  />
+                ) : (
+                  <input
+                    required={pdfSourceType === 'url'}
+                    type="url"
+                    placeholder="https://.../book.pdf"
+                    value={formData.file_url}
+                    onChange={(e) => setFormData({ ...formData, file_url: e.target.value })}
+                    className="w-full p-2 rounded-xl bg-[#eedcb5] dark:bg-[#18120e] border border-[#c5a059] outline-none text-[#3d2b18] dark:text-[#f5ebd9]"
+                  />
+                )}
               </div>
 
-              <div>
-                <label className="block font-bold mb-1">{language === 'ar' ? 'رابط صورة الغلاف (اختياري)' : 'Cover Image URL (Optional)'}</label>
-                <input
-                  type="url"
-                  placeholder="https://.../cover.jpg"
-                  value={formData.cover_image_url}
-                  onChange={(e) => setFormData({ ...formData, cover_image_url: e.target.value })}
-                  className="w-full p-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] outline-none text-[#3d2b18] dark:text-[#f5ebd9]"
-                />
+              {/* Cover Image Selection (Upload or URL) */}
+              <div className="p-3 rounded-2xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059]/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5 text-[#a8833c]" />
+                    <span>{language === 'ar' ? 'صورة الغلاف (اختياري)' : 'Cover Image (Optional)'}</span>
+                  </label>
+                  <div className="flex bg-[#eedcb5] dark:bg-[#18120e] p-0.5 rounded-lg border border-[#c5a059]/40">
+                    <button
+                      type="button"
+                      onClick={() => setCoverSourceType('upload')}
+                      className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 transition-all ${
+                        coverSourceType === 'upload' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d]'
+                      }`}
+                    >
+                      <Upload className="w-3 h-3" />
+                      <span>{language === 'ar' ? 'رفع صورة' : 'Upload'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCoverSourceType('url')}
+                      className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 transition-all ${
+                        coverSourceType === 'url' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d]'
+                      }`}
+                    >
+                      <LinkIcon className="w-3 h-3" />
+                      <span>{language === 'ar' ? 'رابط' : 'Link'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {coverSourceType === 'upload' ? (
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setCoverFile(e.target.files?.[0] || null)}
+                    className="w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#c5a059] file:text-white hover:file:bg-[#b08b43] file:cursor-pointer"
+                  />
+                ) : (
+                  <input
+                    type="url"
+                    placeholder="https://.../cover.jpg"
+                    value={formData.cover_image_url}
+                    onChange={(e) => setFormData({ ...formData, cover_image_url: e.target.value })}
+                    className="w-full p-2 rounded-xl bg-[#eedcb5] dark:bg-[#18120e] border border-[#c5a059] outline-none text-[#3d2b18] dark:text-[#f5ebd9]"
+                  />
+                )}
               </div>
 
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3 rounded-xl bg-[#c5a059] text-white font-bold font-serif uppercase tracking-wider mt-4 shadow-md hover:bg-[#b08b43] transition-all cursor-pointer disabled:opacity-50"
+                className="w-full py-3 rounded-xl bg-[#c5a059] text-white font-bold font-serif uppercase tracking-wider mt-2 shadow-md hover:bg-[#b08b43] transition-all cursor-pointer disabled:opacity-50"
               >
-                {submitting ? (language === 'ar' ? 'جاري الحفظ...' : 'Saving...') : (language === 'ar' ? 'حفظ الكتاب' : 'Save Book')}
+                {submitting ? (language === 'ar' ? 'جاري الرفع والحفظ...' : 'Uploading & Saving...') : (language === 'ar' ? 'حفظ الكتاب' : 'Save Book')}
               </button>
             </form>
           </div>

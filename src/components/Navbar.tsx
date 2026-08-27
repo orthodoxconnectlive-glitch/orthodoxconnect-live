@@ -100,6 +100,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const subTabs = [
     { id: 'feed', icon: Rss, label: t('feed') },
     { id: 'videos', icon: Film, label: t('videos') },
+    { id: 'library', icon: BookOpen, label: language === 'ar' ? 'المكتبة' : 'Library' },
     { id: 'myNetwork', icon: Users, label: t('myNetwork') },
     { id: 'calendar', icon: Calendar, label: t('calendar') },
   ];
@@ -107,6 +108,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const drawerMenuItems = [
     { id: 'feed', label: t('feed'), icon: Rss, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'videos', label: t('videos'), icon: Film, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/30' },
+    { id: 'library', label: language === 'ar' ? 'المكتبة المسيحية' : 'Book Library', icon: BookOpen, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'live', label: t('goLive'), icon: Radio, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isLive: true },
     { id: 'myNetwork', label: t('myNetwork'), icon: Users, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30' },
     { id: 'messages', label: t('messages'), icon: MessageSquare, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', count: unreadMessageCount },
@@ -153,7 +155,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </div>
               <div className="min-w-0">
-                <h1 className="font-serif-coptic font-bold text-xs sm:text-lg text-[#3d2b18] dark:text-[#f5ebd9] tracking-tight leading-none truncate">
+                <h1 className="font-serif-coptic font-bold text-xs sm:lg text-[#3d2b18] dark:text-[#f5ebd9] tracking-tight leading-none truncate">
                   {t('appName')}
                 </h1>
                 <p className="text-[7px] sm:text-[9px] text-[#7c5f3d] dark:text-[#a89379] tracking-[0.15em] sm:tracking-[0.2em] uppercase font-serif mt-0.5 font-semibold truncate">
@@ -301,7 +303,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => onNavigate(tab.id)}
-                  className={`relative h-full px-4 flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                  className={`relative h-full px-3 sm:px-4 flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                     isActive
                       ? 'text-[#a8833c] dark:text-[#d4af37] font-bold'
                       : 'text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18]'

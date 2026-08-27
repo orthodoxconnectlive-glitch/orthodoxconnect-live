@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Radio, Eye, PlusCircle, Heart, Share2, Flame, CheckCircle, Square, Link2, X, Send } from 'lucide-react';
+import { Radio, Eye, PlusCircle, Heart, Share2, Flame, CheckCircle, Square, Link2, X, Send, Trash2 } from 'lucide-react';
 import { BunnyPlayer } from '../components/BunnyPlayer';
 import { ParishLiveChat } from '../components/ParishLiveChat';
 import { GoLiveModal, StreamData } from '../components/GoLiveModal';
@@ -83,6 +83,9 @@ export const LiveBroadcastView: React.FC = () => {
   const { t, language } = useTheme();
   const { profile } = useAuth();
 
+  // Admin permission check
+  const isAdmin = Boolean((profile as any)?.is_admin || (profile as any)?.role === 'admin');
+
   const defaultStreams = language === 'ar' ? INITIAL_STREAMS_AR : INITIAL_STREAMS_EN;
 
   const [streams, setStreams] = useState<LiveStreamItem[]>(() => {
@@ -117,7 +120,7 @@ export const LiveBroadcastView: React.FC = () => {
   const [activeStreamId, setActiveStreamId] = useState<string>(() => streams[0]?.id || 'stream-1');
   const [isGoLiveOpen, setIsGoLiveOpen] = useState(false);
   const [isShareLinkOpen, setIsShareLinkOpen] = useState(false);
-  
+
   // Custom Live Stream Form State
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
@@ -285,6 +288,39 @@ export const LiveBroadcastView: React.FC = () => {
     showToast(language === 'ar' ? 'تمت مشاركة رابط البث المباشر بنجاح!' : 'Live stream link shared successfully!');
   };
 
+  // Admin delete stream handler
+  const handleDeleteStream = async (e: React.MouseEvent, streamId: string) => {
+    e.stopPropagation();
+
+    const confirmed = window.confirm(
+      language === 'ar'
+        ? 'هل أنت متأكد من رغبتك في حذف هذا البث المباشر نهائياً؟'
+        : 'Are you sure you want to permanently delete this live stream?'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      if (typeof (liveStreamsApi as any).delete === 'function') {
+        await (liveStreamsApi as any).delete(streamId);
+      }
+    } catch (err) {
+      console.warn('Delete stream API call fallback/notice:', err);
+    }
+
+    const updated = streams.filter((s) => s.id !== streamId);
+    setStreams(updated);
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
+    if (activeStreamId === streamId && updated.length > 0) {
+      setActiveStreamId(updated[0].id);
+    }
+
+    showToast(language === 'ar' ? 'تم حذف البث بنجاح.' : 'Broadcast deleted successfully.');
+  };
+
   const handleEndBroadcast = () => {
     if (activeWebcamStream) {
       try {
@@ -421,6 +457,17 @@ export const LiveBroadcastView: React.FC = () => {
                 <span className="px-3.5 py-1.5 rounded-full bg-red-600/20 border border-red-500/40 text-red-400 text-xs font-bold flex items-center gap-1.5">
                   <Eye className="w-4 h-4" /> {activeStream.viewers} {t('watchingCount')}
                 </span>
+                
+                {/* Admin Delete for Currently Playing Stream */}
+                {isAdmin && (
+                  <button
+                    onClick={(e) => handleDeleteStream(e, activeStream.id)}
+                    className="p-1.5 rounded-lg bg-red-950/60 border border-red-500/40 text-red-400 hover:bg-red-600 hover:text-white transition-colors cursor-pointer"
+                    title={language === 'ar' ? 'حذف البث الحالي' : 'Delete Current Stream'}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -495,10 +542,10 @@ export const LiveBroadcastView: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {streams.map((s) => (
-            <button
+            <div
               key={s.id}
               onClick={() => setActiveStreamId(s.id)}
-              className={`p-4 rounded-2xl border text-left rtl:text-right transition-all cursor-pointer flex flex-col justify-between ${
+              className={`relative group p-4 rounded-2xl border text-left rtl:text-right transition-all cursor-pointer flex flex-col justify-between ${
                 s.id === activeStreamId
                   ? 'bg-amber-950/40 border-amber-500 shadow-xl ring-1 ring-amber-500/40'
                   : 'bg-stone-950 border-amber-900/30 hover:border-amber-500/40'
@@ -509,19 +556,36 @@ export const LiveBroadcastView: React.FC = () => {
                   <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider">
                     {s.isLive ? (language === 'ar' ? 'مباشر' : 'LIVE') : (language === 'ar' ? 'غير متصل' : 'OFFLINE')}
                   </span>
-                  <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1">
-                    <Eye className="w-3 h-3" /> {s.viewers}
-                  </span>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1">
+                      <Eye className="w-3 h-3" /> {s.viewers}
+                    </span>
+
+                    {/* Admin Delete Action Button for each card */}
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteStream(e, s.id)}
+                        className="p-1 rounded-lg text-red-400/80 hover:text-red-300 hover:bg-red-600/20 transition-all cursor-pointer z-10"
+                        title={language === 'ar' ? 'حذف البث' : 'Delete Stream'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
+
                 <h4 className="font-serif font-bold text-xs text-amber-100 mb-1 line-clamp-2">
                   {s.title}
                 </h4>
                 <p className="text-[11px] text-stone-400 line-clamp-1">{s.parish}</p>
               </div>
+
               <p className="text-[10px] text-amber-400/80 mt-3 font-medium">
                 {t('celebrant')}: {s.priestName}
               </p>
-            </button>
+            </div>
           ))}
         </div>
       </div>

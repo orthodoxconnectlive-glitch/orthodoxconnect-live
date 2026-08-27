@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, BookOpen, Download, ExternalLink } from 'lucide-react';
+import { Search, BookOpen, Download, Plus, X } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 interface Book {
   id: string;
@@ -12,15 +13,31 @@ interface Book {
   description?: string;
   cover_image_url?: string;
   file_url: string;
-  file_size_mb?: number;
 }
 
 export const LibraryView: React.FC = () => {
   const { language } = useTheme();
+  const { profile } = useAuth();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form State
+  const [formData, setFormData] = useState({
+    title_ar: '',
+    title_en: '',
+    author_ar: '',
+    author_en: '',
+    category: 'patristics',
+    cover_image_url: '',
+    file_url: '',
+    description: '',
+  });
+
+  const isSuperAdmin = profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';
 
   const categories = [
     { id: 'all', ar: 'الكل', en: 'All' },
@@ -31,24 +48,76 @@ export const LibraryView: React.FC = () => {
     { id: 'bible_study', ar: 'دراسات كتابية', en: 'Bible Study' },
   ];
 
-  useEffect(() => {
-    // Replace with your Cloudflare Worker / D1 API route
+  const fetchBooks = () => {
+    setLoading(true);
     fetch(`/api/books?category=${selectedCategory}&q=${encodeURIComponent(search)}`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
-        setBooks(data);
+        setBooks(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch((err) => {
         console.error('Error loading books:', err);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchBooks();
   }, [search, selectedCategory]);
+
+  const handleAddBook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      const res = await fetch('/api/books', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: `book-${Date.now()}`,
+          ...formData,
+        }),
+      });
+
+      if (res.ok) {
+        setIsAddModalOpen(false);
+        setFormData({
+          title_ar: '',
+          title_en: '',
+          author_ar: '',
+          author_en: '',
+          category: 'patristics',
+          cover_image_url: '',
+          file_url: '',
+          description: '',
+        });
+        fetchBooks();
+      } else {
+        alert(language === 'ar' ? 'فشل حفظ الكتاب' : 'Failed to save book');
+      }
+    } catch (err) {
+      console.error(err);
+      alert(language === 'ar' ? 'حدث خطأ أثناء حفظ الكتاب' : 'Error saving book');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-4 space-y-6" dir={language === 'ar' ? 'rtl' : 'ltr'}>
       {/* Header */}
-      <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-6 shadow-md text-center">
+      <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-6 shadow-md text-center relative">
+        {isSuperAdmin && (
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="absolute top-4 left-4 rtl:left-auto rtl:right-4 px-3.5 py-1.5 rounded-full bg-[#c5a059] text-white text-xs font-serif font-bold flex items-center gap-1.5 shadow-md hover:bg-[#b08b43] transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{language === 'ar' ? 'إضافة كتاب' : 'Add Book'}</span>
+          </button>
+        )}
+
         <div className="w-12 h-12 mx-auto rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] flex items-center justify-center text-[#a8833c] mb-3">
           <BookOpen className="w-6 h-6" />
         </div>
@@ -136,6 +205,119 @@ export const LibraryView: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Admin Add Book Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="bg-[#eedcb5] dark:bg-[#18120e] border-2 border-[#c5a059] dark:border-[#8b6b4a] w-full max-w-lg rounded-3xl p-6 shadow-2xl relative text-[#3d2b18] dark:text-[#f5ebd9]">
+            <button
+              onClick={() => setIsAddModalOpen(false)}
+              className="absolute top-4 left-4 rtl:left-auto rtl:right-4 text-[#7c5f3d] hover:text-[#3d2b18] dark:hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h2 className="font-serif-coptic font-bold text-lg mb-4 text-center">
+              {language === 'ar' ? 'إضافة كتاب جديد للمكتبة' : 'Add New Book'}
+            </h2>
+
+            <form onSubmit={handleAddBook} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1">{language === 'ar' ? 'اسم الكتاب (عربي) *' : 'Title (Arabic) *'}</label>
+                <input
+                  required
+                  type="text"
+                  value={formData.title_ar}
+                  onChange={(e) => setFormData({ ...formData, title_ar: e.target.value })}
+                  placeholder="مثال: تجسد الكلمة"
+                  className="w-full p-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] outline-none text-[#3d2b18] dark:text-[#f5ebd9]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">{language === 'ar' ? 'اسم المؤلف (عربي) *' : 'Author (Arabic) *'}</label>
+                <input
+                  required
+                  type="text"
+                  value={formData.author_ar}
+                  onChange={(e) => setFormData({ ...formData, author_ar: e.target.value })}
+                  placeholder="مثال: القديس أثناسيوس الرسولي"
+                  className="w-full p-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] outline-none text-[#3d2b18] dark:text-[#f5ebd9]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold mb-1">{language === 'ar' ? 'اسم الكتاب (إنجليزي)' : 'Title (English)'}</label>
+                  <input
+                    type="text"
+                    value={formData.title_en}
+                    onChange={(e) => setFormData({ ...formData, title_en: e.target.value })}
+                    placeholder="On the Incarnation"
+                    className="w-full p-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] outline-none text-[#3d2b18] dark:text-[#f5ebd9]"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">{language === 'ar' ? 'اسم المؤلف (إنجليزي)' : 'Author (English)'}</label>
+                  <input
+                    type="text"
+                    value={formData.author_en}
+                    onChange={(e) => setFormData({ ...formData, author_en: e.target.value })}
+                    placeholder="St. Athanasius"
+                    className="w-full p-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] outline-none text-[#3d2b18] dark:text-[#f5ebd9]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">{language === 'ar' ? 'القسم *' : 'Category *'}</label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  className="w-full p-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] outline-none text-[#3d2b18] dark:text-[#f5ebd9]"
+                >
+                  <option value="patristics">آبائيات (Patristics)</option>
+                  <option value="dogma">عقيدة ولاهوت (Dogmatics)</option>
+                  <option value="spiritual">روحيات وسير قديسين (Spiritual)</option>
+                  <option value="liturgy">طقوس وتسبحة (Liturgy)</option>
+                  <option value="bible_study">دراسات كتابية (Bible Study)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">{language === 'ar' ? 'رابط ملف الـ PDF *' : 'PDF File URL *'}</label>
+                <input
+                  required
+                  type="url"
+                  placeholder="https://.../book.pdf"
+                  value={formData.file_url}
+                  onChange={(e) => setFormData({ ...formData, file_url: e.target.value })}
+                  className="w-full p-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] outline-none text-[#3d2b18] dark:text-[#f5ebd9]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">{language === 'ar' ? 'رابط صورة الغلاف (اختياري)' : 'Cover Image URL (Optional)'}</label>
+                <input
+                  type="url"
+                  placeholder="https://.../cover.jpg"
+                  value={formData.cover_image_url}
+                  onChange={(e) => setFormData({ ...formData, cover_image_url: e.target.value })}
+                  className="w-full p-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] outline-none text-[#3d2b18] dark:text-[#f5ebd9]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-3 rounded-xl bg-[#c5a059] text-white font-bold font-serif uppercase tracking-wider mt-4 shadow-md hover:bg-[#b08b43] transition-all cursor-pointer disabled:opacity-50"
+              >
+                {submitting ? (language === 'ar' ? 'جاري الحفظ...' : 'Saving...') : (language === 'ar' ? 'حفظ الكتاب' : 'Save Book')}
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </div>

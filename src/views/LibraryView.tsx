@@ -15,6 +15,9 @@ interface Book {
   file_url: string;
 }
 
+const CLOUDINARY_CLOUD_NAME = 'z1ihehha';
+const CLOUDINARY_PRESET = 'orthodox_books';
+
 export const LibraryView: React.FC = () => {
   const { language } = useTheme();
   const { profile } = useAuth();
@@ -24,6 +27,7 @@ export const LibraryView: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
 
   // Upload type toggles: 'upload' | 'url'
   const [pdfSourceType, setPdfSourceType] = useState<'upload' | 'url'>('upload');
@@ -74,44 +78,58 @@ export const LibraryView: React.FC = () => {
     fetchBooks();
   }, [search, selectedCategory]);
 
-  const uploadFile = async (file: File, folder: string): Promise<string> => {
+  const uploadToCloudinary = async (file: File): Promise<string> => {
     const data = new FormData();
     data.append('file', file);
-    data.append('folder', folder);
+    data.append('upload_preset', CLOUDINARY_PRESET);
 
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      body: data,
-    });
+    const resourceType = file.type.startsWith('image/') ? 'image' : 'raw';
 
-    if (!res.ok) throw new Error('Failed to upload file');
-    const result = await res.json();
-    return result.url;
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
+      {
+        method: 'POST',
+        body: data,
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || 'Upload failed');
+    }
+
+    const json = await res.json();
+    return json.secure_url;
   };
 
   const handleAddBook = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    setStatusMessage(language === 'ar' ? 'جاري رفع الملفات...' : 'Uploading files...');
 
     try {
       let finalPdfUrl = formData.file_url;
       let finalCoverUrl = formData.cover_image_url;
 
-      // Upload PDF if selected from device
+      // 1. Upload Cover if selected
+      if (coverSourceType === 'upload' && coverFile) {
+        setStatusMessage(language === 'ar' ? 'جاري رفع صورة الغلاف...' : 'Uploading cover image...');
+        finalCoverUrl = await uploadToCloudinary(coverFile);
+      }
+
+      // 2. Upload PDF if selected
       if (pdfSourceType === 'upload') {
         if (!pdfFile) {
           alert(language === 'ar' ? 'يرجى اختيار ملف PDF' : 'Please select a PDF file');
           setSubmitting(false);
           return;
         }
-        finalPdfUrl = await uploadFile(pdfFile, 'books');
+        setStatusMessage(language === 'ar' ? 'جاري رفع ملف الـ PDF...' : 'Uploading PDF file...');
+        finalPdfUrl = await uploadToCloudinary(pdfFile);
       }
 
-      // Upload Cover if selected from device
-      if (coverSourceType === 'upload' && coverFile) {
-        finalCoverUrl = await uploadFile(coverFile, 'covers');
-      }
-
+      // 3. Save Record to D1
+      setStatusMessage(language === 'ar' ? 'جاري حفظ البيانات...' : 'Saving book to database...');
       const res = await fetch('/api/books', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -141,11 +159,12 @@ export const LibraryView: React.FC = () => {
       } else {
         alert(language === 'ar' ? 'فشل حفظ الكتاب' : 'Failed to save book');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert(language === 'ar' ? 'حدث خطأ أثناء رفع وحفظ الكتاب' : 'Error uploading and saving book');
+      alert(err.message || (language === 'ar' ? 'حدث خطأ أثناء الرفع' : 'Upload error'));
     } finally {
       setSubmitting(false);
+      setStatusMessage('');
     }
   };
 
@@ -436,7 +455,7 @@ export const LibraryView: React.FC = () => {
                 disabled={submitting}
                 className="w-full py-3 rounded-xl bg-[#c5a059] text-white font-bold font-serif uppercase tracking-wider mt-2 shadow-md hover:bg-[#b08b43] transition-all cursor-pointer disabled:opacity-50"
               >
-                {submitting ? (language === 'ar' ? 'جاري الرفع والحفظ...' : 'Uploading & Saving...') : (language === 'ar' ? 'حفظ الكتاب' : 'Save Book')}
+                {submitting ? (statusMessage || (language === 'ar' ? 'جاري التحميل...' : 'Uploading...')) : (language === 'ar' ? 'حفظ الكتاب' : 'Save Book')}
               </button>
             </form>
           </div>

@@ -95,6 +95,8 @@ interface FeedViewProps {
   onOpenCalendar?: () => void;
 }
 
+const PAGE_SIZE = 50;
+
 export const FeedView: React.FC<FeedViewProps> = ({
   onSelectUser,
   onOpenMessengerWithUser,
@@ -129,6 +131,9 @@ export const FeedView: React.FC<FeedViewProps> = ({
   });
 
   const [loading, setLoading] = useState<boolean>(false);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [page, setPage] = useState<number>(1);
   const [feedError, setFeedError] = useState<string | null>(null);
   const [feedTab, setFeedTab] = useState<'all' | 'following'>('all');
   const [followedMap, setFollowedMap] = useState<Record<string, boolean>>(() => {
@@ -203,43 +208,49 @@ export const FeedView: React.FC<FeedViewProps> = ({
     }, 3000);
   };
 
+  const syncPostMetadata = (rawPosts: Post[]) => {
+    const localLikes = loadLocalLikesMap();
+    const localLikersMap = loadLocalLikersMap();
+    const localCommentsMap = loadLocalPostCommentsMap();
+
+    return rawPosts.map((p) => {
+      const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : Boolean(p.isLiked);
+      const baseCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
+      const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
+      const likers = localLikersMap[p.id] || p.likers || [];
+
+      return {
+        ...p,
+        isLiked: isLocallyLiked,
+        likesCount: adjustedCount,
+        likes_count: adjustedCount,
+        likers,
+        commentsCount: Math.max(p.commentsCount || 0, (localCommentsMap[p.id] || []).length),
+      };
+    });
+  };
+
+  // Initial / Refresh fetch
   const fetchPosts = async (silent = false) => {
     if (!silent && posts.length === 0) setLoading(true);
     setFeedError(null);
 
     try {
-      const localLikes = loadLocalLikesMap();
-      const localLikersMap = loadLocalLikersMap();
-      const localCommentsMap = loadLocalPostCommentsMap();
-
-      const { posts: fetchedPosts, error } = await loadPosts(undefined, { limit: 50 });
+      const { posts: fetchedPosts, error } = await loadPosts(undefined, { limit: PAGE_SIZE, page: 1 });
 
       if (error) {
         setFeedError(error);
       }
 
       const activePosts = fetchedPosts && fetchedPosts.length > 0 ? fetchedPosts : getLocalSavedPosts();
+      const synced = syncPostMetadata(activePosts);
 
-      const syncedPosts = activePosts.map((p) => {
-        const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : Boolean(p.isLiked);
-        const baseCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
-        const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
-        const likers = localLikersMap[p.id] || p.likers || [];
-
-        return {
-          ...p,
-          isLiked: isLocallyLiked,
-          likesCount: adjustedCount,
-          likes_count: adjustedCount,
-          likers,
-          commentsCount: Math.max(p.commentsCount || 0, (localCommentsMap[p.id] || []).length),
-        };
-      });
-
-      setPosts(syncedPosts);
+      setPosts(synced);
+      setPage(1);
+      setHasMore(synced.length >= PAGE_SIZE);
 
       const fMap: Record<string, boolean> = {};
-      syncedPosts.forEach((p) => {
+      synced.forEach((p) => {
         const name = p.authorName || p.author_name || '';
         if (name) fMap[name] = isFollowing(name);
       });
@@ -249,6 +260,47 @@ export const FeedView: React.FC<FeedViewProps> = ({
       setFeedError(err?.message || 'Database error');
     } finally {
       if (!silent) setLoading(false);
+    }
+  };
+
+  // Load older posts function
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+
+    try {
+      const nextPage = page + 1;
+      const { posts: nextBatch, error } = await loadPosts(undefined, { 
+        limit: PAGE_SIZE, 
+        page: nextPage,
+        offset: posts.length 
+      });
+
+      if (error) {
+        setFeedError(error);
+      }
+
+      if (nextBatch && nextBatch.length > 0) {
+        const syncedBatch = syncPostMetadata(nextBatch);
+        
+        // Prevent duplicate IDs when appending
+        setPosts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const uniqueNew = syncedBatch.filter((p) => !existingIds.has(p.id));
+          return [...prev, ...uniqueNew];
+        });
+
+        setPage(nextPage);
+        if (nextBatch.length < PAGE_SIZE) {
+          setHasMore(false);
+        }
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.warn('[FeedView] Failed to load older posts:', err);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -314,7 +366,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Auto-detect link in text if videoUrl is empty
     let detectedVideoLink = videoUrl.trim();
     if (!detectedVideoLink && !selectedVideoFile) {
       const match = newPostText.match(/https?:\/\/[^\s]+/i);
@@ -870,39 +921,71 @@ export const FeedView: React.FC<FeedViewProps> = ({
             </p>
           </div>
         ) : (
-          filteredPosts.map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              currentProfile={
-                profile
-                  ? {
-                      id: profile.id,
-                      email: profile.email || '',
-                      full_name: profile.full_name || '',
-                      parish: profile.parish || '',
-                      bio: profile.bio,
-                      avatar_url: profile.avatar_url,
-                      role: (profile.role as any) || 'user',
-                      created_at: profile.created_at,
-                    }
-                  : null
-              }
-              onSelectUser={onSelectUser}
-              onOpenMessengerWithUser={onOpenMessengerWithUser}
-              onToggleFollow={handleToggleFollowUser}
-              isFollowed={Boolean(followedMap[post.authorName])}
-              onToggleLike={handleToggleLike}
-              onDeletePost={handleDelete}
-              onOpenReport={handleOpenReport}
-              onReshare={(p) => setReshareTargetPost(p)}
-              comments={commentsMap[post.id] || []}
-              isCommentsOpen={activeCommentPostId === post.id}
-              onToggleComments={() => handleToggleComments(post.id)}
-              onAddComment={handleAddComment}
-              onDeleteComment={handleDeleteComment}
-            />
-          ))
+          <>
+            {filteredPosts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                currentProfile={
+                  profile
+                    ? {
+                        id: profile.id,
+                        email: profile.email || '',
+                        full_name: profile.full_name || '',
+                        parish: profile.parish || '',
+                        bio: profile.bio,
+                        avatar_url: profile.avatar_url,
+                        role: (profile.role as any) || 'user',
+                        created_at: profile.created_at,
+                      }
+                    : null
+                }
+                onSelectUser={onSelectUser}
+                onOpenMessengerWithUser={onOpenMessengerWithUser}
+                onToggleFollow={handleToggleFollowUser}
+                isFollowed={Boolean(followedMap[post.authorName])}
+                onToggleLike={handleToggleLike}
+                onDeletePost={handleDelete}
+                onOpenReport={handleOpenReport}
+                onReshare={(p) => setReshareTargetPost(p)}
+                comments={commentsMap[post.id] || []}
+                isCommentsOpen={activeCommentPostId === post.id}
+                onToggleComments={() => handleToggleComments(post.id)}
+                onAddComment={handleAddComment}
+                onDeleteComment={handleDeleteComment}
+              />
+            ))}
+
+            {/* Load More Button Container */}
+            {feedTab === 'all' && (
+              <div className="flex justify-center pt-4 pb-8">
+                {hasMore ? (
+                  <button
+                    type="button"
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="px-6 py-3 rounded-2xl bg-[#3d2b18] hover:bg-[#282019] text-[#c5a059] border-2 border-[#c5a059] font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-[#c5a059]" />
+                        <span>{language === 'ar' ? 'جارٍ تحميل منشورات سابقة...' : 'Loading older posts...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-[#c5a059]" />
+                        <span>{language === 'ar' ? 'تحميل المنشورات السابقة' : 'Load Older Posts'}</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div className="text-center py-4 text-xs font-serif text-[#7c5f3d] dark:text-[#a89379] italic">
+                    {language === 'ar' ? 'وصلت إلى بداية المنشورات' : 'You have viewed all reflections.'}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
 

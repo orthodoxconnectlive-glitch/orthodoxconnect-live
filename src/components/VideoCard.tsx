@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Play,
   Pause,
@@ -58,6 +58,17 @@ export const DEFAULT_POSTER =
   'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800';
 
 /**
+ * Helper to extract YouTube Video ID from any standard URL format.
+ */
+export function extractYouTubeId(rawSource?: string | null): string | null {
+  if (!rawSource || typeof rawSource !== 'string') return null;
+  const match = rawSource.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([a-zA-Z0-9_-]{11})/
+  );
+  return match ? match[1] : null;
+}
+
+/**
  * Standardized helper to extract a clean Bunny Stream Video GUID / UUID
  * from any input format (pure GUID, embed URL, iframe src, CDN stream URL).
  */
@@ -65,6 +76,11 @@ export function extractCleanVideoId(rawSource?: string | null): string | null {
   if (!rawSource || typeof rawSource !== 'string') return null;
   const trimmed = rawSource.trim();
   if (!trimmed) return null;
+
+  // Ignore YouTube links here
+  if (trimmed.includes('youtu.be') || trimmed.includes('youtube.com')) {
+    return null;
+  }
 
   // 1. Standard 36-char UUID regex (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
   const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/;
@@ -126,14 +142,24 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const videoText = video.text || rawItem.content || '';
   const postImage = video.image || rawItem.image_url || rawItem.image || rawItem.photo_url;
 
-  // Standardize Video GUID Extraction: prioritize post.video_id || post.videoId
+  // Detect Video Source (Bunny Stream or YouTube)
   const rawVideoSource =
     video.video_id ||
     rawItem.video_id ||
     video.video ||
     rawItem.videoId ||
-    rawItem.video_url;
+    rawItem.video_url ||
+    videoText;
+
   const cleanVideoId = extractCleanVideoId(rawVideoSource);
+  const youtubeId = extractYouTubeId(rawVideoSource) || extractYouTubeId(videoText);
+
+  // Fallback Thumbnail / Poster calculation
+  const posterUrl = cleanVideoId
+    ? `https://vz-840ad26e-6fe.b-cdn.net/${cleanVideoId}/thumbnail.jpg`
+    : youtubeId
+    ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`
+    : postImage || DEFAULT_POSTER;
 
   // UI state
   const [newCommentText, setNewCommentText] = useState<string>('');
@@ -270,20 +296,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       onClick={handleScreenClick}
       className="w-full h-full relative overflow-hidden bg-black select-none flex items-center justify-center snap-start snap-always"
     >
-      {/* Fallback Ambient Background: Blurred backdrop preventing harsh black letterboxing */}
+      {/* Fallback Ambient Background: Blurred backdrop */}
       <div
         className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
-        style={{
-          backgroundImage: `url(${
-            cleanVideoId
-              ? `https://vz-840ad26e-6fe.b-cdn.net/${cleanVideoId}/thumbnail.jpg`
-              : postImage || DEFAULT_POSTER
-          })`,
-        }}
+        style={{ backgroundImage: `url(${posterUrl})` }}
       />
 
-      {/* 1. Main 9:16 Video Player Surface: Render Bunny Stream embed iframe for active reel */}
+      {/* Main 9:16 Video Player Surface */}
       <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl">
+        {/* 1. Bunny Stream Player */}
         {cleanVideoId ? (
           isPlaying ? (
             <iframe
@@ -299,11 +320,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           ) : (
             <div className="relative w-full h-full">
               <img
-                src={
-                  cleanVideoId
-                    ? `https://vz-840ad26e-6fe.b-cdn.net/${cleanVideoId}/thumbnail.jpg`
-                    : postImage || DEFAULT_POSTER
-                }
+                src={posterUrl}
                 alt="Reel content"
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -317,9 +334,37 @@ export const VideoCard: React.FC<VideoCardProps> = ({
               </div>
             </div>
           )
+        ) : youtubeId ? (
+          /* 2. YouTube Player */
+          isPlaying ? (
+            <iframe
+              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=${
+                isGlobalMuted ? 1 : 0
+              }&loop=1&playlist=${youtubeId}&controls=1&modestbranding=1&playsinline=1&rel=0`}
+              loading="eager"
+              className="w-full h-full border-0 absolute inset-0 object-cover pointer-events-auto"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen={true}
+              title={videoText || 'Orthodox Reel YouTube'}
+            />
+          ) : (
+            <div className="relative w-full h-full">
+              <img
+                src={posterUrl}
+                alt="Reel thumbnail"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
+                <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-sm border-2 border-[#c5a059] flex items-center justify-center text-[#c5a059] shadow-2xl">
+                  <Play className="w-8 h-8 fill-current ml-1" />
+                </div>
+              </div>
+            </div>
+          )
         ) : (
+          /* 3. Fallback Image Card */
           <img
-            src={postImage || DEFAULT_POSTER}
+            src={posterUrl}
             alt="Reel content"
             className="w-full h-full object-cover"
           />
@@ -330,7 +375,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/75 via-black/30 to-transparent pointer-events-none z-10" />
       <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/50 to-transparent pointer-events-none z-10" />
 
-      {/* 2. Top Right Player Controls (Sound / Mute & Fullscreen) */}
+      {/* Top Right Player Controls */}
       <div className="absolute top-14 sm:top-16 right-3 sm:right-4 z-30 flex items-center gap-2 pointer-events-auto no-screen-tap">
         <button
           type="button"
@@ -367,7 +412,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </button>
       </div>
 
-      {/* 3. Center Screen Play/Pause Animated Pulse Indicator */}
+      {/* Center Screen Play/Pause Animated Pulse Indicator */}
       {(!isPlaying || showPlayPulse) && (
         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
           <div className="w-20 h-20 rounded-full bg-black/60 backdrop-blur-md border-2 border-[#c5a059] flex items-center justify-center text-[#c5a059] shadow-2xl transition-all scale-100 animate-fade-in">
@@ -380,7 +425,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
       )}
 
-      {/* 4. Double-Tap Floating Heart Burst Animations */}
+      {/* Double-Tap Floating Heart Burst Animations */}
       {doubleTapHearts.map((heart) => (
         <div
           key={heart.id}
@@ -391,7 +436,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
       ))}
 
-      {/* 5. Right-Side Action Bar: z-30 pointer-events-auto */}
+      {/* Right-Side Action Bar */}
       <div className="absolute right-2.5 sm:right-4 bottom-16 z-30 flex flex-col items-center gap-4.5 pointer-events-auto">
         {/* Author Avatar with Red (+) Follow Button */}
         <div className="relative flex flex-col items-center mb-1">
@@ -414,7 +459,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             />
           </div>
 
-          {/* Red (+) Follow Button */}
           <button
             type="button"
             onClick={(e) => {
@@ -494,7 +538,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </span>
         </div>
 
-        {/* Share Button with Direct Link Copy */}
+        {/* Share Button */}
         <div className="flex flex-col items-center gap-1">
           <button
             type="button"
@@ -513,7 +557,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </span>
         </div>
 
-        {/* Delete Button (if admin or author) */}
+        {/* Delete Button */}
         {canDelete && (
           <div className="flex flex-col items-center gap-1">
             <button
@@ -532,9 +576,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         )}
       </div>
 
-      {/* 6. Bottom Overlay: Creator info, caption with clickable hashtags, and audio track bar */}
+      {/* Bottom Overlay */}
       <div className="absolute bottom-3 left-3 right-16 sm:right-20 z-30 flex flex-col gap-2 text-left pointer-events-auto">
-        {/* Creator Username & Verified Badge */}
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
@@ -553,7 +596,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             <CheckCircle2 className="w-4 h-4 text-[#38bdf8] fill-[#38bdf8] stroke-black" />
           </button>
 
-          {/* Parish Badge */}
           {authorParish && (
             <span className="px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-md border border-[#c5a059]/40 text-[#c5a059] text-[10px] font-serif flex items-center gap-1 drop-shadow-md">
               <Church className="w-2.5 h-2.5" />
@@ -562,7 +604,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           )}
         </div>
 
-        {/* Video Caption with Clickable Hashtags */}
         {videoText && (
           <div className="text-xs text-white/95 font-serif leading-relaxed drop-shadow-md max-w-full">
             <p className={isCaptionExpanded ? '' : 'line-clamp-2'}>
@@ -583,7 +624,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           </div>
         )}
 
-        {/* Audio Track Bar with Spinning Vinyl Disc */}
+        {/* Audio Track Bar */}
         <div className="flex items-center justify-between gap-3 pt-1">
           <div className="flex items-center gap-2 overflow-hidden flex-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 max-w-[240px]">
             <Music className="w-3.5 h-3.5 text-[#c5a059] shrink-0" />
@@ -594,7 +635,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             </div>
           </div>
 
-          {/* Spinning Audio Thumbnail Disc */}
           <div className="relative w-8 h-8 rounded-full bg-gradient-to-tr from-neutral-900 via-neutral-800 to-black border-2 border-neutral-700 shadow-xl flex items-center justify-center shrink-0">
             <div
               className={`w-6 h-6 rounded-full overflow-hidden border border-[#c5a059]/60 flex items-center justify-center ${
@@ -612,13 +652,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({
         </div>
       </div>
 
-      {/* 7. Slide-Up Comment Drawer / Bottom Sheet */}
+      {/* Slide-Up Comment Drawer */}
       {isCommentOpen && (
         <div
           onClick={(e) => e.stopPropagation()}
           className="no-screen-tap absolute inset-x-0 bottom-0 max-h-[72%] h-[420px] bg-[#1c1611]/98 backdrop-blur-2xl border-t-2 border-[#c5a059] rounded-t-3xl p-4 z-50 flex flex-col shadow-2xl animate-fade-in text-[#f5ebd9]"
         >
-          {/* Drawer Header */}
           <div className="flex items-center justify-between pb-3 border-b border-[#c5a059]/30">
             <div className="flex items-center gap-2">
               <MessageCircle className="w-4 h-4 text-[#c5a059]" />
@@ -635,7 +674,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             </button>
           </div>
 
-          {/* Quick Spiritual Reaction Chips */}
           <div className="flex items-center gap-2 py-2.5 overflow-x-auto no-scrollbar border-b border-[#c5a059]/20">
             {['☨ Amen', '🙏 Praying', '🕊️ Blessed', '❤️ Glory to God', '✝️ Lord Have Mercy'].map(
               (chip) => (
@@ -651,7 +689,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             )}
           </div>
 
-          {/* Comments Scrollable List */}
           <div className="flex-1 overflow-y-auto space-y-3 py-3 pr-1 text-xs no-scrollbar">
             {comments.length === 0 ? (
               <div className="text-center py-10">
@@ -682,7 +719,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({
             )}
           </div>
 
-          {/* Comment Input Form */}
           <form onSubmit={handleCommentSubmit} className="flex gap-2 pt-2.5 border-t border-[#c5a059]/30">
             <input
               type="text"

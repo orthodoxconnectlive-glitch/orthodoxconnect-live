@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "orthodoxconnect.live",
+      "sha256_cert_fingerprints": [
+        "B8:A7:CB:2E:CD:E6:C4:B3:BA:50:06:E5:DB:4D:29:07:3E:2D:C7:F7:2A:3B:AA:F3:D2:5B:4D:25:D7:DF:8E:71"
+      ]
+    }
+  }
+]

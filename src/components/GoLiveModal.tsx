@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Radio, Camera, AlertCircle, RefreshCw } from 'lucide-react';
+import { X, Radio, Camera, AlertCircle, RefreshCw, SwitchCamera } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { liveStreamsApi } from '../lib/api';
@@ -38,6 +38,9 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
   const [mediaUrl, setMediaUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Camera lens mode ('user' = front / selfie, 'environment' = back / world)
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+
   // Webcam & Microphone states
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
@@ -46,10 +49,21 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
   const isStreamTransferredRef = useRef<boolean>(false);
 
-  // Function to initialize webcam stream
-  const initWebcam = async () => {
+  // Helper to safely stop current tracks
+  const stopTracks = (streamToStop?: MediaStream | null) => {
+    const s = streamToStop || mediaStream;
+    if (s) {
+      s.getTracks().forEach((track) => track.stop());
+    }
+  };
+
+  // Function to initialize or switch webcam stream
+  const initWebcam = async (targetFacingMode: 'user' | 'environment' = facingMode) => {
     setHasCameraPermission(null);
     setCameraError(null);
+
+    // Stop existing stream before re-requesting a different camera
+    stopTracks();
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -61,7 +75,11 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: {
+          facingMode: { ideal: targetFacingMode },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
         audio: true,
       });
 
@@ -83,15 +101,15 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     }
   };
 
-  // Request camera and microphone when modal opens
+  // Request camera and microphone when modal opens or facing mode changes
   useEffect(() => {
     if (isOpen) {
       isStreamTransferredRef.current = false;
-      initWebcam();
+      initWebcam(facingMode);
     } else {
       // Clean up camera stream if modal closed without starting broadcast
-      if (mediaStream && !isStreamTransferredRef.current) {
-        mediaStream.getTracks().forEach((track) => track.stop());
+      if (!isStreamTransferredRef.current) {
+        stopTracks();
       }
       setMediaStream(null);
       setHasCameraPermission(null);
@@ -99,11 +117,11 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     }
 
     return () => {
-      if (mediaStream && !isStreamTransferredRef.current) {
-        mediaStream.getTracks().forEach((track) => track.stop());
+      if (!isStreamTransferredRef.current) {
+        stopTracks();
       }
     };
-  }, [isOpen]);
+  }, [isOpen, facingMode]);
 
   // Ensure video element receives stream whenever mediaStream changes
   useEffect(() => {
@@ -114,9 +132,13 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handleToggleFacingMode = () => {
+    setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
+  };
+
   const handleClose = () => {
-    if (mediaStream && !isStreamTransferredRef.current) {
-      mediaStream.getTracks().forEach((track) => track.stop());
+    if (!isStreamTransferredRef.current) {
+      stopTracks();
     }
     setMediaStream(null);
     onClose();
@@ -226,13 +248,46 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
                 autoPlay
                 playsInline
                 muted
-                className="w-full h-full object-cover transform scale-x-[-1]"
+                className={`w-full h-full object-cover transition-transform duration-300 ${
+                  facingMode === 'user' ? 'transform scale-x-[-1]' : 'transform scale-x-100'
+                }`}
               />
+
+              {/* Top Left: Live Preview Badge */}
               <div className="absolute top-3 left-3 rtl:left-auto rtl:right-3 flex items-center gap-2 z-10">
                 <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold tracking-wider uppercase animate-pulse">
                   {language === 'ar' ? 'معاينة حية للكاميرا' : 'WEBCAM LIVE PREVIEW'}
                 </span>
               </div>
+
+              {/* Top Right: Camera Switch Button */}
+              <button
+                type="button"
+                onClick={handleToggleFacingMode}
+                className="absolute top-3 right-3 rtl:right-auto rtl:left-3 px-2.5 py-1.5 rounded-lg bg-stone-900/85 hover:bg-stone-800 text-amber-300 border border-amber-500/40 text-xs font-semibold flex items-center gap-1.5 backdrop-blur shadow-lg transition-transform active:scale-95 cursor-pointer z-10"
+                title={
+                  facingMode === 'user'
+                    ? language === 'ar'
+                      ? 'التبديل إلى الكاميرا الخلفية'
+                      : 'Switch to Back Camera'
+                    : language === 'ar'
+                    ? 'التبديل إلى الكاميرا الأمامية'
+                    : 'Switch to Front Camera'
+                }
+              >
+                <SwitchCamera className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">
+                  {facingMode === 'user'
+                    ? language === 'ar'
+                      ? 'الخلفية'
+                      : 'Back'
+                    : language === 'ar'
+                    ? 'الأمامية'
+                    : 'Front'}
+                </span>
+              </button>
+
+              {/* Bottom Right: Feed Status Badge */}
               <div className="absolute bottom-3 right-3 rtl:right-auto rtl:left-3 px-2 py-1 rounded bg-stone-900/80 backdrop-blur border border-amber-500/30 text-[10px] text-amber-300 font-mono">
                 {language === 'ar' ? 'بث بدقة 720p جاهز' : '720p HD Feed Active'}
               </div>
@@ -263,7 +318,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
               </p>
               <button
                 type="button"
-                onClick={initWebcam}
+                onClick={() => initWebcam(facingMode)}
                 className="mt-2 px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-amber-300 text-[11px] font-semibold flex items-center gap-1.5 border border-amber-500/30 cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />

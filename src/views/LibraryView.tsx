@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon } from 'lucide-react';
+import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon, Pencil, Trash2 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 interface Book {
@@ -23,20 +23,21 @@ export const LibraryView: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
 
-  // Upload type toggles: 'upload' | 'url'
+  // Upload source toggles
   const [pdfSourceType, setPdfSourceType] = useState<'upload' | 'url'>('url');
   const [coverSourceType, setCoverSourceType] = useState<'upload' | 'url'>('url');
 
-  // File states
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
 
-  // Form State
-  const [formData, setFormData] = useState({
+  const initialFormState = {
     title_ar: '',
     title_en: '',
     author_ar: '',
@@ -45,12 +46,13 @@ export const LibraryView: React.FC = () => {
     cover_image_url: '',
     file_url: '',
     description: '',
-  });
+  };
+  const [formData, setFormData] = useState(initialFormState);
 
   const categories = [
     { id: 'all', ar: 'الكل', en: 'All' },
     { id: 'patristics', ar: 'آبائيات', en: 'Patristics' },
-    { id: 'dogma', ar: 'عقيدة ولاهوت', en: 'Dogmatics' },
+    { id: 'dogmatics', ar: 'عقيدة ولاهوت', en: 'Dogmatics' },
     { id: 'spiritual', ar: 'روحيات وسير قديسين', en: 'Spiritual' },
     { id: 'liturgy', ar: 'طقوس وتسبحة', en: 'Liturgy' },
     { id: 'bible_study', ar: 'دراسات كتابية', en: 'Bible Study' },
@@ -74,98 +76,121 @@ export const LibraryView: React.FC = () => {
     fetchBooks();
   }, [search, selectedCategory]);
 
+  const openAddModal = () => {
+    setEditingBookId(null);
+    setFormData(initialFormState);
+    setPdfSourceType('url');
+    setCoverSourceType('url');
+    setPdfFile(null);
+    setCoverFile(null);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (book: Book) => {
+    setEditingBookId(book.id);
+    setFormData({
+      title_ar: book.title_ar || '',
+      title_en: book.title_en || '',
+      author_ar: book.author_ar || '',
+      author_en: book.author_en || '',
+      category: book.category || 'patristics',
+      cover_image_url: book.cover_image_url || '',
+      file_url: book.file_url || '',
+      description: book.description || '',
+    });
+    setPdfSourceType('url');
+    setCoverSourceType('url');
+    setPdfFile(null);
+    setCoverFile(null);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteBook = async (id: string) => {
+    const confirmMsg = language === 'ar' ? 'هل أنت متأكد من حذف هذا الكتاب؟' : 'Are you sure you want to delete this book?';
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch(`/api/books/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setBooks((prev) => prev.filter((b) => b.id !== id));
+      } else {
+        alert(language === 'ar' ? 'فشل حذف الكتاب' : 'Failed to delete book');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting book');
+    }
+  };
+
   const uploadToCloudinary = async (file: File): Promise<string> => {
     const data = new FormData();
     data.append('file', file);
     data.append('upload_preset', CLOUDINARY_PRESET);
-
     const resourceType = file.type.startsWith('image/') ? 'image' : 'raw';
 
-    const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`,
-      {
-        method: 'POST',
-        body: data,
-      }
-    );
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`, {
+      method: 'POST',
+      body: data,
+    });
 
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error?.message || 'Upload failed');
     }
-
     const json = await res.json();
     return json.secure_url;
   };
 
-  const handleAddBook = async (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setStatusMessage(language === 'ar' ? 'جاري رفع الملفات...' : 'Uploading files...');
+    setStatusMessage(language === 'ar' ? 'جاري المعالجة...' : 'Processing...');
 
     try {
       let finalPdfUrl = formData.file_url;
       let finalCoverUrl = formData.cover_image_url;
 
-      // 1. Upload Cover if file selected
       if (coverSourceType === 'upload' && coverFile) {
-        setStatusMessage(language === 'ar' ? 'جاري رفع صورة الغلاف...' : 'Uploading cover image...');
+        setStatusMessage(language === 'ar' ? 'جاري رفع صورة الغلاف...' : 'Uploading cover...');
         finalCoverUrl = await uploadToCloudinary(coverFile);
       }
 
-      // 2. Upload PDF if file selected
-      if (pdfSourceType === 'upload') {
-        if (!pdfFile) {
-          alert(language === 'ar' ? 'يرجى اختيار ملف PDF' : 'Please select a PDF file');
-          setSubmitting(false);
-          return;
-        }
-        setStatusMessage(language === 'ar' ? 'جاري رفع ملف الـ PDF...' : 'Uploading PDF file...');
+      if (pdfSourceType === 'upload' && pdfFile) {
+        setStatusMessage(language === 'ar' ? 'جاري رفع الملف...' : 'Uploading file...');
         finalPdfUrl = await uploadToCloudinary(pdfFile);
       }
 
-      // Ensure a link or file exists
       if (!finalPdfUrl) {
-        alert(language === 'ar' ? 'يرجى وضع رابط أو رفع ملف' : 'Please provide a PDF link or file');
+        alert(language === 'ar' ? 'يرجى توفير رابط أو ملف' : 'Please provide a file or link');
         setSubmitting(false);
         return;
       }
 
-      // 3. Save Record to D1
-      setStatusMessage(language === 'ar' ? 'جاري حفظ البيانات...' : 'Saving book to database...');
-      const res = await fetch('/api/books', {
-        method: 'POST',
+      const payload = {
+        ...formData,
+        file_url: finalPdfUrl,
+        cover_image_url: finalCoverUrl || null,
+      };
+
+      const url = editingBookId ? `/api/books/${editingBookId}` : '/api/books';
+      const method = editingBookId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: `book-${Date.now()}`,
-          ...formData,
-          file_url: finalPdfUrl,
-          cover_image_url: finalCoverUrl || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
-        setIsAddModalOpen(false);
-        setFormData({
-          title_ar: '',
-          title_en: '',
-          author_ar: '',
-          author_en: '',
-          category: 'patristics',
-          cover_image_url: '',
-          file_url: '',
-          description: '',
-        });
-        setPdfFile(null);
-        setCoverFile(null);
+        setIsModalOpen(false);
         fetchBooks();
       } else {
         const errorData = await res.json().catch(() => ({}));
-        alert(errorData.error || (language === 'ar' ? 'فشل حفظ الكتاب' : 'Failed to save book'));
+        alert(errorData.error || 'Failed to save');
       }
     } catch (err: any) {
       console.error(err);
-      alert(err.message || (language === 'ar' ? 'حدث خطأ أثناء الرفع' : 'Upload error'));
+      alert(err.message || 'Error occurred');
     } finally {
       setSubmitting(false);
       setStatusMessage('');
@@ -176,9 +201,8 @@ export const LibraryView: React.FC = () => {
     <div className="max-w-6xl mx-auto px-4 py-4 space-y-6" dir={language === 'ar' ? 'rtl' : 'ltr'}>
       {/* Header */}
       <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-6 shadow-md text-center relative">
-        {/* Public Add Book Trigger */}
         <button
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={openAddModal}
           className="absolute top-4 left-4 rtl:left-auto rtl:right-4 px-3.5 py-1.5 rounded-full bg-[#c5a059] text-white text-xs font-serif font-bold flex items-center gap-1.5 shadow-md hover:bg-[#b08b43] transition-all cursor-pointer"
         >
           <Plus className="w-4 h-4" />
@@ -196,7 +220,7 @@ export const LibraryView: React.FC = () => {
         </p>
       </div>
 
-      {/* Search & Categories Bar */}
+      {/* Filter / Search Bar */}
       <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
         <div className="relative w-full md:w-80">
           <Search className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-[#7c5f3d] dark:text-[#a89379]" />
@@ -226,7 +250,7 @@ export const LibraryView: React.FC = () => {
         </div>
       </div>
 
-      {/* Books Grid */}
+      {/* Book Grid */}
       {loading ? (
         <div className="text-center py-12 text-[#7c5f3d] dark:text-[#a89379] font-serif text-sm animate-pulse">
           {language === 'ar' ? 'جاري تحميل الكتب...' : 'Loading books...'}
@@ -240,8 +264,27 @@ export const LibraryView: React.FC = () => {
           {books.map((book) => (
             <div
               key={book.id}
-              className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between"
+              className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between relative group"
             >
+              {/* Edit & Delete Action Buttons */}
+              <div className="absolute top-2 right-2 rtl:right-auto rtl:left-2 flex items-center gap-1.5 z-10 bg-black/50 backdrop-blur-md p-1 rounded-xl">
+                <button
+                  onClick={() => openEditModal(book)}
+                  className="p-1 text-white hover:text-amber-300 transition-colors"
+                  title={language === 'ar' ? 'تعديل' : 'Edit'}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handleDeleteBook(book.id)}
+                  className="p-1 text-white hover:text-red-400 transition-colors"
+                  title={language === 'ar' ? 'حذف' : 'Delete'}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Cover Image */}
               <div className="h-44 bg-[#eedcb5] dark:bg-[#282019] flex items-center justify-center overflow-hidden border-b border-[#c5a059]/30">
                 {book.cover_image_url ? (
                   <img src={book.cover_image_url} alt={book.title_ar} className="w-full h-full object-cover" />
@@ -250,6 +293,7 @@ export const LibraryView: React.FC = () => {
                 )}
               </div>
 
+              {/* Book Details */}
               <div className="p-4 flex-1 flex flex-col justify-between">
                 <div>
                   <h3 className="font-serif-coptic font-bold text-sm text-[#3d2b18] dark:text-[#f5ebd9] line-clamp-2">
@@ -275,22 +319,24 @@ export const LibraryView: React.FC = () => {
         </div>
       )}
 
-      {/* Add Book Modal */}
-      {isAddModalOpen && (
+      {/* Create / Edit Modal */}
+      {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
           <div className="bg-[#eedcb5] dark:bg-[#18120e] border-2 border-[#c5a059] dark:border-[#8b6b4a] w-full max-w-lg rounded-3xl p-6 shadow-2xl relative text-[#3d2b18] dark:text-[#f5ebd9] my-8">
             <button
-              onClick={() => setIsAddModalOpen(false)}
+              onClick={() => setIsModalOpen(false)}
               className="absolute top-4 left-4 rtl:left-auto rtl:right-4 text-[#7c5f3d] hover:text-[#3d2b18] dark:hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
 
             <h2 className="font-serif-coptic font-bold text-lg mb-4 text-center">
-              {language === 'ar' ? 'إضافة كتاب أو رابط للمكتبة' : 'Add Book or External Link'}
+              {editingBookId 
+                ? (language === 'ar' ? 'تعديل بيانات الكتاب' : 'Edit Book Details')
+                : (language === 'ar' ? 'إضافة كتاب أو رابط للمكتبة' : 'Add Book or External Link')}
             </h2>
 
-            <form onSubmit={handleAddBook} className="space-y-3.5 text-xs">
+            <form onSubmit={handleFormSubmit} className="space-y-3.5 text-xs">
               <div>
                 <label className="block font-bold mb-1">{language === 'ar' ? 'اسم الكتاب (عربي) *' : 'Title (Arabic) *'}</label>
                 <input
@@ -346,14 +392,14 @@ export const LibraryView: React.FC = () => {
                   className="w-full p-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] outline-none text-[#3d2b18] dark:text-[#f5ebd9]"
                 >
                   <option value="patristics">آبائيات (Patristics)</option>
-                  <option value="dogma">عقيدة ولاهوت (Dogmatics)</option>
+                  <option value="dogmatics">عقيدة ولاهوت (Dogmatics)</option>
                   <option value="spiritual">روحيات وسير قديسين (Spiritual)</option>
                   <option value="liturgy">طقوس وتسبحة (Liturgy)</option>
                   <option value="bible_study">دراسات كتابية (Bible Study)</option>
                 </select>
               </div>
 
-              {/* PDF / Book File or Link */}
+              {/* File / Link */}
               <div className="p-3 rounded-2xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059]/50 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="font-bold flex items-center gap-1.5">
@@ -386,7 +432,6 @@ export const LibraryView: React.FC = () => {
 
                 {pdfSourceType === 'upload' ? (
                   <input
-                    required={pdfSourceType === 'upload'}
                     type="file"
                     accept="application/pdf"
                     onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
@@ -394,7 +439,7 @@ export const LibraryView: React.FC = () => {
                   />
                 ) : (
                   <input
-                    required={pdfSourceType === 'url'}
+                    required
                     type="url"
                     placeholder="https://.../book.pdf"
                     value={formData.file_url}
@@ -404,7 +449,7 @@ export const LibraryView: React.FC = () => {
                 )}
               </div>
 
-              {/* Cover Image (Upload or Link) */}
+              {/* Cover Image */}
               <div className="p-3 rounded-2xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059]/50 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="font-bold flex items-center gap-1.5">
@@ -458,7 +503,11 @@ export const LibraryView: React.FC = () => {
                 disabled={submitting}
                 className="w-full py-3 rounded-xl bg-[#c5a059] text-white font-bold font-serif uppercase tracking-wider mt-2 shadow-md hover:bg-[#b08b43] transition-all cursor-pointer disabled:opacity-50"
               >
-                {submitting ? (statusMessage || (language === 'ar' ? 'جاري التحميل...' : 'Uploading...')) : (language === 'ar' ? 'حفظ الكتاب' : 'Save Book')}
+                {submitting
+                  ? (statusMessage || (language === 'ar' ? 'جاري الحفظ...' : 'Saving...'))
+                  : editingBookId
+                  ? (language === 'ar' ? 'تحديث الكتاب' : 'Update Book')
+                  : (language === 'ar' ? 'حفظ الكتاب' : 'Save Book')}
               </button>
             </form>
           </div>

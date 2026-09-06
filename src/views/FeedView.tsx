@@ -3,28 +3,16 @@ import {
   Image,
   Video,
   Send,
-  Heart,
-  MessageCircle,
-  MessageSquare,
-  Repeat,
-  Share2,
-  Trash2,
   Church,
   Sparkles,
-  Bookmark,
-  Flag,
-  UserPlus,
-  UserCheck,
-  Check,
-  X,
-  Upload,
   AlertCircle,
   RefreshCw,
   Link2,
+  Check,
+  X,
+  Upload,
 } from 'lucide-react';
 import { Post, PostComment } from '../types';
-import { addNotification } from '../utils/notifications';
-import { TimeAgo } from '../components/TimeAgo';
 import {
   loadPosts,
   savePost,
@@ -34,10 +22,7 @@ import {
   addPostComment,
   deletePostComment,
   getLocalSavedPosts,
-  BUNNY_STREAM_BASE,
-  SEED_VIDEOS,
   loadLocalPostCommentsMap,
-  saveLocalPostCommentsMap,
   loadLocalLikesMap,
   saveLocalLikesMap,
   loadLocalLikersMap,
@@ -47,7 +32,6 @@ import { uploadMediaFile, uploadVideoToBunnyStream, compressImageToDataUrl } fro
 import { isFollowing, toggleFollow } from '../utils/follows';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { BunnyPlayer } from '../components/BunnyPlayer';
 import { ReshareModal } from '../components/ReshareModal';
 import { ReportContentModal } from '../components/ReportContentModal';
 import { StoriesBar } from '../components/StoriesBar';
@@ -55,12 +39,10 @@ import { PostCard } from '../components/PostCard';
 import { LiturgicalBanner } from '../components/LiturgicalBanner';
 import { UserProfileData } from './ProfileView';
 
-// Helper to extract embed links
 export function parseVideoEmbed(url?: string | null): { type: 'youtube' | 'vimeo' | 'direct'; embedUrl: string } | null {
   if (!url) return null;
   const cleanUrl = url.trim();
 
-  // YouTube match (standard, share links, shorts)
   const ytMatch = cleanUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/i);
   if (ytMatch && ytMatch[1]) {
     return {
@@ -69,7 +51,6 @@ export function parseVideoEmbed(url?: string | null): { type: 'youtube' | 'vimeo
     };
   }
 
-  // Vimeo match
   const vimeoMatch = cleanUrl.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
   if (vimeoMatch && vimeoMatch[1]) {
     return {
@@ -78,7 +59,6 @@ export function parseVideoEmbed(url?: string | null): { type: 'youtube' | 'vimeo
     };
   }
 
-  // Direct MP4 / WebM / Bunny Stream CDN
   if (/\.(mp4|webm|ogg)$/i.test(cleanUrl) || cleanUrl.includes('.b-cdn.net/')) {
     return {
       type: 'direct',
@@ -105,7 +85,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const { profile } = useAuth();
   const { t, language } = useTheme();
 
-  // Instant render from local storage cache with likes and likers merged
   const [posts, setPosts] = useState<Post[]>(() => {
     const cached = getLocalSavedPosts();
     const localLikes = loadLocalLikesMap();
@@ -178,28 +157,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
     snippet: '',
   });
 
-  useEffect(() => {
-    fetchPosts();
-
-    const interval = setInterval(() => {
-      fetchPosts(true);
-    }, 45000);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [profile?.id, profile?.email]);
-
-  useEffect(() => {
-    return () => {
-      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
-      allMedia.forEach((media) => {
-        try {
-          if (!media.paused) media.pause();
-        } catch (e) {}
-      });
-    };
-  }, [feedTab]);
+  // Concurrency guard ref to prevent stacked/runaway network calls
+  const isFetchingRef = useRef<boolean>(false);
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -230,8 +189,10 @@ export const FeedView: React.FC<FeedViewProps> = ({
     });
   };
 
-  // Initial / Refresh fetch
   const fetchPosts = async (silent = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
     if (!silent && posts.length === 0) setLoading(true);
     setFeedError(null);
 
@@ -259,21 +220,50 @@ export const FeedView: React.FC<FeedViewProps> = ({
       console.warn('[FeedView] Feed fetch exception:', err);
       setFeedError(err?.message || 'Database error');
     } finally {
+      isFetchingRef.current = false;
       if (!silent) setLoading(false);
     }
   };
 
-  // Load older posts function
+  // Run initial fetch once on mount with safety interval
+  useEffect(() => {
+    let isMounted = true;
+
+    fetchPosts();
+
+    const interval = setInterval(() => {
+      if (isMounted) {
+        fetchPosts(true);
+      }
+    }, 60000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      const allMedia = document.querySelectorAll<HTMLMediaElement>('video, audio');
+      allMedia.forEach((media) => {
+        try {
+          if (!media.paused) media.pause();
+        } catch (e) {}
+      });
+    };
+  }, [feedTab]);
+
   const handleLoadMore = async () => {
-    if (loadingMore || !hasMore) return;
+    if (loadingMore || !hasMore || isFetchingRef.current) return;
     setLoadingMore(true);
 
     try {
       const nextPage = page + 1;
-      const { posts: nextBatch, error } = await loadPosts(undefined, { 
-        limit: PAGE_SIZE, 
+      const { posts: nextBatch, error } = await loadPosts(undefined, {
+        limit: PAGE_SIZE,
         page: nextPage,
-        offset: posts.length 
+        offset: posts.length,
       });
 
       if (error) {
@@ -282,8 +272,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
       if (nextBatch && nextBatch.length > 0) {
         const syncedBatch = syncPostMetadata(nextBatch);
-        
-        // Prevent duplicate IDs when appending
+
         setPosts((prev) => {
           const existingIds = new Set(prev.map((p) => p.id));
           const uniqueNew = syncedBatch.filter((p) => !existingIds.has(p.id));
@@ -645,7 +634,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Toast Notice */}
       {toastMessage && (
         <div className="fixed top-20 right-6 rtl:right-auto rtl:left-6 z-50 px-4 py-2.5 rounded-2xl bg-[#3d2b18] text-[#f5ebd9] border-2 border-[#c5a059] shadow-2xl font-serif text-xs flex items-center gap-2 animate-bounce">
           <Check className="w-4 h-4 text-[#c5a059]" />
@@ -653,7 +641,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </div>
       )}
 
-      {/* Feed Error Banner */}
       {feedError && (
         <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-500/50 text-amber-950 dark:text-amber-200 text-xs flex items-center justify-between shadow-md">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -681,13 +668,9 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </div>
       )}
 
-      {/* Liturgical Banner */}
       <LiturgicalBanner onOpenCalendar={onOpenCalendar} />
-
-      {/* Stories Bar */}
       <StoriesBar onSelectUser={onSelectUser} />
 
-      {/* Post Creation Box */}
       <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg">
         <form onSubmit={handleCreatePost} className="space-y-3">
           <div className="flex items-center gap-3">
@@ -719,7 +702,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
             </div>
           </div>
 
-          {/* Link / Video Input Drawer */}
           {showVideoUrlInput && (
             <div className="p-3 bg-[#eedcb5]/60 dark:bg-[#282019]/70 border border-[#c5a059]/50 rounded-2xl space-y-2">
               <div className="flex items-center gap-2">
@@ -758,7 +740,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
             className="hidden"
           />
 
-          {/* Image Preview */}
           {imageUrl && (
             <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
               <div className="relative max-h-80 overflow-hidden rounded-xl bg-black/20 flex items-center justify-center">
@@ -780,7 +761,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
             </div>
           )}
 
-          {/* Video Preview (Embed or Direct File) */}
           {videoUrl && (
             <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
               <div className="relative aspect-video rounded-xl bg-black overflow-hidden flex items-center justify-center">
@@ -874,7 +854,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </form>
       </div>
 
-      {/* Feed Filter Mode Switcher */}
       <div className="flex items-center justify-between bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] p-1.5 rounded-2xl shadow-md font-serif text-xs">
         <button
           onClick={() => setFeedTab('all')}
@@ -898,7 +877,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </button>
       </div>
 
-      {/* Posts List */}
       <div className="space-y-4">
         {loading && posts.length === 0 ? (
           <div className="p-8 text-center bg-[#f6ebd6] dark:bg-[#1c1611] rounded-3xl border-2 border-[#c5a059]">
@@ -956,7 +934,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
               />
             ))}
 
-            {/* Load More Button Container */}
             {feedTab === 'all' && (
               <div className="flex justify-center pt-4 pb-8">
                 {hasMore ? (

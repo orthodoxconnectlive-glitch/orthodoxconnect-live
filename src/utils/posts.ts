@@ -217,21 +217,23 @@ export function getLocalSavedPosts(): Post[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((p) => {
-          const mapped = mapRowToPost(p);
-          const isLocallyLiked = localLikes[mapped.id] !== undefined ? localLikes[mapped.id] : Boolean(mapped.isLiked);
-          const baseCount = typeof mapped.likesCount === 'number' ? mapped.likesCount : (mapped.likes_count || 0);
-          const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
-          const likers = localLikersMap[mapped.id] || mapped.likers || [];
+        return parsed
+          .map((p) => {
+            const mapped = mapRowToPost(p);
+            const isLocallyLiked = localLikes[mapped.id] !== undefined ? localLikes[mapped.id] : Boolean(mapped.isLiked);
+            const baseCount = typeof mapped.likesCount === 'number' ? mapped.likesCount : (mapped.likes_count || 0);
+            const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
+            const likers = localLikersMap[mapped.id] || mapped.likers || [];
 
-          return {
-            ...mapped,
-            isLiked: isLocallyLiked,
-            likesCount: adjustedCount,
-            likes_count: adjustedCount,
-            likers,
-          };
-        }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            return {
+              ...mapped,
+              isLiked: isLocallyLiked,
+              likesCount: adjustedCount,
+              likes_count: adjustedCount,
+              likers,
+            };
+          })
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       }
     }
   } catch (e) {}
@@ -248,8 +250,11 @@ export function saveLocalPostToCache(post: Post) {
   } catch (e) {}
 }
 
+// 30-second in-memory cache to prevent frequent duplicate calls
 let cachedPosts: { data: Post[]; timestamp: number; key: string } | null = null;
-const CACHE_TTL_MS = 2000;
+const CACHE_TTL_MS = 30000;
+let rateLimitedUntil = 0;
+let activeInFlightPromise: Promise<{ posts: Post[]; error: any }> | null = null;
 
 export function invalidatePostsCache() {
   cachedPosts = null;
@@ -262,73 +267,96 @@ export async function loadPosts(
   groupId?: string,
   options?: { limit?: number; offset?: number; forceRefresh?: boolean }
 ): Promise<{ posts: Post[]; error: any }> {
-  const cacheKey = `posts-${groupId || 'all'}-${options?.offset || 0}-${options?.limit || 50}`;
+  const limit = options?.limit ?? 50;
+  const offset = options?.offset ?? 0;
+  const cacheKey = `posts-${groupId || 'all'}-${offset}-${limit}`;
 
+  // Serve from memory if fresh
   if (!options?.forceRefresh && cachedPosts && cachedPosts.key === cacheKey && Date.now() - cachedPosts.timestamp < CACHE_TTL_MS) {
     return { posts: cachedPosts.data, error: null };
   }
 
-  const limit = options?.limit ?? 50;
-  const offset = options?.offset ?? 0;
-  const params = new URLSearchParams({
-    limit: String(limit),
-    offset: String(offset),
-  });
-  if (groupId) {
-    params.set('group_id', groupId);
+  // If rate-limited recently (HTTP 429), avoid calling edge again during cooldown window
+  if (Date.now() < rateLimitedUntil) {
+    return { posts: getLocalSavedPosts(), error: 'Rate limit active. Serving from local cache.' };
   }
 
-  const localLikes = loadLocalLikesMap();
-  const localLikersMap = loadLocalLikersMap();
+  // Deduplicate concurrent in-flight requests
+  if (activeInFlightPromise) {
+    return activeInFlightPromise;
+  }
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/posts?${params.toString()}`, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
+  activeInFlightPromise = (async () => {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      offset: String(offset),
     });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      throw new Error(`API Error ${res.status}: ${errText || res.statusText}`);
+    if (groupId) {
+      params.set('group_id', groupId);
     }
 
-    const data = await res.json();
-    const rawList = Array.isArray(data) ? data : (data?.posts || []);
-    const mapped = rawList
-      .map((row: any) => {
-        const p = mapRowToPost(row);
-        const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : Boolean(p.isLiked);
-        const baseCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
-        const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
-        const likers = localLikersMap[p.id] || p.likers || [];
-
-        return {
-          ...p,
-          isLiked: isLocallyLiked,
-          likesCount: adjustedCount,
-          likes_count: adjustedCount,
-          likers,
-        };
-      })
-      .sort((a: Post, b: Post) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const localLikes = loadLocalLikesMap();
+    const localLikersMap = loadLocalLikersMap();
 
     try {
-      localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(mapped.slice(0, 100)));
-    } catch (e) {}
+      const res = await fetch(`${API_BASE_URL}/api/posts?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
 
-    cachedPosts = {
-      data: mapped,
-      timestamp: Date.now(),
-      key: cacheKey,
-    };
+      if (res.status === 429) {
+        // Enforce a 30s local backoff to prevent continuous retries
+        rateLimitedUntil = Date.now() + 30000;
+        throw new Error('API Error 429: Too Many Requests (Rate limited)');
+      }
 
-    return { posts: mapped, error: null };
-  } catch (err: any) {
-    console.error('[Cloudflare D1 loadPosts error]:', err?.message || err);
-    return { posts: getLocalSavedPosts(), error: err?.message || 'Database connection error' };
-  }
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`API Error ${res.status}: ${errText || res.statusText}`);
+      }
+
+      const data = await res.json();
+      const rawList = Array.isArray(data) ? data : (data?.posts || []);
+      const mapped = rawList
+        .map((row: any) => {
+          const p = mapRowToPost(row);
+          const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : Boolean(p.isLiked);
+          const baseCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
+          const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
+          const likers = localLikersMap[p.id] || p.likers || [];
+
+          return {
+            ...p,
+            isLiked: isLocallyLiked,
+            likesCount: adjustedCount,
+            likes_count: adjustedCount,
+            likers,
+          };
+        })
+        .sort((a: Post, b: Post) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      try {
+        localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(mapped.slice(0, 100)));
+      } catch (e) {}
+
+      cachedPosts = {
+        data: mapped,
+        timestamp: Date.now(),
+        key: cacheKey,
+      };
+
+      return { posts: mapped, error: null };
+    } catch (err: any) {
+      console.warn('[Cloudflare D1 loadPosts error]:', err?.message || err);
+      return { posts: getLocalSavedPosts(), error: err?.message || 'Database connection error' };
+    } finally {
+      activeInFlightPromise = null;
+    }
+  })();
+
+  return activeInFlightPromise;
 }
 
 export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {

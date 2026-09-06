@@ -988,7 +988,7 @@ export default {
             await env.DB.prepare(`
               INSERT INTO live_streams (id, title, host_parish, priest_name, media_url, is_live, viewers_count, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(id, title, hostParish, priestName, mediaUrl, isLive, viewersCount, createdAt).run();
+            `).bind(id, title, hostParish, priestName, mediaUrl, isLive, viewers_count, createdAt).run();
           }
 
           return jsonResponse({
@@ -1617,14 +1617,60 @@ export default {
         }
       }
 
-      // Delete Single Book (/api/books/:id)
+      // Single Book Operations (/api/books/:id) -> GET, PUT/PATCH, DELETE
       if (url.pathname.startsWith('/api/books/')) {
         const bookId = decodeURIComponent(url.pathname.replace('/api/books/', '').trim());
+
+        // GET Single Book
+        if (request.method === 'GET') {
+          let book: D1BookRow | null = null;
+          if (env.DB) {
+            book = await env.DB.prepare('SELECT * FROM books WHERE id = ?').bind(bookId).first<D1BookRow>();
+          }
+          if (!book) return jsonResponse({ success: false, error: 'Book not found' }, 404);
+          return jsonResponse({ success: true, book });
+        }
+
+        // UPDATE (PUT / PATCH) Book
+        if (request.method === 'PUT' || request.method === 'PATCH') {
+          const body: any = await request.json().catch(() => ({}));
+          const titleAr = (body.title_ar || '').trim();
+          const titleEn = (body.title_en || '').trim() || null;
+          const authorAr = (body.author_ar || '').trim();
+          const authorEn = (body.author_en || '').trim() || null;
+          const category = body.category || 'patristics';
+          const coverImageUrl = body.cover_image_url || null;
+          const fileUrl = (body.file_url || '').trim();
+          const description = (body.description || '').trim() || null;
+
+          if (!titleAr || !authorAr || !fileUrl) {
+            return jsonResponse({ success: false, error: 'Title, Author, and File/Link are required.' }, 400);
+          }
+
+          if (env.DB) {
+            await env.DB.prepare(`
+              UPDATE books SET
+                title_ar = ?,
+                title_en = ?,
+                author_ar = ?,
+                author_en = ?,
+                category = ?,
+                cover_image_url = ?,
+                file_url = ?,
+                description = ?
+              WHERE id = ?
+            `).bind(titleAr, titleEn, authorAr, authorEn, category, coverImageUrl, fileUrl, description, bookId).run();
+          }
+
+          return jsonResponse({ success: true, message: 'Book updated successfully.' });
+        }
+
+        // DELETE Single Book
         if (request.method === 'DELETE') {
           if (env.DB) {
             await env.DB.prepare('DELETE FROM books WHERE id = ?').bind(bookId).run();
           }
-          return jsonResponse({ success: true, id: bookId, message: 'Book deleted successfully' });
+          return jsonResponse({ success: true, id: bookId, message: 'Book deleted successfully.' });
         }
       }
 

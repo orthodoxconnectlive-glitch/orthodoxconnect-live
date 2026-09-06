@@ -13,6 +13,8 @@ import {
   Send,
   X,
   Sparkles,
+  Volume2,
+  Square,
 } from 'lucide-react';
 import { Post, UserProfile, PostComment } from '../types';
 import { TimeAgo } from './TimeAgo';
@@ -43,7 +45,6 @@ export function parseVideoEmbed(raw?: string | null): { type: 'youtube' | 'vimeo
   if (!raw || typeof raw !== 'string') return null;
   const cleanUrl = raw.trim();
 
-  // YouTube (standard, shorts, youtu.be, embed)
   const ytMatch = cleanUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/i);
   if (ytMatch && ytMatch[1]) {
     return {
@@ -52,7 +53,6 @@ export function parseVideoEmbed(raw?: string | null): { type: 'youtube' | 'vimeo
     };
   }
 
-  // Vimeo
   const vimeoMatch = cleanUrl.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
   if (vimeoMatch && vimeoMatch[1]) {
     return {
@@ -61,7 +61,6 @@ export function parseVideoEmbed(raw?: string | null): { type: 'youtube' | 'vimeo
     };
   }
 
-  // Direct MP4 / WebM / OGG
   if (/\.(mp4|webm|ogg)$/i.test(cleanUrl)) {
     return {
       type: 'direct',
@@ -77,7 +76,6 @@ export function extractCleanVideoId(raw?: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
 
-  // Don't treat external video links as Bunny GUIDs
   if (parseVideoEmbed(trimmed)) return null;
 
   const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/i;
@@ -124,11 +122,63 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [isLoadingLikers, setIsLoadingLikers] = useState<boolean>(false);
   const [isVideoLoaded, setIsVideoLoaded] = useState<boolean>(false);
 
+  // Audio Reader / Text-to-Speech State
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+
   const [isLiked, setIsLiked] = useState<boolean>(Boolean(post.isLiked || post.is_liked));
   const [likesCount, setLikesCount] = useState<number>(
     typeof post.likesCount === 'number' ? post.likesCount : (post.likes_count || 0)
   );
   const [likers, setLikers] = useState<any[]>(post.likers || []);
+
+  const postContent = (post.content ?? post.text ?? '').trim();
+
+  // Cancel Speech on Component Unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const toggleTextToSpeech = () => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      alert(language === 'ar' ? 'القراءة الصوتية غير مدعومة في هذا المتصفح' : 'Text-to-speech is not supported on this browser');
+      return;
+    }
+
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    if (!postContent) return;
+
+    window.speechSynthesis.cancel();
+
+    // Split text by punctuation or line breaks to prevent browser speech cutoff on long texts
+    const chunks = postContent.match(/[^.!?،؛\n]+[.!?،؛\n]?/g) || [postContent];
+    const voices = window.speechSynthesis.getVoices();
+    const arabicVoice = voices.find((v) => v.lang.startsWith('ar'));
+
+    setIsSpeaking(true);
+
+    chunks.forEach((chunk, index) => {
+      const utterance = new SpeechSynthesisUtterance(chunk.trim());
+      utterance.lang = 'ar-SA';
+      utterance.rate = 0.9; // Reverent reading speed
+      if (arabicVoice) utterance.voice = arabicVoice;
+
+      if (index === chunks.length - 1) {
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+      }
+
+      window.speechSynthesis.speak(utterance);
+    });
+  };
 
   useEffect(() => {
     setIsLiked(Boolean(post.isLiked || post.is_liked));
@@ -143,7 +193,6 @@ export const PostCard: React.FC<PostCardProps> = ({
   const authorParish = post.authorParish || post.author_parish || rawPost.profile?.parish || (language === 'ar' ? 'كنيسة أرثوذكسية' : 'Orthodox Parish');
   const authorAvatar = post.authorAvatar || post.author_avatar || rawPost.profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
   const authorId = post.authorId || post.author_id || rawPost.author_id;
-  const postContent = (post.content ?? post.text ?? '').trim();
   const postImage = post.imageUrl || post.image || post.image_url || null;
 
   const rawVideoSource = post.videoId || post.video_id || post.video || undefined;
@@ -395,6 +444,32 @@ export const PostCard: React.FC<PostCardProps> = ({
 
         {/* Top Right Action Menu */}
         <div className="flex items-center gap-1">
+          {/* Audiobook / Listen to Article Button */}
+          {postContent && postContent.length > 20 && (
+            <button
+              type="button"
+              onClick={toggleTextToSpeech}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-serif font-bold transition-all cursor-pointer shadow-xs border ${
+                isSpeaking
+                  ? 'bg-red-700 text-white border-red-800 animate-pulse'
+                  : 'bg-[#c5a059] text-white border-[#b08b43] hover:bg-[#b08b43]'
+              }`}
+              title={isSpeaking ? (language === 'ar' ? 'إيقاف الصوت' : 'Stop Audio') : (language === 'ar' ? 'استمع إلى التأمل بصوت مسموع' : 'Listen to Reflection')}
+            >
+              {isSpeaking ? (
+                <>
+                  <Square className="w-3 h-3 fill-current" />
+                  <span>{language === 'ar' ? 'إيقاف' : 'Stop'}</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>{language === 'ar' ? 'استمع' : 'Listen'}</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() =>

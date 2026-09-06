@@ -146,6 +146,90 @@ export function sanitizePost(post: any): Post {
   return mapRowToPost(post);
 }
 
+// Fallback compatibility helpers required by FeedView.tsx
+const SAVED_COMMENTS_KEY = 'orthodox_local_comments_v6';
+const SAVED_REEL_COMMENTS_KEY = 'orthodox_local_reel_comments_v6';
+const SAVED_LIKES_KEY = 'orthodox_local_likes_v6';
+const SAVED_LIKERS_KEY = 'orthodox_local_likers_v6';
+const SAVED_LOCAL_POSTS_KEY = 'orthodox_d1_posts_cache_v6';
+
+export function loadLocalPostCommentsMap(): Record<string, string[]> {
+  try {
+    const saved = localStorage.getItem(SAVED_COMMENTS_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return {};
+}
+
+export function saveLocalPostCommentsMap(map: Record<string, string[]>) {
+  try {
+    localStorage.setItem(SAVED_COMMENTS_KEY, JSON.stringify(map));
+  } catch (e) {}
+}
+
+export function loadLocalReelCommentsMap(): Record<string, any[]> {
+  try {
+    const saved = localStorage.getItem(SAVED_REEL_COMMENTS_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return {};
+}
+
+export function saveLocalReelCommentsMap(map: Record<string, any[]>) {
+  try {
+    localStorage.setItem(SAVED_REEL_COMMENTS_KEY, JSON.stringify(map));
+  } catch (e) {}
+}
+
+export function loadLocalLikesMap(): Record<string, boolean> {
+  try {
+    const saved = localStorage.getItem(SAVED_LIKES_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return {};
+}
+
+export function saveLocalLikesMap(map: Record<string, boolean>) {
+  try {
+    localStorage.setItem(SAVED_LIKES_KEY, JSON.stringify(map));
+  } catch (e) {}
+}
+
+export function loadLocalLikersMap(): Record<string, any[]> {
+  try {
+    const saved = localStorage.getItem(SAVED_LIKERS_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return {};
+}
+
+export function saveLocalLikersMap(map: Record<string, any[]>) {
+  try {
+    localStorage.setItem(SAVED_LIKERS_KEY, JSON.stringify(map));
+  } catch (e) {}
+}
+
+export function getLocalSavedPosts(): Post[] {
+  try {
+    const raw = localStorage.getItem(SAVED_LOCAL_POSTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.map(mapRowToPost);
+    }
+  } catch (e) {}
+  return [];
+}
+
+export function saveLocalPostToCache(post: Post) {
+  try {
+    const cleanPost = sanitizePost(post);
+    const existing = getLocalSavedPosts();
+    const filtered = existing.filter((p) => p.id !== cleanPost.id);
+    const updated = [cleanPost, ...filtered].slice(0, 100);
+    localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(updated));
+  } catch (e) {}
+}
+
 // 5-second in-memory cache to prevent duplicate calls during re-renders
 let cachedPosts: { data: Post[]; timestamp: number; key: string } | null = null;
 const CACHE_TTL_MS = 5000;
@@ -204,7 +288,7 @@ export function getActiveUserIdentity(overrideProfile?: any): {
     };
   }
 
-  // 3. Persistent unique client/device UUID (Never falls back to a shared 'anonymous-user')
+  // 3. Persistent unique client/device UUID
   let guestId = '';
   try {
     guestId = localStorage.getItem('orthodox_client_device_id') || '';
@@ -304,10 +388,14 @@ export async function loadPosts(
         key: cacheKey,
       };
 
+      try {
+        localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(mapped.slice(0, 100)));
+      } catch (e) {}
+
       return { posts: mapped, error: null };
     } catch (err: any) {
       console.warn('[loadPosts error]:', err?.message || err);
-      return { posts: cachedPosts?.data || [], error: err?.message || 'Failed to load posts' };
+      return { posts: getLocalSavedPosts(), error: err?.message || 'Failed to load posts' };
     } finally {
       activeInFlightPromise = null;
     }

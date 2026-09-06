@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { useAuth } from '../context/AuthContext';
 
 interface Book {
   id: string;
@@ -20,7 +19,6 @@ const CLOUDINARY_PRESET = 'orthodox_books';
 
 export const LibraryView: React.FC = () => {
   const { language } = useTheme();
-  const { profile } = useAuth();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
@@ -30,7 +28,7 @@ export const LibraryView: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState('');
 
   // Upload type toggles: 'upload' | 'url'
-  const [pdfSourceType, setPdfSourceType] = useState<'upload' | 'url'>('upload');
+  const [pdfSourceType, setPdfSourceType] = useState<'upload' | 'url'>('url');
   const [coverSourceType, setCoverSourceType] = useState<'upload' | 'url'>('url');
 
   // File states
@@ -48,8 +46,6 @@ export const LibraryView: React.FC = () => {
     file_url: '',
     description: '',
   });
-
-  const isSuperAdmin = profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';
 
   const categories = [
     { id: 'all', ar: 'الكل', en: 'All' },
@@ -111,13 +107,13 @@ export const LibraryView: React.FC = () => {
       let finalPdfUrl = formData.file_url;
       let finalCoverUrl = formData.cover_image_url;
 
-      // 1. Upload Cover if selected
+      // 1. Upload Cover if file selected
       if (coverSourceType === 'upload' && coverFile) {
         setStatusMessage(language === 'ar' ? 'جاري رفع صورة الغلاف...' : 'Uploading cover image...');
         finalCoverUrl = await uploadToCloudinary(coverFile);
       }
 
-      // 2. Upload PDF if selected
+      // 2. Upload PDF if file selected
       if (pdfSourceType === 'upload') {
         if (!pdfFile) {
           alert(language === 'ar' ? 'يرجى اختيار ملف PDF' : 'Please select a PDF file');
@@ -126,6 +122,13 @@ export const LibraryView: React.FC = () => {
         }
         setStatusMessage(language === 'ar' ? 'جاري رفع ملف الـ PDF...' : 'Uploading PDF file...');
         finalPdfUrl = await uploadToCloudinary(pdfFile);
+      }
+
+      // Ensure a link or file exists
+      if (!finalPdfUrl) {
+        alert(language === 'ar' ? 'يرجى وضع رابط أو رفع ملف' : 'Please provide a PDF link or file');
+        setSubmitting(false);
+        return;
       }
 
       // 3. Save Record to D1
@@ -157,7 +160,8 @@ export const LibraryView: React.FC = () => {
         setCoverFile(null);
         fetchBooks();
       } else {
-        alert(language === 'ar' ? 'فشل حفظ الكتاب' : 'Failed to save book');
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || (language === 'ar' ? 'فشل حفظ الكتاب' : 'Failed to save book'));
       }
     } catch (err: any) {
       console.error(err);
@@ -172,15 +176,14 @@ export const LibraryView: React.FC = () => {
     <div className="max-w-6xl mx-auto px-4 py-4 space-y-6" dir={language === 'ar' ? 'rtl' : 'ltr'}>
       {/* Header */}
       <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-6 shadow-md text-center relative">
-        {isSuperAdmin && (
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="absolute top-4 left-4 rtl:left-auto rtl:right-4 px-3.5 py-1.5 rounded-full bg-[#c5a059] text-white text-xs font-serif font-bold flex items-center gap-1.5 shadow-md hover:bg-[#b08b43] transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{language === 'ar' ? 'إضافة كتاب' : 'Add Book'}</span>
-          </button>
-        )}
+        {/* Public Add Book Trigger */}
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="absolute top-4 left-4 rtl:left-auto rtl:right-4 px-3.5 py-1.5 rounded-full bg-[#c5a059] text-white text-xs font-serif font-bold flex items-center gap-1.5 shadow-md hover:bg-[#b08b43] transition-all cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          <span>{language === 'ar' ? 'إضافة كتاب' : 'Add Book'}</span>
+        </button>
 
         <div className="w-12 h-12 mx-auto rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] flex items-center justify-center text-[#a8833c] mb-3">
           <BookOpen className="w-6 h-6" />
@@ -272,7 +275,7 @@ export const LibraryView: React.FC = () => {
         </div>
       )}
 
-      {/* Admin Add Book Modal */}
+      {/* Add Book Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm overflow-y-auto">
           <div className="bg-[#eedcb5] dark:bg-[#18120e] border-2 border-[#c5a059] dark:border-[#8b6b4a] w-full max-w-lg rounded-3xl p-6 shadow-2xl relative text-[#3d2b18] dark:text-[#f5ebd9] my-8">
@@ -284,7 +287,7 @@ export const LibraryView: React.FC = () => {
             </button>
 
             <h2 className="font-serif-coptic font-bold text-lg mb-4 text-center">
-              {language === 'ar' ? 'إضافة كتاب جديد للمكتبة' : 'Add New Book'}
+              {language === 'ar' ? 'إضافة كتاب أو رابط للمكتبة' : 'Add Book or External Link'}
             </h2>
 
             <form onSubmit={handleAddBook} className="space-y-3.5 text-xs">
@@ -350,14 +353,24 @@ export const LibraryView: React.FC = () => {
                 </select>
               </div>
 
-              {/* PDF Selection (Upload or URL) */}
+              {/* PDF / Book File or Link */}
               <div className="p-3 rounded-2xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059]/50 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="font-bold flex items-center gap-1.5">
                     <FileText className="w-3.5 h-3.5 text-[#a8833c]" />
-                    <span>{language === 'ar' ? 'ملف الـ PDF *' : 'PDF File *'}</span>
+                    <span>{language === 'ar' ? 'ملف أو رابط الكتاب *' : 'Book File or Link *'}</span>
                   </label>
                   <div className="flex bg-[#eedcb5] dark:bg-[#18120e] p-0.5 rounded-lg border border-[#c5a059]/40">
+                    <button
+                      type="button"
+                      onClick={() => setPdfSourceType('url')}
+                      className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 transition-all ${
+                        pdfSourceType === 'url' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d]'
+                      }`}
+                    >
+                      <LinkIcon className="w-3 h-3" />
+                      <span>{language === 'ar' ? 'رابط' : 'Link'}</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => setPdfSourceType('upload')}
@@ -367,16 +380,6 @@ export const LibraryView: React.FC = () => {
                     >
                       <Upload className="w-3 h-3" />
                       <span>{language === 'ar' ? 'رفع ملف' : 'Upload'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPdfSourceType('url')}
-                      className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 transition-all ${
-                        pdfSourceType === 'url' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d]'
-                      }`}
-                    >
-                      <LinkIcon className="w-3 h-3" />
-                      <span>{language === 'ar' ? 'رابط مباشر' : 'Link'}</span>
                     </button>
                   </div>
                 </div>
@@ -401,7 +404,7 @@ export const LibraryView: React.FC = () => {
                 )}
               </div>
 
-              {/* Cover Image Selection (Upload or URL) */}
+              {/* Cover Image (Upload or Link) */}
               <div className="p-3 rounded-2xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059]/50 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="font-bold flex items-center gap-1.5">
@@ -411,16 +414,6 @@ export const LibraryView: React.FC = () => {
                   <div className="flex bg-[#eedcb5] dark:bg-[#18120e] p-0.5 rounded-lg border border-[#c5a059]/40">
                     <button
                       type="button"
-                      onClick={() => setCoverSourceType('upload')}
-                      className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 transition-all ${
-                        coverSourceType === 'upload' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d]'
-                      }`}
-                    >
-                      <Upload className="w-3 h-3" />
-                      <span>{language === 'ar' ? 'رفع صورة' : 'Upload'}</span>
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => setCoverSourceType('url')}
                       className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 transition-all ${
                         coverSourceType === 'url' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d]'
@@ -428,6 +421,16 @@ export const LibraryView: React.FC = () => {
                     >
                       <LinkIcon className="w-3 h-3" />
                       <span>{language === 'ar' ? 'رابط' : 'Link'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCoverSourceType('upload')}
+                      className={`px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1 transition-all ${
+                        coverSourceType === 'upload' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d]'
+                      }`}
+                    >
+                      <Upload className="w-3 h-3" />
+                      <span>{language === 'ar' ? 'رفع صورة' : 'Upload'}</span>
                     </button>
                   </div>
                 </div>

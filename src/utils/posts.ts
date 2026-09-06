@@ -90,7 +90,6 @@ export function mapRowToPost(row: any): Post {
   const createdAt = row.created_at || row.createdAt || new Date().toISOString();
   const groupId = row.group_id || row.groupId || undefined;
 
-  // Prioritize real D1 database values directly
   const likesCount = Number(row.likes_count ?? row.likesCount ?? 0);
   const commentsCount = Number(row.comments_count ?? row.commentsCount ?? 0);
   const resharesCount = Number(row.reshares_count ?? row.resharesCount ?? 0);
@@ -147,7 +146,7 @@ export function sanitizePost(post: any): Post {
   return mapRowToPost(post);
 }
 
-// 5-second in-memory cache to prevent accidental double calls during re-renders
+// 5-second in-memory cache to prevent duplicate calls during re-renders
 let cachedPosts: { data: Post[]; timestamp: number; key: string } | null = null;
 const CACHE_TTL_MS = 5000;
 let rateLimitedUntil = 0;
@@ -157,19 +156,86 @@ export function invalidatePostsCache() {
   cachedPosts = null;
 }
 
-export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
+/**
+ * Guarantees every user/device receives a unique, isolated identity
+ * to eliminate fallback identity collision.
+ */
+export function getActiveUserIdentity(overrideProfile?: any): {
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  email: string;
+  role: string;
+} {
   let profile = overrideProfile;
   if (!profile) {
     try {
-      const raw = localStorage.getItem('orthodox_user_profile');
+      const raw =
+        localStorage.getItem('orthodox_user_profile') ||
+        localStorage.getItem('user') ||
+        localStorage.getItem('profile');
       if (raw) profile = JSON.parse(raw);
     } catch (e) {}
   }
 
+  // 1. Authenticated user ID
+  if (profile?.id) {
+    return {
+      userId: String(profile.id),
+      userName: profile.full_name || profile.name || 'Orthodox Parishioner',
+      userAvatar:
+        profile.avatar_url ||
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      email: profile.email || '',
+      role: profile.role || 'user',
+    };
+  }
+
+  // 2. Email-derived user ID
+  if (profile?.email) {
+    return {
+      userId: `user-${profile.email.trim().toLowerCase()}`,
+      userName: profile.full_name || profile.email.split('@')[0],
+      userAvatar:
+        profile.avatar_url ||
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      email: profile.email,
+      role: profile.role || 'user',
+    };
+  }
+
+  // 3. Persistent unique client/device UUID (Never falls back to a shared 'anonymous-user')
+  let guestId = '';
+  try {
+    guestId = localStorage.getItem('orthodox_client_device_id') || '';
+    if (!guestId) {
+      guestId =
+        'client_' +
+        (typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `dev_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
+      localStorage.setItem('orthodox_client_device_id', guestId);
+    }
+  } catch (e) {
+    guestId = `client_${Date.now()}`;
+  }
+
   return {
-    'x-user-email': profile?.email || '',
-    'x-user-role': profile?.role || 'user',
-    'x-user-id': profile?.id || '',
+    userId: guestId,
+    userName: 'Orthodox Parishioner',
+    userAvatar:
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+    email: '',
+    role: 'guest',
+  };
+}
+
+export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
+  const identity = getActiveUserIdentity(overrideProfile);
+  return {
+    'x-user-email': identity.email,
+    'x-user-role': identity.role,
+    'x-user-id': identity.userId,
   };
 }
 
@@ -197,9 +263,11 @@ export async function loadPosts(
   }
 
   activeInFlightPromise = (async () => {
+    const identity = getActiveUserIdentity();
     const params = new URLSearchParams({
       limit: String(limit),
       offset: String(offset),
+      user_id: identity.userId,
     });
     if (groupId) {
       params.set('group_id', groupId);
@@ -362,34 +430,21 @@ export async function togglePostLike(
   postId: string,
   userProfile?: any
 ): Promise<{ success: boolean; liked: boolean; likes_count?: number; likers?: any[] }> {
-  let profile = userProfile;
-  if (!profile) {
-    try {
-      const raw = localStorage.getItem('orthodox_user_profile');
-      if (raw) profile = JSON.parse(raw);
-    } catch (e) {}
-  }
-
-  const userId = profile?.id || (profile?.email ? `user-${profile.email}` : undefined);
-  if (!userId) {
-    return { success: false, liked: false };
-  }
-
-  const authorName = profile?.full_name || 'Orthodox Parishioner';
-  const authorAvatar = profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+  const identity = getActiveUserIdentity(userProfile);
 
   try {
     const headers = {
       'Content-Type': 'application/json',
-      ...getAuthHeaders(profile),
+      ...getAuthHeaders(userProfile),
     };
+
     const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/like`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        user_id: userId,
-        user_name: authorName,
-        user_avatar: authorAvatar,
+        user_id: identity.userId,
+        user_name: identity.userName,
+        user_avatar: identity.userAvatar,
       }),
     });
 
@@ -403,7 +458,9 @@ export async function togglePostLike(
         likers: data.likers || [],
       };
     }
-  } catch (err) {}
+  } catch (err) {
+    console.error('[togglePostLike error]:', err);
+  }
 
   return { success: false, liked: false };
 }
@@ -464,28 +521,18 @@ export async function addPostComment(
   const text = content.trim();
   if (!text) return { success: false, error: 'Empty comment' };
 
-  let profile = userProfile;
-  if (!profile) {
-    try {
-      const raw = localStorage.getItem('orthodox_user_profile');
-      if (raw) profile = JSON.parse(raw);
-    } catch (e) {}
-  }
-
-  const userId = profile?.id || (profile?.email ? `user-${profile.email}` : null);
-  const authorName = profile?.full_name || 'Orthodox Parishioner';
-  const authorAvatar = profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+  const identity = getActiveUserIdentity(userProfile);
 
   const newComment = {
     id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `comm-${Date.now()}`,
     post_id: postId,
     postId,
-    user_id: userId,
-    userId,
-    author_name: authorName,
-    authorName,
-    author_avatar: authorAvatar,
-    authorAvatar,
+    user_id: identity.userId,
+    userId: identity.userId,
+    author_name: identity.userName,
+    authorName: identity.userName,
+    author_avatar: identity.userAvatar,
+    authorAvatar: identity.userAvatar,
     content: text,
     created_at: new Date().toISOString(),
     createdAt: new Date().toISOString(),
@@ -494,7 +541,7 @@ export async function addPostComment(
   try {
     const headers = {
       'Content-Type': 'application/json',
-      ...getAuthHeaders(profile),
+      ...getAuthHeaders(userProfile),
     };
     const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/comments`, {
       method: 'POST',
@@ -612,18 +659,11 @@ export async function createReshare(
     }
   } catch (e) {}
 
-  let userProfile: any = null;
-  try {
-    const raw = localStorage.getItem('orthodox_user_profile');
-    if (raw) userProfile = JSON.parse(raw);
-  } catch (e) {}
-
-  const authorName = userProfile?.full_name || 'Parishioner';
-  const authorParish = userProfile?.parish || 'Orthodox Church';
-  const authorAvatar =
-    userProfile?.avatar_url ||
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
-  const authorId = userProfile?.id;
+  const identity = getActiveUserIdentity();
+  const authorName = identity.userName;
+  const authorParish = 'Orthodox Church';
+  const authorAvatar = identity.userAvatar;
+  const authorId = identity.userId;
 
   const resharePayload: Partial<Post> = {
     text:

@@ -118,16 +118,16 @@ export const PostCard: React.FC<PostCardProps> = ({
   const { t, language } = useTheme();
   const [commentInput, setCommentInput] = useState<string>('');
   const [showLikesModal, setShowLikesModal] = useState<boolean>(false);
-  const [modalLikers, setModalLikers] = useState<{ userId: string; userName: string; userAvatar?: string; parish?: string }[]>([]);
+  const [modalLikers, setModalLikers] = useState<any[]>([]);
   const [isLoadingLikers, setIsLoadingLikers] = useState<boolean>(false);
   const [isVideoLoaded, setIsVideoLoaded] = useState<boolean>(false);
-
-  // Audio Reader / Text-to-Speech State
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
 
-  const [isLiked, setIsLiked] = useState<boolean>(Boolean(post.isLiked || post.is_liked));
+  // Sync state from D1 snake_case or standard camelCase
+  const rawPost = post as any;
+  const [isLiked, setIsLiked] = useState<boolean>(Boolean(post.isLiked || rawPost.is_liked));
   const [likesCount, setLikesCount] = useState<number>(
-    typeof post.likesCount === 'number' ? post.likesCount : (post.likes_count || 0)
+    Number(rawPost.likes_count ?? post.likesCount ?? 0)
   );
   const [likers, setLikers] = useState<any[]>(post.likers || []);
 
@@ -141,6 +141,28 @@ export const PostCard: React.FC<PostCardProps> = ({
       }
     };
   }, []);
+
+  // Synchronize state when post props change
+  useEffect(() => {
+    setIsLiked(Boolean(post.isLiked || rawPost.is_liked));
+    setLikesCount(Number(rawPost.likes_count ?? post.likesCount ?? 0));
+    if (post.likers) {
+      setLikers(post.likers);
+    }
+  }, [post.isLiked, rawPost.is_liked, post.likesCount, rawPost.likes_count, post.likers]);
+
+  // Automatically fetch who liked this post if likes exist
+  useEffect(() => {
+    if (likesCount > 0 && (!likers || likers.length === 0)) {
+      fetchPostLikes(post.id)
+        .then((data) => {
+          if (data && data.length > 0) {
+            setLikers(data);
+          }
+        })
+        .catch((err) => console.warn('Silent liker prefetch failed:', err));
+    }
+  }, [post.id, likesCount]);
 
   const toggleTextToSpeech = () => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -157,8 +179,6 @@ export const PostCard: React.FC<PostCardProps> = ({
     if (!postContent) return;
 
     window.speechSynthesis.cancel();
-
-    // Split text by punctuation or line breaks to prevent browser speech cutoff on long texts
     const chunks = postContent.match(/[^.!?،؛\n]+[.!?،؛\n]?/g) || [postContent];
     const voices = window.speechSynthesis.getVoices();
     const arabicVoice = voices.find((v) => v.lang.startsWith('ar'));
@@ -168,7 +188,7 @@ export const PostCard: React.FC<PostCardProps> = ({
     chunks.forEach((chunk, index) => {
       const utterance = new SpeechSynthesisUtterance(chunk.trim());
       utterance.lang = 'ar-SA';
-      utterance.rate = 0.9; // Reverent reading speed
+      utterance.rate = 0.9;
       if (arabicVoice) utterance.voice = arabicVoice;
 
       if (index === chunks.length - 1) {
@@ -180,15 +200,6 @@ export const PostCard: React.FC<PostCardProps> = ({
     });
   };
 
-  useEffect(() => {
-    setIsLiked(Boolean(post.isLiked || post.is_liked));
-    setLikesCount(typeof post.likesCount === 'number' ? post.likesCount : (post.likes_count || 0));
-    if (post.likers) {
-      setLikers(post.likers);
-    }
-  }, [post.isLiked, post.is_liked, post.likesCount, post.likes_count, post.likers]);
-
-  const rawPost = post as any;
   const authorName = post.authorName || post.author_name || rawPost.profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner');
   const authorParish = post.authorParish || post.author_parish || rawPost.profile?.parish || (language === 'ar' ? 'كنيسة أرثوذكسية' : 'Orthodox Parish');
   const authorAvatar = post.authorAvatar || post.author_avatar || rawPost.profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
@@ -211,6 +222,8 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   const handleLikeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setIsLiked((prev) => !prev);
+    setLikesCount((prev) => (isLiked ? Math.max(0, prev - 1) : prev + 1));
     onToggleLike(post.id);
   };
 
@@ -224,54 +237,20 @@ export const PostCard: React.FC<PostCardProps> = ({
   const handleOpenLikesModal = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowLikesModal(true);
-
-    const fallbackLikers = [
-      { userId: 'user-deacon-mark', userName: 'Deacon Mark Mikhail', userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200', parish: 'St. George Coptic Orthodox Church' },
-      { userId: 'user-fr-anthony', userName: 'Fr. Anthony Shenouda', userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200', parish: 'St. Mark Coptic Orthodox Cathedral' },
-      { userId: 'user-mary-youssef', userName: 'Mary Youssef', userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200', parish: 'Virgin Mary & St. Athanasius Church' },
-    ];
-
-    let baseLikers: any[] = likers && likers.length > 0 ? [...likers] : [];
-
-    if (isLiked) {
-      const myItem = {
-        userId: currentProfile?.id || 'me',
-        userName: currentProfile?.full_name || (language === 'ar' ? 'أنت' : 'You'),
-        userAvatar: currentProfile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-        parish: currentProfile?.parish || (language === 'ar' ? 'كنيستك' : 'Your Parish'),
-      };
-      baseLikers = [myItem, ...baseLikers.filter((l) => l.userId !== myItem.userId && l.userId !== 'me' && l.userId !== currentProfile?.id)];
-    }
-
-    const needed = Math.max(0, likesCount - baseLikers.length);
-    if (needed > 0) {
-      for (const fb of fallbackLikers) {
-        if (baseLikers.length >= likesCount) break;
-        if (!baseLikers.some((l) => l.userId === fb.userId)) {
-          baseLikers.push(fb);
-        }
-      }
-    }
-
-    setModalLikers(baseLikers);
     setIsLoadingLikers(true);
 
     try {
       const fetched = await fetchPostLikes(post.id);
       if (fetched && fetched.length > 0) {
-        let merged = [...fetched];
-        if (isLiked && !merged.some((l) => l.userId === currentProfile?.id || l.userId === 'me')) {
-          merged.unshift({
-            userId: currentProfile?.id || 'me',
-            userName: currentProfile?.full_name || (language === 'ar' ? 'أنت' : 'You'),
-            userAvatar: currentProfile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
-            parish: currentProfile?.parish || 'Orthodox Parish',
-          });
-        }
-        setModalLikers(merged);
+        setModalLikers(fetched);
+      } else if (likers && likers.length > 0) {
+        setModalLikers(likers);
+      } else {
+        setModalLikers([]);
       }
     } catch (err) {
       console.warn('Failed to load likers:', err);
+      setModalLikers(likers || []);
     } finally {
       setIsLoadingLikers(false);
     }
@@ -300,29 +279,24 @@ export const PostCard: React.FC<PostCardProps> = ({
     return c;
   });
 
+  // Construct readable like string: "You and [Name]", "[Name 1] and 5 others", etc.
   const totalLikes = likesCount;
   let likeSummaryText = '';
   if (totalLikes > 0) {
     if (isLiked) {
       if (totalLikes === 1) {
-        likeSummaryText = language === 'ar' ? 'أنت' : 'You';
-      } else if (totalLikes === 2) {
-        const otherName = likers?.find((l) => l.userId !== currentProfile?.id && l.userId !== 'me')?.userName || (language === 'ar' ? 'عضو آخر' : '1 other');
-        likeSummaryText = language === 'ar' ? `أنت و ${otherName}` : `You and ${otherName}`;
+        likeSummaryText = language === 'ar' ? 'أنت باركت هذا' : 'You blessed this';
       } else {
         const otherName = likers?.find((l) => l.userId !== currentProfile?.id && l.userId !== 'me')?.userName;
         likeSummaryText = otherName
-          ? (language === 'ar' ? `أنت، ${otherName} و ${totalLikes - 2} آخرين` : `You, ${otherName} and ${totalLikes - 2} others`)
+          ? (language === 'ar' ? `أنت، ${otherName} و ${totalLikes - 2 > 0 ? `${totalLikes - 2} آخرين` : ''}` : `You, ${otherName} and ${totalLikes - 2 > 0 ? `${totalLikes - 2} others` : ''}`)
           : (language === 'ar' ? `أنت و ${totalLikes - 1} آخرين` : `You and ${totalLikes - 1} others`);
       }
     } else {
       if (likers && likers.length > 0) {
-        const first = likers[0]?.userName || (language === 'ar' ? 'عضو الرعية' : '1 parishioner');
-        const second = likers[1]?.userName;
+        const first = likers[0]?.userName || (language === 'ar' ? 'عضو الرعية' : 'Parishioner');
         if (totalLikes === 1) {
           likeSummaryText = first;
-        } else if (totalLikes === 2 && second) {
-          likeSummaryText = language === 'ar' ? `${first} و ${second}` : `${first} and ${second}`;
         } else {
           likeSummaryText = language === 'ar' ? `${first} و ${totalLikes - 1} آخرين` : `${first} and ${totalLikes - 1} others`;
         }
@@ -385,7 +359,6 @@ export const PostCard: React.FC<PostCardProps> = ({
                 {authorName}
               </h4>
 
-              {/* Follow Toggle Button */}
               {currentProfile?.full_name?.toLowerCase() !== authorName.toLowerCase() && (
                 <div className="flex items-center gap-1.5">
                   {onToggleFollow && (
@@ -427,7 +400,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               )}
 
               <TimeAgo
-                date={post.createdAt || (post as any).created_at}
+                date={post.createdAt || rawPost.created_at}
                 prefix="· "
                 className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-wider font-semibold"
               />
@@ -442,9 +415,8 @@ export const PostCard: React.FC<PostCardProps> = ({
           </div>
         </div>
 
-        {/* Top Right Action Menu */}
+        {/* Top Right Actions */}
         <div className="flex items-center gap-1">
-          {/* Audiobook / Listen to Article Button */}
           {postContent && postContent.length > 20 && (
             <button
               type="button"
@@ -472,9 +444,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
           <button
             type="button"
-            onClick={() =>
-              onOpenReport('post', post.id, authorName, postContent || 'Post Media Content')
-            }
+            onClick={() => onOpenReport('post', post.id, authorName, postContent || 'Post Media Content')}
             className="p-1.5 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#e6d3ab] transition-colors cursor-pointer"
             title={t('report')}
           >
@@ -494,31 +464,26 @@ export const PostCard: React.FC<PostCardProps> = ({
         </div>
       </div>
 
-      {/* Post Text Content */}
+      {/* Content Text */}
       {postContent && (
         <p className="text-xs sm:text-sm text-[#3d2b18] dark:text-[#f5ebd9] font-serif leading-relaxed mb-3.5 whitespace-pre-wrap">
           {postContent}
         </p>
       )}
 
-      {/* Video Media Embed Priority: External URL -> Bunny Stream -> Broadcast Card */}
+      {/* Video Media */}
       {parsedEmbed ? (
         <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-[#c5a059]/40 mb-3.5">
           {parsedEmbed.type === 'youtube' || parsedEmbed.type === 'vimeo' ? (
             <iframe
               src={parsedEmbed.embedUrl}
-              title={postContent ? postContent.slice(0, 40) + '...' : 'External Video'}
+              title="Video"
               className="w-full h-full border-0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
             />
           ) : (
-            <video
-              src={parsedEmbed.embedUrl}
-              controls
-              playsInline
-              className="w-full h-full object-contain bg-black"
-            />
+            <video src={parsedEmbed.embedUrl} controls playsInline className="w-full h-full object-contain bg-black" />
           )}
         </div>
       ) : cleanVideoId ? (
@@ -539,14 +504,13 @@ export const PostCard: React.FC<PostCardProps> = ({
               </p>
             </div>
           )}
-
           <iframe
             src={`https://iframe.mediadelivery.net/embed/${libraryId}/${cleanVideoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`}
             onLoad={() => setIsVideoLoaded(true)}
             className="w-full h-full border-0 relative z-10"
             allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
             allowFullScreen={true}
-            title={postContent ? postContent.slice(0, 40) + '...' : 'Bunny Stream Video'}
+            title="Bunny Stream Video"
           />
         </div>
       ) : hasGenericVideo && genericVideoSource ? (
@@ -562,7 +526,7 @@ export const PostCard: React.FC<PostCardProps> = ({
       ) : null}
 
       {/* Image Media */}
-      {postImage && (!cleanVideoId && !parsedEmbed || (post as any).show_image_with_video) && (
+      {postImage && (!cleanVideoId && !parsedEmbed || rawPost.show_image_with_video) && (
         <div className="rounded-2xl overflow-hidden mb-3.5 border-2 border-[#c5a059]/40 bg-[#3d2b18]/10 w-full max-h-[500px] flex items-center justify-center shadow-inner">
           <img
             src={postImage}
@@ -576,7 +540,7 @@ export const PostCard: React.FC<PostCardProps> = ({
         </div>
       )}
 
-      {/* Audio Track Media */}
+      {/* Audio Media */}
       {hasAudio && audioSource && (
         <div className="mb-3.5">
           <AudioPlayer
@@ -619,57 +583,51 @@ export const PostCard: React.FC<PostCardProps> = ({
         </div>
       )}
 
-      {/* Likes Preview Summary */}
-      {(totalLikes > 0 || (post.commentsCount || 0) > 0 || (post.resharesCount || 0) > 0) && (
-        <div className="flex items-center justify-between pt-2.5 pb-1 px-1 text-[11px] text-[#8b6b4a] dark:text-[#c5a059] border-t border-[#d4af37]/15">
-          {totalLikes > 0 ? (
+      {/* Likes Preview & Interaction Header */}
+      <div className="flex items-center justify-between pt-2.5 pb-1 px-1 text-[11px] text-[#8b6b4a] dark:text-[#c5a059] border-t border-[#d4af37]/15">
+        <button
+          type="button"
+          onClick={handleOpenLikesModal}
+          className="flex items-center gap-1.5 hover:underline cursor-pointer group text-left rtl:text-right"
+          title={language === 'ar' ? 'عرض من بارك هذا المنشور' : 'See who blessed this'}
+        >
+          <div className="flex items-center -space-x-1.5 rtl:space-x-reverse">
+            <span className="w-5 h-5 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 text-white flex items-center justify-center shadow-xs text-[10px] z-10">
+              ❤️
+            </span>
+            {likers &&
+              likers.length > 0 &&
+              likers.slice(0, 3).map((l, i) => (
+                <img
+                  key={i}
+                  src={l.userAvatar || l.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
+                  alt={l.userName || l.name || 'Liker'}
+                  className="w-5 h-5 rounded-full border border-white dark:border-[#1f1914] object-cover"
+                />
+              ))}
+          </div>
+          <span className="font-medium text-[#5a4632] dark:text-[#e6d5b8] group-hover:text-[#c5a059] transition-colors">
+            {totalLikes > 0 ? likeSummaryText : language === 'ar' ? 'كن أول من يبارك' : 'Be the first to bless'}
+          </span>
+        </button>
+
+        <div className="flex items-center gap-3 text-[#8b6b4a] dark:text-[#a89379]">
+          {(post.commentsCount || 0) > 0 && (
             <button
               type="button"
-              onClick={handleOpenLikesModal}
-              className="flex items-center gap-1.5 hover:underline cursor-pointer group text-left rtl:text-right"
-              title={language === 'ar' ? 'عرض من بارك هذا التأمل' : 'View people who blessed this reflection'}
+              onClick={onToggleComments}
+              className="hover:underline cursor-pointer hover:text-[#5a4632] dark:hover:text-[#e6d5b8] transition-colors"
             >
-              <div className="flex items-center -space-x-1.5 rtl:space-x-reverse">
-                <span className="w-5 h-5 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 text-white flex items-center justify-center shadow-xs text-[10px] z-10">
-                  ❤️
-                </span>
-                {likers &&
-                  likers.length > 0 &&
-                  likers.slice(0, 3).map((l, i) => (
-                    <img
-                      key={i}
-                      src={l.userAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
-                      alt={l.userName}
-                      className="w-5 h-5 rounded-full border border-white dark:border-[#1f1914] object-cover"
-                    />
-                  ))}
-              </div>
-              <span className="font-medium text-[#5a4632] dark:text-[#e6d5b8] group-hover:text-[#c5a059] transition-colors">
-                {likeSummaryText}
-              </span>
+              {post.commentsCount} {language === 'ar' ? 'تعليق' : post.commentsCount === 1 ? 'comment' : 'comments'}
             </button>
-          ) : (
-            <div />
           )}
-
-          <div className="flex items-center gap-3 text-[#8b6b4a] dark:text-[#a89379]">
-            {(post.commentsCount || 0) > 0 && (
-              <button
-                type="button"
-                onClick={onToggleComments}
-                className="hover:underline cursor-pointer hover:text-[#5a4632] dark:hover:text-[#e6d5b8] transition-colors"
-              >
-                {post.commentsCount} {language === 'ar' ? 'تعليق' : post.commentsCount === 1 ? 'comment' : 'comments'}
-              </button>
-            )}
-            {(post.resharesCount || 0) > 0 && (
-              <span className="hidden sm:inline">
-                {post.resharesCount} {language === 'ar' ? 'مشاركة' : post.resharesCount === 1 ? 'reshare' : 'reshares'}
-              </span>
-            )}
-          </div>
+          {(post.resharesCount || 0) > 0 && (
+            <span className="hidden sm:inline">
+              {post.resharesCount} {language === 'ar' ? 'مشاركة' : post.resharesCount === 1 ? 'reshare' : 'reshares'}
+            </span>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Action Toolbar */}
       <div className="flex items-center justify-between pt-2 border-t border-[#d4af37]/20 text-xs">
@@ -687,9 +645,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           <span className="font-serif font-semibold">
             {language === 'ar' ? (isLiked ? 'مُبارك' : 'تبارك') : isLiked ? 'Blessed' : 'Bless'}
           </span>
-          {!totalLikes || totalLikes === 0 ? null : (
-            <span className="text-[11px] opacity-80">({totalLikes})</span>
-          )}
+          <span className="text-[11px] font-bold opacity-90">({totalLikes})</span>
         </button>
 
         <button
@@ -747,7 +703,7 @@ export const PostCard: React.FC<PostCardProps> = ({
         </button>
       </div>
 
-      {/* Comments Drawer */}
+      {/* Comments Section */}
       {isCommentsOpen && (
         <div className="mt-3.5 pt-3.5 border-t border-[#d4af37]/20 space-y-3">
           <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
@@ -862,7 +818,7 @@ export const PostCard: React.FC<PostCardProps> = ({
         </div>
       )}
 
-      {/* Likes Modal */}
+      {/* Likes Modal with Complete List of Users */}
       {showLikesModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
           <div className="bg-[#fffdfa] dark:bg-[#1f1914] border border-[#c5a059]/40 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
@@ -909,31 +865,29 @@ export const PostCard: React.FC<PostCardProps> = ({
                     onClick={() => {
                       setShowLikesModal(false);
                       onSelectUser?.({
-                        id: liker.userId,
-                        name: liker.userName,
-                        avatar: liker.userAvatar || '',
+                        id: liker.userId || liker.id,
+                        name: liker.userName || liker.name || 'Parishioner',
+                        avatar: liker.userAvatar || liker.avatar || '',
                         parish: liker.parish || 'Orthodox Parish',
                       });
                     }}
                   >
                     <div className="flex items-center gap-3">
                       <img
-                        src={liker.userAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
-                        alt={liker.userName}
+                        src={liker.userAvatar || liker.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
+                        alt={liker.userName || liker.name || 'User'}
                         className="w-9 h-9 rounded-full object-cover border border-[#c5a059]"
                       />
                       <div>
                         <div className="font-serif font-bold text-xs text-[#3d2b18] dark:text-[#f5ebd9]">
-                          {liker.userName}
+                          {liker.userName || liker.name || 'Orthodox Parishioner'}
                         </div>
                         <div className="text-[10px] text-[#8b6b4a] dark:text-[#a89379]">
                           {liker.userId === currentProfile?.id
                             ? language === 'ar'
                               ? 'أنت'
                               : 'You'
-                            : language === 'ar'
-                            ? 'عضو الرعية'
-                            : 'Orthodox Parishioner'}
+                            : liker.parish || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner')}
                         </div>
                       </div>
                     </div>
@@ -943,7 +897,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           setShowLikesModal(false);
-                          onOpenMessengerWithUser(liker.userId || liker.userName);
+                          onOpenMessengerWithUser(liker.userId || liker.id || liker.userName);
                         }}
                         className="p-1.5 rounded-lg text-[#8b6b4a] hover:text-[#3d2b18] hover:bg-[#c5a059]/20 transition-colors"
                         title={language === 'ar' ? 'إرسال رسالة' : 'Send Message'}

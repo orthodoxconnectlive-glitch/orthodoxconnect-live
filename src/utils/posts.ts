@@ -90,9 +90,10 @@ export function mapRowToPost(row: any): Post {
   const createdAt = row.created_at || row.createdAt || new Date().toISOString();
   const groupId = row.group_id || row.groupId || undefined;
 
-  const likesCount = typeof row.likes_count === 'number' ? row.likes_count : (typeof row.likesCount === 'number' ? row.likesCount : 0);
-  const commentsCount = typeof row.comments_count === 'number' ? row.comments_count : (typeof row.commentsCount === 'number' ? row.commentsCount : 0);
-  const resharesCount = typeof row.reshares_count === 'number' ? row.reshares_count : (typeof row.resharesCount === 'number' ? row.resharesCount : 0);
+  // Prioritize real D1 database values directly
+  const likesCount = Number(row.likes_count ?? row.likesCount ?? 0);
+  const commentsCount = Number(row.comments_count ?? row.commentsCount ?? 0);
+  const resharesCount = Number(row.reshares_count ?? row.resharesCount ?? 0);
   const isLiked = Boolean(row.is_liked || row.isLiked);
   const isReshared = Boolean(row.is_reshared || row.isReshared);
   const likers = Array.isArray(row.likers) ? row.likers : [];
@@ -142,117 +143,13 @@ export function mapRowToPost(row: any): Post {
   };
 }
 
-const SAVED_COMMENTS_KEY = 'orthodox_local_comments_v6';
-const SAVED_REEL_COMMENTS_KEY = 'orthodox_local_reel_comments_v6';
-const SAVED_LIKES_KEY = 'orthodox_local_likes_v6';
-const SAVED_LIKERS_KEY = 'orthodox_local_likers_v6';
-const SAVED_LOCAL_POSTS_KEY = 'orthodox_d1_posts_cache_v6';
-
-export function loadLocalPostCommentsMap(): Record<string, string[]> {
-  try {
-    const saved = localStorage.getItem(SAVED_COMMENTS_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch (e) {}
-  return {};
-}
-
-export function saveLocalPostCommentsMap(map: Record<string, string[]>) {
-  try {
-    localStorage.setItem(SAVED_COMMENTS_KEY, JSON.stringify(map));
-  } catch (e) {}
-}
-
-export function loadLocalReelCommentsMap(): Record<string, any[]> {
-  try {
-    const saved = localStorage.getItem(SAVED_REEL_COMMENTS_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch (e) {}
-  return {};
-}
-
-export function saveLocalReelCommentsMap(map: Record<string, any[]>) {
-  try {
-    localStorage.setItem(SAVED_REEL_COMMENTS_KEY, JSON.stringify(map));
-  } catch (e) {}
-}
-
-export function loadLocalLikesMap(): Record<string, boolean> {
-  try {
-    const saved = localStorage.getItem(SAVED_LIKES_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch (e) {}
-  return {};
-}
-
-export function saveLocalLikesMap(map: Record<string, boolean>) {
-  try {
-    localStorage.setItem(SAVED_LIKES_KEY, JSON.stringify(map));
-  } catch (e) {}
-}
-
-export function loadLocalLikersMap(): Record<string, any[]> {
-  try {
-    const saved = localStorage.getItem(SAVED_LIKERS_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch (e) {}
-  return {};
-}
-
-export function saveLocalLikersMap(map: Record<string, any[]>) {
-  try {
-    localStorage.setItem(SAVED_LIKERS_KEY, JSON.stringify(map));
-  } catch (e) {}
-}
-
 export function sanitizePost(post: any): Post {
   return mapRowToPost(post);
 }
 
-export function getLocalSavedPosts(): Post[] {
-  try {
-    const raw = localStorage.getItem(SAVED_LOCAL_POSTS_KEY);
-    const localLikes = loadLocalLikesMap();
-    const localLikersMap = loadLocalLikersMap();
-
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed
-          .map((p) => {
-            const mapped = mapRowToPost(p);
-            const isLocallyLiked = localLikes[mapped.id] !== undefined ? localLikes[mapped.id] : Boolean(mapped.isLiked);
-            const baseCount = typeof mapped.likesCount === 'number' ? mapped.likesCount : (mapped.likes_count || 0);
-            const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
-            const likers = localLikersMap[mapped.id] || mapped.likers || [];
-
-            return {
-              ...mapped,
-              isLiked: isLocallyLiked,
-              likesCount: adjustedCount,
-              likes_count: adjustedCount,
-              likers,
-            };
-          })
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      }
-    }
-  } catch (e) {}
-  return [];
-}
-
-export function saveLocalPostToCache(post: Post) {
-  try {
-    const cleanPost = sanitizePost(post);
-    const existing = getLocalSavedPosts();
-    const filtered = existing.filter((p) => p.id !== cleanPost.id);
-    const updated = [cleanPost, ...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(updated.slice(0, 100)));
-  } catch (e) {}
-}
-
-// 30-second in-memory cache to prevent frequent duplicate calls
+// 5-second in-memory cache to prevent accidental double calls during re-renders
 let cachedPosts: { data: Post[]; timestamp: number; key: string } | null = null;
-const CACHE_TTL_MS = 30000;
+const CACHE_TTL_MS = 5000;
 let rateLimitedUntil = 0;
 let activeInFlightPromise: Promise<{ posts: Post[]; error: any }> | null = null;
 
@@ -260,8 +157,24 @@ export function invalidatePostsCache() {
   cachedPosts = null;
 }
 
+export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
+  let profile = overrideProfile;
+  if (!profile) {
+    try {
+      const raw = localStorage.getItem('orthodox_user_profile');
+      if (raw) profile = JSON.parse(raw);
+    } catch (e) {}
+  }
+
+  return {
+    'x-user-email': profile?.email || '',
+    'x-user-role': profile?.role || 'user',
+    'x-user-id': profile?.id || '',
+  };
+}
+
 /**
- * Loads posts from Cloudflare Worker API (GET /api/posts) and merges with local likes.
+ * Loads posts directly from Cloudflare Worker API (GET /api/posts).
  */
 export async function loadPosts(
   groupId?: string,
@@ -271,17 +184,14 @@ export async function loadPosts(
   const offset = options?.offset ?? 0;
   const cacheKey = `posts-${groupId || 'all'}-${offset}-${limit}`;
 
-  // Serve from memory if fresh
   if (!options?.forceRefresh && cachedPosts && cachedPosts.key === cacheKey && Date.now() - cachedPosts.timestamp < CACHE_TTL_MS) {
     return { posts: cachedPosts.data, error: null };
   }
 
-  // If rate-limited recently (HTTP 429), avoid calling edge again during cooldown window
   if (Date.now() < rateLimitedUntil) {
-    return { posts: getLocalSavedPosts(), error: 'Rate limit active. Serving from local cache.' };
+    return { posts: cachedPosts?.data || [], error: 'Rate limit active. Please try again shortly.' };
   }
 
-  // Deduplicate concurrent in-flight requests
   if (activeInFlightPromise) {
     return activeInFlightPromise;
   }
@@ -295,21 +205,18 @@ export async function loadPosts(
       params.set('group_id', groupId);
     }
 
-    const localLikes = loadLocalLikesMap();
-    const localLikersMap = loadLocalLikersMap();
-
     try {
       const res = await fetch(`${API_BASE_URL}/api/posts?${params.toString()}`, {
         method: 'GET',
         headers: {
           Accept: 'application/json',
+          ...getAuthHeaders(),
         },
       });
 
       if (res.status === 429) {
-        // Enforce a 30s local backoff to prevent continuous retries
-        rateLimitedUntil = Date.now() + 30000;
-        throw new Error('API Error 429: Too Many Requests (Rate limited)');
+        rateLimitedUntil = Date.now() + 15000;
+        throw new Error('API Error 429: Too Many Requests');
       }
 
       if (!res.ok) {
@@ -320,26 +227,8 @@ export async function loadPosts(
       const data = await res.json();
       const rawList = Array.isArray(data) ? data : (data?.posts || []);
       const mapped = rawList
-        .map((row: any) => {
-          const p = mapRowToPost(row);
-          const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : Boolean(p.isLiked);
-          const baseCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
-          const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
-          const likers = localLikersMap[p.id] || p.likers || [];
-
-          return {
-            ...p,
-            isLiked: isLocallyLiked,
-            likesCount: adjustedCount,
-            likes_count: adjustedCount,
-            likers,
-          };
-        })
+        .map(mapRowToPost)
         .sort((a: Post, b: Post) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-      try {
-        localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(mapped.slice(0, 100)));
-      } catch (e) {}
 
       cachedPosts = {
         data: mapped,
@@ -349,8 +238,8 @@ export async function loadPosts(
 
       return { posts: mapped, error: null };
     } catch (err: any) {
-      console.warn('[Cloudflare D1 loadPosts error]:', err?.message || err);
-      return { posts: getLocalSavedPosts(), error: err?.message || 'Database connection error' };
+      console.warn('[loadPosts error]:', err?.message || err);
+      return { posts: cachedPosts?.data || [], error: err?.message || 'Failed to load posts' };
     } finally {
       activeInFlightPromise = null;
     }
@@ -364,7 +253,7 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
     const params = new URLSearchParams({ author_id: authorId, limit: '50' });
     const res = await fetch(`${API_BASE_URL}/api/posts?${params.toString()}`, {
       method: 'GET',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', ...getAuthHeaders() },
     });
 
     if (res.ok) {
@@ -382,7 +271,7 @@ export async function loadVideos(): Promise<Post[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/posts?video_only=true&limit=50`, {
       method: 'GET',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', ...getAuthHeaders() },
     });
 
     if (res.ok) {
@@ -451,6 +340,7 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(d1Payload),
     });
@@ -462,26 +352,10 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
       }
     }
   } catch (err: any) {
-    console.warn('[Cloudflare D1 savePost error]:', err?.message || err);
+    console.warn('[savePost error]:', err?.message || err);
   }
 
   return newPost;
-}
-
-export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
-  let profile = overrideProfile;
-  if (!profile) {
-    try {
-      const raw = localStorage.getItem('orthodox_user_profile');
-      if (raw) profile = JSON.parse(raw);
-    } catch (e) {}
-  }
-
-  return {
-    'x-user-email': profile?.email || '',
-    'x-user-role': profile?.role || 'user',
-    'x-user-id': profile?.id || '',
-  };
 }
 
 export async function togglePostLike(
@@ -496,7 +370,11 @@ export async function togglePostLike(
     } catch (e) {}
   }
 
-  const userId = profile?.id || (profile?.email ? `user-${profile.email}` : 'anonymous-user');
+  const userId = profile?.id || (profile?.email ? `user-${profile.email}` : undefined);
+  if (!userId) {
+    return { success: false, liked: false };
+  }
+
   const authorName = profile?.full_name || 'Orthodox Parishioner';
   const authorAvatar = profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
 
@@ -521,7 +399,7 @@ export async function togglePostLike(
       return {
         success: true,
         liked: Boolean(data.is_liked ?? data.liked),
-        likes_count: typeof data.likes_count === 'number' ? data.likes_count : undefined,
+        likes_count: typeof data.likes_count === 'number' ? data.likes_count : (data.likesCount ?? undefined),
         likers: data.likers || [],
       };
     }
@@ -532,7 +410,9 @@ export async function togglePostLike(
 
 export async function fetchPostLikes(postId: string): Promise<{ userId: string; userName: string; userAvatar?: string; parish?: string }[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/likes`);
+    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/likes`, {
+      headers: getAuthHeaders(),
+    });
     if (res.ok) {
       const data = await res.json();
       if (data?.likes && Array.isArray(data.likes)) {
@@ -550,7 +430,9 @@ export async function fetchPostLikes(postId: string): Promise<{ userId: string; 
 
 export async function fetchPostComments(postId: string): Promise<any[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/comments`);
+    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/comments`, {
+      headers: getAuthHeaders(),
+    });
     if (res.ok) {
       const data = await res.json();
       if (data?.comments && Array.isArray(data.comments)) {
@@ -659,11 +541,7 @@ export async function deletePostComment(
 
 export async function deletePost(postId: string, userProfile?: any): Promise<{ success: boolean; error: any }> {
   try {
-    const existing = getLocalSavedPosts();
-    const filtered = existing.filter((p) => p.id !== postId);
-    localStorage.setItem(SAVED_LOCAL_POSTS_KEY, JSON.stringify(filtered));
     invalidatePostsCache();
-
     const headers = getAuthHeaders(userProfile);
     const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}`, {
       method: 'DELETE',
@@ -720,20 +598,19 @@ export async function createReshare(
   kind: 'reshare' | 'quote',
   quoteComment?: string
 ): Promise<Post> {
-  const localPosts = getLocalSavedPosts();
-  let originalPost = localPosts.find((p) => p.id === originalPostId);
+  let originalPost: Post | undefined;
 
-  if (!originalPost) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(originalPostId)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.post) {
-          originalPost = mapRowToPost(data.post);
-        }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(originalPostId)}`, {
+      headers: getAuthHeaders(),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.post) {
+        originalPost = mapRowToPost(data.post);
       }
-    } catch (e) {}
-  }
+    }
+  } catch (e) {}
 
   let userProfile: any = null;
   try {

@@ -1147,45 +1147,21 @@ export default {
                     p.is_liked = false;
                   }
 
+                  // Precise sync with post_likes count
                   const likeCountRow = await env.DB.prepare('SELECT COUNT(*) as cnt FROM post_likes WHERE post_id = ?').bind(p.id).first<{ cnt: number }>();
-                  const realLikesCount = likeCountRow ? Number(likeCountRow.cnt) : 0;
-                  p.likes_count = Math.max(Number(p.likes_count) || 0, realLikesCount);
+                  p.likes_count = likeCountRow ? Number(likeCountRow.cnt) : (Number(p.likes_count) || 0);
 
                   const commCountRow = await env.DB.prepare('SELECT COUNT(*) as cnt FROM post_comments WHERE post_id = ?').bind(p.id).first<{ cnt: number }>();
-                  const realCommCount = commCountRow ? Number(commCountRow.cnt) : 0;
-                  p.comments_count = Math.max(Number(p.comments_count) || 0, realCommCount);
+                  p.comments_count = commCountRow ? Number(commCountRow.cnt) : (Number(p.comments_count) || 0);
 
                   const likersRows = await env.DB.prepare('SELECT user_id, user_name, user_avatar FROM post_likes WHERE post_id = ? ORDER BY created_at DESC LIMIT 15').bind(p.id).all<any>();
-                  let currentLikers = (likersRows?.results || []).map((r: any) => ({
+                  p.likers = (likersRows?.results || []).map((r: any) => ({
                     userId: r.user_id,
                     userName: r.user_name || 'Orthodox Member',
                     userAvatar: r.user_avatar,
                   }));
-
-                  if (p.likes_count > currentLikers.length) {
-                    const fallbackCommunityLikers = [
-                      { userId: 'user-deacon-mark', userName: 'Deacon Mark Mikhail', userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
-                      { userId: 'user-fr-anthony', userName: 'Fr. Anthony Shenouda', userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
-                      { userId: 'user-mary-youssef', userName: 'Mary Youssef', userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200' },
-                      { userId: 'user-kyrollos-m', userName: 'Kyrollos Mansour', userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
-                      { userId: 'user-peter-hanna', userName: 'Peter Hanna', userAvatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200' },
-                      { userId: 'user-marina-ibrahim', userName: 'Marina Ibrahim', userAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200' },
-                      { userId: 'user-david-shenouda', userName: 'David Shenouda', userAvatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=200' },
-                      { userId: 'user-sarah-boulos', userName: 'Sarah Boulos', userAvatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=200' },
-                      { userId: 'user-mina-awad', userName: 'Mina Awad', userAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' },
-                      { userId: 'user-monica-g', userName: 'Monica Guirguis', userAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200' },
-                    ];
-                    for (const fb of fallbackCommunityLikers) {
-                      if (currentLikers.length >= Math.min(p.likes_count, 10)) break;
-                      if (!currentLikers.some((l) => l.userId === fb.userId)) {
-                        currentLikers.push(fb);
-                      }
-                    }
-                  }
-
-                  p.likers = currentLikers;
                 } catch (calcErr) {
-                  // Keep fallback values
+                  // Fall back smoothly
                 }
               }
             }
@@ -1222,24 +1198,9 @@ export default {
           const rawImageUrl = body.image_url ?? body.image ?? null;
           const imageUrl = videoId ? null : (rawImageUrl || null);
           const groupId = body.group_id ?? body.groupId ?? null;
-          const likesCount =
-            typeof body.likes_count === 'number'
-              ? body.likes_count
-              : typeof body.likesCount === 'number'
-              ? body.likesCount
-              : 0;
-          const commentsCount =
-            typeof body.comments_count === 'number'
-              ? body.comments_count
-              : typeof body.commentsCount === 'number'
-              ? body.commentsCount
-              : 0;
-          const resharesCount =
-            typeof body.reshares_count === 'number'
-              ? body.reshares_count
-              : typeof body.resharesCount === 'number'
-              ? body.resharesCount
-              : 0;
+          const likesCount = Number(body.likes_count ?? body.likesCount ?? 0);
+          const commentsCount = Number(body.comments_count ?? body.commentsCount ?? 0);
+          const resharesCount = Number(body.reshares_count ?? body.resharesCount ?? 0);
           const createdAt = body.created_at || body.createdAt || new Date().toISOString();
 
           const newPostRow: D1PostRow = {
@@ -1318,35 +1279,11 @@ export default {
             userName: r.user_name || 'Orthodox Member',
             userAvatar: r.user_avatar,
           }));
-
-          const postRow = await env.DB.prepare('SELECT likes_count FROM posts WHERE id = ?').bind(postId).first<{ likes_count: number }>();
-          const targetCount = Math.max(Number(postRow?.likes_count) || 0, likes.length);
-
-          if (targetCount > likes.length) {
-            const fallbackCommunityLikers = [
-              { userId: 'user-deacon-mark', userName: 'Deacon Mark Mikhail', userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-fr-anthony', userName: 'Fr. Anthony Shenouda', userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-mary-youssef', userName: 'Mary Youssef', userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-kyrollos-m', userName: 'Kyrollos Mansour', userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-peter-hanna', userName: 'Peter Hanna', userAvatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-marina-ibrahim', userName: 'Marina Ibrahim', userAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-david-shenouda', userName: 'David Shenouda', userAvatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-sarah-boulos', userName: 'Sarah Boulos', userAvatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-mina-awad', userName: 'Mina Awad', userAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-monica-g', userName: 'Monica Guirguis', userAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200' },
-            ];
-            for (const fb of fallbackCommunityLikers) {
-              if (likes.length >= Math.min(targetCount, 15)) break;
-              if (!likes.some((l) => l.userId === fb.userId)) {
-                likes.push(fb);
-              }
-            }
-          }
         }
         return jsonResponse({ success: true, post_id: postId, likes, count: likes.length });
       }
 
-      // 12. Post Like Toggle (/api/posts/:id/like)
+      // 12b. Atomic Per-User Post Like Toggle (/api/posts/:id/like)
       if (url.pathname.match(/^\/api\/posts\/[^/]+\/like\/?$/)) {
         if (request.method !== 'POST') {
           return jsonResponse({ success: false, error: `Method ${request.method} not allowed` }, 405);
@@ -1355,7 +1292,12 @@ export default {
         const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').replace(/\/like\/?$/, ''));
         const body: any = await request.json().catch(() => ({}));
         const auth = getAuthIdentity(request);
-        const userId = body.user_id || body.userId || auth.id || (auth.email ? `user-${auth.email}` : 'anonymous-user');
+
+        const userId = (body.user_id || body.userId || auth.id || (auth.email ? `user-${auth.email}` : null))?.trim();
+        if (!userId) {
+          return jsonResponse({ success: false, error: 'Authentication required to bless posts' }, 401);
+        }
+
         const actorName = body.author_name || body.userName || body.user_name || auth.email || 'Orthodox Parishioner';
         const actorAvatar = body.author_avatar || body.userAvatar || body.user_avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
 
@@ -1368,19 +1310,18 @@ export default {
             .bind(postId, userId)
             .first();
 
-          const postRow = await env.DB.prepare('SELECT author_id, content, likes_count FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
-          let currentLikes = typeof postRow?.likes_count === 'number' ? postRow.likes_count : 0;
+          const postRow = await env.DB.prepare('SELECT author_id, content FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
 
           if (existingLike) {
+            // UNLIKE: Remove strictly this user's record
             await env.DB.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?').bind(postId, userId).run();
             isLiked = false;
-            likesCount = Math.max(0, currentLikes - 1);
           } else {
-            await env.DB.prepare('INSERT OR REPLACE INTO post_likes (post_id, user_id, user_name, user_avatar, created_at) VALUES (?, ?, ?, ?, ?)')
-              .bind(postId, userId, actorName, actorAvatar, new Date().toISOString())
+            // LIKE: Insert or replace record for this user
+            await env.DB.prepare('INSERT OR REPLACE INTO post_likes (post_id, user_id, user_name, user_avatar, created_at) VALUES (?, ?, ?, ?, datetime(\'now\'))')
+              .bind(postId, userId, actorName, actorAvatar)
               .run();
             isLiked = true;
-            likesCount = currentLikes + 1;
 
             if (postRow && postRow.author_id && postRow.author_id !== userId) {
               const notifId = `notif-like-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -1390,9 +1331,9 @@ export default {
             }
           }
 
+          // Strict source of truth: count current rows in post_likes
           const countRow = await env.DB.prepare('SELECT COUNT(*) as count FROM post_likes WHERE post_id = ?').bind(postId).first<{ count: number }>();
-          const distinctLikesInTable = countRow ? Number(countRow.count) : 0;
-          likesCount = Math.max(likesCount, distinctLikesInTable);
+          likesCount = countRow ? Number(countRow.count) : 0;
 
           await env.DB.prepare('UPDATE posts SET likes_count = ? WHERE id = ?').bind(likesCount, postId).run();
 
@@ -1402,23 +1343,6 @@ export default {
             userName: r.user_name || 'Orthodox Member',
             userAvatar: r.user_avatar,
           }));
-
-          if (likesCount > likers.length) {
-            const fallbackCommunityLikers = [
-              { userId: 'user-deacon-mark', userName: 'Deacon Mark Mikhail', userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-fr-anthony', userName: 'Fr. Anthony Shenouda', userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-mary-youssef', userName: 'Mary Youssef', userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-kyrollos-m', userName: 'Kyrollos Mansour', userAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-peter-hanna', userName: 'Peter Hanna', userAvatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200' },
-              { userId: 'user-marina-ibrahim', userName: 'Marina Ibrahim', userAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200' },
-            ];
-            for (const fb of fallbackCommunityLikers) {
-              if (likers.length >= Math.min(likesCount, 10)) break;
-              if (!likers.some((l) => l.userId === fb.userId)) {
-                likers.push(fb);
-              }
-            }
-          }
         }
 
         return jsonResponse({
@@ -1554,7 +1478,6 @@ export default {
 
       // 16. Books & Library Endpoints (/api/books and /api/books/:id)
       if (url.pathname === '/api/books' || url.pathname === '/api/books/') {
-        // GET /api/books: Fetch Books with search & category filters
         if (request.method === 'GET') {
           const category = url.searchParams.get('category');
           const q = (url.searchParams.get('q') || '').trim();
@@ -1585,7 +1508,6 @@ export default {
           return jsonResponse(books);
         }
 
-        // POST /api/books: Insert a new Book
         if (request.method === 'POST') {
           const body: any = await request.json().catch(() => ({}));
           const id = body.id || `book-${Date.now()}`;
@@ -1617,11 +1539,9 @@ export default {
         }
       }
 
-      // Single Book Operations (/api/books/:id) -> GET, PUT/PATCH, DELETE
       if (url.pathname.startsWith('/api/books/')) {
         const bookId = decodeURIComponent(url.pathname.replace('/api/books/', '').trim());
 
-        // GET Single Book
         if (request.method === 'GET') {
           let book: D1BookRow | null = null;
           if (env.DB) {
@@ -1631,7 +1551,6 @@ export default {
           return jsonResponse({ success: true, book });
         }
 
-        // UPDATE (PUT / PATCH) Book
         if (request.method === 'PUT' || request.method === 'PATCH') {
           const body: any = await request.json().catch(() => ({}));
           const titleAr = (body.title_ar || '').trim();
@@ -1665,7 +1584,6 @@ export default {
           return jsonResponse({ success: true, message: 'Book updated successfully.' });
         }
 
-        // DELETE Single Book
         if (request.method === 'DELETE') {
           if (env.DB) {
             await env.DB.prepare('DELETE FROM books WHERE id = ?').bind(bookId).run();

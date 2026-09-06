@@ -2,7 +2,7 @@
  * Cloudflare Worker API for OrthodoxConnect
  * 100% Cloudflare Workers + Cloudflare D1 SQLite Engine
  * Handles Authentication, Posts, Profiles, Messages, Stories, Events,
- * Live Streams, Moderation Reports, Notifications, and Bunny Stream.
+ * Live Streams, Moderation Reports, Notifications, Bunny Stream, and Books Library.
  */
 
 export interface D1PreparedStatement {
@@ -84,6 +84,19 @@ export interface D1NotificationRow {
   created_at: string;
 }
 
+export interface D1BookRow {
+  id: string;
+  title_ar: string;
+  title_en: string | null;
+  author_ar: string;
+  author_en: string | null;
+  category: string;
+  cover_image_url: string | null;
+  file_url: string;
+  description: string | null;
+  created_at: string;
+}
+
 let d1TablesInitialized = false;
 export async function ensureD1Tables(db?: D1Database) {
   if (!db || d1TablesInitialized) return;
@@ -130,6 +143,8 @@ export async function ensureD1Tables(db?: D1Database) {
       CREATE TABLE IF NOT EXISTS post_likes (
         post_id TEXT NOT NULL,
         user_id TEXT NOT NULL,
+        user_name TEXT,
+        user_avatar TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         PRIMARY KEY (post_id, user_id)
       );
@@ -228,6 +243,19 @@ export async function ensureD1Tables(db?: D1Database) {
         is_read INTEGER DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
+
+      CREATE TABLE IF NOT EXISTS books (
+        id TEXT PRIMARY KEY,
+        title_ar TEXT NOT NULL,
+        title_en TEXT,
+        author_ar TEXT NOT NULL,
+        author_en TEXT,
+        category TEXT NOT NULL DEFAULT 'patristics',
+        cover_image_url TEXT,
+        file_url TEXT NOT NULL,
+        description TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
     `);
     d1TablesInitialized = true;
   } catch (e) {
@@ -301,9 +329,7 @@ export function extractBunnyVideoGuid(input?: string | null): string | null {
 
   const guidRegex = /([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/;
   const match = trimmed.match(guidRegex);
-  if (match) {
-    return match[1];
-  }
+  if (match) return match[1];
 
   if (/^[0-9a-zA-Z_-]{10,}$/.test(trimmed) && !trimmed.startsWith('http')) {
     return trimmed;
@@ -364,7 +390,6 @@ export default {
           const now = new Date().toISOString();
 
           if (env.DB) {
-            // Check if email exists
             const existing = await env.DB.prepare('SELECT id FROM profiles WHERE LOWER(email) = LOWER(?)').bind(email).first();
             if (existing) {
               return jsonResponse({ success: false, error: 'An account with this email address already exists.' }, 409);
@@ -376,7 +401,6 @@ export default {
             `).bind(userId, email, passwordHash, fullName, parish, bio, avatarUrl, role, now, now).run();
           }
 
-          // Generate session token
           const token = `sess_${userId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
           const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
 
@@ -438,7 +462,6 @@ export default {
           const isSuperAdmin = email === SUPER_ADMIN_EMAIL;
 
           if (!profileRow) {
-            // If super admin initial login, auto-provision
             if (isSuperAdmin) {
               const superId = 'super-admin-root';
               const now = new Date().toISOString();
@@ -470,13 +493,11 @@ export default {
             return jsonResponse({ success: false, error: 'Your account has been suspended by parish moderation.' }, 403);
           }
 
-          // Verify or update password hash
           const isSeededOrInitial = profileRow.password_hash === 'seeded' || !profileRow.password_hash;
           if (!isSeededOrInitial && !isSuperAdmin && profileRow.password_hash !== inputHash) {
             return jsonResponse({ success: false, error: 'Invalid email or password.' }, 401);
           }
 
-          // If seeded or super admin logging in with a new password, persist updated password hash
           if ((isSeededOrInitial || isSuperAdmin) && profileRow.password_hash !== inputHash) {
             profileRow.password_hash = inputHash;
             if (env.DB) {
@@ -486,7 +507,6 @@ export default {
             }
           }
 
-          // Update role to super_admin if email matches
           if (isSuperAdmin && profileRow.role !== 'super_admin') {
             profileRow.role = 'super_admin';
             if (env.DB) {
@@ -494,7 +514,6 @@ export default {
             }
           }
 
-          // Create session
           const token = `sess_${profileRow.id}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
           const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
 
@@ -1115,14 +1134,12 @@ export default {
               posts = results || [];
             }
 
-            // Sync with post_likes and post_comments per-user state
             if (posts.length > 0) {
               const auth = getAuthIdentity(request);
               const currentUserId = url.searchParams.get('user_id') || auth.id || '';
 
               for (const p of posts) {
                 try {
-                  // Check if current user liked this post
                   if (currentUserId) {
                     const userLikeRow = await env.DB.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?').bind(p.id, currentUserId).first();
                     p.is_liked = Boolean(userLikeRow);
@@ -1130,17 +1147,14 @@ export default {
                     p.is_liked = false;
                   }
 
-                  // Real count of distinct user likes in post_likes
                   const likeCountRow = await env.DB.prepare('SELECT COUNT(*) as cnt FROM post_likes WHERE post_id = ?').bind(p.id).first<{ cnt: number }>();
                   const realLikesCount = likeCountRow ? Number(likeCountRow.cnt) : 0;
                   p.likes_count = Math.max(Number(p.likes_count) || 0, realLikesCount);
 
-                  // Real count of comments in post_comments
                   const commCountRow = await env.DB.prepare('SELECT COUNT(*) as cnt FROM post_comments WHERE post_id = ?').bind(p.id).first<{ cnt: number }>();
                   const realCommCount = commCountRow ? Number(commCountRow.cnt) : 0;
                   p.comments_count = Math.max(Number(p.comments_count) || 0, realCommCount);
 
-                  // Top likers preview
                   const likersRows = await env.DB.prepare('SELECT user_id, user_name, user_avatar FROM post_likes WHERE post_id = ? ORDER BY created_at DESC LIMIT 15').bind(p.id).all<any>();
                   let currentLikers = (likersRows?.results || []).map((r: any) => ({
                     userId: r.user_id,
@@ -1148,7 +1162,6 @@ export default {
                     userAvatar: r.user_avatar,
                   }));
 
-                  // If post has high like count, supplement with default community likers if needed
                   if (p.likes_count > currentLikers.length) {
                     const fallbackCommunityLikers = [
                       { userId: 'user-deacon-mark', userName: 'Deacon Mark Mikhail', userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
@@ -1359,19 +1372,16 @@ export default {
           let currentLikes = typeof postRow?.likes_count === 'number' ? postRow.likes_count : 0;
 
           if (existingLike) {
-            // Unlike: Remove only this user's like
             await env.DB.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?').bind(postId, userId).run();
             isLiked = false;
             likesCount = Math.max(0, currentLikes - 1);
           } else {
-            // Like: Insert or replace this user's like
             await env.DB.prepare('INSERT OR REPLACE INTO post_likes (post_id, user_id, user_name, user_avatar, created_at) VALUES (?, ?, ?, ?, ?)')
               .bind(postId, userId, actorName, actorAvatar, new Date().toISOString())
               .run();
             isLiked = true;
             likesCount = currentLikes + 1;
 
-            // Notify post author
             if (postRow && postRow.author_id && postRow.author_id !== userId) {
               const notifId = `notif-like-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
               await env.DB.prepare(
@@ -1380,15 +1390,12 @@ export default {
             }
           }
 
-          // Ensure likesCount is at least the number of distinct records in post_likes
           const countRow = await env.DB.prepare('SELECT COUNT(*) as count FROM post_likes WHERE post_id = ?').bind(postId).first<{ count: number }>();
           const distinctLikesInTable = countRow ? Number(countRow.count) : 0;
           likesCount = Math.max(likesCount, distinctLikesInTable);
 
-          // Update post likes_count in posts table
           await env.DB.prepare('UPDATE posts SET likes_count = ? WHERE id = ?').bind(likesCount, postId).run();
 
-          // Fetch top likers
           const likersResult = await env.DB.prepare('SELECT user_id, user_name, user_avatar FROM post_likes WHERE post_id = ? ORDER BY created_at DESC LIMIT 15').bind(postId).all<any>();
           likers = (likersResult?.results || []).map((r: any) => ({
             userId: r.user_id,
@@ -1396,7 +1403,6 @@ export default {
             userAvatar: r.user_avatar,
           }));
 
-          // Enrich likers list if needed
           if (likesCount > likers.length) {
             const fallbackCommunityLikers = [
               { userId: 'user-deacon-mark', userName: 'Deacon Mark Mikhail', userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
@@ -1456,7 +1462,7 @@ export default {
         return jsonResponse({ success: false, error: 'Comment not found' }, 404);
       }
 
-      // 13. Post Comments List & Create (/api/posts/:id/comments)
+      // 14. Post Comments List & Create (/api/posts/:id/comments)
       if (url.pathname.match(/^\/api\/posts\/[^/]+\/comments\/?$/)) {
         const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').replace(/\/comments\/?$/, ''));
 
@@ -1495,7 +1501,6 @@ export default {
             newCommentCount = commCountRow ? Number(commCountRow.count) : 1;
             await env.DB.prepare('UPDATE posts SET comments_count = ? WHERE id = ?').bind(newCommentCount, postId).run();
 
-            // Notify post author
             const post = await env.DB.prepare('SELECT author_id, content FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
             if (post && post.author_id && post.author_id !== userId) {
               const notifId = `notif-comm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -1513,7 +1518,7 @@ export default {
         }
       }
 
-      // 14. Single Post Delete/Get (/api/posts/:id)
+      // 15. Single Post Delete/Get (/api/posts/:id)
       if (url.pathname.startsWith('/api/posts/')) {
         const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').trim());
         if (request.method === 'GET') {
@@ -1547,7 +1552,83 @@ export default {
         }
       }
 
-      // 15. Notifications (/api/notifications)
+      // 16. Books & Library Endpoints (/api/books and /api/books/:id)
+      if (url.pathname === '/api/books' || url.pathname === '/api/books/') {
+        // GET /api/books: Fetch Books with search & category filters
+        if (request.method === 'GET') {
+          const category = url.searchParams.get('category');
+          const q = (url.searchParams.get('q') || '').trim();
+
+          let books: D1BookRow[] = [];
+          if (env.DB) {
+            let query = 'SELECT * FROM books WHERE 1=1';
+            const params: any[] = [];
+
+            if (category && category !== 'all') {
+              query += ' AND category = ?';
+              params.push(category);
+            }
+
+            if (q) {
+              query += ' AND (title_ar LIKE ? OR title_en LIKE ? OR author_ar LIKE ? OR author_en LIKE ?)';
+              const pattern = `%${q}%`;
+              params.push(pattern, pattern, pattern, pattern);
+            }
+
+            query += ' ORDER BY datetime(created_at) DESC, created_at DESC';
+
+            const stmt = env.DB.prepare(query).bind(...params);
+            const { results } = await stmt.all<D1BookRow>();
+            books = results || [];
+          }
+
+          return jsonResponse(books);
+        }
+
+        // POST /api/books: Insert a new Book
+        if (request.method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const id = body.id || `book-${Date.now()}`;
+          const titleAr = (body.title_ar || '').trim();
+          const titleEn = (body.title_en || '').trim() || null;
+          const authorAr = (body.author_ar || '').trim();
+          const authorEn = (body.author_en || '').trim() || null;
+          const category = body.category || 'patristics';
+          const coverImageUrl = body.cover_image_url || null;
+          const fileUrl = (body.file_url || '').trim();
+          const description = (body.description || '').trim() || null;
+          const createdAt = new Date().toISOString();
+
+          if (!titleAr || !authorAr || !fileUrl) {
+            return jsonResponse({ success: false, error: 'Title (Arabic), Author (Arabic), and File/Link are required.' }, 400);
+          }
+
+          if (env.DB) {
+            await env.DB.prepare(`
+              INSERT INTO books (id, title_ar, title_en, author_ar, author_en, category, cover_image_url, file_url, description, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(id, titleAr, titleEn, authorAr, authorEn, category, coverImageUrl, fileUrl, description, createdAt).run();
+          }
+
+          return jsonResponse({
+            success: true,
+            book: { id, title_ar: titleAr, title_en: titleEn, author_ar: authorAr, author_en: authorEn, category, cover_image_url: coverImageUrl, file_url: fileUrl, description, created_at: createdAt },
+          }, 201);
+        }
+      }
+
+      // Delete Single Book (/api/books/:id)
+      if (url.pathname.startsWith('/api/books/')) {
+        const bookId = decodeURIComponent(url.pathname.replace('/api/books/', '').trim());
+        if (request.method === 'DELETE') {
+          if (env.DB) {
+            await env.DB.prepare('DELETE FROM books WHERE id = ?').bind(bookId).run();
+          }
+          return jsonResponse({ success: true, id: bookId, message: 'Book deleted successfully' });
+        }
+      }
+
+      // 17. Notifications (/api/notifications)
       if (url.pathname === '/api/notifications/mark-read' || url.pathname === '/api/notifications/mark-read/') {
         if (request.method !== 'POST') return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
         const body: any = await request.json().catch(() => ({}));
@@ -1623,7 +1704,7 @@ export default {
         }
       }
 
-      // 16. User Administration Delete endpoint (/api/users/:id)
+      // 18. User Administration Delete endpoint (/api/users/:id)
       if (url.pathname.startsWith('/api/users/')) {
         const targetUserId = decodeURIComponent(url.pathname.replace('/api/users/', '').trim());
         if (request.method === 'DELETE') {

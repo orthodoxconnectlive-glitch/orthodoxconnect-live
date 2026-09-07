@@ -14,7 +14,7 @@ export const BUNNY_CDN_HOSTNAME = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840
 export const BUNNY_STREAM_BASE = `https://${BUNNY_CDN_HOSTNAME}`;
 export const SEED_VIDEOS: string[] = [];
 
-const API_BASE_URL = ''; // Relative path against Worker or dev server
+const API_BASE_URL = '';
 
 export function extractBunnyVideoGuid(input?: string | null): string | undefined {
   if (!input || typeof input !== 'string') return undefined;
@@ -230,9 +230,8 @@ export function saveLocalPostToCache(post: Post) {
   } catch (e) {}
 }
 
-// 5-second in-memory cache to prevent duplicate calls during re-renders
 let cachedPosts: { data: Post[]; timestamp: number; key: string } | null = null;
-const CACHE_TTL_MS = 5000;
+const CACHE_TTL_MS = 2000;
 let rateLimitedUntil = 0;
 let activeInFlightPromise: Promise<{ posts: Post[]; error: any }> | null = null;
 
@@ -241,8 +240,8 @@ export function invalidatePostsCache() {
 }
 
 /**
- * Guarantees every user/device receives a unique, isolated identity
- * to eliminate fallback identity collision.
+ * Guarantees each device/user receives an isolated identifier
+ * so two accounts never collide into 'anonymous-user'.
  */
 export function getActiveUserIdentity(overrideProfile?: any): {
   userId: string;
@@ -262,7 +261,6 @@ export function getActiveUserIdentity(overrideProfile?: any): {
     } catch (e) {}
   }
 
-  // 1. Authenticated user ID
   if (profile?.id) {
     return {
       userId: String(profile.id),
@@ -275,7 +273,6 @@ export function getActiveUserIdentity(overrideProfile?: any): {
     };
   }
 
-  // 2. Email-derived user ID
   if (profile?.email) {
     return {
       userId: `user-${profile.email.trim().toLowerCase()}`,
@@ -288,7 +285,6 @@ export function getActiveUserIdentity(overrideProfile?: any): {
     };
   }
 
-  // 3. Persistent unique client/device UUID
   let guestId = '';
   try {
     guestId = localStorage.getItem('orthodox_client_device_id') || '';
@@ -325,14 +321,17 @@ export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
 
 /**
  * Loads posts directly from Cloudflare Worker API (GET /api/posts).
+ * Explicitly sends the active user ID in the query params so D1 accurately populates is_liked.
  */
 export async function loadPosts(
   groupId?: string,
-  options?: { limit?: number; offset?: number; forceRefresh?: boolean }
+  options?: { limit?: number; offset?: number; forceRefresh?: boolean },
+  userProfile?: any
 ): Promise<{ posts: Post[]; error: any }> {
   const limit = options?.limit ?? 50;
   const offset = options?.offset ?? 0;
-  const cacheKey = `posts-${groupId || 'all'}-${offset}-${limit}`;
+  const identity = getActiveUserIdentity(userProfile);
+  const cacheKey = `posts-${groupId || 'all'}-${offset}-${limit}-${identity.userId}`;
 
   if (!options?.forceRefresh && cachedPosts && cachedPosts.key === cacheKey && Date.now() - cachedPosts.timestamp < CACHE_TTL_MS) {
     return { posts: cachedPosts.data, error: null };
@@ -347,7 +346,6 @@ export async function loadPosts(
   }
 
   activeInFlightPromise = (async () => {
-    const identity = getActiveUserIdentity();
     const params = new URLSearchParams({
       limit: String(limit),
       offset: String(offset),
@@ -362,7 +360,7 @@ export async function loadPosts(
         method: 'GET',
         headers: {
           Accept: 'application/json',
-          ...getAuthHeaders(),
+          ...getAuthHeaders(userProfile),
         },
       });
 

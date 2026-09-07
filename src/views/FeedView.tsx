@@ -77,7 +77,9 @@ export const FeedView: React.FC<FeedViewProps> = ({
   onOpenMessengerWithUser,
   onOpenCalendar,
 }) => {
-  const { profile } = useAuth();
+  const authContext = useAuth() as any;
+  const profile = authContext?.profile;
+  const authLoading = Boolean(authContext?.loading);
   const { t, language } = useTheme();
 
   const syncPostMetadata = (rawPosts: Post[]): Post[] => {
@@ -196,7 +198,10 @@ export const FeedView: React.FC<FeedViewProps> = ({
     }
   };
 
+  // Wait until useAuth completes hydration before performing the initial fetch
   useEffect(() => {
+    if (authLoading) return;
+
     let isMounted = true;
     fetchPosts();
 
@@ -210,7 +215,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       isMounted = false;
       clearInterval(interval);
     };
-  }, [profile?.id]);
+  }, [authLoading, profile?.id]);
 
   useEffect(() => {
     return () => {

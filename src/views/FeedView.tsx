@@ -164,7 +164,11 @@ export const FeedView: React.FC<FeedViewProps> = ({
     setFeedError(null);
 
     try {
-      const { posts: fetchedPosts, error } = await loadPosts(undefined, { limit: PAGE_SIZE });
+      const { posts: fetchedPosts, error } = await loadPosts(
+        undefined,
+        { limit: PAGE_SIZE, forceRefresh: true },
+        profile
+      );
 
       if (error) {
         setFeedError(error);
@@ -206,7 +210,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       isMounted = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [profile?.id]);
 
   useEffect(() => {
     return () => {
@@ -225,10 +229,11 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
     try {
       const nextPage = page + 1;
-      const { posts: nextBatch, error } = await loadPosts(undefined, {
-        limit: PAGE_SIZE,
-        offset: posts.length,
-      });
+      const { posts: nextBatch, error } = await loadPosts(
+        undefined,
+        { limit: PAGE_SIZE, offset: posts.length },
+        profile
+      );
 
       if (error) {
         setFeedError(error);

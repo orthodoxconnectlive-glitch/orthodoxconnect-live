@@ -22,11 +22,6 @@ import {
   addPostComment,
   deletePostComment,
   getLocalSavedPosts,
-  loadLocalPostCommentsMap,
-  loadLocalLikesMap,
-  saveLocalLikesMap,
-  loadLocalLikersMap,
-  saveLocalLikersMap,
 } from '../utils/posts';
 import { uploadMediaFile, uploadVideoToBunnyStream, compressImageToDataUrl } from '../utils/storage';
 import { isFollowing, toggleFollow } from '../utils/follows';
@@ -85,28 +80,23 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const { profile } = useAuth();
   const { t, language } = useTheme();
 
-  const [posts, setPosts] = useState<Post[]>(() => {
-    const cached = getLocalSavedPosts();
-    const localLikes = loadLocalLikesMap();
-    const localLikers = loadLocalLikersMap();
-    const localComments = loadLocalPostCommentsMap();
-
-    return cached.map((p) => {
-      const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : Boolean(p.isLiked);
+  const syncPostMetadata = (rawPosts: Post[]): Post[] => {
+    return rawPosts.map((p) => {
       const baseCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
-      const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
-      const likers = localLikers[p.id] || p.likers || [];
-      const comments = localComments[p.id] || [];
-
       return {
         ...p,
-        isLiked: isLocallyLiked,
-        likesCount: adjustedCount,
-        likes_count: adjustedCount,
-        likers,
-        commentsCount: Math.max(p.commentsCount || 0, comments.length),
+        isLiked: Boolean(p.isLiked ?? p.is_liked),
+        likesCount: baseCount,
+        likes_count: baseCount,
+        likers: Array.isArray(p.likers) ? p.likers : [],
+        commentsCount: typeof p.commentsCount === 'number' ? p.commentsCount : (p.comments_count || 0),
       };
     });
+  };
+
+  const [posts, setPosts] = useState<Post[]>(() => {
+    const cached = getLocalSavedPosts();
+    return syncPostMetadata(cached);
   });
 
   const [loading, setLoading] = useState<boolean>(false);
@@ -157,7 +147,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
     snippet: '',
   });
 
-  // Concurrency guard ref to prevent stacked/runaway network calls
   const isFetchingRef = useRef<boolean>(false);
 
   const triggerToast = (msg: string) => {
@@ -165,28 +154,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
     setTimeout(() => {
       setToastMessage(null);
     }, 3000);
-  };
-
-  const syncPostMetadata = (rawPosts: Post[]) => {
-    const localLikes = loadLocalLikesMap();
-    const localLikersMap = loadLocalLikersMap();
-    const localCommentsMap = loadLocalPostCommentsMap();
-
-    return rawPosts.map((p) => {
-      const isLocallyLiked = localLikes[p.id] !== undefined ? localLikes[p.id] : Boolean(p.isLiked);
-      const baseCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
-      const adjustedCount = isLocallyLiked && baseCount === 0 ? 1 : baseCount;
-      const likers = localLikersMap[p.id] || p.likers || [];
-
-      return {
-        ...p,
-        isLiked: isLocallyLiked,
-        likesCount: adjustedCount,
-        likes_count: adjustedCount,
-        likers,
-        commentsCount: Math.max(p.commentsCount || 0, (localCommentsMap[p.id] || []).length),
-      };
-    });
   };
 
   const fetchPosts = async (silent = false) => {
@@ -197,7 +164,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
     setFeedError(null);
 
     try {
-      const { posts: fetchedPosts, error } = await loadPosts(undefined, { limit: PAGE_SIZE, page: 1 });
+      const { posts: fetchedPosts, error } = await loadPosts(undefined, { limit: PAGE_SIZE });
 
       if (error) {
         setFeedError(error);
@@ -225,10 +192,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
     }
   };
 
-  // Run initial fetch once on mount with safety interval
   useEffect(() => {
     let isMounted = true;
-
     fetchPosts();
 
     const interval = setInterval(() => {
@@ -262,7 +227,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
       const nextPage = page + 1;
       const { posts: nextBatch, error } = await loadPosts(undefined, {
         limit: PAGE_SIZE,
-        page: nextPage,
         offset: posts.length,
       });
 
@@ -469,66 +433,35 @@ export const FeedView: React.FC<FeedViewProps> = ({
   };
 
   const handleToggleLike = async (postId: string) => {
-    const myLikerId = profile?.id || 'me';
-    const myLikerName = profile?.full_name || (language === 'ar' ? 'أنت' : 'You');
-    const myLikerAvatar =
-      profile?.avatar_url ||
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
-
-    let nextIsLiked = false;
-    let updatedLikersList: any[] = [];
-
-    setPosts((prev) =>
-      prev.map((p) => {
-        if (p.id === postId) {
-          nextIsLiked = !p.isLiked;
-          const currentCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
-          const nextCount = nextIsLiked ? currentCount + 1 : Math.max(0, currentCount - 1);
-
-          let updatedLikers = p.likers ? [...p.likers] : [];
-          if (nextIsLiked) {
-            updatedLikers = [
-              { userId: myLikerId, userName: myLikerName, userAvatar: myLikerAvatar },
-              ...updatedLikers.filter(
-                (l) => l.userId !== myLikerId && l.userId !== 'me' && l.userId !== profile?.id
-              ),
-            ];
-          } else {
-            updatedLikers = updatedLikers.filter(
-              (l) => l.userId !== myLikerId && l.userId !== 'me' && l.userId !== profile?.id
-            );
-          }
-
-          updatedLikersList = updatedLikers;
-
-          return {
-            ...p,
-            isLiked: nextIsLiked,
-            likesCount: nextCount,
-            likes_count: nextCount,
-            likers: updatedLikers,
-          };
-        }
-        return p;
-      })
-    );
-
-    const currentLocalLikes = loadLocalLikesMap();
-    saveLocalLikesMap({
-      ...currentLocalLikes,
-      [postId]: nextIsLiked,
-    });
-
-    const currentLikersMap = loadLocalLikersMap();
-    saveLocalLikersMap({
-      ...currentLikersMap,
-      [postId]: updatedLikersList,
-    });
-
     try {
-      await togglePostLike(postId, profile);
+      const res = await togglePostLike(postId, profile);
+
+      if (res.success) {
+        setPosts((prev) =>
+          prev.map((p) => {
+            if (p.id === postId) {
+              const updatedCount =
+                typeof res.likes_count === 'number'
+                  ? res.likes_count
+                  : res.liked
+                  ? (p.likesCount || 0) + 1
+                  : Math.max(0, (p.likesCount || 1) - 1);
+
+              return {
+                ...p,
+                isLiked: res.liked,
+                is_liked: res.liked,
+                likesCount: updatedCount,
+                likes_count: updatedCount,
+                likers: res.likers && res.likers.length > 0 ? res.likers : p.likers,
+              };
+            }
+            return p;
+          })
+        );
+      }
     } catch (err) {
-      console.warn('Error syncing like:', err);
+      console.warn('[FeedView] Error syncing like:', err);
     }
   };
 

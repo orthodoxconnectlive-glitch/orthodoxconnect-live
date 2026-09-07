@@ -8,7 +8,6 @@
 import { Post } from '../types';
 import { addNotification } from './notifications';
 
-// Bunny Stream CDN configuration
 export const BUNNY_LIBRARY_ID = import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
 export const BUNNY_CDN_HOSTNAME = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 export const BUNNY_STREAM_BASE = `https://${BUNNY_CDN_HOSTNAME}`;
@@ -146,7 +145,6 @@ export function sanitizePost(post: any): Post {
   return mapRowToPost(post);
 }
 
-// Fallback compatibility helpers required by FeedView.tsx
 const SAVED_COMMENTS_KEY = 'orthodox_local_comments_v6';
 const SAVED_REEL_COMMENTS_KEY = 'orthodox_local_reel_comments_v6';
 const SAVED_LIKES_KEY = 'orthodox_local_likes_v6';
@@ -239,10 +237,6 @@ export function invalidatePostsCache() {
   cachedPosts = null;
 }
 
-/**
- * Guarantees each device/user receives an isolated identifier
- * so two accounts never collide into 'anonymous-user'.
- */
 export function getActiveUserIdentity(overrideProfile?: any): {
   userId: string;
   userName: string;
@@ -319,10 +313,6 @@ export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
   };
 }
 
-/**
- * Loads posts directly from Cloudflare Worker API (GET /api/posts).
- * Explicitly sends the active user ID in the query params so D1 accurately populates is_liked.
- */
 export async function loadPosts(
   groupId?: string,
   options?: { limit?: number; offset?: number; forceRefresh?: boolean },

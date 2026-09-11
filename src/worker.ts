@@ -260,9 +260,8 @@ export async function ensureD1Tables(db?: D1Database) {
     // Self-healing migration: older D1 databases were created before newer
     // columns existed, and CREATE TABLE IF NOT EXISTS never alters an
     // existing table. Add any missing notifications columns automatically.
+    // (No PRAGMA check: just attempt ADD COLUMN and ignore "duplicate column".)
     try {
-      const pragmaRes: any = await db.prepare('PRAGMA table_info(notifications)').all();
-      const existingNotifCols = new Set(((pragmaRes && pragmaRes.results) || []).map((c: any) => c.name));
       const requiredNotifCols: Array<[string, string]> = [
         ['recipient_id', 'TEXT'],
         ['actor_id', 'TEXT'],
@@ -277,8 +276,14 @@ export async function ensureD1Tables(db?: D1Database) {
         ['created_at', "TEXT NOT NULL DEFAULT (datetime('now'))"],
       ];
       for (const [colName, colDef] of requiredNotifCols) {
-        if (!existingNotifCols.has(colName)) {
+        try {
           await db.exec(`ALTER TABLE notifications ADD COLUMN ${colName} ${colDef}`);
+        } catch (colErr: any) {
+          const colMsg = String((colErr && colErr.message) || colErr || '');
+          if (!/duplicate column/i.test(colMsg)) {
+            throw colErr;
+          }
+          // Column already exists - nothing to do.
         }
       }
     } catch (notifMigErr) {

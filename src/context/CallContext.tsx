@@ -61,6 +61,15 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const isFromMyself = signal.callerId === me;
 
       if (signal.type === 'OFFER_CALL' && isTargetedToMe && !isFromMyself) {
+        // Ignore stale offers: the caller stops ringing after 30s
+        // (no-answer timeout), so an offer older than that is a missed call.
+        // The server-side "Incoming Voice Call" bell notification already
+        // records it — no need to ring for a call that's already over.
+        const offerAgeMs = Date.now() - (signal.timestamp || 0);
+        if (offerAgeMs > NO_ANSWER_TIMEOUT_MS) {
+          return;
+        }
+
         // If we are already in an active call, ignore or send busy
         if (activeCallRef.current && activeCallRef.current.status === 'connected') {
           return;

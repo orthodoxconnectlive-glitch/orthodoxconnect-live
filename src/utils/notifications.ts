@@ -6,7 +6,7 @@ const API_BASE_URL = typeof window !== 'undefined' ? ( window . location . origi
 
 const DEFAULT_PREFERENCES: NotificationPreferences = {
 
-messages: true ,, mentions: true ,, groupInvites: true ,, eventInvites: true ,, moderationAlerts: true ,, emailAlerts: false ,, } ;
+messages: true , mentions: true , groupInvites: true , eventInvites: true , moderationAlerts: true , emailAlerts: false , } ;
 
 const LOCAL_NOTIFS_STORAGE_KEY = 'orthodox_notifications_cache_v5' ;
 
@@ -535,6 +535,8 @@ return item ;
 export async function markNotificationAsRead ( id: string ): Promise < void > {
 
   const readIds = getReadNotifIds ( ) ;
+
+  readIds . add ( id ) ;
 
   readIds . add ( id ) ;
 

@@ -47,6 +47,9 @@ function AppContent() {
     }
   });
   const [viewedUserProfile, setViewedUserProfile] = useState<UserProfileData | null>(null);
+  // When a notification targets a specific post, we navigate to the feed and
+  // ask FeedView to scroll to + highlight that post, then clear it.
+  const [focusPostId, setFocusPostId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -115,10 +118,12 @@ function AppContent() {
     setCurrentView('profile');
   };
 
-  const handleNavigate = (view: string) => {
+  const handleNavigate = (view: string, postId?: string) => {
     if (view === 'profile') {
       setViewedUserProfile(null); // Clicking "Profile" in nav resets to logged-in user profile
     }
+    // Keep the target post only when heading to the feed; anything else clears it.
+    setFocusPostId(view === 'feed' && postId ? postId : null);
     setCurrentView(view);
   };
 
@@ -130,6 +135,8 @@ function AppContent() {
             onSelectUser={handleSelectUser}
             onOpenMessengerWithUser={handleOpenMessengerWithUser}
             onOpenCalendar={() => handleNavigate('calendar')}
+            focusPostId={focusPostId}
+            onFocusPostConsumed={() => setFocusPostId(null)}
           />
         );
       case 'videos':

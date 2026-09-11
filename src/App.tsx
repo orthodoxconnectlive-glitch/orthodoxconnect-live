@@ -12,6 +12,8 @@ import { InviteModal } from './components/InviteModal';
 import { EditProfileModal } from './components/EditProfileModal';
 import { AuthModal } from './components/AuthModal';
 import { AuthPage } from './components/AuthPage';
+// NEW: notification auto-refresh (adjust path if your service lives elsewhere)
+import { loadNotifications } from './utils/notifications';
 
 import { FeedView } from './views/FeedView';
 import { VideosView } from './views/VideosView';
@@ -65,6 +67,42 @@ function AppContent() {
     if (path.includes('/invite') || searchParams.has('ref')) {
       setIsInviteOpen(true);
     }
+  }, []);
+
+  // NEW: auto-refresh notifications so likes/comments from other users appear
+  // without a manual page refresh. Polls the D1-backed /api/notifications
+  // endpoint; loadNotifications merges into the cache and notifies listeners
+  // via the 'orthodox:notifications_updated' event.
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const refresh = () => {
+      loadNotifications().catch((err) =>
+        console.warn('[notifications] auto-refresh failed:', err)
+      );
+    };
+
+    // One fetch shortly after the app becomes interactive
+    const initial = setTimeout(refresh, 5000);
+
+    // Then poll every 30s while the tab is visible
+    timer = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh();
+    }, 30000);
+
+    // And refresh immediately when the user comes back to the tab
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+
+    return () => {
+      clearTimeout(initial);
+      if (timer) clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, []);
 
   const handleOpenMessengerWithUser = (contactId?: string) => {

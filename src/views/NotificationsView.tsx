@@ -7,7 +7,7 @@ import { UserProfileData } from './ProfileView';
 import { useTheme } from '../context/ThemeContext';
 
 interface NotificationsViewProps {
-  onNavigate?: (view: string) => void;
+  onNavigate?: (view: string, postId?: string) => void;
   onSelectUser?: (userData: UserProfileData) => void;
   onOpenMessengerWithUser?: (contactId?: string) => void;
 }
@@ -59,8 +59,9 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     }
 
     if (onNavigate) {
+      const postId = (notif as any).post_id || (notif as any).postId || undefined;
       if (notif.link) {
-        onNavigate(notif.link);
+        onNavigate(notif.link, postId);
       } else if (notif.type === 'message') {
         onNavigate('messages');
       } else if (notif.type === 'event_invite') {

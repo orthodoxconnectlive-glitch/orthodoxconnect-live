@@ -106,7 +106,10 @@ export class CallSignalingService {
    */
   public startServerPoll(userId: string): () => void {
     let stopped = false;
-    let since = Date.now() - 10000;
+    // Look back 60s on start: catches calls placed while the app was closed.
+    // (The previous 10s window missed any call if the user opened the app
+    // more than 10s after it started ringing.)
+    let since = Date.now() - 60000;
     const seen = new Set<string>();
 
     const poll = async () => {

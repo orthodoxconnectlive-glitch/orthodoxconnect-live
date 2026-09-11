@@ -4,6 +4,7 @@
  */
 
 import { getAuthHeaders, invalidatePostsCache } from './posts';
+import { addNotification } from './notifications';
 
 // Ensures an isolated identity per browser/device even if the user isn't logged in
 export function getOrCreateClientIdentity(explicitProfile?: any): {
@@ -62,7 +63,8 @@ export function getOrCreateClientIdentity(explicitProfile?: any): {
 
 export async function blessPost(
   postId: string,
-  userProfile?: any
+  userProfile?: any,
+  postOwner?: { id: string | number } | null
 ): Promise<{ success: boolean; liked: boolean; likesCount: number; likers: any[] }> {
   const identity = getOrCreateClientIdentity(userProfile);
 
@@ -85,9 +87,33 @@ export async function blessPost(
     if (res.ok) {
       const data = await res.json();
       invalidatePostsCache();
+      const liked = Boolean(data.is_liked ?? data.liked);
+
+      // Notify the post owner — never for your own likes, never on unlike.
+      // A notification failure must never break the like itself.
+      const ownerId = postOwner?.id != null ? String(postOwner.id) : null;
+      if (liked && ownerId && ownerId !== identity.userId) {
+        try {
+          await addNotification(
+            {
+              userId: ownerId,
+              type: 'like',
+              title: 'Post blessed',
+              body: `${identity.userName} blessed your post`,
+              link: 'feed',
+              senderName: identity.userName,
+              senderAvatar: identity.userAvatar,
+            },
+            identity.userId
+          );
+        } catch (notifErr) {
+          console.warn('[blessPost notification]:', notifErr);
+        }
+      }
+
       return {
         success: true,
-        liked: Boolean(data.is_liked ?? data.liked),
+        liked,
         likesCount: Number(data.likes_count ?? 0),
         likers: data.likers || [],
       };

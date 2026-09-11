@@ -451,36 +451,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       const res = await togglePostLike(postId, profile);
 
       if (res.success) {
-        // Notify the post owner on a NEW like (skip unlikes and self-likes)
-        if (res.liked) {
-          const ownerId = targetPost
-            ? String(targetPost.authorId || targetPost.author_id || '')
-            : '';
-          const actorId = profile?.id ? String(profile.id) : '';
-
-          if (ownerId && actorId && ownerId !== actorId) {
-            try {
-              await addNotification(
-                {
-                  userId: ownerId,
-                  type: 'like',
-                  title: language === 'ar' ? 'بركة جديدة' : 'New blessing',
-                  body:
-                    language === 'ar'
-                      ? `${profile?.full_name || 'عضو الرعية'} بارك منشورك`
-                      : `${profile?.full_name || 'A parishioner'} blessed your post`,
-                  link: 'feed',
-                  senderName: profile?.full_name,
-                  senderAvatar: profile?.avatar_url,
-                },
-                actorId
-              );
-            } catch (notifErr) {
-              console.warn('[FeedView] Like notification failed:', notifErr);
-            }
-          }
-        }
-
+        // Update the like UI immediately - never wait on the notification write
         setPosts((prev) =>
           prev.map((p) => {
             if (p.id === postId) {
@@ -503,6 +474,36 @@ export const FeedView: React.FC<FeedViewProps> = ({
             return p;
           })
         );
+
+        // Notify the post owner on a NEW like (skip unlikes and self-likes).
+        // Fire-and-forget: the like UI above already updated, never wait on this.
+        if (res.liked) {
+          const ownerId = targetPost
+            ? String(targetPost.authorId || targetPost.author_id || '')
+            : '';
+          const actorId = profile?.id ? String(profile.id) : '';
+
+          if (ownerId && actorId && ownerId !== actorId) {
+            addNotification(
+                {
+                  userId: ownerId,
+                  type: 'like',
+                  title: language === 'ar' ? 'بركة جديدة' : 'New blessing',
+                  body:
+                    language === 'ar'
+                      ? `${profile?.full_name || 'عضو الرعية'} بارك منشورك`
+                      : `${profile?.full_name || 'A parishioner'} blessed your post`,
+                  link: 'feed',
+                  senderName: profile?.full_name,
+                  senderAvatar: profile?.avatar_url,
+                },
+                actorId
+              ).catch((notifErr) => {
+              console.warn('[FeedView] Like notification failed:', notifErr);
+            });
+          }
+        }
+
       }
     } catch (err) {
       console.warn('[FeedView] Error syncing like:', err);

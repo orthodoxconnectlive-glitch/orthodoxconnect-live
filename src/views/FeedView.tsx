@@ -25,6 +25,7 @@ import {
 } from '../utils/posts';
 import { uploadMediaFile, uploadVideoToBunnyStream, compressImageToDataUrl } from '../utils/storage';
 import { isFollowing, toggleFollow } from '../utils/follows';
+import { addNotification } from '../utils/notifications';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { ReshareModal } from '../components/ReshareModal';
@@ -444,9 +445,42 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
   const handleToggleLike = async (postId: string) => {
     try {
+      // Grab the post before the async call so we know its author for the notification
+      const targetPost: any = posts.find((p) => p.id === postId) || null;
+
       const res = await togglePostLike(postId, profile);
 
       if (res.success) {
+        // Notify the post owner on a NEW like (skip unlikes and self-likes)
+        if (res.liked) {
+          const ownerId = targetPost
+            ? String(targetPost.authorId || targetPost.author_id || '')
+            : '';
+          const actorId = profile?.id ? String(profile.id) : '';
+
+          if (ownerId && actorId && ownerId !== actorId) {
+            try {
+              await addNotification(
+                {
+                  userId: ownerId,
+                  type: 'like',
+                  title: language === 'ar' ? 'بركة جديدة' : 'New blessing',
+                  body:
+                    language === 'ar'
+                      ? `${profile?.full_name || 'عضو الرعية'} بارك منشورك`
+                      : `${profile?.full_name || 'A parishioner'} blessed your post`,
+                  link: 'feed',
+                  senderName: profile?.full_name,
+                  senderAvatar: profile?.avatar_url,
+                },
+                actorId
+              );
+            } catch (notifErr) {
+              console.warn('[FeedView] Like notification failed:', notifErr);
+            }
+          }
+        }
+
         setPosts((prev) =>
           prev.map((p) => {
             if (p.id === postId) {

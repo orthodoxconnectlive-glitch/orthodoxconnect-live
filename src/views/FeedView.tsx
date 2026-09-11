@@ -69,6 +69,10 @@ interface FeedViewProps {
   onSelectUser?: (userData: UserProfileData) => void;
   onOpenMessengerWithUser?: (contactId?: string) => void;
   onOpenCalendar?: () => void;
+  // When set (e.g. from a tapped like/comment notification), scroll to and
+  // highlight this post once it is rendered.
+  focusPostId?: string | null;
+  onFocusPostConsumed?: () => void;
 }
 
 const PAGE_SIZE = 50;
@@ -77,6 +81,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
   onSelectUser,
   onOpenMessengerWithUser,
   onOpenCalendar,
+  focusPostId,
+  onFocusPostConsumed,
 }) => {
   const authContext = useAuth() as any;
   const profile = authContext?.profile;
@@ -609,6 +615,33 @@ export const FeedView: React.FC<FeedViewProps> = ({
             followedMap[p.authorName] ||
             (profile?.full_name && p.authorName.toLowerCase() === profile.full_name.toLowerCase())
         );
+
+  // Jump to a specific post when opened from a notification (like/comment).
+  // PostCard renders with id={`post-card-${post.id}`}, so we can scroll to it.
+  useEffect(() => {
+    if (!focusPostId) return;
+    if (loading) return;
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(`post-card-${focusPostId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const prevOutline = el.style.outline;
+        const prevShadow = el.style.boxShadow;
+        el.style.outline = '3px solid #c5a059';
+        el.style.outlineOffset = '4px';
+        el.style.boxShadow = '0 0 24px rgba(197,160,89,0.55)';
+        window.setTimeout(() => {
+          el.style.outline = prevOutline;
+          el.style.boxShadow = prevShadow;
+        }, 2600);
+      }
+      // Consume even when the post isn't in the loaded page (older than
+      // pagination) so we don't retry forever — the feed itself is shown.
+      onFocusPostConsumed?.();
+    }, 400);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusPostId, loading, posts.length]);
 
   return (
     <div className="space-y-6">

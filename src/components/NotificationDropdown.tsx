@@ -10,7 +10,7 @@ interface NotificationDropdownProps {
   onClose: () => void;
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
-  onNavigateToNotifications: (link?: string) => void;
+  onNavigateToNotifications: (link?: string, postId?: string) => void;
 }
 
 export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
@@ -68,8 +68,9 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   const handleItemClick = (notif: NotificationItem) => {
     onMarkRead(notif.id);
     onClose();
+    const postId = (notif as any).post_id || (notif as any).postId || undefined;
     if (notif.link) {
-      onNavigateToNotifications(notif.link);
+      onNavigateToNotifications(notif.link, postId);
     } else if (notif.type === 'message') {
       onNavigateToNotifications('messages');
     } else if (notif.type === 'event_invite') {

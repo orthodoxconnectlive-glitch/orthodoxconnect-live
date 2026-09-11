@@ -29,6 +29,9 @@ export interface Env {
   BUNNY_LIBRARY_ID?: string;
   BUNNY_API_KEY?: string;
   BUNNY_CDN_HOST?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
 }
 
 export interface D1PostRow {
@@ -244,6 +247,30 @@ export async function ensureD1Tables(db?: D1Database) {
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
+      CREATE TABLE IF NOT EXISTS call_signals (
+        id TEXT PRIMARY KEY,
+        call_id TEXT,
+        sig_type TEXT,
+        caller_id TEXT,
+        caller_name TEXT,
+        caller_avatar TEXT,
+        target_user_id TEXT,
+        call_type TEXT,
+        created_at INTEGER
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_call_signals_target ON call_signals(target_user_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        user_id TEXT,
+        endpoint TEXT PRIMARY KEY,
+        p256dh TEXT,
+        auth TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+
       CREATE TABLE IF NOT EXISTS books (
         id TEXT PRIMARY KEY,
         title_ar TEXT NOT NULL,
@@ -317,6 +344,130 @@ export async function hashPassword(password: string): Promise<string> {
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ---------------------------------------------------------------------------
+// Web Push (incoming calls even when the app is closed)
+// RFC 8291 (aes128gcm payload encryption) + RFC 8292 (VAPID auth), WebCrypto.
+// ---------------------------------------------------------------------------
+function b64uEncode(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function b64uDecode(s: string): Uint8Array {
+  let b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (b64.length % 4) b64 += '=';
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function concatBytes(...parts: Uint8Array[]): Uint8Array {
+  const total = parts.reduce((n, part) => n + part.length, 0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const part of parts) { out.set(part, off); off += part.length; }
+  return out;
+}
+
+async function hmacSha256(keyBytes: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', key, data));
+}
+
+async function hkdfExpand(prk: Uint8Array, info: Uint8Array, len: number): Promise<Uint8Array> {
+  const out = new Uint8Array(len);
+  let t = new Uint8Array(0);
+  let pos = 0;
+  let counter = 1;
+  while (pos < len) {
+    const input = new Uint8Array(t.length + info.length + 1);
+    input.set(t, 0);
+    input.set(info, t.length);
+    input[input.length - 1] = counter;
+    t = await hmacSha256(prk, input);
+    const take = Math.min(t.length, len - pos);
+    out.set(t.subarray(0, take), pos);
+    pos += take;
+    counter++;
+  }
+  return out;
+}
+
+async function createVapidAuthHeader(endpoint: string, subject: string, vapidPublic: string, vapidPrivate: string): Promise<string> {
+  const url = new URL(endpoint);
+  const aud = url.protocol + '//' + url.host;
+  const exp = Math.floor(Date.now() / 1000) + 12 * 3600;
+  const enc = new TextEncoder();
+  const headerB64 = b64uEncode(enc.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
+  const payloadB64 = b64uEncode(enc.encode(JSON.stringify({ aud, exp, sub: subject })));
+  const pubRaw = b64uDecode(vapidPublic);
+  const jwk: any = {
+    kty: 'EC', crv: 'P-256',
+    x: b64uEncode(pubRaw.slice(1, 33)),
+    y: b64uEncode(pubRaw.slice(33, 65)),
+    d: vapidPrivate,
+  };
+  const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const sig = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, enc.encode(headerB64 + '.' + payloadB64)));
+  return 'WebPush ' + headerB64 + '.' + payloadB64 + '.' + b64uEncode(sig);
+}
+
+async function encryptPushPayload(p256dhB64: string, authB64: string, plaintext: Uint8Array): Promise<Uint8Array> {
+  const uaPublic = b64uDecode(p256dhB64);
+  const authSecret = b64uDecode(authB64);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const ephKeyPair: any = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const asPublic = new Uint8Array(await crypto.subtle.exportKey('raw', ephKeyPair.publicKey));
+  const clientPubKey = await crypto.subtle.importKey('raw', uaPublic, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const ecdhSecret = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: clientPubKey }, ephKeyPair.privateKey, 256));
+  const prk = await hmacSha256(authSecret, ecdhSecret);
+  const enc = new TextEncoder();
+  const keyInfo = concatBytes(enc.encode('WebPush: info'), new Uint8Array([0]), uaPublic, asPublic);
+  const nonceInfo = concatBytes(enc.encode('Content-Encoding: nonce'), new Uint8Array([0]), uaPublic, asPublic);
+  const cek = await hkdfExpand(prk, keyInfo, 32);
+  const nonce = await hkdfExpand(prk, nonceInfo, 12);
+  const padded = new Uint8Array(plaintext.length + 1);
+  padded.set(plaintext, 0);
+  padded[plaintext.length] = 2;
+  const aesKey = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt']);
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, aesKey, padded));
+  const rs = new Uint8Array([0, 0, 0x10, 0x00]);
+  return concatBytes(salt, rs, new Uint8Array([1]), new Uint8Array([asPublic.length]), asPublic, ciphertext);
+}
+
+async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; auth: string }, payload: any): Promise<boolean> {
+  try {
+    const vapidPublic = (env.VAPID_PUBLIC_KEY || '').trim();
+    const vapidPrivate = (env.VAPID_PRIVATE_KEY || '').trim();
+    const subject = (env.VAPID_SUBJECT || 'mailto:admin@orthodoxconnect.live').trim();
+    if (!vapidPublic || !vapidPrivate) {
+      console.warn('[push] VAPID keys not configured; skipping push');
+      return false;
+    }
+    const body = await encryptPushPayload(sub.p256dh, sub.auth, new TextEncoder().encode(JSON.stringify(payload)));
+    const authHeader = await createVapidAuthHeader(sub.endpoint, subject, vapidPublic, vapidPrivate);
+    const res = await fetch(sub.endpoint, {
+      method: 'POST',
+      headers: {
+        'TTL': '120',
+        'Content-Type': 'application/octet-stream',
+        'Content-Encoding': 'aes128gcm',
+        'Authorization': authHeader,
+      },
+      body: body as any,
+    });
+    if (!res.ok && (res.status === 404 || res.status === 410)) {
+      try { await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(sub.endpoint).run(); } catch (e) {}
+    }
+    return res.ok;
+  } catch (e) {
+    console.warn('[push] send failed:', (e as any)?.message || e);
+    return false;
+  }
 }
 
 export function getAuthIdentity(request: Request) {
@@ -1697,6 +1848,104 @@ export default {
         if (request.method === 'DELETE' && env.DB) {
           await env.DB.prepare('DELETE FROM notifications WHERE id = ?').bind(notifId).run();
           return jsonResponse({ success: true, id: notifId, message: 'Notification deleted' });
+        }
+      }
+
+      // 17b. Call signaling relay + Web Push (cross-device calls, works even when app is closed)
+      if (url.pathname === '/api/call-signals' || url.pathname === '/api/call-signals/') {
+        if (request.method === 'POST' && env.DB) {
+          const sig: any = await request.json().catch(() => ({}));
+          const id = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sig-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+          const nowMs = Date.now();
+          const sigType = String(sig.type || sig.sig_type || 'OFFER_CALL');
+          const callId = String(sig.callId || sig.call_id || '');
+          const callerId = String(sig.callerId || sig.caller_id || '');
+          const callerName = String(sig.callerName || sig.caller_name || 'Orthodox Parishioner');
+          const callerAvatar = sig.callerAvatar || sig.caller_avatar || null;
+          const targetUserId = String(sig.targetUserId || sig.target_user_id || '');
+          const callType = String(sig.callType || sig.call_type || 'audio');
+          try { await env.DB.prepare('DELETE FROM call_signals WHERE created_at < ?').bind(nowMs - 120000).run(); } catch (e) {}
+          await env.DB.prepare(
+            'INSERT INTO call_signals (id, call_id, sig_type, caller_id, caller_name, caller_avatar, target_user_id, call_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          ).bind(id, callId, sigType, callerId, callerName, callerAvatar, targetUserId, callType, nowMs).run();
+
+          if (sigType === 'OFFER_CALL' && targetUserId) {
+            try {
+              const notifId = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `notif-${Date.now()}`);
+              await env.DB.prepare(
+                'INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+              ).bind(notifId, targetUserId, callerId, callerName, callerAvatar, 'call',
+                `Incoming ${callType === 'video' ? 'Video' : 'Voice'} Call`,
+                `${callerName} is calling you.`, null, 'messages', 0, new Date().toISOString()).run();
+            } catch (e) { console.warn('[call-signals] bell insert failed:', (e as any)?.message || e); }
+            try {
+              const { results } = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?').bind(targetUserId).all();
+              const subs = results || [];
+              const pushPayload = {
+                type: 'call',
+                title: `📞 Incoming ${callType === 'video' ? 'Video' : 'Voice'} Call`,
+                body: `${callerName} is calling you on OrthodoxConnect.`,
+                icon: callerAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+                data: { url: '/?call=' + callId, callId, callerName, callType },
+              };
+              for (const s of subs as any[]) {
+                if (s && s.endpoint && s.p256dh && s.auth) {
+                  await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
+                }
+              }
+            } catch (e) { console.warn('[call-signals] push failed:', (e as any)?.message || e); }
+          }
+          return jsonResponse({ success: true, id }, 201);
+        }
+        if (request.method === 'GET' && env.DB) {
+          const userId = url.searchParams.get('user_id') || '';
+          const since = parseInt(url.searchParams.get('since') || '0', 10) || 0;
+          let signals: any[] = [];
+          if (userId) {
+            const { results } = await env.DB.prepare(
+              'SELECT id, call_id, sig_type, caller_id, caller_name, caller_avatar, target_user_id, call_type, created_at FROM call_signals WHERE target_user_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 50'
+            ).bind(userId, since).all();
+            signals = results || [];
+          }
+          return jsonResponse({ success: true, signals });
+        }
+      }
+
+      if (url.pathname.startsWith('/api/call-signals/')) {
+        const sigId = decodeURIComponent(url.pathname.replace('/api/call-signals/', '').trim());
+        if (request.method === 'DELETE' && env.DB && sigId) {
+          await env.DB.prepare('DELETE FROM call_signals WHERE id = ?').bind(sigId).run();
+          return jsonResponse({ success: true, id: sigId });
+        }
+      }
+
+      // 17c. Push subscriptions (Web Push for calls when app is closed)
+      if (url.pathname === '/api/push-subscriptions' || url.pathname === '/api/push-subscriptions/') {
+        if (request.method === 'POST' && env.DB) {
+          const body: any = await request.json().catch(() => ({}));
+          const userId = String(body.user_id || body.userId || '');
+          const sub = body.subscription || {};
+          const endpoint = String(sub.endpoint || '');
+          const p256dh = String((sub.keys && sub.keys.p256dh) || '');
+          const auth = String((sub.keys && sub.keys.auth) || '');
+          if (!userId || !endpoint || !p256dh || !auth) {
+            return jsonResponse({ success: false, error: 'user_id, endpoint, p256dh and auth are required' }, 400);
+          }
+          await env.DB.prepare(
+            'INSERT OR REPLACE INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?)'
+          ).bind(userId, endpoint, p256dh, auth, new Date().toISOString()).run();
+          return jsonResponse({ success: true }, 201);
+        }
+        if (request.method === 'DELETE' && env.DB) {
+          const body: any = await request.json().catch(() => ({}));
+          const userId = String(body.user_id || body.userId || '');
+          const endpoint = String(body.endpoint || '');
+          if (userId && endpoint) {
+            await env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?').bind(userId, endpoint).run();
+          } else if (endpoint) {
+            await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(endpoint).run();
+          }
+          return jsonResponse({ success: true });
         }
       }
 

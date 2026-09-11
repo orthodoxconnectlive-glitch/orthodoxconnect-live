@@ -32,7 +32,7 @@ import { getTodayLiturgicalDay } from '../data/liturgical';
 interface NavbarProps {
   onOpenInvite: () => void;
   onOpenEditProfile: () => void;
-  onNavigate: (view: string) => void;
+  onNavigate: (view: string, postId?: string) => void;
   currentView: string;
 }
 
@@ -270,7 +270,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClose={() => setIsNotifOpen(false)}
                 onMarkRead={handleMarkRead}
                 onMarkAllRead={handleMarkAllRead}
-                onNavigateToNotifications={(link) => onNavigate(link || 'notifications')}
+                onNavigateToNotifications={(link, postId) => onNavigate(link || 'notifications', postId)}
               />
             </div>
           </div>

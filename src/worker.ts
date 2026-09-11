@@ -257,6 +257,33 @@ export async function ensureD1Tables(db?: D1Database) {
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `);
+    // Self-healing migration: older D1 databases were created before newer
+    // columns existed, and CREATE TABLE IF NOT EXISTS never alters an
+    // existing table. Add any missing notifications columns automatically.
+    try {
+      const pragmaRes: any = await db.prepare('PRAGMA table_info(notifications)').all();
+      const existingNotifCols = new Set(((pragmaRes && pragmaRes.results) || []).map((c: any) => c.name));
+      const requiredNotifCols: Array<[string, string]> = [
+        ['recipient_id', 'TEXT'],
+        ['actor_id', 'TEXT'],
+        ['actor_name', "TEXT DEFAULT 'Orthodox Parishioner'"],
+        ['actor_avatar', 'TEXT'],
+        ['type', "TEXT NOT NULL DEFAULT 'system'"],
+        ['title', 'TEXT'],
+        ['body', 'TEXT'],
+        ['post_id', 'TEXT'],
+        ['link', 'TEXT'],
+        ['is_read', 'INTEGER DEFAULT 0'],
+        ['created_at', "TEXT NOT NULL DEFAULT (datetime('now'))"],
+      ];
+      for (const [colName, colDef] of requiredNotifCols) {
+        if (!existingNotifCols.has(colName)) {
+          await db.exec(`ALTER TABLE notifications ADD COLUMN ${colName} ${colDef}`);
+        }
+      }
+    } catch (notifMigErr) {
+      console.warn('[ensureD1Tables] notifications migration notice:', notifMigErr);
+    }
     d1TablesInitialized = true;
   } catch (e) {
     // Non-fatal if tables already exist

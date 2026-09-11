@@ -3,9 +3,9 @@ import { CallState } from '../types';
 import { useAuth } from './AuthContext';
 import { soundSynth, triggerBrowserNotification } from '../utils/ringtone';
 import { callSignaling, CallSignalPayload } from '../utils/callSignaling';
+import { ensurePushSubscription } from '../utils/pushClient';
 import { IncomingCallModal } from '../components/IncomingCallModal';
 import { WebRTCCallModal } from '../components/WebRTCCallModal';
-import { addNotification } from '../utils/notifications';
 
 interface CallPartnerInfo {
   id: string;
@@ -24,6 +24,9 @@ interface CallContextType {
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
 
+// How long to let a call ring before giving up (no answer).
+const NO_ANSWER_TIMEOUT_MS = 30000;
+
 export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile } = useAuth();
   const [callState, setCallState] = useState<CallState | null>(null);
@@ -34,19 +37,28 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     activeCallRef.current = callState;
   }, [callState]);
 
-  // Listen to incoming call signals
+  // Listen to incoming call signals (same-device + cross-device via server poll)
   useEffect(() => {
+    const myId = profile?.id;
+    if (!myId) return;
+
+    // Register this device for Web Push call notifications (works even when app is closed)
+    ensurePushSubscription(myId);
+
+    // Poll the server for cross-device call signals
+    const stopPoll = callSignaling.startServerPoll(myId);
+
     const unsubscribe = callSignaling.onSignal((signal: CallSignalPayload) => {
-      const myId = profile?.id || 'all';
+      const me = profile?.id || 'all';
 
       // Check if this signal is directed to me or broadcast to parish
       const isTargetedToMe =
-        signal.targetUserId === myId ||
+        signal.targetUserId === me ||
         signal.targetUserId === 'all' ||
         (profile?.full_name && signal.targetUserId === profile.full_name);
 
       // Do not ring for our own outgoing offer
-      const isFromMyself = signal.callerId === myId;
+      const isFromMyself = signal.callerId === me;
 
       if (signal.type === 'OFFER_CALL' && isTargetedToMe && !isFromMyself) {
         // If we are already in an active call, ignore or send busy
@@ -78,16 +90,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
           requireInteraction: true,
         });
 
-        // 3. Add to notification list
-        addNotification({
-          userId: myId,
-          type: 'message',
-          title: `Incoming ${signal.callType === 'video' ? 'Video' : 'Voice'} Call`,
-          body: `${signal.callerName} is calling you.`,
-          senderName: signal.callerName,
-          senderAvatar: signal.callerAvatar,
-          link: 'messages',
-        });
+        // Note: the bell notification row for the call is inserted by the
+        // server when the offer is relayed, so it also exists for missed
+        // calls when the app was closed. No client-side insert here.
       } else if (signal.type === 'ACCEPT_CALL' && signal.callId === activeCallRef.current?.id) {
         // Partner accepted our outgoing call
         soundSynth.stopOutgoingRing();
@@ -105,6 +110,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       unsubscribe();
+      stopPoll();
     };
   }, [profile?.id, profile?.full_name]);
 
@@ -126,7 +132,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Play outgoing ringback tone
     soundSynth.playOutgoingRing();
 
-    // Broadcast OFFER_CALL signal
+    // Broadcast OFFER_CALL signal (same-device instant + server relay for
+    // cross-device + Web Push when the callee's app is closed)
     callSignaling.sendSignal({
       type: 'OFFER_CALL',
       callId,
@@ -139,13 +146,13 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       timestamp: Date.now(),
     });
 
-    // Auto-connect fallback for local testing after 3.5 seconds if simulated
+    // No-answer timeout: if nobody picks up within 30s, end the call
+    // (this also relays END_CALL so the callee stops ringing).
     setTimeout(() => {
       if (activeCallRef.current && activeCallRef.current.id === callId && activeCallRef.current.status === 'calling') {
-        soundSynth.stopOutgoingRing();
-        setCallState((prev) => (prev ? { ...prev, status: 'connected', startedAt: Date.now() } : null));
+        endCall();
       }
-    }, 4000);
+    }, NO_ANSWER_TIMEOUT_MS);
   };
 
   const answerCall = () => {
@@ -187,7 +194,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const endCall = () => {
-    if (!callState) return;
+    // Use the ref (not the state closure) so this also works from timers
+    // created in an earlier render (e.g. the no-answer timeout).
+    const cur = activeCallRef.current;
+    if (!cur) return;
 
     soundSynth.stopIncomingRingtone();
     soundSynth.stopOutgoingRing();
@@ -195,11 +205,11 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Broadcast END_CALL
     callSignaling.sendSignal({
       type: 'END_CALL',
-      callId: callState.id,
+      callId: cur.id,
       callerId: profile?.id || 'me',
       callerName: profile?.full_name || 'Parishioner',
-      targetUserId: callState.partnerId,
-      callType: callState.type,
+      targetUserId: cur.partnerId,
+      callType: cur.type,
       timestamp: Date.now(),
     });
 

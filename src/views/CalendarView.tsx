@@ -9,7 +9,8 @@ import { EventDetailModal } from '../components/EventDetailModal';
 import { DailyReadings } from '../components/DailyReadings';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { gregorianToCoptic } from '../utils/copticDate';
+import { gregorianToCoptic, formatCopticDate } from '../utils/copticDate';
+import { getFastingSchedule } from '../utils/liturgicalEngine';
 
 export const CalendarView: React.FC = () => {
   const { profile } = useAuth();
@@ -19,6 +20,9 @@ export const CalendarView: React.FC = () => {
   const todayData = getTodayLiturgicalDay(language);
   const upcomingFeastsList = getUpcomingFeasts(language);
   const copticDate = gregorianToCoptic(new Date());
+  const fastingSchedule = getFastingSchedule(new Date().getFullYear());
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
 
   const formattedCopticDate =
     language === 'ar'
@@ -384,6 +388,108 @@ export const CalendarView: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Fasting Schedule — مواعيد بدء الأصوام */}
+          <div className="space-y-3">
+            <h3 className="font-serif font-bold text-lg text-(--tx-head)">
+              {language === 'ar' ? 'مواعيد بدء الأصوام' : 'Fasting Start Dates'}
+            </h3>
+            <p className="text-xs text-(--tx-soft)">
+              {language === 'ar'
+                ? 'كل أصوام الكنيسة القبطية الأرثوذكسية لهذا العام — متى يبدأ كل صوم ومتى ينتهي'
+                : 'Every fast of the Coptic Orthodox Church this year — when each begins and ends'}
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {fastingSchedule.map((fast) => {
+                const start = new Date(fast.start);
+                const end = new Date(fast.end);
+                start.setHours(0, 0, 0, 0);
+                end.setHours(0, 0, 0, 0);
+                const isActive = todayStart >= start && todayStart <= end;
+                const isUpcoming = todayStart < start;
+                const daysUntil = Math.round((start.getTime() - todayStart.getTime()) / 86400000);
+                const daysLeft = Math.round((end.getTime() - todayStart.getTime()) / 86400000) + 1;
+
+                const fmtGreg = (d: Date) =>
+                  d.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  });
+
+                return (
+                  <div
+                    key={fast.id}
+                    className={`p-5 rounded-2xl border shadow-lg space-y-2 transition-all ${
+                      isActive
+                        ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-400'
+                        : 'bg-(--bg-card-hi) border-(--ln-bright)/30 hover:border-(--ln-bright)'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          isActive
+                            ? 'bg-emerald-500 text-white'
+                            : isUpcoming
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+                              : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                        }`}
+                      >
+                        {isActive
+                          ? language === 'ar'
+                            ? `صائم الآن — باقي ${daysLeft} يوم`
+                            : `Fasting now — ${daysLeft} days left`
+                          : isUpcoming
+                            ? language === 'ar'
+                              ? daysUntil === 0
+                                ? 'يبدأ اليوم'
+                                : daysUntil === 1
+                                  ? 'يبدأ غدًا'
+                                  : `يبدأ بعد ${daysUntil} يوم`
+                              : daysUntil === 0
+                                ? 'Starts today'
+                                : daysUntil === 1
+                                  ? 'Starts tomorrow'
+                                  : `Starts in ${daysUntil} days`
+                            : language === 'ar'
+                              ? 'انتهى'
+                              : 'Ended'}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-(--bg-soft) text-(--tx-soft) text-[10px] font-bold">
+                        {language === 'ar' ? fast.typeAr : fast.typeEn}
+                      </span>
+                    </div>
+
+                    <h4 className="font-serif font-bold text-base text-(--tx-head)">
+                      {language === 'ar' ? fast.nameAr : fast.nameEn}
+                    </h4>
+
+                    <div className="text-xs text-(--tx-soft) space-y-1">
+                      <p>
+                        <span className="font-bold text-(--tx-head)">
+                          {language === 'ar' ? 'يبدأ: ' : 'Starts: '}
+                        </span>
+                        {fmtGreg(fast.start)}
+                        <span className="text-(--tx-faint)"> • {formatCopticDate(fast.start, language === 'ar' ? 'ar' : 'en')}</span>
+                      </p>
+                      <p>
+                        <span className="font-bold text-(--tx-head)">
+                          {language === 'ar' ? 'ينتهي: ' : 'Ends: '}
+                        </span>
+                        {fmtGreg(fast.end)}
+                        <span className="text-(--tx-faint)"> • {formatCopticDate(fast.end, language === 'ar' ? 'ar' : 'en')}</span>
+                      </p>
+                      <p className="italic text-(--tx-faint)">
+                        {language === 'ar' ? fast.noteAr : fast.noteEn}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

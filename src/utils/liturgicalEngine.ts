@@ -279,9 +279,9 @@ export function getFastingInfo(date: Date, lang: 'en' | 'ar' = 'en'): FastingRes
   // (Great Lent, Holy Week, Jonah's fast, Holy 50 days, Apostles' fast).
   const easter = getOrthodoxEasterDate(y);
 
-  const lentStart = addDays(easter, -48); // Clean Monday
+  const lentStart = addDays(easter, -55); // Coptic Clean Monday (55-day Great Fast)
   const holyWeekStart = addDays(easter, -7); // Palm Sunday
-  const jonahStart = addDays(easter, -62); // Monday, two weeks before Clean Monday
+  const jonahStart = addDays(easter, -69); // Monday, two weeks before Coptic Clean Monday
   const pentecost = addDays(easter, 49);
   const apostlesStart = addDays(pentecost, 1); // Monday after Pentecost
 
@@ -352,6 +352,139 @@ export function getFastingInfo(date: Date, lang: 'en' | 'ar' = 'en'): FastingRes
 
   // 11. No fast
   return pick('fast_free', 'لا يوجد صوم اليوم', 'No fasting today');
+}
+
+// ---------------------------------------------------------------------------
+// Annual fasting schedule — all major fasts with start/end dates.
+// Used for the "مواعيد بدء الأصوام" (Fasting Start Dates) section.
+// ---------------------------------------------------------------------------
+
+export interface FastPeriod {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+  start: Date;
+  end: Date;
+  days: number;
+  type: FastingType;
+  typeAr: string;
+  typeEn: string;
+  noteAr?: string;
+  noteEn?: string;
+}
+
+export function getFastingSchedule(year: number): FastPeriod[] {
+  const easter = getOrthodoxEasterDate(year);
+  const jonahStart = addDays(easter, -69);
+  const lentStart = addDays(easter, -55); // Coptic Clean Monday (55-day Great Fast)
+  const lentEnd = addDays(easter, -1); // Holy Saturday
+  const pentecost = addDays(easter, 49);
+  const apostlesStart = addDays(pentecost, 1);
+  const apostlesEnd = new Date(year, 6, 11); // July 11
+
+  const nativityStart = new Date(year, 10, 25); // Nov 25
+  const nativityEnd = new Date(year + 1, 0, 6); // Jan 6 (next year)
+
+  const daysBetween = (a: Date, b: Date) =>
+    Math.round((stripTime(b).getTime() - stripTime(a).getTime()) / 86400000) + 1;
+
+  const fasts: FastPeriod[] = [
+    {
+      id: 'jonah',
+      nameAr: 'صوم يونان (نينوى)',
+      nameEn: "Jonah's Fast (Nineveh)",
+      start: jonahStart,
+      end: addDays(jonahStart, 2),
+      days: 3,
+      type: 'strict',
+      typeAr: 'صوم انقطاعي',
+      typeEn: 'Strict fast',
+      noteAr: 'ثلاثة أيام — تذكار توبة أهل نينوى',
+      noteEn: 'Three days — commemorating the repentance of Nineveh',
+    },
+    {
+      id: 'great-lent',
+      nameAr: 'الصوم الكبير المقدس',
+      nameEn: 'Great Holy Lent',
+      start: lentStart,
+      end: lentEnd,
+      days: daysBetween(lentStart, lentEnd),
+      type: 'strict',
+      typeAr: 'صوم انقطاعي (٥٥ يومًا)',
+      typeEn: 'Strict fast (55 days)',
+      noteAr: 'يشمل أسبوع الآلام — أقدس أصوام الكنيسة',
+      noteEn: 'Includes Holy Week — the holiest fast of the Church',
+    },
+    {
+      id: 'nativity',
+      nameAr: 'صوم الميلاد',
+      nameEn: 'Nativity Fast',
+      start: nativityStart,
+      end: nativityEnd,
+      days: daysBetween(nativityStart, nativityEnd),
+      type: 'fish',
+      typeAr: 'يُسمح بالسمك (٤٣ يومًا)',
+      typeEn: 'Fish allowed (43 days)',
+      noteAr: 'استعدادًا لميلاد السيد المسيح — الأربعاء والجمعة انقطاعي',
+      noteEn: 'Preparation for the Nativity — Wed/Fri are strict',
+    },
+    {
+      id: 'apostles',
+      nameAr: 'صوم الرسل',
+      nameEn: "Apostles' Fast",
+      start: apostlesStart,
+      end: apostlesEnd,
+      days: daysBetween(apostlesStart, apostlesEnd),
+      type: 'fish',
+      typeAr: 'يُسمح بالسمك',
+      typeEn: 'Fish allowed',
+      noteAr: 'مدته متغيرة حسب عيد القيامة — الأربعاء والجمعة انقطاعي',
+      noteEn: "Length varies with Easter's date — Wed/Fri are strict",
+    },
+    {
+      id: 'st-mary',
+      nameAr: 'صوم السيدة العذراء',
+      nameEn: "St. Mary's Fast",
+      start: new Date(year, 7, 7), // Aug 7
+      end: new Date(year, 7, 21), // Aug 21
+      days: 15,
+      type: 'normal',
+      typeAr: 'صوم نباتي (١٥ يومًا)',
+      typeEn: 'Vegan fast (15 days)',
+      noteAr: 'إكرامًا للسيدة العذراء مريم',
+      noteEn: 'In honor of the Virgin St. Mary',
+    },
+    {
+      id: 'paramoun-nativity',
+      nameAr: 'برامون الميلاد',
+      nameEn: 'Nativity Paramoun',
+      start: new Date(year + 1, 0, 6), // Jan 6
+      end: new Date(year + 1, 0, 6),
+      days: 1,
+      type: 'strict',
+      typeAr: 'صوم انقطاعي',
+      typeEn: 'Strict fast',
+      noteAr: 'اليوم السابق لعيد الميلاد المجيد',
+      noteEn: 'The day before the Nativity feast',
+    },
+    {
+      id: 'paramoun-theophany',
+      nameAr: 'برامون الغطاس',
+      nameEn: 'Theophany Paramoun',
+      start: new Date(year + 1, 0, 18), // Jan 18
+      end: new Date(year + 1, 0, 18),
+      days: 1,
+      type: 'strict',
+      typeAr: 'صوم انقطاعي',
+      typeEn: 'Strict fast',
+      noteAr: 'اليوم السابق لعيد الغطاس المجيد',
+      noteEn: 'The day before the Theophany feast',
+    },
+  ];
+
+  // Sort by start date
+  fasts.sort((a, b) => a.start.getTime() - b.start.getTime());
+  return fasts;
 }
 
 // ---------------------------------------------------------------------------

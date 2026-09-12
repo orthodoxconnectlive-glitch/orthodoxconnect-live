@@ -216,8 +216,10 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
         // 1. Fetch profiles table with full_name and parish from Cloudflare D1
         const profilesData = await profilesApi.getAll(undefined, profile?.id);
 
-        // 2. Fetch active messages to identify contacts user has chatted with
+        // 2. Fetch active messages to identify contacts user has chatted with,
+        // tracking the most recent message time per partner for sorting
         const activePartnerIds = new Set<string>();
+        const lastMessageTime = new Map<string, number>();
         if (profile?.id) {
           const myCleanId = profile.id.replace(/^auth-/, '');
           const msgsData = await messagesApi.getConversation(myCleanId);
@@ -227,6 +229,9 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
               const partnerId = m.sender_id === myCleanId ? m.receiver_id : m.sender_id;
               if (partnerId && partnerId !== myCleanId) {
                 activePartnerIds.add(partnerId);
+                const ts = new Date(m.created_at).getTime() || 0;
+                const prev = lastMessageTime.get(partnerId) || 0;
+                if (ts > prev) lastMessageTime.set(partnerId, ts);
               }
             });
           }
@@ -246,11 +251,16 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
             };
           });
 
-          // Sort contacts so active conversation partners come first
+          // Sort contacts so the most recently messaged partners come first,
+          // then everyone else alphabetically
           mapped.sort((a, b) => {
+            const aTime = lastMessageTime.get(a.id) || 0;
+            const bTime = lastMessageTime.get(b.id) || 0;
+            if (aTime !== bTime) return bTime - aTime;
             const aHas = activePartnerIds.has(a.id) ? 1 : 0;
             const bHas = activePartnerIds.has(b.id) ? 1 : 0;
-            return bHas - aHas;
+            if (aHas !== bHas) return bHas - aHas;
+            return (a.name || '').localeCompare(b.name || '');
           });
 
           setContactsList(mapped);
@@ -585,9 +595,9 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
       console.warn('Broadcast notice:', e);
     }
 
-    // Update last message in contacts list snippet
-    setContactsList((prev) =>
-      prev.map((c) =>
+    // Update last message in contacts list snippet and move to top
+    setContactsList((prev) => {
+      const updated = prev.map((c) =>
         c.id === activeContact.id
           ? {
               ...c,
@@ -595,8 +605,15 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
               lastMessageTime: 'Just now',
             }
           : c
-      )
-    );
+      );
+      // Most recently messaged goes to the top
+      updated.sort((a, b) => {
+        if (a.id === activeContact.id) return -1;
+        if (b.id === activeContact.id) return 1;
+        return 0;
+      });
+      return updated;
+    });
 
     const cleanSenderId = (profile?.id || '').replace(/^auth-/, '');
     const cleanReceiverId = activeContact.id.replace(/^auth-/, '');

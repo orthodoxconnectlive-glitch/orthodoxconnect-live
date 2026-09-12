@@ -51,7 +51,13 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+  const data = event.notification.data || {};
+  let targetUrl = data.url || '/';
+  // Pass the notification id so the app can mark it as read on open (clears the badge)
+  if (data.notifId) {
+    const sep = targetUrl.includes('?') ? '&' : '?';
+    targetUrl = `${targetUrl}${sep}readNotif=${encodeURIComponent(data.notifId)}`;
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

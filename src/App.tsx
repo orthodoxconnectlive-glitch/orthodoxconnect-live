@@ -13,7 +13,7 @@ import { EditProfileModal } from './components/EditProfileModal';
 import { AuthModal } from './components/AuthModal';
 import { AuthPage } from './components/AuthPage';
 // NEW: notification auto-refresh (adjust path if your service lives elsewhere)
-import { loadNotifications } from './utils/notifications';
+import { loadNotifications, markNotificationAsRead } from './utils/notifications';
 
 import { FeedView } from './views/FeedView';
 // Route-based code splitting: every non-default view loads on demand,
@@ -84,6 +84,16 @@ function AppContent() {
 
     if (path.includes('/invite') || searchParams.has('ref')) {
       setIsInviteOpen(true);
+    }
+
+    // Phone-top notification tap: service worker appends ?readNotif=<id> so the
+    // tapped notification is marked as read (badge clears) on app open.
+    const readNotifId = searchParams.get('readNotif');
+    if (readNotifId) {
+      markNotificationAsRead(readNotifId).catch(() => {});
+      searchParams.delete('readNotif');
+      const cleanUrl = window.location.pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '') + window.location.hash;
+      window.history.replaceState(null, '', cleanUrl);
     }
   }, []);
 

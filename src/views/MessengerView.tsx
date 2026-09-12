@@ -30,7 +30,7 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { messagesApi, profilesApi } from '../lib/api';
-import { addNotification } from '../utils/notifications';
+import { addNotification, markNotificationsAsReadByType } from '../utils/notifications';
 import { Message, CallState } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -114,6 +114,11 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   const { profile } = useAuth();
   const { t } = useTheme();
   const { initiateCall } = useCall();
+
+  // Clear the message badge when the messages view is opened
+  useEffect(() => {
+    markNotificationsAsReadByType('message', profile?.id).catch(() => {});
+  }, []);
 
   const LOCAL_MESSAGES_KEY = 'orthodox_local_messages_v2';
 

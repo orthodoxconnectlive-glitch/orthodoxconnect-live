@@ -2311,15 +2311,24 @@ export default {
         const id = body.id;
         const recipientId = body.recipient_id || body.user_id || body.userId;
         const markAll = Boolean(body.all);
+        const typeFilter = body.type || null;
 
         if (env.DB) {
           if (id) {
             await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE id = ?').bind(id).run();
           } else if (markAll || recipientId) {
             if (recipientId) {
-              await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE recipient_id = ? OR recipient_id = 'all' OR recipient_id IS NULL").bind(recipientId).run();
+              if (typeFilter) {
+                await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE (recipient_id = ? OR recipient_id = 'all' OR recipient_id IS NULL) AND type = ?").bind(recipientId, typeFilter).run();
+              } else {
+                await env.DB.prepare("UPDATE notifications SET is_read = 1 WHERE recipient_id = ? OR recipient_id = 'all' OR recipient_id IS NULL").bind(recipientId).run();
+              }
             } else {
-              await env.DB.prepare('UPDATE notifications SET is_read = 1').run();
+              if (typeFilter) {
+                await env.DB.prepare('UPDATE notifications SET is_read = 1 WHERE type = ?').bind(typeFilter).run();
+              } else {
+                await env.DB.prepare('UPDATE notifications SET is_read = 1').run();
+              }
             }
           }
         }
@@ -2383,7 +2392,7 @@ export default {
                   title,
                   body: notifBody || title,
                   icon: actorAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-                  data: { url: '/', notifType: type, link: link || undefined },
+                  data: { url: '/', notifType: type, link: link || undefined, notifId: id },
                 };
                 for (const s of subs as any[]) {
                   if (s && s.endpoint && s.p256dh && s.auth) {

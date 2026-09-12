@@ -592,6 +592,32 @@ try {
 
 }
 
+export async function markNotificationsAsReadByType ( type: string , userId?: string ): Promise < void > {
+
+  const existing = getLocalNotifications ( ) ;
+
+  existing . forEach ( ( n ) => { if ( ( n as any ) . type === type ) readIds . add ( n . id ) ; } ) ;
+
+  saveReadNotifIds ( readIds ) ;
+
+  const updated = existing . map ( ( n ) => ( ( n as any ) . type === type ? { ...n , isRead: true } : n ) ) ;
+
+  saveLocalNotifications ( updated ) ;
+
+try {
+
+    await fetch ( `${ API_BASE_URL }/api/notifications/mark-read` , {
+
+      method: 'POST' ,
+
+      body: JSON . stringify ( { all: true , type , recipient_id: userId } ) ,
+
+    } ) ;
+
+  } catch ( err ) { }
+
+}
+
 export async function deleteNotification ( id: string ): Promise < void > {
 
   const deletedIds = getDeletedNotifIds ( ) ;

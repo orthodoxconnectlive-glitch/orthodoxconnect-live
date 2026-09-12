@@ -40,6 +40,13 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     };
   }, [isOpen, onClose]);
 
+  // Auto-clear badge when the dropdown is opened: mark all as read
+  useEffect(() => {
+    if (isOpen) {
+      onMarkAllRead();
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;

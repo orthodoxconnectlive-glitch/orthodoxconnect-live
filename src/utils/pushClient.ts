@@ -46,9 +46,9 @@ export async function ensurePushSubscription(userId: string): Promise<void> {
         try { await sub.unsubscribe(); } catch (e) {}
         try {
           await fetch('/api/push-subscriptions', {
-            method: 'POST',
+            method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'clear_all', user_id: getUserId() }),
+            body: JSON.stringify({ user_id: userId, clear_all: true }),
           });
         } catch (e) {}
         sub = null;

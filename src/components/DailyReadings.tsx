@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   BookOpen, ChevronDown, ChevronLeft, ChevronRight,
   ExternalLink, Loader2, MoonStar, Sunrise, Church, ScrollText, Sparkles,
+  Volume2, Square, Play, Heart,
 } from 'lucide-react';
+import { meditationForDay } from '../data/meditations';
 
 /* ------------------------------------------------------------------ */
 /* Types (shape returned by https://api.coptic.io/api/readings/:date)   */
@@ -142,28 +144,136 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/* ---------------- Text-to-speech (device voice) ---------------- */
+interface SpeechItem { id: string; text: string }
+
+function readingSpeakText(label: string, blocks: ReadingBlock[], lang: Lang): string {
+  const parts: string[] = [label + '.'];
+  for (const b of blocks) {
+    for (const c of b.chapters) {
+      const book = lang === 'ar' ? (AR_BOOKS[b.bookName] || b.bookName) : b.bookName;
+      const ch = lang === 'ar' ? toArDigits(c.chapterNum) : String(c.chapterNum);
+      parts.push(`${book} ${ch}.`);
+      for (const v of c.verses) parts.push(v.text.trim());
+    }
+  }
+  return parts.join(' ');
+}
+
+function useSpeech(lang: Lang, iso: string) {
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const queueRef = useRef<SpeechItem[]>([]);
+  const langRef = useRef(lang);
+  langRef.current = lang;
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const load = () => setVoices(window.speechSynthesis.getVoices());
+    load();
+    window.speechSynthesis.addEventListener('voiceschanged', load);
+    return () => {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.removeEventListener('voiceschanged', load);
+    };
+  }, []);
+
+  const pickVoice = useCallback((): SpeechSynthesisVoice | null => {
+    const prefix = langRef.current === 'ar' ? 'ar' : 'en';
+    const match = voices.find(v => (v.lang || '').toLowerCase().startsWith(prefix));
+    return match || null;
+  }, [voices]);
+
+  const stop = useCallback(() => {
+    queueRef.current = [];
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeakingId(null);
+  }, []);
+
+  const speakNext = useCallback((item: SpeechItem, rest: SpeechItem[]) => {
+    const synth = window.speechSynthesis;
+    const u = new SpeechSynthesisUtterance(item.text);
+    const l = langRef.current;
+    u.lang = l === 'ar' ? 'ar-EG' : 'en-US';
+    const v = pickVoice();
+    if (v) u.voice = v;
+    u.rate = 0.95;
+    u.onend = () => {
+      const nxt = rest[0];
+      if (nxt) speakNext(nxt, rest.slice(1));
+      else setSpeakingId(null);
+    };
+    u.onerror = () => setSpeakingId(null);
+    setSpeakingId(item.id);
+    synth.speak(u);
+  }, [pickVoice]);
+
+  const playItems = useCallback((items: SpeechItem[]) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window) || items.length === 0) return;
+    window.speechSynthesis.cancel();
+    const [first, ...rest] = items;
+    speakNext(first, rest);
+  }, [speakNext]);
+
+  const toggleItem = useCallback((item: SpeechItem) => {
+    if (speakingId === item.id) stop();
+    else playItems([item]);
+  }, [speakingId, stop, playItems]);
+
+  // Stop speech when the day or language changes
+  useEffect(() => { stop(); }, [iso, lang, stop]);
+
+  return { speakingId, toggleItem, playItems, stop };
+}
+
 /* ------------------------------------------------------------------ */
 /* Single reading accordion                                            */
 /* ------------------------------------------------------------------ */
-const ReadingCard: React.FC<{ label: string; blocks: ReadingBlock[]; lang: Lang; defaultOpen?: boolean }> = ({
-  label, blocks, lang, defaultOpen,
+const ReadingCard: React.FC<{
+  label: string;
+  blocks: ReadingBlock[];
+  lang: Lang;
+  defaultOpen?: boolean;
+  speaking: boolean;
+  onToggleSpeak: () => void;
+}> = ({
+  label, blocks, lang, defaultOpen, speaking, onToggleSpeak,
 }) => {
   const [open, setOpen] = useState(!!defaultOpen);
   return (
     <div className="rounded-xl border border-[#d4af37]/25 bg-white/60 overflow-hidden">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 cursor-pointer hover:bg-[#f1ebd7]/60 transition-colors"
-      >
-        <span className="flex items-center gap-2 min-w-0">
-          <BookOpen className="w-4 h-4 text-[#d4af37] shrink-0" />
-          <span className="font-bold text-xs text-[#5a4632] truncate">{label}</span>
-        </span>
-        <span className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[11px] text-[#8b6b4a] font-serif">{formatRef(blocks, lang)}</span>
-          <ChevronDown className={`w-4 h-4 text-[#8b6b4a] transition-transform ${open ? 'rotate-180' : ''}`} />
-        </span>
-      </button>
+      <div className="flex items-center gap-1.5 px-2 py-1">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className="flex-1 min-w-0 flex items-center justify-between gap-2 px-1.5 py-1.5 cursor-pointer hover:bg-[#f1ebd7]/60 rounded-lg transition-colors"
+          aria-expanded={open}
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            <BookOpen className="w-4 h-4 text-[#d4af37] shrink-0" />
+            <span className="font-bold text-xs text-[#5a4632] truncate">{label}</span>
+          </span>
+          <span className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[11px] text-[#8b6b4a] font-serif">{formatRef(blocks, lang)}</span>
+            <ChevronDown className={`w-4 h-4 text-[#8b6b4a] transition-transform ${open ? 'rotate-180' : ''}`} />
+          </span>
+        </button>
+        <button
+          onClick={onToggleSpeak}
+          aria-label={speaking
+            ? (lang === 'ar' ? 'إيقاف الصوت' : 'Stop audio')
+            : (lang === 'ar' ? 'استمع للقراءة' : 'Listen to the reading')}
+          title={lang === 'ar' ? 'استمع للقراءة' : 'Listen to the reading'}
+          className={`p-2 rounded-lg shrink-0 cursor-pointer transition-colors ${
+            speaking
+              ? 'bg-red-500 text-white animate-pulse'
+              : 'text-[#8b6b4a] hover:bg-[#f1ebd7]'
+          }`}
+        >
+          {speaking ? <Square className="w-3.5 h-3.5" /> : <Volume2 className="w-4 h-4" />}
+        </button>
+      </div>
       {open && (
         <div className="px-4 pb-3.5 pt-1 space-y-3 border-t border-[#d4af37]/15">
           {blocks.map((b, bi) => (
@@ -276,6 +386,46 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
     ? (lang === 'ar' ? (SEASON_AR[data.season] || data.season) : data.season)
     : null;
 
+  const { speakingId, toggleItem, playItems, stop } = useSpeech(lang, iso);
+
+  const speechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+  // All readings of the day in liturgical order, for "play all"
+  const allSpeechItems: SpeechItem[] = data
+    ? SECTION_META.flatMap((section) =>
+        section.readings
+          .filter((r) => Array.isArray(data[r.field]) && (data[r.field] as ReadingBlock[]).length > 0)
+          .map((r) => ({
+            id: `${section.key}:${r.field}`,
+            text: readingSpeakText(
+              lang === 'ar' ? r.ar : r.en,
+              data[r.field] as ReadingBlock[],
+              lang,
+            ),
+          })),
+      )
+    : [];
+
+  const playAll = () => {
+    if (speakingId) stop();
+    else playItems(allSpeechItems);
+  };
+
+  // Daily meditation, matched to the Liturgy Gospel's book
+  const liturgyGospelBlocks = data && Array.isArray(data.LGospel)
+    ? (data.LGospel as ReadingBlock[])
+    : [];
+  const gospelBook = liturgyGospelBlocks.length > 0 ? liturgyGospelBlocks[0].bookName : null;
+  const meditation = meditationForDay(gospelBook, targetDate);
+  const meditationRef = liturgyGospelBlocks.length > 0 ? formatRef(liturgyGospelBlocks, lang) : '';
+  const meditationTitle = lang === 'ar' ? 'تأمل اليوم' : "Today's Meditation";
+  const meditationSpeaking = speakingId === 'meditation';
+  const toggleMeditation = () =>
+    toggleItem({
+      id: 'meditation',
+      text: `${meditationTitle}. ${meditationRef}. ${lang === 'ar' ? meditation.ar : meditation.en}`,
+    });
+
   return (
     <div className="p-5 sm:p-6 rounded-2xl bg-[#fdfaf5] border-2 border-[#d4af37]/60 shadow-xl space-y-4">
       {/* Header */}
@@ -301,6 +451,18 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
 
         {/* Day navigation */}
         <div className="flex items-center gap-1 bg-[#f1ebd7] rounded-xl p-1 border border-[#d4af37]/20">
+          {speechSupported && !loading && !failed && data && allSpeechItems.length > 0 && (
+            <button
+              onClick={playAll}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                speakingId ? 'bg-red-500 text-white' : 'text-[#5a4632] hover:bg-white'
+              }`}
+              aria-label={lang === 'ar' ? 'استمع لكل القراءات' : 'Listen to all readings'}
+            >
+              {speakingId ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+              {lang === 'ar' ? 'استمع للكل' : 'Listen all'}
+            </button>
+          )}
           <button
             onClick={() => setDayOffset((o) => o - 1)}
             className="p-1.5 rounded-lg hover:bg-white text-[#8b6b4a] transition-colors cursor-pointer"
@@ -395,6 +557,17 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
                         blocks={data[r.field] as ReadingBlock[]}
                         lang={lang}
                         defaultOpen={r.field === 'LGospel'}
+                        speaking={speakingId === `${section.key}:${r.field}`}
+                        onToggleSpeak={() =>
+                          toggleItem({
+                            id: `${section.key}:${r.field}`,
+                            text: readingSpeakText(
+                              lang === 'ar' ? r.ar : r.en,
+                              data[r.field] as ReadingBlock[],
+                              lang,
+                            ),
+                          })
+                        }
                       />
                     ))}
                   </div>
@@ -402,6 +575,43 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
               </div>
             );
           })}
+
+          {/* Daily meditation */}
+          <div className="rounded-2xl border-2 border-[#d4af37]/50 bg-gradient-to-br from-[#fdf6e3] to-[#f8ecd2] p-4 space-y-2 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-2 font-serif font-bold text-sm text-[#5a4632]">
+                <span className="p-1.5 rounded-lg bg-[#d4af37] text-white">
+                  <Heart className="w-3.5 h-3.5" />
+                </span>
+                {meditationTitle}
+                {meditationRef && (
+                  <span className="text-[11px] font-normal text-[#8b6b4a]">• {meditationRef}</span>
+                )}
+              </p>
+              {speechSupported && (
+                <button
+                  onClick={toggleMeditation}
+                  aria-label={meditationSpeaking
+                    ? (lang === 'ar' ? 'إيقاف الصوت' : 'Stop audio')
+                    : (lang === 'ar' ? 'استمع للتأمل' : 'Listen to the meditation')}
+                  title={lang === 'ar' ? 'استمع للتأمل' : 'Listen to the meditation'}
+                  className={`p-2 rounded-lg shrink-0 cursor-pointer transition-colors ${
+                    meditationSpeaking
+                      ? 'bg-red-500 text-white animate-pulse'
+                      : 'text-[#8b6b4a] hover:bg-[#d4af37]/15'
+                  }`}
+                >
+                  {meditationSpeaking ? <Square className="w-3.5 h-3.5" /> : <Volume2 className="w-4 h-4" />}
+                </button>
+              )}
+            </div>
+            <p
+              dir={lang === 'ar' ? 'rtl' : 'ltr'}
+              className={`text-[13px] leading-7 text-[#4a3a28] ${lang === 'ar' ? 'font-serif text-right' : 'text-left'}`}
+            >
+              {lang === 'ar' ? meditation.ar : meditation.en}
+            </p>
+          </div>
 
           {/* Synaxarium links */}
           {data.Synaxarium && data.Synaxarium.length > 0 && (

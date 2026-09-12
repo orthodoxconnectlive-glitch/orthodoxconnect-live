@@ -483,7 +483,14 @@ export const PostCard: React.FC<PostCardProps> = ({
               allowFullScreen
             />
           ) : (
-            <video src={parsedEmbed.embedUrl} controls playsInline className="w-full h-full object-contain bg-black" />
+            <video
+              src={parsedEmbed.embedUrl}
+              controls
+              playsInline
+              className="w-full h-full object-contain bg-black"
+              onPointerDown={(e) => { e.currentTarget.dataset.userInitiated = 'true'; }}
+              onTouchStart={(e) => { e.currentTarget.dataset.userInitiated = 'true'; }}
+            />
           )}
         </div>
       ) : cleanVideoId ? (

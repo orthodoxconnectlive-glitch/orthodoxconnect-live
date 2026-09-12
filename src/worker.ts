@@ -2448,6 +2448,12 @@ export default {
 
       // 17b. Call signaling relay + Web Push (cross-device calls, works even when app is closed)
       if (url.pathname === '/api/call-signals' || url.pathname === '/api/call-signals/') {
+        // Standalone self-heal: tiny ALTERs that must not live inside the giant ensureD1Tables exec
+        if (env.DB) {
+          try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN sdp TEXT').run(); } catch (e) {}
+          try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN candidate TEXT').run(); } catch (e) {}
+          try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN meta TEXT').run(); } catch (e) {}
+        }
         if (request.method === 'POST' && env.DB) {
           const sig: any = await request.json().catch(() => ({}));
           const id = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sig-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);

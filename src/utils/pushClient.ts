@@ -146,3 +146,43 @@ export async function testPushNotification(userId: string): Promise<string> {
     return 'Error: ' + ((e as any)?.message || 'unknown');
   }
 }
+
+/**
+ * Deep diagnostic: tests each layer separately and returns a detailed report.
+ * 1. Can the service worker show a notification directly? (local test)
+ * 2. Is there a valid push subscription?
+ * 3. Does the server accept the registration?
+ */
+export async function diagnosePush(userId: string): Promise<string> {
+  const lines: string[] = [];
+  try {
+    if (!('serviceWorker' in navigator)) { lines.push('❌ No service worker support'); return lines.join('\n'); }
+    if (!('PushManager' in window)) { lines.push('❌ No PushManager support'); return lines.join('\n'); }
+    lines.push('✓ Browser supports push');
+
+    const reg = await navigator.serviceWorker.ready;
+    lines.push('✓ Service worker ready');
+
+    // Test 1: can SW show a notification directly?
+    try {
+      await reg.showNotification('Direct test', { body: 'If you see this, the service worker works' });
+      lines.push('✓ Direct notification shown — check phone top NOW');
+    } catch (e) {
+      lines.push('❌ Direct notification failed: ' + ((e as any)?.message || 'unknown'));
+    }
+
+    // Test 2: subscription status
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      lines.push('✓ Push subscription exists');
+      lines.push('  Endpoint: ' + sub.endpoint.substring(0, 50) + '...');
+    } else {
+      lines.push('❌ No push subscription in browser');
+    }
+
+    lines.push('Permission: ' + Notification.permission);
+    return lines.join('\n');
+  } catch (e) {
+    return 'Error: ' + ((e as any)?.message || 'unknown');
+  }
+}

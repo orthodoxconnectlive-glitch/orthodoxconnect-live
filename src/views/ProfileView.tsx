@@ -7,7 +7,7 @@ import { loadPostsByAuthor } from '../utils/posts';
 import { BUNNY_LIBRARY_ID } from '../utils/posts';
 import { parseVideoEmbed, extractCleanVideoId } from '../components/PostCard';
 import { getFollowersCount, getFollowingCount, isFollowing, toggleFollow } from '../utils/follows';
-import { testPushNotification } from '../utils/pushClient';
+import { testPushNotification, diagnosePush } from '../utils/pushClient';
 
 export interface UserProfileData {
   id?: string;
@@ -126,15 +126,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const handleTestPush = async () => {
     if (!profile?.id) return;
     setPushTesting(true);
-    setPushTestMsg(language === 'ar' ? 'جارٍ الاختبار...' : 'Testing...');
+    setPushTestMsg(language === 'ar' ? 'جارٍ التشخيص...' : 'Diagnosing...');
+    // First run deep diagnostic (includes direct SW notification test)
+    const diag = await diagnosePush(profile.id);
+    console.log('[push] diagnostic:\n' + diag);
+    // Then do the full re-subscribe + server test
     const result = await testPushNotification(profile.id);
     setPushTesting(false);
     if (result === 'ok') {
-      setPushTestMsg(language === 'ar' ? '✓ تم الإرسال! تحقق من أعلى هاتفك' : '✓ Sent! Check the top of your phone');
+      setPushTestMsg((language === 'ar' ? '✓ تم الإرسال! تحقق من أعلى هاتفك' : '✓ Sent! Check the top of your phone') + '\n' + diag);
     } else {
-      setPushTestMsg(result);
+      setPushTestMsg(result + '\n' + diag);
     }
-    setTimeout(() => setPushTestMsg(''), 8000);
+    setTimeout(() => setPushTestMsg(''), 15000);
   };
 
   useEffect(() => {

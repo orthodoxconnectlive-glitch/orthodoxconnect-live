@@ -89,6 +89,16 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const authLoading = Boolean(authContext?.loading);
   const { t, language } = useTheme();
 
+  // Fisher-Yates shuffle so the feed starts on different posts each visit
+  const shufflePosts = (arr: Post[]): Post[] => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
   const syncPostMetadata = (rawPosts: Post[]): Post[] => {
     return rawPosts.map((p) => {
       const baseCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
@@ -184,7 +194,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       }
 
       const activePosts = fetchedPosts && fetchedPosts.length > 0 ? fetchedPosts : getLocalSavedPosts();
-      const synced = syncPostMetadata(activePosts);
+      const synced = shufflePosts(syncPostMetadata(activePosts));
 
       setPosts(synced);
       setPage(1);

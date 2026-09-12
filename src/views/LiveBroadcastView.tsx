@@ -570,7 +570,9 @@ export const LiveBroadcastView: React.FC = () => {
         </div>
       )}
 
-      {/* Top Banner & Go Live / Share Link Action Bar */}
+      {/* Top Banner & Go Live / Share Link Action Bar (hidden while broadcasting
+          so the live camera preview sits right under the red banner) */}
+      {!isUserBroadcasting && (
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-red-950/60 via-stone-950 to-amber-950/50 border border-red-500/30 shadow-xl">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400 animate-pulse">
@@ -608,6 +610,8 @@ export const LiveBroadcastView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      )} {/* end header action bar (hidden while broadcasting) */}
 
       {/* Theatre View Layout: Bunny Player + Live Chat Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">

@@ -2526,7 +2526,10 @@ export default {
           const body: any = await request.json().catch(() => ({}));
           const userId = String(body.user_id || body.userId || '');
           const endpoint = String(body.endpoint || '');
-          if (userId && endpoint) {
+          const clearAll = body.clear_all === true;
+          if (clearAll && userId) {
+            await env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(userId).run();
+          } else if (userId && endpoint) {
             await env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?').bind(userId, endpoint).run();
           } else if (endpoint) {
             await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(endpoint).run();

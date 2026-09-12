@@ -126,6 +126,13 @@ export async function testPushNotification(userId: string): Promise<string> {
     const auth = (subJson.keys && (subJson.keys as any).auth) || '';
     if (!endpoint || !p256dh || !auth) return 'Failed to create subscription';
 
+    // Clear all old subscriptions for this user first (removes dead endpoints)
+    await fetch('/api/push-subscriptions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, clear_all: true }),
+    }).catch(() => {});
+
     const regRes = await fetch('/api/push-subscriptions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

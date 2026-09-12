@@ -39,44 +39,55 @@ export const COPTIC_MONTHS_AR = [
 ];
 
 /**
+ * Anchor: 1 Thout 1740 AM = 11 September 2023 (Feast of Nayrouz 1740).
+ * A Coptic year has 366 days when (year % 4 === 0) — the year whose end
+ * carries the 6th epagomenal day before the Julian leap day it contains.
+ */
+const ANCHOR_DATE = new Date(2023, 8, 11); // 11 September 2023 (local)
+const ANCHOR_COPTIC_YEAR = 1740;
+
+function isCopticLeapYear(year: number): boolean {
+  return year % 4 === 0;
+}
+
+/**
  * Converts a standard Gregorian date to the Coptic Calendar date.
  */
 export function gregorianToCoptic(gregorianDate: Date = new Date()): CopticDateResult {
-  const gYear = gregorianDate.getFullYear();
-  const gMonth = gregorianDate.getMonth(); // 0-indexed
-  const gDay = gregorianDate.getDate();
+  const target = new Date(
+    gregorianDate.getFullYear(),
+    gregorianDate.getMonth(),
+    gregorianDate.getDate()
+  );
 
-  // Julian day calculation
-  const a = Math.floor((14 - (gMonth + 1)) / 12);
-  const y = gYear + 4800 - a;
-  const m = gMonth + 1 + 12 * a - 3;
-  const jd =
-    gDay +
-    Math.floor((153 * m + 2) / 5) +
-    365 * y +
-    Math.floor(y / 4) -
-    Math.floor(y / 100) +
-    Math.floor(y / 400) -
-    32045;
+  let days = Math.round(
+    (target.getTime() - ANCHOR_DATE.getTime()) / 86400000
+  );
+  let year = ANCHOR_COPTIC_YEAR;
 
-  // Coptic Epoch (Julian Day 1824665 = August 29, 284 AD Julian)
-  const copticEpoch = 1824665;
-  const copticDays = jd - copticEpoch;
+  if (days >= 0) {
+    let yearLen = isCopticLeapYear(year) ? 366 : 365;
+    while (days >= yearLen) {
+      days -= yearLen;
+      year++;
+      yearLen = isCopticLeapYear(year) ? 366 : 365;
+    }
+  } else {
+    while (days < 0) {
+      year--;
+      days += isCopticLeapYear(year) ? 366 : 365;
+    }
+  }
 
-  const cYear = Math.floor((4 * copticDays + 3) / 1461);
-  const dayOfYear = copticDays - Math.floor((1461 * cYear) / 4);
-
-  const cMonth = Math.floor(dayOfYear / 30); // 0-12
-  const cDay = (dayOfYear % 30) + 1;
-
-  const monthIdx = Math.min(Math.max(cMonth, 0), 12);
+  const monthIdx = Math.min(Math.max(Math.floor(days / 30), 0), 12);
+  const day = (days % 30) + 1;
 
   return {
-    day: cDay,
+    day,
     month: monthIdx + 1,
     monthNameEn: COPTIC_MONTHS_EN[monthIdx] || 'Thout',
     monthNameAr: COPTIC_MONTHS_AR[monthIdx] || 'توت',
-    year: cYear + 1,
+    year,
   };
 }
 

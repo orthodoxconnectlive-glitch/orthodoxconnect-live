@@ -22,35 +22,54 @@ const COPTIC_MONTHS = [
   { ar: "النسيء", en: "Nasie" }
 ];
 
+/**
+ * Anchor: 1 Thout 1740 AM = 11 September 2023 (Feast of Nayrouz 1740).
+ * A Coptic year has 366 days when (year % 4 === 0).
+ */
+const ANCHOR_DATE = new Date(2023, 8, 11); // 11 September 2023 (local)
+const ANCHOR_COPTIC_YEAR = 1740;
+
+function isCopticLeapYear(year: number): boolean {
+  return year % 4 === 0;
+}
+
 export function gregorianToCoptic(date: Date = new Date()): CopticDate {
-  const y = date.getFullYear();
-  const m = date.getMonth() + 1;
-  const d = date.getDate();
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
-  const a = Math.floor((14 - m) / 12);
-  const y_adj = y + 4800 - a;
-  const m_adj = m + 12 * a - 3;
+  let days = Math.round((target.getTime() - ANCHOR_DATE.getTime()) / 86400000);
+  let year = ANCHOR_COPTIC_YEAR;
 
-  const jdn = d + Math.floor((153 * m_adj + 2) / 5) + 365 * y_adj +
-              Math.floor(y_adj / 4) - Math.floor(y_adj / 100) +
-              Math.floor(y_adj / 400) - 32045;
+  if (days >= 0) {
+    let yearLen = isCopticLeapYear(year) ? 366 : 365;
+    while (days >= yearLen) {
+      days -= yearLen;
+      year++;
+      yearLen = isCopticLeapYear(year) ? 366 : 365;
+    }
+  } else {
+    while (days < 0) {
+      year--;
+      days += isCopticLeapYear(year) ? 366 : 365;
+    }
+  }
 
-  const copticJdn = jdn - 1824665;
-  const copticYear = Math.floor((copticJdn - Math.floor((copticJdn + 365) / 1461)) / 365) + 1;
-  
-  const yearStartJdn = 1824665 + Math.floor((copticYear - 1) * 365.25);
-  const dayOfYear = jdn - yearStartJdn;
-
-  const monthIndex = Math.floor(dayOfYear / 30) + 1;
-  const day = (dayOfYear % 30) + 1;
-
-  const month = COPTIC_MONTHS[Math.min(Math.max(monthIndex - 1, 0), 12)];
+  const monthIndex = Math.min(Math.max(Math.floor(days / 30) + 1, 1), 13);
+  const day = (days % 30) + 1;
+  const month = COPTIC_MONTHS[monthIndex - 1];
 
   return {
     day,
     monthIndex,
     monthNameAr: month.ar,
     monthNameEn: month.en,
-    year: copticYear
+    year
   };
+}
+
+export function formatCopticDate(date: Date = new Date(), lang: 'ar' | 'en' = 'ar'): string {
+  const c = gregorianToCoptic(date);
+  if (lang === 'ar') {
+    return `${c.day} ${c.monthNameAr} ${c.year} ش`;
+  }
+  return `${c.day} ${c.monthNameEn} ${c.year} AM`;
 }

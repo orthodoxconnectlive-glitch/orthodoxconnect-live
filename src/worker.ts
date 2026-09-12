@@ -539,11 +539,25 @@ async function encryptPushPayload(p256dhB64: string, authB64: string, plaintext:
   return concatBytes(salt, rs, new Uint8Array([1]), new Uint8Array([asPublic.length]), asPublic, ciphertext);
 }
 
+async function getVapidKeys(env: Env): Promise<{ publicKey: string; privateKey: string; subject: string }> {
+  let vapidPublic = (env.VAPID_PUBLIC_KEY || '').trim();
+  let vapidPrivate = (env.VAPID_PRIVATE_KEY || '').trim();
+  const subject = (env.VAPID_SUBJECT || 'mailto:admin@orthodoxconnect.live').trim();
+  // Fall back to D1-stored keys (survives redeploys that wipe env secrets)
+  if ((!vapidPublic || !vapidPrivate) && env.DB) {
+    try {
+      const pubRow: any = await env.DB.prepare("SELECT value FROM app_settings WHERE key = 'vapid_public'").first();
+      const privRow: any = await env.DB.prepare("SELECT value FROM app_settings WHERE key = 'vapid_private'").first();
+      if (pubRow?.value) vapidPublic = String(pubRow.value).trim();
+      if (privRow?.value) vapidPrivate = String(privRow.value).trim();
+    } catch (e) {}
+  }
+  return { publicKey: vapidPublic, privateKey: vapidPrivate, subject };
+}
+
 async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; auth: string }, payload: any): Promise<boolean> {
   try {
-    const vapidPublic = (env.VAPID_PUBLIC_KEY || '').trim();
-    const vapidPrivate = (env.VAPID_PRIVATE_KEY || '').trim();
-    const subject = (env.VAPID_SUBJECT || 'mailto:admin@orthodoxconnect.live').trim();
+    const { publicKey: vapidPublic, privateKey: vapidPrivate, subject } = await getVapidKeys(env);
     if (!vapidPublic || !vapidPrivate) {
       console.warn('[push] VAPID keys not configured; skipping push');
       (globalThis as any).__lastPushStatus = 'no-vapid-keys';
@@ -2457,6 +2471,7 @@ export default {
           try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN candidate TEXT').run(); } catch (e) {}
           try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN meta TEXT').run(); } catch (e) {}
           try { await env.DB.prepare('CREATE TABLE IF NOT EXISTS push_debug_log (id TEXT PRIMARY KEY, created_at TEXT, info TEXT)').run(); } catch (e) {}
+          try { await env.DB.prepare('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)').run(); } catch (e) {}
         }
         if (request.method === 'POST' && env.DB) {
           const sig: any = await request.json().catch(() => ({}));
@@ -2595,6 +2610,18 @@ export default {
           await env.DB.prepare('UPDATE group_calls SET started_at = ? WHERE id = ?').bind(new Date().toISOString(), callId).run();
           return jsonResponse({ success: true, id: callId });
         }
+      }
+
+      // 17b1. Store VAPID keys in D1 (admin; survives redeploys)
+      if (url.pathname === '/api/admin/vapid-keys' && request.method === 'POST' && env.DB) {
+        const body: any = await request.json().catch(() => ({}));
+        const pub = String(body.public_key || '');
+        const priv = String(body.private_key || '');
+        if (!pub || !priv) return jsonResponse({ success: false, error: 'public_key and private_key required' }, 400);
+        const now = new Date().toISOString();
+        await env.DB.prepare('INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)').bind('vapid_public', pub, now).run();
+        await env.DB.prepare('INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)').bind('vapid_private', priv, now).run();
+        return jsonResponse({ success: true });
       }
 
       // 17b2. Push debug log (temporary diagnostic)

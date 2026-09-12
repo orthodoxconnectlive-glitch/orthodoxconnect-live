@@ -38,6 +38,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [hasError, setHasError] = useState<boolean>(false);
   const [isAudioMuted, setIsAudioMuted] = useState<boolean>(muted ?? true);
+  const [webcamTrackLive, setWebcamTrackLive] = useState<boolean>(true);
 
   const webcamRef = useRef<HTMLVideoElement | null>(null);
   const directVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -85,9 +86,30 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
   }, [localCameraStream]);
 
   useEffect(() => {
-    if (webcamRef.current && activeStream) {
-      webcamRef.current.srcObject = activeStream;
-      webcamRef.current.play().catch(() => {});
+    // Verify the stream actually has a live video track; otherwise show a hint, not black.
+    if (activeStream) {
+      const vTracks = activeStream.getVideoTracks();
+      const live = vTracks.length > 0 && vTracks.some((t) => t.readyState === 'live' && t.enabled);
+      setWebcamTrackLive(live);
+    } else {
+      setWebcamTrackLive(true);
+    }
+    const video = webcamRef.current;
+    if (video && activeStream) {
+      // Set muted via DOM property — React's muted JSX prop doesn't reliably
+      // sync to the IDL property, which blocks autoplay and leaves black video.
+      try { video.muted = true; } catch (e) {}
+      if (video.srcObject !== activeStream) {
+        video.srcObject = activeStream;
+      }
+      const tryPlay = () => video.play().catch(() => {});
+      // If metadata already loaded, play now; otherwise wait for it.
+      if (video.readyState >= 1) {
+        tryPlay();
+      } else {
+        const onLoaded = () => { tryPlay(); video.removeEventListener('loadedmetadata', onLoaded); };
+        video.addEventListener('loadedmetadata', onLoaded);
+      }
     }
   }, [activeStream]);
 
@@ -235,9 +257,21 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             ref={webcamRef}
             autoPlay
             playsInline
-            muted={isAudioMuted}
+            muted
             className="w-full h-full object-cover transform scale-x-[-1]"
           />
+          {!webcamTrackLive && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/70 p-6 text-center">
+              <p className="text-amber-200 text-sm font-serif font-bold mb-1">
+                {language === 'ar' ? 'الكاميرا غير متاحة' : 'Camera unavailable'}
+              </p>
+              <p className="text-stone-400 text-xs max-w-xs">
+                {language === 'ar'
+                  ? 'تعذر الوصول إلى الكاميرا. تأكد من منح إذن الكاميرا ثم أعد بدء البث.'
+                  : 'Could not access the camera. Make sure camera permission is granted, then restart the broadcast.'}
+              </p>
+            </div>
+          )}
           <div className="absolute bottom-4 left-4 rtl:left-auto rtl:right-4 z-10 px-3 py-1 rounded-lg bg-stone-950/80 backdrop-blur border border-amber-500/40 text-amber-200 text-xs font-mono">
             {t('liveCameraAndMic')}
           </div>

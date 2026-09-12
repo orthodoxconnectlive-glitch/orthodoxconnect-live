@@ -3,7 +3,7 @@
  * 100% Cloudflare Workers + D1 SQLite Backend
  */
 
-import { User, UserProfile, Post, Message, EventItem, Story, NotificationItem, ContentReport, Church } from '../types';
+import { User, UserProfile, Post, Message, EventItem, Story, NotificationItem, ContentReport, Church, MarketplaceListing } from '../types';
 
 export const API_BASE_URL = '';
 
@@ -321,6 +321,47 @@ export const churchesApi = {
 
   async delete(id: string): Promise<void> {
     await apiFetch(`/api/churches/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+/* =========================================================
+   MARKETPLACE API (Cloudflare D1)
+   ========================================================= */
+export const marketplaceApi = {
+  async list(q?: string, category?: string): Promise<MarketplaceListing[]> {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (category && category !== 'all') params.set('category', category);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await apiFetch<{ listings: MarketplaceListing[] }>(`/api/marketplace${qs}`);
+    return res.listings || [];
+  },
+
+  async get(id: string): Promise<MarketplaceListing | null> {
+    const res = await apiFetch<{ listing: MarketplaceListing }>(`/api/marketplace/${encodeURIComponent(id)}`);
+    return res.listing || null;
+  },
+
+  async create(listing: Partial<MarketplaceListing>): Promise<MarketplaceListing> {
+    const res = await apiFetch<{ listing: MarketplaceListing }>('/api/marketplace', {
+      method: 'POST',
+      body: JSON.stringify(listing),
+    });
+    return res.listing;
+  },
+
+  async update(id: string, patch: Partial<MarketplaceListing>): Promise<MarketplaceListing> {
+    const res = await apiFetch<{ listing: MarketplaceListing }>(`/api/marketplace/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+    return res.listing;
+  },
+
+  async remove(id: string): Promise<void> {
+    await apiFetch(`/api/marketplace/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
   },

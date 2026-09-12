@@ -60,3 +60,22 @@ export interface Church {
   owner_id?: string;
   created_at?: string;
 }
+
+export interface MarketplaceListing {
+  id: string;
+  title: string;
+  description?: string;
+  price?: string;
+  category?: string;
+  images?: string[];
+  address?: string;
+  city?: string;
+  phone?: string;
+  church_id?: string;
+  church_name?: string;
+  seller_id?: string;
+  seller_name?: string;
+  seller_avatar?: string;
+  status?: 'active' | 'sold';
+  created_at?: string;
+}

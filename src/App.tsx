@@ -28,6 +28,7 @@ const AdminPanelView = lazy(() => import('./views/AdminPanelView').then((m) => (
 const CalendarView = lazy(() => import('./views/CalendarView').then((m) => ({ default: m.CalendarView })));
 const ChurchesView = lazy(() => import('./views/ChurchesView').then((m) => ({ default: m.ChurchesView })));
 const ChurchProfileView = lazy(() => import('./views/ChurchProfileView').then((m) => ({ default: m.ChurchProfileView })));
+const MarketplaceView = lazy(() => import('./views/MarketplaceView').then((m) => ({ default: m.MarketplaceView })));
 const NotificationsView = lazy(() => import('./views/NotificationsView').then((m) => ({ default: m.NotificationsView })));
 const LibraryView = lazy(() => import('./views/LibraryView').then((m) => ({ default: m.LibraryView })));
 import { updateSEOForView } from './utils/seo';
@@ -198,6 +199,8 @@ function AppContent() {
         ) : (
           <ChurchesView onOpenChurch={handleOpenChurch} />
         );
+      case 'marketplace':
+        return <MarketplaceView />;
       default:
         return <FeedView onSelectUser={handleSelectUser} />;
     }

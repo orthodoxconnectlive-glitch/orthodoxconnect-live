@@ -22,6 +22,7 @@ import {
   Utensils,
   BookOpen,
   Church,
+  Store,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -105,6 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'myNetwork', icon: Users, label: t('myNetwork') },
     { id: 'calendar', icon: Calendar, label: t('calendar') },
     { id: 'churches', icon: Church, label: language === 'ar' ? 'الكنائس' : 'Churches' },
+    { id: 'marketplace', icon: Store, label: language === 'ar' ? 'السوق' : 'Marketplace' },
   ];
 
   const drawerMenuItems = [
@@ -117,6 +119,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'notifications', label: t('notifications'), icon: Bell, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', count: unreadCount },
     { id: 'calendar', label: t('calendar'), icon: Calendar, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-100 dark:bg-indigo-900/30' },
     { id: 'churches', label: language === 'ar' ? 'الكنائس' : 'Churches', icon: Church, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
+    { id: 'marketplace', label: language === 'ar' ? 'السوق' : 'Marketplace', icon: Store, color: 'text-teal-700 dark:text-teal-300', bg: 'bg-teal-100 dark:bg-teal-900/30' },
     { id: 'profile', label: t('profile'), icon: UserIcon, color: 'text-stone-700 dark:text-amber-200', bg: 'bg-stone-200 dark:bg-stone-800' },
   ];
 

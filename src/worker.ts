@@ -1302,6 +1302,178 @@ export default {
         }
       }
 
+      // 6c. Marketplace Endpoints (/api/marketplace)
+      if (url.pathname === '/api/marketplace' || url.pathname === '/api/marketplace/') {
+        // Bulletproof: ensure the table exists on the request path itself.
+        if (env.DB) {
+          try {
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS marketplace_listings (
+              id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '',
+              price TEXT DEFAULT '', category TEXT DEFAULT 'other', images TEXT DEFAULT '[]',
+              address TEXT DEFAULT '', city TEXT DEFAULT '', phone TEXT DEFAULT '',
+              church_id TEXT DEFAULT '', church_name TEXT DEFAULT '',
+              seller_id TEXT, seller_name TEXT DEFAULT '', seller_avatar TEXT DEFAULT '',
+              status TEXT DEFAULT 'active',
+              created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+          } catch (ctErr) {
+            console.warn('[marketplace] ensure table notice:', ctErr);
+          }
+        }
+        const parseImages = (row: any) => {
+          try {
+            const imgs = typeof row.images === 'string' ? JSON.parse(row.images || '[]') : (row.images || []);
+            return { ...row, images: Array.isArray(imgs) ? imgs : [] };
+          } catch {
+            return { ...row, images: [] };
+          }
+        };
+        if (request.method === 'GET') {
+          let listings: any[] = [];
+          if (env.DB) {
+            const q = (url.searchParams.get('q') || '').trim();
+            const category = (url.searchParams.get('category') || '').trim();
+            const status = (url.searchParams.get('status') || 'active').trim();
+            const conds: string[] = [];
+            const vals: any[] = [];
+            if (status && status !== 'all') { conds.push('status = ?'); vals.push(status); }
+            if (category && category !== 'all') { conds.push('category = ?'); vals.push(category); }
+            if (q) {
+              const like = `%${q}%`;
+              conds.push('(title LIKE ? OR description LIKE ? OR city LIKE ? OR church_name LIKE ?)');
+              vals.push(like, like, like, like);
+            }
+            const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+            const stmt = env.DB.prepare(`SELECT * FROM marketplace_listings ${where} ORDER BY created_at DESC LIMIT 100`).bind(...vals);
+            const { results } = await stmt.all();
+            listings = (results || []).map(parseImages);
+          }
+          return jsonResponse({ success: true, listings });
+        }
+
+        if (request.method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const title = (body.title || '').trim();
+          if (!title) {
+            return jsonResponse({ success: false, error: 'Title is required' }, 400);
+          }
+          const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `mkt_${Date.now()}`);
+          const auth = getAuthIdentity(request);
+          const images = Array.isArray(body.images) ? body.images.slice(0, 6) : [];
+          const row = {
+            id,
+            title,
+            description: body.description || '',
+            price: body.price || '',
+            category: body.category || 'other',
+            images: JSON.stringify(images),
+            address: body.address || '',
+            city: body.city || '',
+            phone: body.phone || '',
+            church_id: body.church_id || '',
+            church_name: body.church_name || '',
+            seller_id: body.seller_id || auth.id || null,
+            seller_name: body.seller_name || '',
+            seller_avatar: body.seller_avatar || '',
+            status: 'active',
+            created_at: new Date().toISOString(),
+          };
+          if (env.DB) {
+            await env.DB.prepare(`
+              INSERT INTO marketplace_listings (id, title, description, price, category, images, address, city, phone, church_id, church_name, seller_id, seller_name, seller_avatar, status, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(row.id, row.title, row.description, row.price, row.category, row.images, row.address, row.city, row.phone, row.church_id, row.church_name, row.seller_id, row.seller_name, row.seller_avatar, row.status, row.created_at).run();
+          }
+          return jsonResponse({ success: true, listing: { ...row, images } }, 201);
+        }
+      }
+
+      // Single Marketplace Listing (/api/marketplace/:id)
+      if (url.pathname.startsWith('/api/marketplace/')) {
+        const listingId = decodeURIComponent(url.pathname.replace('/api/marketplace/', '').trim());
+        if (listingId && !listingId.includes('/')) {
+          if (env.DB) {
+            try {
+              await env.DB.exec(`CREATE TABLE IF NOT EXISTS marketplace_listings (
+                id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '',
+                price TEXT DEFAULT '', category TEXT DEFAULT 'other', images TEXT DEFAULT '[]',
+                address TEXT DEFAULT '', city TEXT DEFAULT '', phone TEXT DEFAULT '',
+                church_id TEXT DEFAULT '', church_name TEXT DEFAULT '',
+                seller_id TEXT, seller_name TEXT DEFAULT '', seller_avatar TEXT DEFAULT '',
+                status TEXT DEFAULT 'active',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+            } catch (ctErr) {
+              console.warn('[marketplace] ensure table notice:', ctErr);
+            }
+          }
+          const parseImages = (row: any) => {
+            try {
+              const imgs = typeof row.images === 'string' ? JSON.parse(row.images || '[]') : (row.images || []);
+              return { ...row, images: Array.isArray(imgs) ? imgs : [] };
+            } catch {
+              return { ...row, images: [] };
+            }
+          };
+          if (request.method === 'GET') {
+            let listing: any = null;
+            if (env.DB) {
+              listing = await env.DB.prepare('SELECT * FROM marketplace_listings WHERE id = ?').bind(listingId).first();
+            }
+            if (!listing) return jsonResponse({ success: false, error: 'Listing not found' }, 404);
+            return jsonResponse({ success: true, listing: parseImages(listing) });
+          }
+          if (request.method === 'PATCH') {
+            const body: any = await request.json().catch(() => ({}));
+            const auth = getAuthIdentity(request);
+            let existing: any = null;
+            if (env.DB) {
+              existing = await env.DB.prepare('SELECT * FROM marketplace_listings WHERE id = ?').bind(listingId).first();
+            }
+            if (!existing) return jsonResponse({ success: false, error: 'Listing not found' }, 404);
+            const isOwner = auth.id && existing.seller_id && auth.id === existing.seller_id;
+            if (!isOwner && !auth.isAdmin) {
+              return jsonResponse({ success: false, error: 'Not authorized to edit this listing' }, 403);
+            }
+            const fields = ['title', 'description', 'price', 'category', 'address', 'city', 'phone', 'church_id', 'church_name', 'status'];
+            const sets: string[] = [];
+            const vals: any[] = [];
+            for (const f of fields) {
+              if (body[f] !== undefined) {
+                sets.push(`${f} = ?`);
+                vals.push(body[f]);
+              }
+            }
+            if (body.images !== undefined && Array.isArray(body.images)) {
+              sets.push('images = ?');
+              vals.push(JSON.stringify(body.images.slice(0, 6)));
+            }
+            if (sets.length && env.DB) {
+              await env.DB.prepare(`UPDATE marketplace_listings SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, listingId).run();
+            }
+            let updated: any = existing;
+            if (env.DB) {
+              updated = await env.DB.prepare('SELECT * FROM marketplace_listings WHERE id = ?').bind(listingId).first();
+            }
+            return jsonResponse({ success: true, listing: updated ? parseImages(updated) : updated });
+          }
+          if (request.method === 'DELETE') {
+            const auth = getAuthIdentity(request);
+            let existing: any = null;
+            if (env.DB) {
+              existing = await env.DB.prepare('SELECT * FROM marketplace_listings WHERE id = ?').bind(listingId).first();
+            }
+            if (!existing) return jsonResponse({ success: false, error: 'Listing not found' }, 404);
+            const isOwner = auth.id && existing.seller_id && auth.id === existing.seller_id;
+            if (!isOwner && !auth.isAdmin) {
+              return jsonResponse({ success: false, error: 'Not authorized to delete this listing' }, 403);
+            }
+            if (env.DB) {
+              await env.DB.prepare('DELETE FROM marketplace_listings WHERE id = ?').bind(listingId).run();
+            }
+            return jsonResponse({ success: true, id: listingId, message: 'Listing deleted successfully.' });
+          }
+        }
+      }
+
       // 7. Events Endpoints (/api/events and /api/events/:id)
       if (url.pathname === '/api/events' || url.pathname === '/api/events/') {
         if (request.method === 'GET') {

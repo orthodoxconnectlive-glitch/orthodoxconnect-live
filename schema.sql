@@ -134,6 +134,28 @@ CREATE TABLE IF NOT EXISTS churches (
 
 CREATE INDEX IF NOT EXISTS idx_churches_name ON churches(name);
 
+CREATE TABLE IF NOT EXISTS marketplace_listings (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  price TEXT DEFAULT '',
+  category TEXT DEFAULT 'other',
+  images TEXT DEFAULT '[]',
+  address TEXT DEFAULT '',
+  city TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  church_id TEXT DEFAULT '',
+  church_name TEXT DEFAULT '',
+  seller_id TEXT,
+  seller_name TEXT DEFAULT '',
+  seller_avatar TEXT DEFAULT '',
+  status TEXT DEFAULT 'active',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_marketplace_created ON marketplace_listings(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_marketplace_category ON marketplace_listings(category);
+
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,

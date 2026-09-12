@@ -1332,6 +1332,7 @@ export default {
       // 6c. Marketplace Endpoints (/api/marketplace)
       if (url.pathname === '/api/marketplace' || url.pathname === '/api/marketplace/') {
         // Bulletproof: ensure the table exists on the request path itself.
+        let mktTableError: string | null = null;
         if (env.DB) {
           try {
             await env.DB.exec(`CREATE TABLE IF NOT EXISTS marketplace_listings (
@@ -1343,7 +1344,14 @@ export default {
               status TEXT DEFAULT 'active',
               created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
           } catch (ctErr) {
+            mktTableError = (ctErr as any)?.message || String(ctErr);
             console.warn('[marketplace] ensure table notice:', ctErr);
+          }
+          // Verify the table actually exists; surface the creation error if not.
+          try {
+            await env.DB.prepare(`SELECT 1 FROM marketplace_listings LIMIT 1`).all();
+          } catch (vErr) {
+            if (!mktTableError) mktTableError = 'create appeared to succeed but table still missing: ' + (((vErr as any)?.message) || String(vErr));
           }
         }
         const parseImages = (row: any) => {
@@ -1371,10 +1379,19 @@ export default {
             }
             const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
             const stmt = env.DB.prepare(`SELECT * FROM marketplace_listings ${where} ORDER BY created_at DESC LIMIT 100`).bind(...vals);
-            const { results } = await stmt.all();
-            listings = (results || []).map(parseImages);
+            try {
+              const { results } = await stmt.all();
+              listings = (results || []).map(parseImages);
+            } catch (qErr) {
+              const getResp: any = { success: false, error: ((qErr as any)?.message) || String(qErr) };
+              if (mktTableError) getResp._tableError = mktTableError;
+              else getResp._tableError = 'CREATE TABLE did not throw, but table is still missing (verify query failed).';
+              return jsonResponse(getResp, 500);
+            }
           }
-          return jsonResponse({ success: true, listings });
+          const getResp: any = { success: true, listings };
+          if (mktTableError) getResp._tableError = mktTableError;
+          return jsonResponse(getResp);
         }
 
         if (request.method === 'POST') {

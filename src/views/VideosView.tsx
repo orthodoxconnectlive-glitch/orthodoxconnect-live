@@ -97,14 +97,25 @@ export const VideosView: React.FC<VideosViewProps> = ({
     fetchVideosList();
   }, []);
 
+  // Fisher-Yates shuffle so the For You feed starts on a different video each visit
+  const shuffleVideos = (arr: Post[]): Post[] => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
   const fetchVideosList = async () => {
     setLoading(true);
     const loadedVideos = await loadVideos();
-    setVideos(loadedVideos);
+    const shuffled = shuffleVideos(loadedVideos);
+    setVideos(shuffled);
 
-    // Set first video as active playing video
-    if (loadedVideos.length > 0 && !activePlayingId) {
-      setActivePlayingId(loadedVideos[0].id);
+    // Set first video (shuffled) as active playing video
+    if (shuffled.length > 0 && !activePlayingId) {
+      setActivePlayingId(shuffled[0].id);
     }
 
     // Read cached likes and comments

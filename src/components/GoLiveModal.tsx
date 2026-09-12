@@ -126,8 +126,20 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
 
   // Ensure video element receives stream whenever mediaStream changes
   useEffect(() => {
-    if (videoPreviewRef.current && mediaStream) {
-      videoPreviewRef.current.srcObject = mediaStream;
+    const video = videoPreviewRef.current;
+    if (video && mediaStream) {
+      // Set muted via DOM property — JSX muted attr is unreliable and blocks autoplay.
+      try { video.muted = true; } catch (e) {}
+      if (video.srcObject !== mediaStream) {
+        video.srcObject = mediaStream;
+      }
+      const tryPlay = () => video.play().catch(() => {});
+      if (video.readyState >= 1) {
+        tryPlay();
+      } else {
+        const onLoaded = () => { tryPlay(); video.removeEventListener('loadedmetadata', onLoaded); };
+        video.addEventListener('loadedmetadata', onLoaded);
+      }
     }
   }, [mediaStream]);
 

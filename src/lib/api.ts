@@ -330,6 +330,14 @@ export const liveStreamsApi = {
     });
     return res.stream;
   },
+
+  async update(id: string, patch: any): Promise<any> {
+    const res = await apiFetch<{ stream: any }>(`/api/live-streams/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+    return res.stream;
+  },
 };
 
 /* =========================================================

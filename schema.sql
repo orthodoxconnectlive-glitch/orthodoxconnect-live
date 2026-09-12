@@ -147,6 +147,8 @@ CREATE TABLE IF NOT EXISTS live_streams (
   media_url TEXT NOT NULL,
   is_live INTEGER DEFAULT 1,
   viewers_count INTEGER DEFAULT 1,
+  ended_at TEXT,
+  replay_guid TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

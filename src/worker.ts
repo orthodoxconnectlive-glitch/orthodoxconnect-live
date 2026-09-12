@@ -214,6 +214,8 @@ export async function ensureD1Tables(db?: D1Database) {
         media_url TEXT NOT NULL,
         is_live INTEGER DEFAULT 1,
         viewers_count INTEGER DEFAULT 1,
+        ended_at TEXT,
+        replay_guid TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
@@ -315,6 +317,26 @@ export async function ensureD1Tables(db?: D1Database) {
       }
     } catch (notifMigErr) {
       console.warn('[ensureD1Tables] notifications migration notice:', notifMigErr);
+    }
+    try {
+      // Live stream replay columns (ended_at, replay_guid)
+      const requiredStreamCols: Array<[string, string]> = [
+        ['ended_at', 'TEXT'],
+        ['replay_guid', 'TEXT'],
+      ];
+      for (const [colName, colDef] of requiredStreamCols) {
+        try {
+          await db.exec(`ALTER TABLE live_streams ADD COLUMN ${colName} ${colDef}`);
+        } catch (colErr: any) {
+          const colMsg = String((colErr && colErr.message) || colErr || '');
+          if (!/duplicate column/i.test(colMsg)) {
+            throw colErr;
+          }
+          // Column already exists - nothing to do.
+        }
+      }
+    } catch (streamMigErr) {
+      console.warn('[ensureD1Tables] live_streams migration notice:', streamMigErr);
     }
     d1TablesInitialized = true;
   } catch (e) {
@@ -1142,6 +1164,29 @@ export default {
           }
           return jsonResponse({ success: true, message: 'Event deleted successfully.' });
         }
+      }
+
+      // 8b. Live Stream item endpoint (PATCH /api/live-streams/:id)
+      // Used to end a broadcast and attach the saved replay recording.
+      if (url.pathname.startsWith('/api/live-streams/') && request.method === 'PATCH') {
+        const streamId = decodeURIComponent(url.pathname.slice('/api/live-streams/'.length)).split('/')[0];
+        const body: any = await request.json().catch(() => ({}));
+        if (!env.DB) {
+          return jsonResponse({ success: false, error: 'Database unavailable' }, 500);
+        }
+        const updates: string[] = [];
+        const vals: any[] = [];
+        if (body.is_live !== undefined) { updates.push('is_live = ?'); vals.push(body.is_live ? 1 : 0); }
+        if (body.ended_at !== undefined) { updates.push('ended_at = ?'); vals.push(body.ended_at); }
+        if (body.replay_guid !== undefined) { updates.push('replay_guid = ?'); vals.push(body.replay_guid); }
+        if (body.viewers_count !== undefined) { updates.push('viewers_count = ?'); vals.push(body.viewers_count); }
+        if (body.title !== undefined) { updates.push('title = ?'); vals.push(body.title); }
+        if (updates.length > 0) {
+          vals.push(streamId);
+          await env.DB.prepare(`UPDATE live_streams SET ${updates.join(', ')} WHERE id = ?`).bind(...vals).run();
+        }
+        const row = await env.DB.prepare('SELECT * FROM live_streams WHERE id = ?').bind(streamId).first();
+        return jsonResponse({ success: true, stream: row });
       }
 
       // 8. Live Streams Endpoints (/api/live-streams)

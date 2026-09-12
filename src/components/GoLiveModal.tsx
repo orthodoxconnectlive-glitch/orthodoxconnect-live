@@ -13,6 +13,7 @@ export interface StreamData {
   videoUrl?: string;
   mediaStream?: MediaStream | null;
   isWebcam?: boolean;
+  recordId?: string | null;
 }
 
 interface GoLiveModalProps {
@@ -177,7 +178,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     }
 
     try {
-      await liveStreamsApi.create({
+      const created = await liveStreamsApi.create({
         title: streamPayload.title,
         host_parish: streamPayload.host_parish,
         media_url: streamPayload.media_url,
@@ -185,6 +186,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
         is_live: true,
         created_at: new Date().toISOString(),
       });
+      streamPayload.recordId = (created as any)?.id || null;
 
       // Dispatch live stream notification to all users
       addNotification({

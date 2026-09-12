@@ -4,6 +4,8 @@ import { BunnyPlayer } from '../components/BunnyPlayer';
 import { ParishLiveChat } from '../components/ParishLiveChat';
 import { GoLiveModal, StreamData } from '../components/GoLiveModal';
 import { liveStreamsApi } from '../lib/api';
+import { uploadVideoToBunnyStream, BUNNY_LIBRARY_ID } from '../utils/storage';
+import { savePost } from '../utils/posts';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -15,6 +17,7 @@ interface LiveStreamItem {
   viewers: number;
   videoUrl: string;
   isLive: boolean;
+  replayGuid?: string | null;
 }
 
 const INITIAL_STREAMS_EN: LiveStreamItem[] = [
@@ -141,6 +144,17 @@ export const LiveBroadcastView: React.FC = () => {
   const [isUserBroadcasting, setIsUserBroadcasting] = useState<boolean>(false);
   const playerRef = useRef<HTMLVideoElement | null>(null);
 
+  // Live recording (saved as replay when the broadcast ends)
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const broadcastLocalIdRef = useRef<string | null>(null);
+  const broadcastRecordIdRef = useRef<string | null>(null);
+  const broadcastTitleRef = useRef<string>('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [isSavingReplay, setIsSavingReplay] = useState(false);
+  const [saveProgress, setSaveProgress] = useState(0);
+  const [saveStatus, setSaveStatus] = useState('');
+
   useEffect(() => {
     return () => {
       if (playerRef.current) {
@@ -186,15 +200,26 @@ export const LiveBroadcastView: React.FC = () => {
         const data = await liveStreamsApi.getAll();
 
         if (data && data.length > 0) {
-          const mapped: LiveStreamItem[] = data.map((row) => ({
-            id: row.id || `stream-${Date.now()}`,
-            title: row.title || (language === 'ar' ? 'خدمة الرعية المباشرة' : 'Parish Live Service'),
-            parish: row.host_parish || row.parish || (language === 'ar' ? 'الكنيسة الأرثوذكسية' : 'Orthodox Church'),
-            priestName: row.priest_name || (language === 'ar' ? 'الكاهن الخادم' : 'Priest / Host'),
-            viewers: row.viewers_count || row.viewers || 1,
-            videoUrl: row.media_url || row.video_url || row.videoUrl || 'https://iframe.mediadelivery.net/embed/713265/preview-stream',
-            isLive: row.is_live ?? true,
-          }));
+          const mapped: LiveStreamItem[] = data.map((row) => {
+            const live = Boolean(row.is_live ?? true);
+            const replayGuid = row.replay_guid || null;
+            let videoUrl =
+              row.media_url || row.video_url || row.videoUrl || 'https://iframe.mediadelivery.net/embed/713265/preview-stream';
+            if (!live && replayGuid) {
+              const libId = BUNNY_LIBRARY_ID || '713265';
+              videoUrl = `https://iframe.mediadelivery.net/embed/${libId}/${replayGuid}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`;
+            }
+            return {
+              id: row.id || `stream-${Date.now()}`,
+              title: row.title || (language === 'ar' ? 'خدمة الرعية المباشرة' : 'Parish Live Service'),
+              parish: row.host_parish || row.parish || (language === 'ar' ? 'الكنيسة الأرثوذكسية' : 'Orthodox Church'),
+              priestName: row.priest_name || (language === 'ar' ? 'الكاهن الخادم' : 'Priest / Host'),
+              viewers: row.viewers_count || row.viewers || 1,
+              videoUrl,
+              isLive: live,
+              replayGuid,
+            };
+          });
 
           setStreams((prev) => {
             const combined = [...mapped];
@@ -215,8 +240,34 @@ export const LiveBroadcastView: React.FC = () => {
 
   const activeStream = streams.find((s) => s.id === activeStreamId) || streams[0] || defaultStreams[0];
 
+  const startRecording = (stream: MediaStream) => {
+    try {
+      if (typeof MediaRecorder === 'undefined') return;
+      const mime =
+        ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((m) => {
+          try { return MediaRecorder.isTypeSupported(m); } catch { return false; }
+        }) || '';
+      const rec = new MediaRecorder(
+        stream,
+        mime ? { mimeType: mime, videoBitsPerSecond: 2500000 } : undefined
+      );
+      recordedChunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      rec.start(5000);
+      recorderRef.current = rec;
+      setIsRecording(true);
+    } catch (err) {
+      console.warn('[LiveBroadcast] recorder init failed:', err);
+    }
+  };
+
   const handleStartStream = (data: StreamData, mediaStream?: MediaStream | null) => {
     const newStreamId = 'stream-' + Date.now();
+    broadcastLocalIdRef.current = newStreamId;
+    broadcastRecordIdRef.current = data.recordId || null;
+    broadcastTitleRef.current = data.title;
     const newStream: LiveStreamItem = {
       id: newStreamId,
       title: data.title,
@@ -229,6 +280,7 @@ export const LiveBroadcastView: React.FC = () => {
 
     if (mediaStream) {
       setActiveWebcamStream(mediaStream);
+      startRecording(mediaStream);
     }
     setIsUserBroadcasting(true);
 
@@ -247,6 +299,9 @@ export const LiveBroadcastView: React.FC = () => {
 
     setIsSubmittingLink(true);
     const newStreamId = 'stream-' + Date.now();
+    broadcastLocalIdRef.current = newStreamId;
+    broadcastRecordIdRef.current = newStreamId;
+    broadcastTitleRef.current = linkTitle.trim();
 
     // Standardize YouTube URLs into embed links if applicable
     let finalUrl = linkUrl.trim();
@@ -325,7 +380,26 @@ export const LiveBroadcastView: React.FC = () => {
     showToast(language === 'ar' ? 'تم حذف البث بنجاح.' : 'Broadcast deleted successfully.');
   };
 
-  const handleEndBroadcast = () => {
+  const handleEndBroadcast = async () => {
+    const endedLocalId = broadcastLocalIdRef.current;
+    const recordId = broadcastRecordIdRef.current;
+    const endedTitle = broadcastTitleRef.current;
+
+    // Stop the recorder and collect the recording (if any)
+    const rec = recorderRef.current;
+    recorderRef.current = null;
+    setIsRecording(false);
+    if (rec) {
+      await new Promise<void>((resolve) => {
+        const done = () => resolve();
+        try {
+          rec.onstop = done;
+          rec.stop();
+        } catch (e) { done(); }
+        setTimeout(done, 3000);
+      });
+    }
+
     if (activeWebcamStream) {
       try {
         activeWebcamStream.getTracks().forEach((t) => t.stop());
@@ -333,6 +407,89 @@ export const LiveBroadcastView: React.FC = () => {
       setActiveWebcamStream(null);
     }
     setIsUserBroadcasting(false);
+
+    // Not our broadcast (e.g. local camera preview) — nothing to save.
+    if (!endedLocalId) {
+      showToast(language === 'ar' ? 'تم إنهاء البث المباشر.' : 'Live broadcast ended.');
+      return;
+    }
+
+    let replayGuid: string | null = null;
+    const chunks = recordedChunksRef.current;
+    recordedChunksRef.current = [];
+    broadcastLocalIdRef.current = null;
+    broadcastRecordIdRef.current = null;
+
+    // Upload the recording to Bunny Stream and publish it as a video replay
+    if (chunks.length > 0) {
+      try {
+        setIsSavingReplay(true);
+        setSaveProgress(0);
+        setSaveStatus(language === 'ar' ? 'جارٍ تجهيز التسجيل...' : 'Preparing recording...');
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const file = new File([blob], `live-replay-${Date.now()}.webm`, { type: 'video/webm' });
+        const guid = await uploadVideoToBunnyStream(
+          file,
+          `📡 ${endedTitle || (language === 'ar' ? 'بث مباشر' : 'Live Broadcast')} (${language === 'ar' ? 'إعادة' : 'Replay'})`,
+          (percent) => {
+            setSaveProgress(percent);
+            setSaveStatus(
+              language === 'ar' ? `جارٍ رفع التسجيل (${percent}%)...` : `Uploading replay (${percent}%)...`
+            );
+          }
+        );
+        replayGuid = guid;
+        setSaveStatus(language === 'ar' ? 'جارٍ نشر الإعادة...' : 'Publishing replay...');
+        await savePost({
+          text: `📡 ${endedTitle || (language === 'ar' ? 'بث مباشر' : 'Live Broadcast')} — ${language === 'ar' ? 'إعادة البث المباشر' : 'Live stream replay'}`,
+          authorName: profile?.full_name || (language === 'ar' ? 'الكاهن / مقدم الخدمة' : 'Priest / Host'),
+          authorParish: profile?.parish || (language === 'ar' ? 'الرعية الأرثوذكسية' : 'Orthodox Parish'),
+          authorAvatar: profile?.avatar_url,
+          authorId: profile?.id,
+          video_id: guid,
+          video: guid,
+        });
+        showToast(language === 'ar' ? 'تم حفظ التسجيل في مقاطع الفيديو.' : 'Replay saved to Videos.');
+      } catch (err) {
+        console.warn('[LiveBroadcast] replay save failed:', err);
+        showToast(language === 'ar' ? 'تعذر حفظ التسجيل.' : 'Could not save the recording.');
+      } finally {
+        setIsSavingReplay(false);
+        setSaveProgress(0);
+        setSaveStatus('');
+      }
+    }
+
+    // Mark the live stream record as ended (and attach the replay)
+    if (recordId) {
+      try {
+        await liveStreamsApi.update(recordId, {
+          is_live: false,
+          ended_at: new Date().toISOString(),
+          replay_guid: replayGuid,
+        });
+      } catch (err) {
+        console.warn('[LiveBroadcast] failed to mark stream ended:', err);
+      }
+    }
+
+    // Update the local list: ended stream plays its replay when tapped
+    setStreams((prev) => {
+      const updated = prev.map((item) => {
+        if (item.id !== endedLocalId) return item;
+        let videoUrl = item.videoUrl;
+        if (replayGuid) {
+          const libId = BUNNY_LIBRARY_ID || '713265';
+          videoUrl = `https://iframe.mediadelivery.net/embed/${libId}/${replayGuid}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`;
+        }
+        return { ...item, isLive: false, replayGuid: replayGuid || item.replayGuid || null, videoUrl };
+      });
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
     showToast(language === 'ar' ? 'تم إنهاء البث المباشر.' : 'Live broadcast ended.');
   };
 
@@ -362,14 +519,41 @@ export const LiveBroadcastView: React.FC = () => {
         </div>
       )}
 
+      {/* Saving replay overlay */}
+      {isSavingReplay && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-stone-950 border border-amber-500/40 p-6 text-center shadow-2xl">
+            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-amber-500/10 border border-amber-500/40 flex items-center justify-center">
+              <span className="w-4 h-4 rounded-full bg-red-500 animate-ping" />
+            </div>
+            <h3 className="font-serif font-bold text-amber-100 mb-1">
+              {language === 'ar' ? 'جارٍ حفظ التسجيل' : 'Saving recording'}
+            </h3>
+            <p className="text-xs text-stone-400 mb-4">{saveStatus}</p>
+            <div className="h-2.5 rounded-full bg-stone-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all"
+                style={{ width: `${saveProgress}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-amber-300/80 mt-2 font-mono">{saveProgress}%</p>
+          </div>
+        </div>
+      )}
+
       {/* Active Broadcast Control Banner */}
       {isUserBroadcasting && (
         <div className="p-4 rounded-2xl bg-red-950/90 border-2 border-red-500 shadow-2xl flex items-center justify-between gap-4 animate-pulse">
           <div className="flex items-center gap-3">
             <span className="w-4 h-4 rounded-full bg-red-500 animate-ping" />
             <div>
-              <h3 className="font-serif font-bold text-sm text-red-100 uppercase tracking-wider">
+              <h3 className="font-serif font-bold text-sm text-red-100 uppercase tracking-wider flex items-center gap-2">
                 {t('youAreBroadcasting')}
+                {isRecording && (
+                  <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold tracking-widest animate-pulse">
+                    ● {language === 'ar' ? 'تسجيل' : 'REC'}
+                  </span>
+                )}
               </h3>
               <p className="text-xs text-red-200/80">
                 {t('broadcastingSub')}

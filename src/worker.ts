@@ -189,6 +189,7 @@ export async function ensureD1Tables(db?: D1Database) {
       CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
         sender_id TEXT NOT NULL,
+        sender_name TEXT,
         receiver_id TEXT NOT NULL,
         content TEXT NOT NULL DEFAULT '',
         image_url TEXT,
@@ -1056,6 +1057,7 @@ export default {
         if (env.DB) {
           const missingCols = [
             'receiver_id TEXT',
+            'sender_name TEXT',
             "content TEXT NOT NULL DEFAULT ''",
             'image_url TEXT',
             'video_url TEXT',
@@ -1121,16 +1123,25 @@ export default {
             return jsonResponse({ success: false, error: 'sender_id and receiver_id are required' }, 400);
           }
 
+          // Ancient messages tables have NOT NULL sender_name; resolve it.
+          let senderName = body.sender_name || body.senderName || '';
+          if (!senderName && env.DB && senderId) {
+            try {
+              const prof: any = await env.DB.prepare('SELECT full_name FROM profiles WHERE id = ?').bind(senderId).first();
+              senderName = prof?.full_name || '';
+            } catch (e) { /* keep empty string */ }
+          }
+
           if (env.DB) {
             await env.DB.prepare(`
-              INSERT INTO messages (id, sender_id, receiver_id, content, image_url, video_url, audio_url, is_read, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
-            `).bind(id, senderId, receiverId, content, imageUrl, videoUrl, audioUrl, createdAt).run();
+              INSERT INTO messages (id, sender_id, sender_name, receiver_id, content, image_url, video_url, audio_url, is_read, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+            `).bind(id, senderId, senderName, receiverId, content, imageUrl, videoUrl, audioUrl, createdAt).run();
           }
 
           return jsonResponse({
             success: true,
-            message: { id, sender_id: senderId, receiver_id: receiverId, content, image_url: imageUrl, video_url: videoUrl, audio_url: audioUrl, created_at: createdAt },
+            message: { id, sender_id: senderId, sender_name: senderName, receiver_id: receiverId, content, image_url: imageUrl, video_url: videoUrl, audio_url: audioUrl, created_at: createdAt },
           }, 201);
         }
       }

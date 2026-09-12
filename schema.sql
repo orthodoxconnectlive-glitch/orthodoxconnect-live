@@ -86,6 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_post_comments_created_at ON post_comments(created
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
   sender_id TEXT NOT NULL,
+  sender_name TEXT,
   receiver_id TEXT NOT NULL,
   content TEXT NOT NULL DEFAULT '',
   image_url TEXT,

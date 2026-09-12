@@ -2324,6 +2324,29 @@ export default {
             ).bind(id, recipientId, actorId, actorName, actorAvatar, type, title, notifBody, postId, link, isRead, createdAt).run();
           }
 
+          // Phone-top Web Push to the recipient's devices (like Instagram/Facebook).
+          // Fires for every notification type: messages, blessings, comments, etc.
+          if (recipientId && recipientId !== 'all' && env.DB) {
+            try {
+              const { results } = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?').bind(recipientId).all();
+              const subs = results || [];
+              if (subs.length > 0) {
+                const pushPayload = {
+                  type,
+                  title,
+                  body: notifBody || title,
+                  icon: actorAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+                  data: { url: '/', notifType: type, link: link || undefined },
+                };
+                for (const s of subs as any[]) {
+                  if (s && s.endpoint && s.p256dh && s.auth) {
+                    await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
+                  }
+                }
+              }
+            } catch (e) { console.warn('[notifications] push failed:', (e as any)?.message || e); }
+          }
+
           return jsonResponse({ success: true, notification: { id, recipient_id: recipientId, actor_name: actorName, title, body: notifBody, created_at: createdAt } }, 201);
         }
       }

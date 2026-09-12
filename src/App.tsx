@@ -135,6 +135,9 @@ function AppContent() {
 
   const handleOpenMessengerWithUser = (contactId?: string) => {
     setActiveMessengerContactId(contactId);
+    try {
+      if (contactId) localStorage.setItem('orthodox_active_contact_id', contactId);
+    } catch (e) {}
     setCurrentView('messages');
   };
 

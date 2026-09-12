@@ -167,7 +167,13 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   const [showRightSidebar, setShowRightSidebar] = useState(true);
   const [activeEmoji, setActiveEmoji] = useState('👍');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [isMobileChatOpen, setIsMobileChatOpen] = useState<boolean>(!!initialContactId);
+  const [isMobileChatOpen, setIsMobileChatOpen] = useState<boolean>(() => {
+    try {
+      return !!(initialContactId || localStorage.getItem('orthodox_active_contact_id'));
+    } catch (e) {
+      return !!initialContactId;
+    }
+  });
 
   const [activeContact, setActiveContact] = useState<ChatContact | null>(() => {
     const savedContactId = initialContactId || localStorage.getItem('orthodox_active_contact_id');
@@ -182,6 +188,27 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     }
     return null;
   });
+
+  // Safety net: if we mounted without a contact but localStorage has one, restore it.
+  // (Covers cases where the prop was empty but a previous selection was saved.)
+  useEffect(() => {
+    if (!activeContact) {
+      try {
+        const savedId = localStorage.getItem('orthodox_active_contact_id');
+        if (savedId) {
+          setActiveContact({
+            id: savedId,
+            name: 'Parish Member',
+            parish: 'Orthodox Fellowship',
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+            isOnline: true,
+          });
+          setIsMobileChatOpen(true);
+        }
+      } catch (e) {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     async function loadRealContacts() {
@@ -230,7 +257,9 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
 
           if (mapped.length > 0) {
             setActiveContact((curr) => {
-              if (!curr) return mapped[0];
+              // Never auto-open the first contact — if there's no saved contact,
+              // leave it null so the user sees the contact list (not Load Test 0001)
+              if (!curr) return null;
               const found = mapped.find((m) => m.id === curr.id);
               if (found) return found;
               return {

@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
+/* Class-based dark mode: `dark:` utilities respond to the .dark class
+   set by ThemeContext (not the OS preference). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
@@ -11,50 +15,173 @@
   }
 }
 
-/* Theme Ancient / Parchment Mode */
-.theme-ancient {
-  --bg-main: #eddcb9;
-  --bg-card: #f6ebd6;
-  --bg-card-alt: #e6d3ab;
-  --border-gold: #c5a059;
-  --border-gold-dark: #a8833c;
-  --text-primary: #3d2b18;
-  --text-muted: #7c5f3d;
-  --accent-gold: #a8833c;
-  background-color: var(--bg-main);
-  color: var(--text-primary);
+/* ------------------------------------------------------------------ */
+/* Theme tokens. Components use bg-(--bg-card), text-(--tx-strong) etc. */
+/* so Light / Dark / Ancient each fully re-skin the app.               */
+/* ------------------------------------------------------------------ */
+
+/* ---- Light: clean, normal ---- */
+.theme-light {
+  --bg-page: #f5f4f1;
+  --bg-soft: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hi: #ffffff;
+  --bg-inset: #edecea;
+  --bg-inset2: #f1efe9;
+  --bg-deep: #e2dfd6;
+  --tx-strong: #292524;
+  --tx-head: #44403c;
+  --tx-mute: #78716c;
+  --tx-soft: #78716c;
+  --tx-body: #292524;
+  --tx-ink: #1c1917;
+  --tx-faint: #57534e;
+  --tx-ph-dark: #a8a29e;
+  --ln-gold: #e5e2da;
+  --ln-bright: #e5e2da;
+  --ln-bronze: #d6d3d1;
+  --ln-light: #f5f5f4;
+  --ln-soft: #e5e2da;
+  --ac-gold: #c5a059;
+  --ac-gold-tx: #b45309;
+  --ac-bronze: #a8833c;
+  --ac-bronze-tx: #92400e;
+  --ac-bright: #d4af37;
+  --ac-bright-tx: #a16207;
+  --ac-bronze-dk: #8f6e30;
+  --ac-gold-deep: #b08b43;
+  --ac-bright-dk: #b89528;
+  --chip-dark: #292524;
+  --chip-light: #fafaf9;
+  background-color: var(--bg-page);
+  color: var(--tx-strong);
 }
 
+/* ---- Dark: deep warm charcoal ---- */
+.theme-dark, .dark {
+  --bg-page: #0f0c09;
+  --bg-soft: #1c1611;
+  --bg-card: #1c1611;
+  --bg-card-hi: #241c15;
+  --bg-inset: #282019;
+  --bg-inset2: #282019;
+  --bg-deep: #382b20;
+  --tx-strong: #f5ebd9;
+  --tx-head: #f5ebd9;
+  --tx-mute: #a89379;
+  --tx-soft: #a89379;
+  --tx-body: #e8dcc4;
+  --tx-ink: #f5ebd9;
+  --tx-faint: #8a7a63;
+  --tx-ph-dark: #a89379;
+  --ln-gold: #8b6b4a;
+  --ln-bright: #d4af37;
+  --ln-bronze: #8b6b4a;
+  --ln-light: #f5ebd9;
+  --ln-soft: #8b6b4a;
+  --ac-gold: #c5a059;
+  --ac-gold-tx: #c5a059;
+  --ac-bronze: #a8833c;
+  --ac-bronze-tx: #d4af37;
+  --ac-bright: #d4af37;
+  --ac-bright-tx: #d4af37;
+  --ac-bronze-dk: #8f6e30;
+  --ac-gold-deep: #b08b43;
+  --ac-bright-dk: #b89528;
+  --chip-dark: #3d2b18;
+  --chip-light: #eedcb5;
+  background-color: var(--bg-page);
+  color: var(--tx-strong);
+}
+
+/* ---- Ancient: like a manuscript from Jesus' time ----
+   Aged papyrus, burnt bronze, olive clay; inscriptional serif. */
+.theme-ancient {
+  --bg-page: #c8a76f;
+  --bg-soft: #d9c08c;
+  --bg-card: #dfc795;
+  --bg-card-hi: #e6d1a1;
+  --bg-inset: #cdb17c;
+  --bg-inset2: #d3b87f;
+  --bg-deep: #bd9c60;
+  --tx-strong: #2a1c0d;
+  --tx-head: #3a2412;
+  --tx-mute: #6b4a26;
+  --tx-soft: #75552e;
+  --tx-body: #33240f;
+  --tx-ink: #241708;
+  --tx-faint: #5c452a;
+  --tx-ph-dark: #8a6f45;
+  --ln-gold: #8a6a34;
+  --ln-bright: #a07c2c;
+  --ln-bronze: #7c5a24;
+  --ln-light: #e6d1a1;
+  --ln-soft: #8a6a34;
+  --ac-gold: #8a6a34;
+  --ac-gold-tx: #6e521f;
+  --ac-bronze: #7c5a24;
+  --ac-bronze-tx: #5f451b;
+  --ac-bright: #a07c2c;
+  --ac-bright-tx: #7c5f1e;
+  --ac-bronze-dk: #5f451b;
+  --ac-gold-deep: #8a6a34;
+  --ac-bright-dk: #8a6a1f;
+  --chip-dark: #2a1c0d;
+  --chip-light: #e6d1a1;
+  background-color: var(--bg-page);
+  /* papyrus fibers + aged blotches */
+  background-image:
+    repeating-linear-gradient(0deg, rgba(120, 85, 40, 0.055) 0 2px, transparent 2px 5px),
+    repeating-linear-gradient(90deg, rgba(120, 85, 40, 0.045) 0 3px, transparent 3px 7px),
+    radial-gradient(ellipse at 18% 8%, rgba(255, 240, 200, 0.28), transparent 55%),
+    radial-gradient(ellipse at 85% 92%, rgba(90, 60, 25, 0.20), transparent 55%),
+    radial-gradient(ellipse at 70% 30%, rgba(120, 85, 40, 0.10), transparent 60%);
+  color: var(--tx-strong);
+}
+
+/* Sepia wash: unifies every surface into one aged tone */
+.theme-ancient::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: rgba(150, 110, 55, 0.10);
+  mix-blend-mode: multiply;
+}
+
+/* Vignette: burnt scroll edges */
+.theme-ancient::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 52%, rgba(74, 48, 20, 0.30) 100%);
+}
+
+/* Inscriptional serif for headings in Ancient mode */
+.theme-ancient .font-serif {
+  font-family: 'Cinzel', Georgia, 'Times New Roman', serif;
+}
+
+/* Legacy helpers (kept for compatibility) */
 .theme-ancient .card-ancient {
   background-color: var(--bg-card);
-  border: 1px solid var(--border-gold);
+  border: 1px solid var(--ln-gold);
   box-shadow: 0 4px 12px rgba(92, 71, 45, 0.08);
 }
 
 .theme-ancient .card-double-border {
   background-color: var(--bg-card);
-  border: 2px solid var(--border-gold);
-  outline: 1px solid var(--border-gold-dark);
+  border: 2px solid var(--ln-gold);
+  outline: 1px solid var(--ln-bronze);
   outline-offset: -4px;
-}
-
-/* Theme Dark Mode */
-.theme-dark, .dark {
-  --bg-main: #0f0c09;
-  --bg-card: #1c1611;
-  --bg-card-alt: #282019;
-  --border-gold: #8b6b4a;
-  --border-gold-dark: #d4af37;
-  --text-primary: #f5ebd9;
-  --text-muted: #a89379;
-  --accent-gold: #d4af37;
-  background-color: var(--bg-main);
-  color: var(--text-primary);
 }
 
 .theme-dark .card-ancient, .dark .card-ancient {
   background-color: var(--bg-card);
-  border: 1px solid var(--border-gold);
+  border: 1px solid var(--ln-gold);
 }
 
 /* Targeted interactive transitions for high INP/FID performance */

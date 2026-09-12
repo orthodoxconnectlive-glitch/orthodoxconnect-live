@@ -52,23 +52,23 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-lg bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-6 shadow-2xl text-[#3d2b18] dark:text-[#f5ebd9] text-left rtl:text-right">
+      <div className="relative w-full max-w-lg bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-6 shadow-2xl text-(--tx-strong) dark:text-[#f5ebd9] text-left rtl:text-right">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-1.5 rounded-full text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18] hover:bg-[#eedcb5] transition-colors cursor-pointer"
+          className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-1.5 rounded-full text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) hover:bg-(--bg-soft) transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-3 mb-5 pb-3 border-b border-[#c5a059]/30">
-          <div className="p-2.5 rounded-2xl bg-[#c5a059] text-white shadow-md">
+        <div className="flex items-center gap-3 mb-5 pb-3 border-b border-(--ln-gold)/30">
+          <div className="p-2.5 rounded-2xl bg-(--ac-gold) text-white shadow-md">
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-serif-coptic font-bold text-lg uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9]">
+            <h3 className="font-serif-coptic font-bold text-lg uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9]">
               {t('createCustomGroup')}
             </h3>
-            <p className="text-xs font-serif text-[#7c5f3d] dark:text-[#a89379]">
+            <p className="text-xs font-serif text-(--tx-mute) dark:text-[#a89379]">
               {language === 'ar'
                 ? 'تأسيس دائرة زمالة أرثوذكسية أو خدمة رعوية جديدة.'
                 : 'Form an Orthodox fellowship circle or ministry group.'}
@@ -78,7 +78,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-serif font-bold uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9] mb-1">
+            <label className="block text-xs font-serif font-bold uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] mb-1">
               {t('groupName')}
             </label>
             <input
@@ -87,19 +87,19 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={language === 'ar' ? 'مثال: خدمة القديس نكتاريوس للشفاء' : 'e.g. St. Nektarios Healing Ministry'}
-              className="w-full p-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-xs text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none focus:ring-2 focus:ring-[#c5a059]"
+              className="w-full p-3 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) text-xs text-(--tx-strong) dark:text-[#f5ebd9] focus:outline-none focus:ring-2 focus:ring-(--ac-gold)"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-serif font-bold uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9] mb-1">
+              <label className="block text-xs font-serif font-bold uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] mb-1">
                 {t('groupType')}
               </label>
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as GroupRoom['type'])}
-                className="w-full p-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-xs text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none"
+                className="w-full p-3 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) text-xs text-(--tx-strong) dark:text-[#f5ebd9] focus:outline-none"
               >
                 <option value="bible_study">{language === 'ar' ? '📖 دراسة الكتاب المقدس' : '📖 Bible Study'}</option>
                 <option value="youth">{language === 'ar' ? '☦️ زمالة الشبيبة' : '☦️ Youth Fellowship'}</option>
@@ -112,17 +112,17 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-serif font-bold uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9] mb-1">
+              <label className="block text-xs font-serif font-bold uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] mb-1">
                 {t('groupIcon')}
               </label>
-              <div className="flex gap-1 overflow-x-auto p-1.5 bg-[#eedcb5] dark:bg-[#282019] rounded-2xl border border-[#c5a059]">
+              <div className="flex gap-1 overflow-x-auto p-1.5 bg-(--bg-soft) dark:bg-[#282019] rounded-2xl border border-(--ln-gold)">
                 {ICON_OPTIONS.map((i) => (
                   <button
                     type="button"
                     key={i}
                     onClick={() => setIcon(i)}
                     className={`p-1.5 rounded-xl text-sm transition-transform cursor-pointer ${
-                      icon === i ? 'bg-[#c5a059] scale-110 shadow-sm' : 'hover:bg-[#c5a059]/30'
+                      icon === i ? 'bg-(--ac-gold) scale-110 shadow-sm' : 'hover:bg-(--ac-gold)/30'
                     }`}
                   >
                     {i}
@@ -133,7 +133,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-serif font-bold uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9] mb-1">
+            <label className="block text-xs font-serif font-bold uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] mb-1">
               {t('groupDescription')}
             </label>
             <textarea
@@ -146,12 +146,12 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                   ? 'اكتب هدف المجموعة، مواعيد اللقاءات، وأهداف الدراسة الآبائية...'
                   : 'Describe the purpose, meeting schedule, and Patristic study goals...'
               }
-              className="w-full p-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-xs text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none focus:ring-2 focus:ring-[#c5a059]"
+              className="w-full p-3 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) text-xs text-(--tx-strong) dark:text-[#f5ebd9] focus:outline-none focus:ring-2 focus:ring-(--ac-gold)"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-serif font-bold uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9] mb-1">
+            <label className="block text-xs font-serif font-bold uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] mb-1">
               {language === 'ar' ? 'التبعية الكنسية / الدير' : 'Parish / Monastery Affiliation'}
             </label>
             <input
@@ -159,7 +159,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               value={parish}
               onChange={(e) => setParish(e.target.value)}
               placeholder={language === 'ar' ? 'مثال: كنيسة القديس جاورجيوس الأنطاكية' : 'e.g. St. George Antiochian Church'}
-              className="w-full p-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-xs text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none"
+              className="w-full p-3 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) text-xs text-(--tx-strong) dark:text-[#f5ebd9] focus:outline-none"
             />
           </div>
 
@@ -167,13 +167,13 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] text-[#3d2b18] dark:text-[#f5ebd9] font-serif font-bold text-xs uppercase tracking-wider border border-[#c5a059]"
+              className="px-5 py-2.5 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] text-(--tx-strong) dark:text-[#f5ebd9] font-serif font-bold text-xs uppercase tracking-wider border border-(--ln-gold)"
             >
               {t('cancel')}
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-2xl bg-[#c5a059] hover:bg-[#a8833c] text-white font-serif font-bold text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer flex items-center gap-2"
+              className="px-6 py-2.5 rounded-2xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white font-serif font-bold text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
               <span>{t('createCustomGroup')}</span>

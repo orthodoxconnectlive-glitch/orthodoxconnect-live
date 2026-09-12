@@ -69,19 +69,19 @@ export const ReportContentModal: React.FC<ReportContentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-md bg-[#fdfaf5] dark:bg-[#1c1611] border border-[#d4af37]/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-left rtl:text-right">
+      <div className="w-full max-w-md bg-(--bg-card-hi) dark:bg-[#1c1611] border border-(--ln-bright)/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-left rtl:text-right">
         {/* Modal Header */}
-        <div className="p-4 border-b border-[#d4af37]/20 bg-[#f1ebd7] dark:bg-[#282019] flex items-center justify-between">
+        <div className="p-4 border-b border-(--ln-bright)/20 bg-(--bg-inset) dark:bg-[#282019] flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Flag className="w-5 h-5 text-red-600" />
-            <h3 className="font-serif font-bold text-base text-[#5a4632] dark:text-[#f5ebd9]">
+            <h3 className="font-serif font-bold text-base text-(--tx-head) dark:text-[#f5ebd9]">
               {getTargetTitle()}
             </h3>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 text-[#8b6b4a] dark:text-[#a89379] hover:text-[#5a4632] dark:hover:text-white rounded-lg hover:bg-[#d4af37]/10 transition-colors cursor-pointer"
+            className="p-1.5 text-(--tx-soft) dark:text-[#a89379] hover:text-(--tx-head) dark:hover:text-white rounded-lg hover:bg-(--ac-bright)/10 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -90,10 +90,10 @@ export const ReportContentModal: React.FC<ReportContentModalProps> = ({
         {isSubmitted ? (
           <div className="p-8 text-center space-y-3">
             <CheckCircle className="w-12 h-12 text-emerald-600 mx-auto animate-bounce" />
-            <h4 className="font-serif font-bold text-lg text-[#5a4632] dark:text-[#f5ebd9]">
+            <h4 className="font-serif font-bold text-lg text-(--tx-head) dark:text-[#f5ebd9]">
               {language === 'ar' ? 'تم إرسال البلاغ بنجاح' : 'Report Submitted'}
             </h4>
-            <p className="text-xs text-[#8b6b4a] dark:text-[#a89379]">
+            <p className="text-xs text-(--tx-soft) dark:text-[#a89379]">
               {language === 'ar'
                 ? 'شكراً لك. تم إخطار كهنة ومشرفي الرعية لمراجعة المحتوى وفقاً للتعاليم والضوابط الكنسية.'
                 : 'Thank you. Parish clergy & moderators have been notified to review this content according to Church guidelines.'}
@@ -102,82 +102,82 @@ export const ReportContentModal: React.FC<ReportContentModalProps> = ({
         ) : (
           <form onSubmit={handleSubmit} className="p-5 space-y-4">
             {targetContentPreview && (
-              <div className="p-3 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/20 text-xs text-[#4a3e31] dark:text-[#f5ebd9] italic leading-relaxed">
+              <div className="p-3 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/20 text-xs text-(--tx-faint) dark:text-[#f5ebd9] italic leading-relaxed">
                 "{targetContentPreview.length > 120 ? targetContentPreview.slice(0, 120) + '...' : targetContentPreview}"
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-bold text-[#8b6b4a] dark:text-[#c5a059] uppercase tracking-wider mb-2">
+              <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-2">
                 {language === 'ar' ? 'سبب البلاغ' : 'Reason for Report'}
               </label>
               <div className="space-y-2 text-xs">
-                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/20 cursor-pointer hover:border-[#d4af37]/40">
+                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/20 cursor-pointer hover:border-(--ln-bright)/40">
                   <input
                     type="radio"
                     name="reportReason"
                     value="inappropriate"
                     checked={reason === 'inappropriate'}
                     onChange={() => setReason('inappropriate')}
-                    className="accent-[#d4af37]"
+                    className="accent-(--ac-bright)"
                   />
-                  <span className="font-semibold text-[#5a4632] dark:text-[#f5ebd9]">
+                  <span className="font-semibold text-(--tx-head) dark:text-[#f5ebd9]">
                     {language === 'ar' ? 'محتوى غير لائق أو مسيء' : 'Inappropriate or Offensive Content'}
                   </span>
                 </label>
 
-                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/20 cursor-pointer hover:border-[#d4af37]/40">
+                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/20 cursor-pointer hover:border-(--ln-bright)/40">
                   <input
                     type="radio"
                     name="reportReason"
                     value="uncanonical_heresy"
                     checked={reason === 'uncanonical_heresy'}
                     onChange={() => setReason('uncanonical_heresy')}
-                    className="accent-[#d4af37]"
+                    className="accent-(--ac-bright)"
                   />
-                  <span className="font-semibold text-[#5a4632] dark:text-[#f5ebd9]">
+                  <span className="font-semibold text-(--tx-head) dark:text-[#f5ebd9]">
                     {language === 'ar' ? 'بدع مخالفة لقوانين الكنيسة / لاهوت مضلل' : 'Uncanonical Heresy / Misleading Theology'}
                   </span>
                 </label>
 
-                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/20 cursor-pointer hover:border-[#d4af37]/40">
+                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/20 cursor-pointer hover:border-(--ln-bright)/40">
                   <input
                     type="radio"
                     name="reportReason"
                     value="spam"
                     checked={reason === 'spam'}
                     onChange={() => setReason('spam')}
-                    className="accent-[#d4af37]"
+                    className="accent-(--ac-bright)"
                   />
-                  <span className="font-semibold text-[#5a4632] dark:text-[#f5ebd9]">
+                  <span className="font-semibold text-(--tx-head) dark:text-[#f5ebd9]">
                     {language === 'ar' ? 'محتوى مكرر (سبام) أو إعلانات تجارية' : 'Spam, Scams, or Commercial Ads'}
                   </span>
                 </label>
 
-                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/20 cursor-pointer hover:border-[#d4af37]/40">
+                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/20 cursor-pointer hover:border-(--ln-bright)/40">
                   <input
                     type="radio"
                     name="reportReason"
                     value="harassment"
                     checked={reason === 'harassment'}
                     onChange={() => setReason('harassment')}
-                    className="accent-[#d4af37]"
+                    className="accent-(--ac-bright)"
                   />
-                  <span className="font-semibold text-[#5a4632] dark:text-[#f5ebd9]">
+                  <span className="font-semibold text-(--tx-head) dark:text-[#f5ebd9]">
                     {language === 'ar' ? 'مضايقات أو تهجم شخصي' : 'Harassment or Personal Attacks'}
                   </span>
                 </label>
 
-                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/20 cursor-pointer hover:border-[#d4af37]/40">
+                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/20 cursor-pointer hover:border-(--ln-bright)/40">
                   <input
                     type="radio"
                     name="reportReason"
                     value="other"
                     checked={reason === 'other'}
                     onChange={() => setReason('other')}
-                    className="accent-[#d4af37]"
+                    className="accent-(--ac-bright)"
                   />
-                  <span className="font-semibold text-[#5a4632] dark:text-[#f5ebd9]">
+                  <span className="font-semibold text-(--tx-head) dark:text-[#f5ebd9]">
                     {language === 'ar' ? 'مشكلة أخرى' : 'Other Issue'}
                   </span>
                 </label>
@@ -185,7 +185,7 @@ export const ReportContentModal: React.FC<ReportContentModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#8b6b4a] dark:text-[#c5a059] uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-1.5">
                 {language === 'ar' ? 'تفاصيل إضافية (اختياري)' : 'Additional Details (Optional)'}
               </label>
               <textarea
@@ -197,7 +197,7 @@ export const ReportContentModal: React.FC<ReportContentModalProps> = ({
                 }
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/30 text-xs text-[#2c2c2c] dark:text-[#f5ebd9] placeholder-[#8b6b4a]/60 focus:outline-none focus:border-[#d4af37]"
+                className="w-full px-3 py-2 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-body) dark:text-[#f5ebd9] placeholder-(--tx-soft)/60 focus:outline-none focus:border-(--ln-bright)"
               />
             </div>
 
@@ -205,7 +205,7 @@ export const ReportContentModal: React.FC<ReportContentModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-[#8b6b4a] dark:text-[#a89379] hover:bg-[#f1ebd7] dark:hover:bg-[#282019] transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-(--tx-soft) dark:text-[#a89379] hover:bg-(--bg-inset) dark:hover:bg-[#282019] transition-colors cursor-pointer"
               >
                 {t('cancel')}
               </button>

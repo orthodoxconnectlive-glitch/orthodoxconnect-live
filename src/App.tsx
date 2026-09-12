@@ -177,7 +177,7 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#eddcb9] dark:bg-[#0f0c09] text-[#3d2b18] dark:text-[#f5ebd9] font-sans selection:bg-[#c5a059] selection:text-white transition-colors">
+    <div className="min-h-screen bg-(--bg-page) dark:bg-[#0f0c09] text-(--tx-strong) dark:text-[#f5ebd9] font-sans selection:bg-(--ac-gold) selection:text-white transition-colors">
       {/* Top Navbar */}
       <Navbar
         onOpenInvite={() => setIsInviteOpen(true)}
@@ -237,12 +237,12 @@ function AppRoot() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#eddcb9] dark:bg-[#0f0c09] text-[#3d2b18] dark:text-[#f5ebd9] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-(--bg-page) dark:bg-[#0f0c09] text-(--tx-strong) dark:text-[#f5ebd9] flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-[#c5a059]/20 border border-[#c5a059] flex items-center justify-center text-[#c5a059] animate-pulse">
+          <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/20 border border-(--ln-gold) flex items-center justify-center text-(--ac-gold-tx) animate-pulse">
             <span className="font-bold text-xl">☨</span>
           </div>
-          <p className="font-serif font-bold text-sm tracking-wider uppercase text-[#a8833c]">
+          <p className="font-serif font-bold text-sm tracking-wider uppercase text-(--ac-bronze-tx)">
             Loading OrthodoxConnect...
           </p>
         </div>

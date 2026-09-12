@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   BookOpen, ChevronDown, ChevronLeft, ChevronRight,
   ExternalLink, Loader2, MoonStar, Sunrise, Church, ScrollText, Sparkles,
-  Volume2, Square, Play, Heart,
 } from 'lucide-react';
-import { meditationForDay } from '../data/meditations';
 
 /* ------------------------------------------------------------------ */
 /* Types (shape returned by https://api.coptic.io/api/readings/:date)   */
@@ -144,149 +142,41 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/* ---------------- Text-to-speech (device voice) ---------------- */
-interface SpeechItem { id: string; text: string }
-
-function readingSpeakText(label: string, blocks: ReadingBlock[], lang: Lang): string {
-  const parts: string[] = [label + '.'];
-  for (const b of blocks) {
-    for (const c of b.chapters) {
-      const book = lang === 'ar' ? (AR_BOOKS[b.bookName] || b.bookName) : b.bookName;
-      const ch = lang === 'ar' ? toArDigits(c.chapterNum) : String(c.chapterNum);
-      parts.push(`${book} ${ch}.`);
-      for (const v of c.verses) parts.push(v.text.trim());
-    }
-  }
-  return parts.join(' ');
-}
-
-function useSpeech(lang: Lang, iso: string) {
-  const [speakingId, setSpeakingId] = useState<string | null>(null);
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const queueRef = useRef<SpeechItem[]>([]);
-  const langRef = useRef(lang);
-  langRef.current = lang;
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    const load = () => setVoices(window.speechSynthesis.getVoices());
-    load();
-    window.speechSynthesis.addEventListener('voiceschanged', load);
-    return () => {
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.removeEventListener('voiceschanged', load);
-    };
-  }, []);
-
-  const pickVoice = useCallback((): SpeechSynthesisVoice | null => {
-    const prefix = langRef.current === 'ar' ? 'ar' : 'en';
-    const match = voices.find(v => (v.lang || '').toLowerCase().startsWith(prefix));
-    return match || null;
-  }, [voices]);
-
-  const stop = useCallback(() => {
-    queueRef.current = [];
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    setSpeakingId(null);
-  }, []);
-
-  const speakNext = useCallback((item: SpeechItem, rest: SpeechItem[]) => {
-    const synth = window.speechSynthesis;
-    const u = new SpeechSynthesisUtterance(item.text);
-    const l = langRef.current;
-    u.lang = l === 'ar' ? 'ar-EG' : 'en-US';
-    const v = pickVoice();
-    if (v) u.voice = v;
-    u.rate = 0.95;
-    u.onend = () => {
-      const nxt = rest[0];
-      if (nxt) speakNext(nxt, rest.slice(1));
-      else setSpeakingId(null);
-    };
-    u.onerror = () => setSpeakingId(null);
-    setSpeakingId(item.id);
-    synth.speak(u);
-  }, [pickVoice]);
-
-  const playItems = useCallback((items: SpeechItem[]) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window) || items.length === 0) return;
-    window.speechSynthesis.cancel();
-    const [first, ...rest] = items;
-    speakNext(first, rest);
-  }, [speakNext]);
-
-  const toggleItem = useCallback((item: SpeechItem) => {
-    if (speakingId === item.id) stop();
-    else playItems([item]);
-  }, [speakingId, stop, playItems]);
-
-  // Stop speech when the day or language changes
-  useEffect(() => { stop(); }, [iso, lang, stop]);
-
-  return { speakingId, toggleItem, playItems, stop };
-}
-
 /* ------------------------------------------------------------------ */
 /* Single reading accordion                                            */
 /* ------------------------------------------------------------------ */
-const ReadingCard: React.FC<{
-  label: string;
-  blocks: ReadingBlock[];
-  lang: Lang;
-  defaultOpen?: boolean;
-  speaking: boolean;
-  onToggleSpeak: () => void;
-}> = ({
-  label, blocks, lang, defaultOpen, speaking, onToggleSpeak,
+const ReadingCard: React.FC<{ label: string; blocks: ReadingBlock[]; lang: Lang; defaultOpen?: boolean }> = ({
+  label, blocks, lang, defaultOpen,
 }) => {
   const [open, setOpen] = useState(!!defaultOpen);
   return (
-    <div className="rounded-xl border border-[#d4af37]/25 bg-white/60 overflow-hidden">
-      <div className="flex items-center gap-1.5 px-2 py-1">
-        <button
-          onClick={() => setOpen((o) => !o)}
-          className="flex-1 min-w-0 flex items-center justify-between gap-2 px-1.5 py-1.5 cursor-pointer hover:bg-[#f1ebd7]/60 rounded-lg transition-colors"
-          aria-expanded={open}
-        >
-          <span className="flex items-center gap-2 min-w-0">
-            <BookOpen className="w-4 h-4 text-[#d4af37] shrink-0" />
-            <span className="font-bold text-xs text-[#5a4632] truncate">{label}</span>
-          </span>
-          <span className="flex items-center gap-1.5 shrink-0">
-            <span className="text-[11px] text-[#8b6b4a] font-serif">{formatRef(blocks, lang)}</span>
-            <ChevronDown className={`w-4 h-4 text-[#8b6b4a] transition-transform ${open ? 'rotate-180' : ''}`} />
-          </span>
-        </button>
-        <button
-          onClick={onToggleSpeak}
-          aria-label={speaking
-            ? (lang === 'ar' ? 'إيقاف الصوت' : 'Stop audio')
-            : (lang === 'ar' ? 'استمع للقراءة' : 'Listen to the reading')}
-          title={lang === 'ar' ? 'استمع للقراءة' : 'Listen to the reading'}
-          className={`p-2 rounded-lg shrink-0 cursor-pointer transition-colors ${
-            speaking
-              ? 'bg-red-500 text-white animate-pulse'
-              : 'text-[#8b6b4a] hover:bg-[#f1ebd7]'
-          }`}
-        >
-          {speaking ? <Square className="w-3.5 h-3.5" /> : <Volume2 className="w-4 h-4" />}
-        </button>
-      </div>
+    <div className="rounded-xl border border-(--ln-bright)/25 bg-white/60 overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 cursor-pointer hover:bg-(--bg-inset)/60 transition-colors"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <BookOpen className="w-4 h-4 text-(--ac-bright-tx) shrink-0" />
+          <span className="font-bold text-xs text-(--tx-head) truncate">{label}</span>
+        </span>
+        <span className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[11px] text-(--tx-soft) font-serif">{formatRef(blocks, lang)}</span>
+          <ChevronDown className={`w-4 h-4 text-(--tx-soft) transition-transform ${open ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
       {open && (
-        <div className="px-4 pb-3.5 pt-1 space-y-3 border-t border-[#d4af37]/15">
+        <div className="px-4 pb-3.5 pt-1 space-y-3 border-t border-(--ln-bright)/15">
           {blocks.map((b, bi) => (
             <div key={bi} className="space-y-1.5">
               {blocks.length > 1 && (
-                <p className="text-[11px] font-bold text-[#8b6b4a]">
+                <p className="text-[11px] font-bold text-(--tx-soft)">
                   {lang === 'ar' ? (AR_BOOKS[b.bookName] || b.bookName) : b.bookName}
                 </p>
               )}
               {b.chapters.map((c, ci) => (
                 <p
                   key={ci}
-                  className={`text-[13px] leading-7 text-[#2c2c2c] ${lang === 'ar' ? 'font-serif text-right' : 'text-left'}`}
+                  className={`text-[13px] leading-7 text-(--tx-body) ${lang === 'ar' ? 'font-serif text-right' : 'text-left'}`}
                   dir={lang === 'ar' ? 'rtl' : 'ltr'}
                 >
                   {c.verses.map((v) => (
@@ -367,7 +257,7 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
     setOpenSections((p) => ({ ...p, [key]: !p[key] }));
 
   const sectionIcon = (icon: string) => {
-    const cls = 'w-4 h-4 text-[#d4af37] shrink-0';
+    const cls = 'w-4 h-4 text-(--ac-bright-tx) shrink-0';
     switch (icon) {
       case 'prophecies': return <ScrollText className={cls} />;
       case 'vespers': return <MoonStar className={cls} />;
@@ -386,62 +276,22 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
     ? (lang === 'ar' ? (SEASON_AR[data.season] || data.season) : data.season)
     : null;
 
-  const { speakingId, toggleItem, playItems, stop } = useSpeech(lang, iso);
-
-  const speechSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
-
-  // All readings of the day in liturgical order, for "play all"
-  const allSpeechItems: SpeechItem[] = data
-    ? SECTION_META.flatMap((section) =>
-        section.readings
-          .filter((r) => Array.isArray(data[r.field]) && (data[r.field] as ReadingBlock[]).length > 0)
-          .map((r) => ({
-            id: `${section.key}:${r.field}`,
-            text: readingSpeakText(
-              lang === 'ar' ? r.ar : r.en,
-              data[r.field] as ReadingBlock[],
-              lang,
-            ),
-          })),
-      )
-    : [];
-
-  const playAll = () => {
-    if (speakingId) stop();
-    else playItems(allSpeechItems);
-  };
-
-  // Daily meditation, matched to the Liturgy Gospel's book
-  const liturgyGospelBlocks = data && Array.isArray(data.LGospel)
-    ? (data.LGospel as ReadingBlock[])
-    : [];
-  const gospelBook = liturgyGospelBlocks.length > 0 ? liturgyGospelBlocks[0].bookName : null;
-  const meditation = meditationForDay(gospelBook, targetDate);
-  const meditationRef = liturgyGospelBlocks.length > 0 ? formatRef(liturgyGospelBlocks, lang) : '';
-  const meditationTitle = lang === 'ar' ? 'تأمل اليوم' : "Today's Meditation";
-  const meditationSpeaking = speakingId === 'meditation';
-  const toggleMeditation = () =>
-    toggleItem({
-      id: 'meditation',
-      text: `${meditationTitle}. ${meditationRef}. ${lang === 'ar' ? meditation.ar : meditation.en}`,
-    });
-
   return (
-    <div className="p-5 sm:p-6 rounded-2xl bg-[#fdfaf5] border-2 border-[#d4af37]/60 shadow-xl space-y-4">
+    <div className="p-5 sm:p-6 rounded-2xl bg-(--bg-card-hi) border-2 border-(--ln-bright)/60 shadow-xl space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-xl bg-[#d4af37] text-white flex items-center justify-center shadow-md shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-(--ac-bright) text-white flex items-center justify-center shadow-md shrink-0">
             <BookOpen className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-serif font-bold text-lg text-[#5a4632]">
+            <h3 className="font-serif font-bold text-lg text-(--tx-head)">
               {lang === 'ar' ? 'قراءات اليوم — القطمارس' : "Today's Readings — Katameros"}
             </h3>
-            <p className="text-[11px] text-[#8b6b4a]">
+            <p className="text-[11px] text-(--tx-soft)">
               {dayLabel}
               {seasonLabel && (
-                <span className="ms-2 px-2 py-0.5 rounded-full bg-[#d4af37]/15 text-[#7c5f3d] font-bold">
+                <span className="ms-2 px-2 py-0.5 rounded-full bg-(--ac-bright)/15 text-(--tx-mute) font-bold">
                   {seasonLabel}
                 </span>
               )}
@@ -450,22 +300,10 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
         </div>
 
         {/* Day navigation */}
-        <div className="flex items-center gap-1 bg-[#f1ebd7] rounded-xl p-1 border border-[#d4af37]/20">
-          {speechSupported && !loading && !failed && data && allSpeechItems.length > 0 && (
-            <button
-              onClick={playAll}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                speakingId ? 'bg-red-500 text-white' : 'text-[#5a4632] hover:bg-white'
-              }`}
-              aria-label={lang === 'ar' ? 'استمع لكل القراءات' : 'Listen to all readings'}
-            >
-              {speakingId ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              {lang === 'ar' ? 'استمع للكل' : 'Listen all'}
-            </button>
-          )}
+        <div className="flex items-center gap-1 bg-(--bg-inset) rounded-xl p-1 border border-(--ln-bright)/20">
           <button
             onClick={() => setDayOffset((o) => o - 1)}
-            className="p-1.5 rounded-lg hover:bg-white text-[#8b6b4a] transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-white text-(--tx-soft) transition-colors cursor-pointer"
             aria-label={lang === 'ar' ? 'اليوم السابق' : 'Previous day'}
           >
             <ChevronRight className="w-4 h-4 rtl:rotate-0" />
@@ -473,14 +311,14 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
           {dayOffset !== 0 && (
             <button
               onClick={() => setDayOffset(0)}
-              className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#5a4632] hover:bg-white transition-colors cursor-pointer"
+              className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-(--tx-head) hover:bg-white transition-colors cursor-pointer"
             >
               {lang === 'ar' ? 'اليوم' : 'Today'}
             </button>
           )}
           <button
             onClick={() => setDayOffset((o) => o + 1)}
-            className="p-1.5 rounded-lg hover:bg-white text-[#8b6b4a] transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-white text-(--tx-soft) transition-colors cursor-pointer"
             aria-label={lang === 'ar' ? 'اليوم التالي' : 'Next day'}
           >
             <ChevronLeft className="w-4 h-4" />
@@ -490,8 +328,8 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
 
       {/* Body */}
       {loading && (
-        <div className="flex items-center justify-center gap-2 py-10 text-[#8b6b4a]">
-          <Loader2 className="w-5 h-5 animate-spin text-[#d4af37]" />
+        <div className="flex items-center justify-center gap-2 py-10 text-(--tx-soft)">
+          <Loader2 className="w-5 h-5 animate-spin text-(--ac-bright-tx)" />
           <span className="text-xs font-bold">
             {lang === 'ar' ? 'جاري تحميل قراءات اليوم...' : 'Loading today\u2019s readings...'}
           </span>
@@ -499,8 +337,8 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
       )}
 
       {!loading && failed && (
-        <div className="p-5 rounded-xl bg-[#f1ebd7] border border-[#d4af37]/25 text-center space-y-3">
-          <p className="text-xs text-[#5a4632] font-semibold">
+        <div className="p-5 rounded-xl bg-(--bg-inset) border border-(--ln-bright)/25 text-center space-y-3">
+          <p className="text-xs text-(--tx-head) font-semibold">
             {lang === 'ar'
               ? 'تعذر تحميل القراءات حالياً. يمكنك قراءتها من موقع الأنبا تكلا:'
               : 'Could not load the readings right now. You can read them at St. Takla\u2019s site:'}
@@ -509,7 +347,7 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
             href={stTaklaUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#d4af37] text-white text-xs font-bold shadow-md hover:bg-[#b89528] transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-(--ac-bright) text-white text-xs font-bold shadow-md hover:bg-(--ac-bright-dk) transition-colors"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             {lang === 'ar' ? 'قراءات اليوم على st-takla.org' : 'Today\u2019s readings on st-takla.org'}
@@ -517,7 +355,7 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
           <div>
             <button
               onClick={fetchDay}
-              className="text-[11px] font-bold text-[#8b6b4a] underline cursor-pointer"
+              className="text-[11px] font-bold text-(--tx-soft) underline cursor-pointer"
             >
               {lang === 'ar' ? 'إعادة المحاولة' : 'Try again'}
             </button>
@@ -535,18 +373,18 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
             if (present.length === 0) return null;
             const isOpen = !!openSections[section.key];
             return (
-              <div key={section.key} className="rounded-2xl border border-[#d4af37]/30 bg-[#fbf7ee] overflow-hidden">
+              <div key={section.key} className="rounded-2xl border border-(--ln-bright)/30 bg-[#fbf7ee] overflow-hidden">
                 <button
                   onClick={() => toggleSection(section.key)}
-                  className="w-full flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#f1ebd7]/50 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-(--bg-inset)/50 transition-colors"
                 >
                   <span className="flex items-center gap-2">
                     {sectionIcon(section.icon)}
-                    <span className="font-serif font-bold text-sm text-[#5a4632]">
+                    <span className="font-serif font-bold text-sm text-(--tx-head)">
                       {lang === 'ar' ? section.ar : section.en}
                     </span>
                   </span>
-                  <ChevronDown className={`w-4 h-4 text-[#8b6b4a] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-4 h-4 text-(--tx-soft) transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {isOpen && (
                   <div className="px-3 pb-3 space-y-2">
@@ -557,17 +395,6 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
                         blocks={data[r.field] as ReadingBlock[]}
                         lang={lang}
                         defaultOpen={r.field === 'LGospel'}
-                        speaking={speakingId === `${section.key}:${r.field}`}
-                        onToggleSpeak={() =>
-                          toggleItem({
-                            id: `${section.key}:${r.field}`,
-                            text: readingSpeakText(
-                              lang === 'ar' ? r.ar : r.en,
-                              data[r.field] as ReadingBlock[],
-                              lang,
-                            ),
-                          })
-                        }
                       />
                     ))}
                   </div>
@@ -576,48 +403,11 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
             );
           })}
 
-          {/* Daily meditation */}
-          <div className="rounded-2xl border-2 border-[#d4af37]/50 bg-gradient-to-br from-[#fdf6e3] to-[#f8ecd2] p-4 space-y-2 shadow-sm">
-            <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-2 font-serif font-bold text-sm text-[#5a4632]">
-                <span className="p-1.5 rounded-lg bg-[#d4af37] text-white">
-                  <Heart className="w-3.5 h-3.5" />
-                </span>
-                {meditationTitle}
-                {meditationRef && (
-                  <span className="text-[11px] font-normal text-[#8b6b4a]">• {meditationRef}</span>
-                )}
-              </p>
-              {speechSupported && (
-                <button
-                  onClick={toggleMeditation}
-                  aria-label={meditationSpeaking
-                    ? (lang === 'ar' ? 'إيقاف الصوت' : 'Stop audio')
-                    : (lang === 'ar' ? 'استمع للتأمل' : 'Listen to the meditation')}
-                  title={lang === 'ar' ? 'استمع للتأمل' : 'Listen to the meditation'}
-                  className={`p-2 rounded-lg shrink-0 cursor-pointer transition-colors ${
-                    meditationSpeaking
-                      ? 'bg-red-500 text-white animate-pulse'
-                      : 'text-[#8b6b4a] hover:bg-[#d4af37]/15'
-                  }`}
-                >
-                  {meditationSpeaking ? <Square className="w-3.5 h-3.5" /> : <Volume2 className="w-4 h-4" />}
-                </button>
-              )}
-            </div>
-            <p
-              dir={lang === 'ar' ? 'rtl' : 'ltr'}
-              className={`text-[13px] leading-7 text-[#4a3a28] ${lang === 'ar' ? 'font-serif text-right' : 'text-left'}`}
-            >
-              {lang === 'ar' ? meditation.ar : meditation.en}
-            </p>
-          </div>
-
           {/* Synaxarium links */}
           {data.Synaxarium && data.Synaxarium.length > 0 && (
-            <div className="rounded-2xl border border-[#d4af37]/30 bg-[#fbf7ee] p-4 space-y-2">
-              <p className="flex items-center gap-2 font-serif font-bold text-sm text-[#5a4632]">
-                <Sparkles className="w-4 h-4 text-[#d4af37]" />
+            <div className="rounded-2xl border border-(--ln-bright)/30 bg-[#fbf7ee] p-4 space-y-2">
+              <p className="flex items-center gap-2 font-serif font-bold text-sm text-(--tx-head)">
+                <Sparkles className="w-4 h-4 text-(--ac-bright-tx)" />
                 {lang === 'ar' ? 'السنكسار' : 'Synaxarium'}
               </p>
               <ul className="space-y-1.5">
@@ -627,7 +417,7 @@ export const DailyReadings: React.FC<{ language: Lang }> = ({ language }) => {
                       href={s.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-[#7c5f3d] hover:text-[#d4af37] transition-colors"
+                      className="flex items-center gap-1.5 text-xs text-(--tx-mute) hover:text-(--ac-bright-tx) transition-colors"
                     >
                       <ExternalLink className="w-3 h-3 shrink-0" />
                       <span className="underline decoration-dotted underline-offset-2">{s.name}</span>

@@ -282,10 +282,10 @@ export const AdminPanelView: React.FC = () => {
 
   if (!isAdminOrOwner) {
     return (
-      <div className="p-8 text-center bg-[#fdfaf5] rounded-2xl border border-red-500/40 text-red-700 shadow-xl space-y-2">
+      <div className="p-8 text-center bg-(--bg-card-hi) rounded-2xl border border-red-500/40 text-red-700 shadow-xl space-y-2">
         <AlertTriangle className="w-10 h-10 mx-auto text-red-600" />
         <h3 className="font-serif font-bold text-lg">Access Restricted</h3>
-        <p className="text-xs text-[#8b6b4a]">
+        <p className="text-xs text-(--tx-soft)">
           Super Admin, Admin, or Owner privileges are required to access the Moderation & Management Panel.
         </p>
       </div>
@@ -305,23 +305,23 @@ export const AdminPanelView: React.FC = () => {
     <div className="space-y-6 relative">
       {/* Toast Feedback Banner */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-2xl bg-[#1c1611] border border-[#c5a059] text-[#f5ebd9] font-serif font-bold text-xs shadow-2xl flex items-center gap-2 animate-bounce">
-          <CheckCircle className="w-4 h-4 text-[#c5a059]" />
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-2xl bg-[#1c1611] border border-(--ln-gold) text-[#f5ebd9] font-serif font-bold text-xs shadow-2xl flex items-center gap-2 animate-bounce">
+          <CheckCircle className="w-4 h-4 text-(--ac-gold-tx)" />
           <span>{toastMessage}</span>
         </div>
       )}
 
       {/* Top Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-[#f1ebd7] via-[#fdfaf5] to-[#f1ebd7] border border-[#d4af37]/30 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-(--bg-inset) via-(--bg-card-hi) to-(--bg-inset) border border-(--ln-bright)/30 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-[#d4af37] text-white flex items-center justify-center shadow-md">
+          <div className="w-12 h-12 rounded-2xl bg-(--ac-bright) text-white flex items-center justify-center shadow-md">
             <ShieldAlert className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="font-serif font-bold text-2xl text-[#5a4632]">
+            <h2 className="font-serif font-bold text-2xl text-(--tx-head)">
               Admin & Content Moderation Panel
             </h2>
-            <p className="text-xs text-[#8b6b4a]">
+            <p className="text-xs text-(--tx-soft)">
               Manage registered parishioners, assign clergy roles, review reports, and audit system activity
             </p>
           </div>
@@ -330,43 +330,43 @@ export const AdminPanelView: React.FC = () => {
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-5 rounded-2xl bg-[#fdfaf5] border border-[#d4af37]/30 shadow-lg flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-[#d4af37]/20 border border-[#d4af37]/40 flex items-center justify-center text-[#d4af37]">
+        <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-(--ac-bright)/20 border border-(--ln-bright)/40 flex items-center justify-center text-(--ac-bright-tx)">
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-[11px] text-[#8b6b4a] uppercase font-bold tracking-wider">
+            <p className="text-[11px] text-(--tx-soft) uppercase font-bold tracking-wider">
               Total Members
             </p>
-            <h3 className="font-serif font-bold text-2xl text-[#5a4632]">
+            <h3 className="font-serif font-bold text-2xl text-(--tx-head)">
               {totalMembers}
             </h3>
           </div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#fdfaf5] border border-[#d4af37]/30 shadow-lg flex items-center gap-4">
+        <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-purple-100 border border-purple-300 flex items-center justify-center text-purple-700">
             <Shield className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-[11px] text-[#8b6b4a] uppercase font-bold tracking-wider">
+            <p className="text-[11px] text-(--tx-soft) uppercase font-bold tracking-wider">
               Admins & Clergy
             </p>
-            <h3 className="font-serif font-bold text-2xl text-[#5a4632]">
+            <h3 className="font-serif font-bold text-2xl text-(--tx-head)">
               {usersList.filter((u) => u.role === 'admin' || u.role === 'clergy' || u.role === 'owner' || u.role === 'super_admin').length}
             </h3>
           </div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#fdfaf5] border border-[#d4af37]/30 shadow-lg flex items-center gap-4">
+        <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-red-100 border border-red-300 flex items-center justify-center text-red-600">
             <Flag className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-[11px] text-[#8b6b4a] uppercase font-bold tracking-wider">
+            <p className="text-[11px] text-(--tx-soft) uppercase font-bold tracking-wider">
               Pending Reports
             </p>
-            <h3 className="font-serif font-bold text-2xl text-[#5a4632]">
+            <h3 className="font-serif font-bold text-2xl text-(--tx-head)">
               {pendingCount}
             </h3>
           </div>
@@ -374,13 +374,13 @@ export const AdminPanelView: React.FC = () => {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-2 border-b border-[#d4af37]/20 pb-2">
+      <div className="flex gap-2 border-b border-(--ln-bright)/20 pb-2">
         <button
           onClick={() => setActiveTab('users')}
           className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
             activeTab === 'users'
-              ? 'bg-[#d4af37] text-white shadow-md'
-              : 'bg-[#fdfaf5] text-[#8b6b4a] hover:bg-[#f1ebd7]'
+              ? 'bg-(--ac-bright) text-white shadow-md'
+              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -391,8 +391,8 @@ export const AdminPanelView: React.FC = () => {
           onClick={() => setActiveTab('reports')}
           className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
             activeTab === 'reports'
-              ? 'bg-[#d4af37] text-white shadow-md'
-              : 'bg-[#fdfaf5] text-[#8b6b4a] hover:bg-[#f1ebd7]'
+              ? 'bg-(--ac-bright) text-white shadow-md'
+              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
           }`}
         >
           <Flag className="w-4 h-4" />
@@ -403,8 +403,8 @@ export const AdminPanelView: React.FC = () => {
           onClick={() => setActiveTab('audit')}
           className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
             activeTab === 'audit'
-              ? 'bg-[#d4af37] text-white shadow-md'
-              : 'bg-[#fdfaf5] text-[#8b6b4a] hover:bg-[#f1ebd7]'
+              ? 'bg-(--ac-bright) text-white shadow-md'
+              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
           }`}
         >
           <Clock className="w-4 h-4" />
@@ -414,17 +414,17 @@ export const AdminPanelView: React.FC = () => {
 
       {/* TAB 1: USER DIRECTORY & USER MANAGEMENT */}
       {activeTab === 'users' && (
-        <div className="bg-[#fdfaf5] border border-[#d4af37]/30 rounded-2xl p-5 shadow-xl space-y-4">
+        <div className="bg-(--bg-card-hi) border border-(--ln-bright)/30 rounded-2xl p-5 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <h3 className="font-serif font-bold text-lg text-[#5a4632] flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-[#d4af37]" />
+            <h3 className="font-serif font-bold text-lg text-(--tx-head) flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-(--ac-bright-tx)" />
               <span>Parish User Directory & Management</span>
             </h3>
 
             {/* Add Member Button */}
             <button
               onClick={() => setIsAddMemberOpen(true)}
-              className="px-4 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
               <span>Add Member</span>
@@ -433,13 +433,13 @@ export const AdminPanelView: React.FC = () => {
 
           {/* Search Filter Input */}
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3.5 top-3 text-[#8b6b4a]" />
+            <Search className="w-4 h-4 absolute left-3.5 top-3 text-(--tx-soft)" />
             <input
               type="text"
               placeholder="Search members by name, email, or parish..."
               value={userSearchQuery}
               onChange={(e) => setUserSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-[#f5f2ed] border border-[#d4af37]/30 text-xs text-[#5a4632] placeholder-[#8b6b4a]/70 focus:outline-none focus:border-[#d4af37]"
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-(--bg-inset2) border border-(--ln-bright)/30 text-xs text-(--tx-head) placeholder-(--tx-soft)/70 focus:outline-none focus:border-(--ln-bright)"
             />
           </div>
 
@@ -447,7 +447,7 @@ export const AdminPanelView: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-[#d4af37]/30 text-[#8b6b4a] uppercase font-bold text-[10px]">
+                <tr className="border-b border-(--ln-bright)/30 text-(--tx-soft) uppercase font-bold text-[10px]">
                   <th className="py-3 px-3">Member</th>
                   <th className="py-3 px-3">Email</th>
                   <th className="py-3 px-3">Parish</th>
@@ -457,10 +457,10 @@ export const AdminPanelView: React.FC = () => {
                   <th className="py-3 px-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#d4af37]/20">
+              <tbody className="divide-y divide-(--ln-bright)/20">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-[#8b6b4a]">
+                    <td colSpan={7} className="py-6 text-center text-(--tx-soft)">
                       No registered parishioners match your search query.
                     </td>
                   </tr>
@@ -475,7 +475,7 @@ export const AdminPanelView: React.FC = () => {
                       !isTargetSuperAdmin && (!isTargetAdmin || isCurrentSuperAdmin);
 
                     return (
-                      <tr key={user.id} className="hover:bg-[#f1ebd7]/50 transition-colors">
+                      <tr key={user.id} className="hover:bg-(--bg-inset)/50 transition-colors">
                         {/* Member Name & Avatar */}
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2.5">
@@ -485,28 +485,28 @@ export const AdminPanelView: React.FC = () => {
                                 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'
                               }
                               alt={user.full_name}
-                              className="w-8 h-8 rounded-full object-cover border border-[#d4af37]/40"
+                              className="w-8 h-8 rounded-full object-cover border border-(--ln-bright)/40"
                             />
                             <div>
-                              <p className="font-bold text-[#5a4632]">{user.full_name}</p>
+                              <p className="font-bold text-(--tx-head)">{user.full_name}</p>
                             </div>
                           </div>
                         </td>
 
                         {/* Email Address - strictly guarded for Admins */}
-                        <td className="py-3 px-3 text-[#5a4632] font-mono text-[11px]">
+                        <td className="py-3 px-3 text-(--tx-head) font-mono text-[11px]">
                           {isAdminOrOwner ? user.email : '••••@••••.com'}
                         </td>
 
                         {/* Parish */}
-                        <td className="py-3 px-3 text-[#4a3e31] font-medium">
+                        <td className="py-3 px-3 text-(--tx-faint) font-medium">
                           {user.parish}
                         </td>
 
                         {/* Role Badge & Change Role Dropdown */}
                         <td className="py-3 px-3">
                           {isTargetSuperAdmin ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#c5a059] text-white border border-[#a8833c] shadow-sm">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-(--ac-gold) text-white border border-(--ln-bronze) shadow-sm">
                               SUPER ADMIN
                             </span>
                           ) : isTargetAdmin && !isCurrentSuperAdmin ? (
@@ -517,7 +517,7 @@ export const AdminPanelView: React.FC = () => {
                             <select
                               value={user.role}
                               onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
-                              className="px-2 py-1 rounded-lg bg-white border border-[#d4af37]/40 text-[#5a4632] font-bold text-[11px] focus:outline-none focus:border-[#d4af37] cursor-pointer"
+                              className="px-2 py-1 rounded-lg bg-white border border-(--ln-bright)/40 text-(--tx-head) font-bold text-[11px] focus:outline-none focus:border-(--ln-bright) cursor-pointer"
                             >
                               <option value="user">Member</option>
                               <option value="clergy">Clergy</option>
@@ -527,7 +527,7 @@ export const AdminPanelView: React.FC = () => {
                         </td>
 
                         {/* Joined Date */}
-                        <td className="py-3 px-3 text-[#8b6b4a] text-[11px]">
+                        <td className="py-3 px-3 text-(--tx-soft) text-[11px]">
                           {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Active'}
                         </td>
 
@@ -538,7 +538,7 @@ export const AdminPanelView: React.FC = () => {
                               Banned
                             </span>
                           ) : (
-                            <span className="text-xs text-[#8b6b4a] font-semibold">
+                            <span className="text-xs text-(--tx-soft) font-semibold">
                               {status.warningCount > 0 ? (
                                 <span className="text-red-600 font-bold">{status.warningCount} Warnings</span>
                               ) : (
@@ -551,7 +551,7 @@ export const AdminPanelView: React.FC = () => {
                         {/* Action Buttons */}
                         <td className="py-3 px-3 text-right flex items-center justify-end gap-2">
                           {isTargetSuperAdmin ? (
-                            <span className="text-[10px] text-[#a8833c] font-serif font-bold uppercase italic">
+                            <span className="text-[10px] text-(--ac-bronze-tx) font-serif font-bold uppercase italic">
                               Super Admin (Protected)
                             </span>
                           ) : (
@@ -578,7 +578,7 @@ export const AdminPanelView: React.FC = () => {
                                 </button>
                               ) : isTargetAdmin ? (
                                 <span
-                                  className="text-[10px] text-[#8b6b4a] italic font-medium px-1.5 py-0.5 rounded bg-[#f5f2ed] border border-[#d4af37]/20"
+                                  className="text-[10px] text-(--tx-soft) italic font-medium px-1.5 py-0.5 rounded bg-(--bg-inset2) border border-(--ln-bright)/20"
                                   title="Admin accounts can only be deleted by the Super Admin (orthodoxconnect.live@gmail.com)"
                                 >
                                   Admin (Protected)
@@ -599,14 +599,14 @@ export const AdminPanelView: React.FC = () => {
 
       {/* TAB 2: Content Moderation Reports Queue */}
       {activeTab === 'reports' && (
-        <div className="bg-[#fdfaf5] border border-[#d4af37]/30 rounded-2xl p-5 shadow-xl space-y-4">
-          <h3 className="font-serif font-bold text-lg text-[#5a4632] flex items-center gap-2">
+        <div className="bg-(--bg-card-hi) border border-(--ln-bright)/30 rounded-2xl p-5 shadow-xl space-y-4">
+          <h3 className="font-serif font-bold text-lg text-(--tx-head) flex items-center gap-2">
             <Flag className="w-5 h-5 text-red-600" />
             <span>Reported Content Review Queue</span>
           </h3>
 
           {reportsList.length === 0 ? (
-            <div className="p-8 text-center text-xs text-[#8b6b4a]">
+            <div className="p-8 text-center text-xs text-(--tx-soft)">
               No flagged content. Community feed is clean!
             </div>
           ) : (
@@ -616,8 +616,8 @@ export const AdminPanelView: React.FC = () => {
                   key={report.id}
                   className={`p-4 rounded-2xl border shadow-md space-y-3 transition-all ${
                     report.status === 'pending'
-                      ? 'bg-[#f1ebd7] border-red-500/40'
-                      : 'bg-[#f5f2ed] border-[#d4af37]/20 opacity-75'
+                      ? 'bg-(--bg-inset) border-red-500/40'
+                      : 'bg-(--bg-inset2) border-(--ln-bright)/20 opacity-75'
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
@@ -625,38 +625,38 @@ export const AdminPanelView: React.FC = () => {
                       <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white font-bold text-[10px] uppercase">
                         {report.targetType}
                       </span>
-                      <span className="font-bold text-[#5a4632]">
+                      <span className="font-bold text-(--tx-head)">
                         Reason: {report.reason.replace('_', ' ')}
                       </span>
                     </div>
-                    <span className="text-[10px] text-[#8b6b4a]">
+                    <span className="text-[10px] text-(--tx-soft)">
                       Reported by {report.reporterName} • {new Date(report.createdAt).toLocaleTimeString()}
                     </span>
                   </div>
 
                   {report.targetContentPreview && (
-                    <div className="p-3 rounded-xl bg-white border border-[#d4af37]/20 text-xs text-[#2c2c2c] italic">
+                    <div className="p-3 rounded-xl bg-white border border-(--ln-bright)/20 text-xs text-(--tx-body) italic">
                       "{report.targetContentPreview}"
                     </div>
                   )}
 
                   {report.details && (
-                    <p className="text-xs text-[#8b6b4a]">
-                      <span className="font-bold text-[#5a4632]">Reporter Note: </span>
+                    <p className="text-xs text-(--tx-soft)">
+                      <span className="font-bold text-(--tx-head)">Reporter Note: </span>
                       {report.details}
                     </p>
                   )}
 
-                  <div className="pt-2 border-t border-[#d4af37]/20 flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[11px] text-[#8b6b4a]">
-                      Author: <span className="font-bold text-[#5a4632]">{report.targetAuthorName || 'Unknown User'}</span>
+                  <div className="pt-2 border-t border-(--ln-bright)/20 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] text-(--tx-soft)">
+                      Author: <span className="font-bold text-(--tx-head)">{report.targetAuthorName || 'Unknown User'}</span>
                     </span>
 
                     {report.status === 'pending' ? (
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleDismissReport(report.id)}
-                          className="px-3 py-1.5 rounded-xl bg-white border border-[#d4af37]/30 text-[#8b6b4a] hover:text-[#5a4632] font-bold text-xs shadow-sm transition-all cursor-pointer"
+                          className="px-3 py-1.5 rounded-xl bg-white border border-(--ln-bright)/30 text-(--tx-soft) hover:text-(--tx-head) font-bold text-xs shadow-sm transition-all cursor-pointer"
                         >
                           Dismiss
                         </button>
@@ -692,30 +692,30 @@ export const AdminPanelView: React.FC = () => {
 
       {/* TAB 3: Moderation Audit Log Trail */}
       {activeTab === 'audit' && (
-        <div className="bg-[#fdfaf5] border border-[#d4af37]/30 rounded-2xl p-5 shadow-xl space-y-4">
-          <h3 className="font-serif font-bold text-lg text-[#5a4632] flex items-center gap-2">
-            <Clock className="w-5 h-5 text-[#d4af37]" />
+        <div className="bg-(--bg-card-hi) border border-(--ln-bright)/30 rounded-2xl p-5 shadow-xl space-y-4">
+          <h3 className="font-serif font-bold text-lg text-(--tx-head) flex items-center gap-2">
+            <Clock className="w-5 h-5 text-(--ac-bright-tx)" />
             <span>Moderation Audit Trail Log</span>
           </h3>
 
           <div className="space-y-2">
             {auditLogs.length === 0 ? (
-              <div className="p-6 text-center text-xs text-[#8b6b4a]">
+              <div className="p-6 text-center text-xs text-(--tx-soft)">
                 No moderation logs recorded yet.
               </div>
             ) : (
               auditLogs.map((log) => (
                 <div
                   key={log.id}
-                  className="p-3.5 rounded-xl bg-[#f5f2ed] border border-[#d4af37]/20 flex items-center justify-between text-xs"
+                  className="p-3.5 rounded-xl bg-(--bg-inset2) border border-(--ln-bright)/20 flex items-center justify-between text-xs"
                 >
                   <div>
-                    <span className="font-bold text-[#5a4632]">{log.adminName} </span>
-                    <span className="text-[#8b6b4a]">performed </span>
+                    <span className="font-bold text-(--tx-head)">{log.adminName} </span>
+                    <span className="text-(--tx-soft)">performed </span>
                     <span className="font-bold text-red-600 uppercase">[{log.action.replace('_', ' ')}] </span>
-                    <p className="text-[11px] text-[#4a3e31] mt-0.5">{log.reason}</p>
+                    <p className="text-[11px] text-(--tx-faint) mt-0.5">{log.reason}</p>
                   </div>
-                  <span className="text-[10px] text-[#8b6b4a] shrink-0">
+                  <span className="text-[10px] text-(--tx-soft) shrink-0">
                     {new Date(log.createdAt).toLocaleString()}
                   </span>
                 </div>
@@ -728,15 +728,15 @@ export const AdminPanelView: React.FC = () => {
       {/* MODAL 1: ADD NEW MEMBER */}
       {isAddMemberOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#1c1611] border-2 border-[#c5a059] rounded-2xl max-w-md w-full p-6 shadow-2xl text-[#f5ebd9] space-y-4 animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between border-b border-[#c5a059]/30 pb-3">
+          <div className="bg-[#1c1611] border-2 border-(--ln-gold) rounded-2xl max-w-md w-full p-6 shadow-2xl text-[#f5ebd9] space-y-4 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-(--ln-gold)/30 pb-3">
               <div className="flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-[#c5a059]" />
-                <h3 className="font-serif font-bold text-lg text-[#c5a059]">Add New Parish Member</h3>
+                <UserPlus className="w-5 h-5 text-(--ac-gold-tx)" />
+                <h3 className="font-serif font-bold text-lg text-(--ac-gold-tx)">Add New Parish Member</h3>
               </div>
               <button
                 onClick={() => setIsAddMemberOpen(false)}
-                className="p-1 rounded-lg hover:bg-[#282019] text-[#c5a059] transition-colors cursor-pointer"
+                className="p-1 rounded-lg hover:bg-[#282019] text-(--ac-gold-tx) transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -744,7 +744,7 @@ export const AdminPanelView: React.FC = () => {
 
             <form onSubmit={handleAddMemberSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block text-[#c5a059] font-bold mb-1 uppercase tracking-wider text-[10px]">
+                <label className="block text-(--ac-gold-tx) font-bold mb-1 uppercase tracking-wider text-[10px]">
                   Full Name *
                 </label>
                 <input
@@ -753,12 +753,12 @@ export const AdminPanelView: React.FC = () => {
                   placeholder="e.g. Deacon Nicholas"
                   value={newMemberForm.fullName}
                   onChange={(e) => setNewMemberForm({ ...newMemberForm, fullName: e.target.value })}
-                  className="w-full p-2.5 rounded-xl bg-stone-900 border border-[#c5a059]/30 text-[#f5ebd9] focus:outline-none focus:border-[#c5a059]"
+                  className="w-full p-2.5 rounded-xl bg-stone-900 border border-(--ln-gold)/30 text-[#f5ebd9] focus:outline-none focus:border-(--ln-gold)"
                 />
               </div>
 
               <div>
-                <label className="block text-[#c5a059] font-bold mb-1 uppercase tracking-wider text-[10px]">
+                <label className="block text-(--ac-gold-tx) font-bold mb-1 uppercase tracking-wider text-[10px]">
                   Email Address *
                 </label>
                 <input
@@ -767,12 +767,12 @@ export const AdminPanelView: React.FC = () => {
                   placeholder="e.g. nicholas@orthodoxparish.org"
                   value={newMemberForm.email}
                   onChange={(e) => setNewMemberForm({ ...newMemberForm, email: e.target.value })}
-                  className="w-full p-2.5 rounded-xl bg-stone-900 border border-[#c5a059]/30 text-[#f5ebd9] focus:outline-none focus:border-[#c5a059]"
+                  className="w-full p-2.5 rounded-xl bg-stone-900 border border-(--ln-gold)/30 text-[#f5ebd9] focus:outline-none focus:border-(--ln-gold)"
                 />
               </div>
 
               <div>
-                <label className="block text-[#c5a059] font-bold mb-1 uppercase tracking-wider text-[10px]">
+                <label className="block text-(--ac-gold-tx) font-bold mb-1 uppercase tracking-wider text-[10px]">
                   Parish / Monastery
                 </label>
                 <input
@@ -780,18 +780,18 @@ export const AdminPanelView: React.FC = () => {
                   placeholder="e.g. St. George Cathedral"
                   value={newMemberForm.parish}
                   onChange={(e) => setNewMemberForm({ ...newMemberForm, parish: e.target.value })}
-                  className="w-full p-2.5 rounded-xl bg-stone-900 border border-[#c5a059]/30 text-[#f5ebd9] focus:outline-none focus:border-[#c5a059]"
+                  className="w-full p-2.5 rounded-xl bg-stone-900 border border-(--ln-gold)/30 text-[#f5ebd9] focus:outline-none focus:border-(--ln-gold)"
                 />
               </div>
 
               <div>
-                <label className="block text-[#c5a059] font-bold mb-1 uppercase tracking-wider text-[10px]">
+                <label className="block text-(--ac-gold-tx) font-bold mb-1 uppercase tracking-wider text-[10px]">
                   Initial Role
                 </label>
                 <select
                   value={newMemberForm.role}
                   onChange={(e) => setNewMemberForm({ ...newMemberForm, role: e.target.value as UserRole })}
-                  className="w-full p-2.5 rounded-xl bg-stone-900 border border-[#c5a059]/30 text-[#f5ebd9] font-bold focus:outline-none focus:border-[#c5a059] cursor-pointer"
+                  className="w-full p-2.5 rounded-xl bg-stone-900 border border-(--ln-gold)/30 text-[#f5ebd9] font-bold focus:outline-none focus:border-(--ln-gold) cursor-pointer"
                 >
                   <option value="user">Member</option>
                   <option value="clergy">Clergy</option>
@@ -809,7 +809,7 @@ export const AdminPanelView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold uppercase tracking-wider shadow-lg transition-colors cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-(--tx-ink) font-serif font-bold uppercase tracking-wider shadow-lg transition-colors cursor-pointer"
                 >
                   Create Member
                 </button>
@@ -833,15 +833,15 @@ export const AdminPanelView: React.FC = () => {
 
             <div className="p-3.5 rounded-xl bg-stone-900 border border-red-500/30 text-xs space-y-1">
               <p>
-                <span className="text-[#c5a059] font-bold">Name: </span>
+                <span className="text-(--ac-gold-tx) font-bold">Name: </span>
                 {userToDelete.full_name}
               </p>
               <p>
-                <span className="text-[#c5a059] font-bold">Email: </span>
+                <span className="text-(--ac-gold-tx) font-bold">Email: </span>
                 {userToDelete.email}
               </p>
               <p>
-                <span className="text-[#c5a059] font-bold">Parish: </span>
+                <span className="text-(--ac-gold-tx) font-bold">Parish: </span>
                 {userToDelete.parish}
               </p>
             </div>

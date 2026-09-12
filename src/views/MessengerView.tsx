@@ -93,7 +93,7 @@ function findContactInList(contacts: ChatContact[], searchId?: string): ChatCont
 
 const MESSENGER_THEMES = [
   { id: 'classic', name: 'Messenger Blue', gradient: 'bg-gradient-to-r from-blue-600 to-indigo-600', bubbleBg: 'bg-[#0084ff]' },
-  { id: 'orthodox', name: 'Byzantine Gold', gradient: 'bg-gradient-to-r from-[#c5a059] to-[#a8833c]', bubbleBg: 'bg-[#a8833c]' },
+  { id: 'orthodox', name: 'Byzantine Gold', gradient: 'bg-gradient-to-r from-(--ac-gold) to-[#a8833c]', bubbleBg: 'bg-(--ac-bronze)' },
   { id: 'berry', name: 'Grape Violet', gradient: 'bg-gradient-to-r from-purple-600 to-pink-600', bubbleBg: 'bg-purple-600' },
   { id: 'emerald', name: 'Emerald Forest', gradient: 'bg-gradient-to-r from-emerald-600 to-teal-600', bubbleBg: 'bg-emerald-600' },
   { id: 'sunset', name: 'Coral Sunset', gradient: 'bg-gradient-to-r from-rose-500 to-amber-500', bubbleBg: 'bg-rose-500' },

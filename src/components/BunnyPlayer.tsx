@@ -200,7 +200,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
 
       {/* Video Content */}
       {hasError ? (
-        <div className="relative w-full aspect-video bg-[#1c130c] flex flex-col items-center justify-center p-6 text-center border-b border-[#c5a059]/20 overflow-hidden">
+        <div className="relative w-full aspect-video bg-[#1c130c] flex flex-col items-center justify-center p-6 text-center border-b border-(--ln-gold)/20 overflow-hidden">
           <img
             src={posterUrl || DEFAULT_POSTER}
             alt="Stream Thumbnail"
@@ -213,7 +213,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             <h4 className="text-[#f5ebd9] font-serif font-bold text-sm mb-1 uppercase tracking-wider">
               {language === 'ar' ? 'البث غير متصل حالياً' : 'Stream Unavailable'}
             </h4>
-            <p className="text-[#eedcb5]/70 text-xs max-w-sm mb-3 font-serif">
+            <p className="text-(--chip-light)/70 text-xs max-w-sm mb-3 font-serif">
               {language === 'ar'
                 ? 'تعذر تشغيل هذا الرابط. قد يكون البث منتهياً أو أن الرابط غير متاح حالياً.'
                 : 'Could not connect to this stream URL. The broadcast may be finished or currently offline.'}
@@ -221,7 +221,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             <button
               type="button"
               onClick={() => setHasError(false)}
-              className="px-3.5 py-1.5 rounded-xl bg-[#3d2b18] hover:bg-[#c5a059] text-[#c5a059] hover:text-[#1c130c] font-serif font-bold text-xs flex items-center gap-1.5 transition-colors border border-[#c5a059]/40 cursor-pointer shadow-md"
+              className="px-3.5 py-1.5 rounded-xl bg-(--chip-dark) hover:bg-(--ac-gold) text-(--ac-gold-tx) hover:text-(--tx-ink) font-serif font-bold text-xs flex items-center gap-1.5 transition-colors border border-(--ln-gold)/40 cursor-pointer shadow-md"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>{language === 'ar' ? 'إعادة المحاولة' : 'Retry Connection'}</span>
@@ -274,7 +274,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
               <button
                 type="button"
                 onClick={handleUnmuteAudio}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#c5a059] to-[#8f6e30] hover:from-[#e6d3ab] hover:to-[#c5a059] text-[#1c130c] font-serif font-bold text-xs flex items-center gap-2 shadow-2xl transition-all transform hover:scale-105 active:scale-95 cursor-pointer border border-[#f5ebd9]"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-(--ac-gold) to-(--ac-bronze-dk) hover:from-(--bg-deep) hover:to-(--ac-gold) text-(--tx-ink) font-serif font-bold text-xs flex items-center gap-2 shadow-2xl transition-all transform hover:scale-105 active:scale-95 cursor-pointer border border-(--ln-light)"
                 title="Click to enable audio"
               >
                 <VolumeX className="w-4 h-4 text-red-900" />

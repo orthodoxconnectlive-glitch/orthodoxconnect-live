@@ -646,8 +646,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
   return (
     <div className="space-y-6">
       {toastMessage && (
-        <div className="fixed top-20 right-6 rtl:right-auto rtl:left-6 z-50 px-4 py-2.5 rounded-2xl bg-[#3d2b18] text-[#f5ebd9] border-2 border-[#c5a059] shadow-2xl font-serif text-xs flex items-center gap-2 animate-bounce">
-          <Check className="w-4 h-4 text-[#c5a059]" />
+        <div className="fixed top-20 right-6 rtl:right-auto rtl:left-6 z-50 px-4 py-2.5 rounded-2xl bg-(--chip-dark) text-[#f5ebd9] border-2 border-(--ln-gold) shadow-2xl font-serif text-xs flex items-center gap-2 animate-bounce">
+          <Check className="w-4 h-4 text-(--ac-gold-tx)" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -682,52 +682,52 @@ export const FeedView: React.FC<FeedViewProps> = ({
       <LiturgicalBanner onOpenCalendar={onOpenCalendar} />
       <StoriesBar onSelectUser={onSelectUser} />
 
-      <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg">
+      <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg">
         <form onSubmit={handleCreatePost} className="space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full bg-[#3d2b18] text-[#c5a059] flex items-center justify-center font-bold text-lg shrink-0 shadow-md border-2 border-[#c5a059]">
+            <div className="w-11 h-11 rounded-full bg-(--chip-dark) text-(--ac-gold-tx) flex items-center justify-center font-bold text-lg shrink-0 shadow-md border-2 border-(--ln-gold)">
               ☨
             </div>
-            <div className="flex-1 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] p-2.5 flex items-center gap-2">
+            <div className="flex-1 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) dark:border-[#8b6b4a] p-2.5 flex items-center gap-2">
               <input
                 type="text"
                 value={newPostText}
                 onChange={(e) => setNewPostText(e.target.value)}
                 placeholder={t('sharePost')}
-                className="w-full bg-transparent text-xs font-serif uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#7c5f3d] dark:placeholder-[#a89379] focus:outline-none"
+                className="w-full bg-transparent text-xs font-serif uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute) dark:placeholder-(--tx-ph-dark) focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="p-1 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#c5a059]/20 transition-colors shrink-0 cursor-pointer"
+                className="p-1 rounded-lg text-(--tx-mute) hover:text-(--tx-strong) hover:bg-(--ac-gold)/20 transition-colors shrink-0 cursor-pointer"
               >
                 <Image className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
               </button>
               <button
                 type="button"
                 onClick={() => setShowVideoUrlInput((prev) => !prev)}
-                className="p-1 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#c5a059]/20 transition-colors shrink-0 cursor-pointer"
+                className="p-1 rounded-lg text-(--tx-mute) hover:text-(--tx-strong) hover:bg-(--ac-gold)/20 transition-colors shrink-0 cursor-pointer"
               >
-                <Video className="w-4 h-4 text-[#a8833c]" />
+                <Video className="w-4 h-4 text-(--ac-bronze-tx)" />
               </button>
             </div>
           </div>
 
           {showVideoUrlInput && (
-            <div className="p-3 bg-[#eedcb5]/60 dark:bg-[#282019]/70 border border-[#c5a059]/50 rounded-2xl space-y-2">
+            <div className="p-3 bg-(--bg-soft)/60 dark:bg-[#282019]/70 border border-(--ln-gold)/50 rounded-2xl space-y-2">
               <div className="flex items-center gap-2">
-                <Link2 className="w-4 h-4 text-[#a8833c] shrink-0" />
+                <Link2 className="w-4 h-4 text-(--ac-bronze-tx) shrink-0" />
                 <input
                   type="url"
                   placeholder={language === 'ar' ? 'ضع رابط يوتيوب أو فيديو مباشر...' : 'Paste YouTube, Vimeo, or video URL...'}
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
-                  className="w-full bg-[#f6ebd6] dark:bg-[#1c1611] text-xs px-3 py-1.5 rounded-xl border border-[#c5a059]/40 text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none"
+                  className="w-full bg-(--bg-card) dark:bg-[#1c1611] text-xs px-3 py-1.5 rounded-xl border border-(--ln-gold)/40 text-(--tx-strong) dark:text-[#f5ebd9] focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => videoFileInputRef.current?.click()}
-                  className="px-2.5 py-1.5 bg-[#3d2b18] text-[#c5a059] border border-[#c5a059] rounded-xl text-[10px] font-serif uppercase tracking-wider shrink-0 hover:bg-[#282019] flex items-center gap-1"
+                  className="px-2.5 py-1.5 bg-(--chip-dark) text-(--ac-gold-tx) border border-(--ln-gold) rounded-xl text-[10px] font-serif uppercase tracking-wider shrink-0 hover:bg-[#282019] flex items-center gap-1"
                 >
                   <Upload className="w-3 h-3" />
                   <span>{language === 'ar' ? 'رفع ملف' : 'File'}</span>
@@ -752,7 +752,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
           />
 
           {imageUrl && (
-            <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
+            <div className="relative rounded-2xl overflow-hidden border-2 border-(--ln-gold) bg-(--chip-dark)/10 p-1">
               <div className="relative max-h-80 overflow-hidden rounded-xl bg-black/20 flex items-center justify-center">
                 <img
                   src={imageUrl}
@@ -763,7 +763,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setImageUrl('')}
-                    className="p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-[#c5a059]/50"
+                    className="p-1.5 rounded-full bg-(--chip-dark)/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-(--ln-gold)/50"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -773,7 +773,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
           )}
 
           {videoUrl && (
-            <div className="relative rounded-2xl overflow-hidden border-2 border-[#c5a059] bg-[#3d2b18]/10 p-1">
+            <div className="relative rounded-2xl overflow-hidden border-2 border-(--ln-gold) bg-(--chip-dark)/10 p-1">
               <div className="relative aspect-video rounded-xl bg-black overflow-hidden flex items-center justify-center">
                 {parsedPreviewEmbed?.type === 'youtube' || parsedPreviewEmbed?.type === 'vimeo' ? (
                   <iframe
@@ -801,7 +801,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                       setSelectedVideoFile(null);
                       setVideoFileName('');
                     }}
-                    className="p-1.5 rounded-full bg-[#3d2b18]/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-[#c5a059]/50"
+                    className="p-1.5 rounded-full bg-(--chip-dark)/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-(--ln-gold)/50"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -811,20 +811,20 @@ export const FeedView: React.FC<FeedViewProps> = ({
           )}
 
           {isSubmitting && selectedVideoFile && (
-            <div className="w-full bg-[#eedcb5] dark:bg-[#282019] rounded-full h-2 overflow-hidden border border-[#c5a059]/40 mt-1">
+            <div className="w-full bg-(--bg-soft) dark:bg-[#282019] rounded-full h-2 overflow-hidden border border-(--ln-gold)/40 mt-1">
               <div
-                className="bg-[#c5a059] h-2 rounded-full transition-all duration-200"
+                className="bg-(--ac-gold) h-2 rounded-full transition-all duration-200"
                 style={{ width: `${Math.max(5, uploadProgress)}%` }}
               />
             </div>
           )}
 
-          <div className="flex items-center justify-between pt-2 border-t border-[#c5a059]/30">
+          <div className="flex items-center justify-between pt-2 border-t border-(--ln-gold)/30">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#eedcb5] dark:hover:bg-[#282019]"
+                className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-(--tx-mute) hover:text-(--tx-strong) hover:bg-(--bg-soft) dark:hover:bg-[#282019]"
               >
                 <Image className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                 <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
@@ -835,9 +835,9 @@ export const FeedView: React.FC<FeedViewProps> = ({
               <button
                 type="button"
                 onClick={() => setShowVideoUrlInput((prev) => !prev)}
-                className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#eedcb5] dark:hover:bg-[#282019]"
+                className="p-2 rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer text-(--tx-mute) hover:text-(--tx-strong) hover:bg-(--bg-soft) dark:hover:bg-[#282019]"
               >
-                <Video className="w-4 h-4 text-[#a8833c]" />
+                <Video className="w-4 h-4 text-(--ac-bronze-tx)" />
                 <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
                   {videoUrl || selectedVideoFile ? (language === 'ar' ? 'تم إرفاق فيديو' : 'Video Attached') : (language === 'ar' ? 'فيديو / رابط' : 'Video / Link')}
                 </span>
@@ -847,7 +847,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || (!newPostText.trim() && !imageUrl && !videoUrl && !selectedVideoFile)}
-              className="px-5 py-2 rounded-xl bg-[#a8833c] hover:bg-[#8f6e30] text-white font-serif uppercase tracking-wider font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-(--ac-bronze) hover:bg-(--ac-bronze-dk) text-white font-serif uppercase tracking-wider font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
             >
               {isSubmitting ? (
                 <>
@@ -865,13 +865,13 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </form>
       </div>
 
-      <div className="flex items-center justify-between bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] p-1.5 rounded-2xl shadow-md font-serif text-xs">
+      <div className="flex items-center justify-between bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) p-1.5 rounded-2xl shadow-md font-serif text-xs">
         <button
           onClick={() => setFeedTab('all')}
           className={`flex-1 py-2 rounded-xl font-bold uppercase tracking-wider transition-all cursor-pointer text-center ${
             feedTab === 'all'
-              ? 'bg-[#3d2b18] text-[#c5a059] shadow-md border border-[#c5a059]'
-              : 'text-[#7c5f3d] hover:text-[#3d2b18] dark:text-[#a89379]'
+              ? 'bg-(--chip-dark) text-(--ac-gold-tx) shadow-md border border-(--ln-gold)'
+              : 'text-(--tx-mute) hover:text-(--tx-strong) dark:text-[#a89379]'
           }`}
         >
           {t('allParishFeed')} ({posts.length})
@@ -880,8 +880,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
           onClick={() => setFeedTab('following')}
           className={`flex-1 py-2 rounded-xl font-bold uppercase tracking-wider transition-all cursor-pointer text-center ${
             feedTab === 'following'
-              ? 'bg-[#3d2b18] text-[#c5a059] shadow-md border border-[#c5a059]'
-              : 'text-[#7c5f3d] hover:text-[#3d2b18] dark:text-[#a89379]'
+              ? 'bg-(--chip-dark) text-(--ac-gold-tx) shadow-md border border-(--ln-gold)'
+              : 'text-(--tx-mute) hover:text-(--tx-strong) dark:text-[#a89379]'
           }`}
         >
           {t('followingFeed')} ({filteredPosts.length})
@@ -890,16 +890,16 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
       <div className="space-y-4">
         {loading && posts.length === 0 ? (
-          <div className="p-8 text-center bg-[#f6ebd6] dark:bg-[#1c1611] rounded-3xl border-2 border-[#c5a059]">
-            <Sparkles className="w-8 h-8 mx-auto text-[#a8833c] animate-spin mb-2" />
-            <p className="text-xs text-[#7c5f3d] font-serif uppercase tracking-wider">
+          <div className="p-8 text-center bg-(--bg-card) dark:bg-[#1c1611] rounded-3xl border-2 border-(--ln-gold)">
+            <Sparkles className="w-8 h-8 mx-auto text-(--ac-bronze-tx) animate-spin mb-2" />
+            <p className="text-xs text-(--tx-mute) font-serif uppercase tracking-wider">
               {language === 'ar' ? 'جارٍ تحميل خلاصة الرعية...' : 'Loading parish feed...'}
             </p>
           </div>
         ) : filteredPosts.length === 0 ? (
-          <div className="p-8 text-center bg-[#f6ebd6] dark:bg-[#1c1611] rounded-3xl border-2 border-[#c5a059] text-[#7c5f3d] text-xs font-serif uppercase space-y-3 shadow-md">
-            <Church className="w-8 h-8 mx-auto text-[#a8833c]" />
-            <p className="font-bold text-[#3d2b18] dark:text-[#f5ebd9] text-sm">
+          <div className="p-8 text-center bg-(--bg-card) dark:bg-[#1c1611] rounded-3xl border-2 border-(--ln-gold) text-(--tx-mute) text-xs font-serif uppercase space-y-3 shadow-md">
+            <Church className="w-8 h-8 mx-auto text-(--ac-bronze-tx)" />
+            <p className="font-bold text-(--tx-strong) dark:text-[#f5ebd9] text-sm">
               {feedTab === 'following'
                 ? (language === 'ar'
                     ? 'أنت لا تتابع أي شخص لديه منشورات نشطة بعد.'
@@ -952,22 +952,22 @@ export const FeedView: React.FC<FeedViewProps> = ({
                     type="button"
                     onClick={handleLoadMore}
                     disabled={loadingMore}
-                    className="px-6 py-3 rounded-2xl bg-[#3d2b18] hover:bg-[#282019] text-[#c5a059] border-2 border-[#c5a059] font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                    className="px-6 py-3 rounded-2xl bg-(--chip-dark) hover:bg-[#282019] text-(--ac-gold-tx) border-2 border-(--ln-gold) font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all cursor-pointer disabled:opacity-50"
                   >
                     {loadingMore ? (
                       <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-[#c5a059]" />
+                        <RefreshCw className="w-4 h-4 animate-spin text-(--ac-gold-tx)" />
                         <span>{language === 'ar' ? 'جارٍ تحميل منشورات سابقة...' : 'Loading older posts...'}</span>
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-4 h-4 text-[#c5a059]" />
+                        <Sparkles className="w-4 h-4 text-(--ac-gold-tx)" />
                         <span>{language === 'ar' ? 'تحميل المنشورات السابقة' : 'Load Older Posts'}</span>
                       </>
                     )}
                   </button>
                 ) : (
-                  <div className="text-center py-4 text-xs font-serif text-[#7c5f3d] dark:text-[#a89379] italic">
+                  <div className="text-center py-4 text-xs font-serif text-(--tx-mute) dark:text-[#a89379] italic">
                     {language === 'ar' ? 'وصلت إلى بداية المنشورات' : 'You have viewed all reflections.'}
                   </div>
                 )}

@@ -309,11 +309,11 @@ export const PostCard: React.FC<PostCardProps> = ({
   return (
     <div
       id={`post-card-${post.id}`}
-      className="p-4 sm:p-5 rounded-2xl bg-[#fffdfa] dark:bg-[#1f1914] border border-[#c5a059]/40 shadow-md hover:shadow-lg transition-all duration-300 relative overflow-hidden"
+      className="p-4 sm:p-5 rounded-2xl bg-[#fffdfa] dark:bg-[#1f1914] border border-(--ln-gold)/40 shadow-md hover:shadow-lg transition-all duration-300 relative overflow-hidden"
     >
       {/* Reshare Header Banner */}
       {post.isReshared && (
-        <div className="flex items-center gap-1.5 text-xs text-[#8b6b4a] dark:text-[#c5a059] font-medium mb-3 pb-2 border-b border-[#c5a059]/20 font-serif">
+        <div className="flex items-center gap-1.5 text-xs text-(--tx-soft) dark:text-(--ac-gold-tx) font-medium mb-3 pb-2 border-b border-(--ln-gold)/20 font-serif">
           <Repeat className="w-3.5 h-3.5" />
           <span>{language === 'ar' ? 'تمت إعادة المشاركة في خلاصة الرعية' : 'Reshared to the Parish Feed'}</span>
         </div>
@@ -336,9 +336,9 @@ export const PostCard: React.FC<PostCardProps> = ({
             <img
               src={authorAvatar}
               alt={authorName}
-              className="w-10 h-10 rounded-full object-cover border-2 border-[#c5a059] group-hover:scale-105 transition-transform"
+              className="w-10 h-10 rounded-full object-cover border-2 border-(--ln-gold) group-hover:scale-105 transition-transform"
             />
-            <div className="absolute -bottom-1 -right-1 rtl:-right-auto rtl:-left-1 w-4 h-4 rounded-full bg-[#3d2b18] text-[#c5a059] border border-[#c5a059] flex items-center justify-center text-[8px]">
+            <div className="absolute -bottom-1 -right-1 rtl:-right-auto rtl:-left-1 w-4 h-4 rounded-full bg-(--chip-dark) text-(--ac-gold-tx) border border-(--ln-gold) flex items-center justify-center text-[8px]">
               ☨
             </div>
           </div>
@@ -346,7 +346,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h4
-                className="font-serif-coptic font-bold text-xs sm:text-sm text-[#3d2b18] dark:text-[#f5ebd9] uppercase tracking-wider cursor-pointer hover:underline hover:text-[#c5a059] transition-colors"
+                className="font-serif-coptic font-bold text-xs sm:text-sm text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider cursor-pointer hover:underline hover:text-(--ac-gold-tx) transition-colors"
                 onClick={() =>
                   onSelectUser?.({
                     id: authorId,
@@ -367,13 +367,13 @@ export const PostCard: React.FC<PostCardProps> = ({
                       onClick={() => onToggleFollow(authorName)}
                       className={`px-2.5 py-0.5 rounded-full text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
                         isFollowed
-                          ? 'bg-[#eedcb5] dark:bg-[#282019] text-[#7c5f3d] border border-[#c5a059]'
-                          : 'bg-[#a8833c] hover:bg-[#8f6e30] text-white shadow-sm'
+                          ? 'bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) border border-(--ln-gold)'
+                          : 'bg-(--ac-bronze) hover:bg-(--ac-bronze-dk) text-white shadow-sm'
                       }`}
                     >
                       {isFollowed ? (
                         <>
-                          <UserCheck className="w-3 h-3 text-[#a8833c]" />
+                          <UserCheck className="w-3 h-3 text-(--ac-bronze-tx)" />
                           <span>{t('following')}</span>
                         </>
                       ) : (
@@ -389,7 +389,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                     <button
                       type="button"
                       onClick={() => onOpenMessengerWithUser(authorId || authorName)}
-                      className="px-2.5 py-0.5 rounded-full text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 bg-[#3d2b18] dark:bg-[#282019] text-[#c5a059] hover:bg-[#a8833c] hover:text-white border border-[#c5a059] transition-all cursor-pointer shadow-sm"
+                      className="px-2.5 py-0.5 rounded-full text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 bg-(--chip-dark) dark:bg-[#282019] text-(--ac-gold-tx) hover:bg-(--ac-bronze) hover:text-white border border-(--ln-gold) transition-all cursor-pointer shadow-sm"
                       title={language === 'ar' ? 'إرسال رسالة خاصة' : 'Send message'}
                     >
                       <MessageSquare className="w-3 h-3" />
@@ -402,13 +402,13 @@ export const PostCard: React.FC<PostCardProps> = ({
               <TimeAgo
                 date={post.createdAt || rawPost.created_at}
                 prefix="· "
-                className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-wider font-semibold"
+                className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif uppercase tracking-wider font-semibold"
               />
             </div>
 
             <div className="flex items-center gap-1 mt-0.5">
-              <Church className="w-3 h-3 text-[#c5a059]" />
-              <p className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-wider font-semibold">
+              <Church className="w-3 h-3 text-(--ac-gold-tx)" />
+              <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif uppercase tracking-wider font-semibold">
                 {authorParish}
               </p>
             </div>
@@ -424,7 +424,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-serif font-bold transition-all cursor-pointer shadow-xs border ${
                 isSpeaking
                   ? 'bg-red-700 text-white border-red-800 animate-pulse'
-                  : 'bg-[#c5a059] text-white border-[#b08b43] hover:bg-[#b08b43]'
+                  : 'bg-(--ac-gold) text-white border-[#b08b43] hover:bg-(--ac-gold-deep)'
               }`}
               title={isSpeaking ? (language === 'ar' ? 'إيقاف الصوت' : 'Stop Audio') : (language === 'ar' ? 'استمع إلى التأمل بصوت مسموع' : 'Listen to Reflection')}
             >
@@ -445,7 +445,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           <button
             type="button"
             onClick={() => onOpenReport('post', post.id, authorName, postContent || 'Post Media Content')}
-            className="p-1.5 rounded-lg text-[#7c5f3d] hover:text-[#3d2b18] hover:bg-[#e6d3ab] transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-(--tx-mute) hover:text-(--tx-strong) hover:bg-(--bg-deep) transition-colors cursor-pointer"
             title={t('report')}
           >
             <Flag className="w-3.5 h-3.5" />
@@ -455,7 +455,7 @@ export const PostCard: React.FC<PostCardProps> = ({
             <button
               type="button"
               onClick={() => onDeletePost(post.id)}
-              className="p-1.5 rounded-lg text-[#7c5f3d] hover:text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-(--tx-mute) hover:text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
               title={t('delete')}
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -466,14 +466,14 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Content Text */}
       {postContent && (
-        <p className="text-xs sm:text-sm text-[#3d2b18] dark:text-[#f5ebd9] font-serif leading-relaxed mb-3.5 whitespace-pre-wrap">
+        <p className="text-xs sm:text-sm text-(--tx-strong) dark:text-[#f5ebd9] font-serif leading-relaxed mb-3.5 whitespace-pre-wrap">
           {postContent}
         </p>
       )}
 
       {/* Video Media */}
       {parsedEmbed ? (
-        <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-[#c5a059]/40 mb-3.5">
+        <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-(--ln-gold)/40 mb-3.5">
           {parsedEmbed.type === 'youtube' || parsedEmbed.type === 'vimeo' ? (
             <iframe
               src={parsedEmbed.embedUrl}
@@ -487,7 +487,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           )}
         </div>
       ) : cleanVideoId ? (
-        <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-[#c5a059]/40 mb-3.5 flex items-center justify-center">
+        <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-(--ln-gold)/40 mb-3.5 flex items-center justify-center">
           {!isVideoLoaded && (
             <div className="absolute inset-0 bg-stone-950 flex flex-col items-center justify-center z-10 p-4 text-center">
               <img
@@ -498,8 +498,8 @@ export const PostCard: React.FC<PostCardProps> = ({
                   (e.target as HTMLElement).style.display = 'none';
                 }}
               />
-              <Sparkles className="w-7 h-7 text-[#c5a059] animate-spin mb-2 z-10" />
-              <p className="text-xs text-[#eedcb5] font-serif z-10">
+              <Sparkles className="w-7 h-7 text-(--ac-gold-tx) animate-spin mb-2 z-10" />
+              <p className="text-xs text-(--chip-light) font-serif z-10">
                 {language === 'ar' ? 'جارٍ تحميل الفيديو...' : 'Loading video stream...'}
               </p>
             </div>
@@ -527,7 +527,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Image Media */}
       {postImage && (!cleanVideoId && !parsedEmbed || rawPost.show_image_with_video) && (
-        <div className="rounded-2xl overflow-hidden mb-3.5 border-2 border-[#c5a059]/40 bg-[#3d2b18]/10 w-full max-h-[500px] flex items-center justify-center shadow-inner">
+        <div className="rounded-2xl overflow-hidden mb-3.5 border-2 border-(--ln-gold)/40 bg-(--chip-dark)/10 w-full max-h-[500px] flex items-center justify-center shadow-inner">
           <img
             src={postImage}
             alt="Post media"
@@ -554,7 +554,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Quoted Sub-Post */}
       {post.quotedPost && (
-        <div className="p-3 mb-3.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/30 text-xs space-y-1.5 shadow-sm">
+        <div className="p-3 mb-3.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs space-y-1.5 shadow-sm">
           <div
             className="flex items-center gap-2 cursor-pointer hover:opacity-80"
             onClick={() =>
@@ -568,23 +568,23 @@ export const PostCard: React.FC<PostCardProps> = ({
             <img
               src={post.quotedPost.authorAvatar}
               alt={post.quotedPost.authorName}
-              className="w-5 h-5 rounded-full object-cover border border-[#d4af37]"
+              className="w-5 h-5 rounded-full object-cover border border-(--ln-bright)"
             />
-            <span className="font-bold text-[#5a4632] dark:text-[#c5a059] hover:underline">
+            <span className="font-bold text-(--tx-head) dark:text-(--ac-gold-tx) hover:underline">
               {post.quotedPost.authorName}
             </span>
-            <span className="text-[10px] text-[#8b6b4a] dark:text-[#a89379]">
+            <span className="text-[10px] text-(--tx-soft) dark:text-[#a89379]">
               • {post.quotedPost.authorParish}
             </span>
           </div>
-          <p className="text-[#2c2c2c] dark:text-[#eedcb5] italic pl-7 rtl:pl-0 rtl:pr-7">
+          <p className="text-(--tx-body) dark:text-(--chip-light) italic pl-7 rtl:pl-0 rtl:pr-7">
             "{post.quotedPost.text}"
           </p>
         </div>
       )}
 
       {/* Likes Preview & Interaction Header */}
-      <div className="flex items-center justify-between pt-2.5 pb-1 px-1 text-[11px] text-[#8b6b4a] dark:text-[#c5a059] border-t border-[#d4af37]/15">
+      <div className="flex items-center justify-between pt-2.5 pb-1 px-1 text-[11px] text-(--tx-soft) dark:text-(--ac-gold-tx) border-t border-(--ln-bright)/15">
         <button
           type="button"
           onClick={handleOpenLikesModal}
@@ -606,17 +606,17 @@ export const PostCard: React.FC<PostCardProps> = ({
                 />
               ))}
           </div>
-          <span className="font-medium text-[#5a4632] dark:text-[#e6d5b8] group-hover:text-[#c5a059] transition-colors">
+          <span className="font-medium text-(--tx-head) dark:text-[#e6d5b8] group-hover:text-(--ac-gold-tx) transition-colors">
             {totalLikes > 0 ? likeSummaryText : language === 'ar' ? 'كن أول من يبارك' : 'Be the first to bless'}
           </span>
         </button>
 
-        <div className="flex items-center gap-3 text-[#8b6b4a] dark:text-[#a89379]">
+        <div className="flex items-center gap-3 text-(--tx-soft) dark:text-[#a89379]">
           {(post.commentsCount || 0) > 0 && (
             <button
               type="button"
               onClick={onToggleComments}
-              className="hover:underline cursor-pointer hover:text-[#5a4632] dark:hover:text-[#e6d5b8] transition-colors"
+              className="hover:underline cursor-pointer hover:text-(--tx-head) dark:hover:text-[#e6d5b8] transition-colors"
             >
               {post.commentsCount} {language === 'ar' ? 'تعليق' : post.commentsCount === 1 ? 'comment' : 'comments'}
             </button>
@@ -630,14 +630,14 @@ export const PostCard: React.FC<PostCardProps> = ({
       </div>
 
       {/* Action Toolbar */}
-      <div className="flex items-center justify-between pt-2 border-t border-[#d4af37]/20 text-xs">
+      <div className="flex items-center justify-between pt-2 border-t border-(--ln-bright)/20 text-xs">
         <button
           type="button"
           onClick={handleLikeClick}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl transition-all cursor-pointer select-none active:scale-95 ${
             isLiked
               ? 'bg-rose-50 dark:bg-rose-950/30 text-red-600 font-bold border border-rose-200 dark:border-rose-900/40 shadow-xs'
-              : 'text-[#8b6b4a] hover:text-red-600 hover:bg-[#f1ebd7] dark:hover:bg-[#282019]'
+              : 'text-(--tx-soft) hover:text-red-600 hover:bg-(--bg-inset) dark:hover:bg-[#282019]'
           }`}
           title={language === 'ar' ? (isLiked ? 'إلغاء البركة' : 'مباركة التأمل') : isLiked ? 'Unlike reflection' : 'Bless reflection'}
         >
@@ -653,12 +653,12 @@ export const PostCard: React.FC<PostCardProps> = ({
           onClick={onToggleComments}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl transition-colors cursor-pointer select-none ${
             isCommentsOpen
-              ? 'bg-[#f1ebd7] dark:bg-[#282019] text-[#3d2b18] dark:text-[#f5ebd9] font-bold'
-              : 'text-[#8b6b4a] hover:text-[#5a4632] hover:bg-[#f1ebd7] dark:hover:bg-[#282019]'
+              ? 'bg-(--bg-inset) dark:bg-[#282019] text-(--tx-strong) dark:text-[#f5ebd9] font-bold'
+              : 'text-(--tx-soft) hover:text-(--tx-head) hover:bg-(--bg-inset) dark:hover:bg-[#282019]'
           }`}
           title={language === 'ar' ? 'التأملات والتعليقات' : 'Reflections & Comments'}
         >
-          <MessageCircle className="w-4 h-4 text-[#d4af37]" />
+          <MessageCircle className="w-4 h-4 text-(--ac-bright-tx)" />
           <span className="font-serif font-semibold">{language === 'ar' ? 'تعليق' : 'Comment'}</span>
           {(post.commentsCount || 0) > 0 && (
             <span className="text-[11px] opacity-80">({post.commentsCount})</span>
@@ -668,10 +668,10 @@ export const PostCard: React.FC<PostCardProps> = ({
         <button
           type="button"
           onClick={() => onReshare(post)}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-[#8b6b4a] hover:text-[#5a4632] hover:bg-[#f1ebd7] dark:hover:bg-[#282019] transition-colors cursor-pointer select-none"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl text-(--tx-soft) hover:text-(--tx-head) hover:bg-(--bg-inset) dark:hover:bg-[#282019] transition-colors cursor-pointer select-none"
           title={language === 'ar' ? 'إعادة مشاركة في الخلاصة' : 'Reshare to Feed'}
         >
-          <Repeat className="w-4 h-4 text-[#d4af37]" />
+          <Repeat className="w-4 h-4 text-(--ac-bright-tx)" />
           <span className="font-serif font-semibold hidden sm:inline">
             {language === 'ar' ? 'مشاركة' : 'Reshare'}
           </span>
@@ -684,10 +684,10 @@ export const PostCard: React.FC<PostCardProps> = ({
           <button
             type="button"
             onClick={() => onOpenMessengerWithUser(post.authorId || post.authorName)}
-            className="p-2 rounded-xl text-[#8b6b4a] hover:text-[#3d2b18] hover:bg-[#f1ebd7] dark:hover:bg-[#282019] transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-(--tx-soft) hover:text-(--tx-strong) hover:bg-(--bg-inset) dark:hover:bg-[#282019] transition-colors cursor-pointer"
             title={language === 'ar' ? 'رسالة خاصة' : 'Direct Message'}
           >
-            <MessageSquare className="w-4 h-4 text-[#a8833c]" />
+            <MessageSquare className="w-4 h-4 text-(--ac-bronze-tx)" />
           </button>
         )}
 
@@ -696,7 +696,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           onClick={() => {
             navigator.clipboard.writeText(`https://orthodoxconnect.live/post/${post.id}`);
           }}
-          className="p-2 text-[#8b6b4a] hover:text-[#5a4632] hover:bg-[#f1ebd7] dark:hover:bg-[#282019] rounded-xl transition-colors cursor-pointer"
+          className="p-2 text-(--tx-soft) hover:text-(--tx-head) hover:bg-(--bg-inset) dark:hover:bg-[#282019] rounded-xl transition-colors cursor-pointer"
           title={language === 'ar' ? 'نسخ رابط المنشور' : 'Copy link to post'}
         >
           <Share2 className="w-4 h-4" />
@@ -705,10 +705,10 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Comments Section */}
       {isCommentsOpen && (
-        <div className="mt-3.5 pt-3.5 border-t border-[#d4af37]/20 space-y-3">
+        <div className="mt-3.5 pt-3.5 border-t border-(--ln-bright)/20 space-y-3">
           <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
             {formattedComments.length === 0 ? (
-              <div className="text-center py-4 text-[#8b6b4a] dark:text-[#a89379] italic text-xs">
+              <div className="text-center py-4 text-(--tx-soft) dark:text-[#a89379] italic text-xs">
                 {language === 'ar'
                   ? 'لم تتم مشاركة أي تأملات بعد. كن أول من يشارك أفكاره!'
                   : 'No reflections shared yet. Be the first to share your thoughts!'}
@@ -725,7 +725,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                     <img
                       src={comm.author_avatar || comm.authorAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
                       alt={comm.author_name || comm.authorName || 'User'}
-                      className="w-8 h-8 rounded-full object-cover border border-[#c5a059]/40 mt-0.5 shrink-0 cursor-pointer"
+                      className="w-8 h-8 rounded-full object-cover border border-(--ln-gold)/40 mt-0.5 shrink-0 cursor-pointer"
                       onClick={() =>
                         onSelectUser?.({
                           id: comm.user_id || comm.userId,
@@ -736,10 +736,10 @@ export const PostCard: React.FC<PostCardProps> = ({
                       }
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="p-3 rounded-2xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/20 shadow-xs inline-block max-w-full">
+                      <div className="p-3 rounded-2xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/20 shadow-xs inline-block max-w-full">
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <span
-                            className="font-bold text-xs text-[#3d2b18] dark:text-[#f5ebd9] hover:underline cursor-pointer font-serif"
+                            className="font-bold text-xs text-(--tx-strong) dark:text-[#f5ebd9] hover:underline cursor-pointer font-serif"
                             onClick={() =>
                               onSelectUser?.({
                                 id: comm.user_id || comm.userId,
@@ -751,16 +751,16 @@ export const PostCard: React.FC<PostCardProps> = ({
                           >
                             {comm.author_name || comm.authorName || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner')}
                           </span>
-                          <span className="text-[10px] text-[#8b6b4a] dark:text-[#a89379]">
+                          <span className="text-[10px] text-(--tx-soft) dark:text-[#a89379]">
                             <TimeAgo dateString={comm.created_at || comm.createdAt || ''} />
                           </span>
                         </div>
-                        <p className="text-xs text-[#2c2c2c] dark:text-[#eedcb5] whitespace-pre-line break-words">
+                        <p className="text-xs text-(--tx-body) dark:text-(--chip-light) whitespace-pre-line break-words">
                           {comm.content}
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-3 pl-2 rtl:pl-0 rtl:pr-2 pt-1 text-[10px] text-[#8b6b4a] dark:text-[#a89379]">
+                      <div className="flex items-center gap-3 pl-2 rtl:pl-0 rtl:pr-2 pt-1 text-[10px] text-(--tx-soft) dark:text-[#a89379]">
                         {canDelete && onDeleteComment && (
                           <button
                             type="button"
@@ -795,7 +795,7 @@ export const PostCard: React.FC<PostCardProps> = ({
             <img
               src={currentProfile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
               alt="You"
-              className="w-8 h-8 rounded-full object-cover border border-[#c5a059] shrink-0"
+              className="w-8 h-8 rounded-full object-cover border border-(--ln-gold) shrink-0"
             />
             <div className="flex-1 relative flex items-center">
               <input
@@ -803,12 +803,12 @@ export const PostCard: React.FC<PostCardProps> = ({
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
                 placeholder={language === 'ar' ? 'اكتب تأملاً أو تعليقاً...' : 'Write a reflection or comment...'}
-                className="w-full pl-3 pr-10 rtl:pl-10 rtl:pr-3 py-2 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/30 text-xs text-[#2c2c2c] dark:text-[#f5ebd9] placeholder-[#8b6b4a]/60 focus:outline-none focus:border-[#d4af37] focus:ring-1 focus:ring-[#d4af37]/50"
+                className="w-full pl-3 pr-10 rtl:pl-10 rtl:pr-3 py-2 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-body) dark:text-[#f5ebd9] placeholder-(--tx-soft)/60 focus:outline-none focus:border-(--ln-bright) focus:ring-1 focus:ring-(--ac-bright)/50"
               />
               <button
                 type="submit"
                 disabled={!commentInput.trim()}
-                className="absolute right-1.5 rtl:right-auto rtl:left-1.5 p-1.5 rounded-lg bg-gradient-to-r from-[#c5a059] to-[#8f6e30] hover:from-[#e6d3ab] hover:to-[#c5a059] disabled:opacity-30 disabled:cursor-not-allowed text-[#1c130c] cursor-pointer shadow-xs transition-all rtl:rotate-180"
+                className="absolute right-1.5 rtl:right-auto rtl:left-1.5 p-1.5 rounded-lg bg-gradient-to-r from-(--ac-gold) to-(--ac-bronze-dk) hover:from-(--bg-deep) hover:to-(--ac-gold) disabled:opacity-30 disabled:cursor-not-allowed text-(--tx-ink) cursor-pointer shadow-xs transition-all rtl:rotate-180"
                 title={t('send')}
               >
                 <Send className="w-3.5 h-3.5" />
@@ -821,13 +821,13 @@ export const PostCard: React.FC<PostCardProps> = ({
       {/* Likes Modal with Complete List of Users */}
       {showLikesModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-[#fffdfa] dark:bg-[#1f1914] border border-[#c5a059]/40 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
-            <div className="flex items-center justify-between p-4 border-b border-[#c5a059]/20 bg-[#f5ebd9]/30 dark:bg-[#282019]">
+          <div className="bg-[#fffdfa] dark:bg-[#1f1914] border border-(--ln-gold)/40 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b border-(--ln-gold)/20 bg-[#f5ebd9]/30 dark:bg-[#282019]">
               <div className="flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 text-white flex items-center justify-center shadow-xs text-xs">
                   ❤️
                 </span>
-                <h3 className="font-serif font-bold text-sm text-[#3d2b18] dark:text-[#f5ebd9]">
+                <h3 className="font-serif font-bold text-sm text-(--tx-strong) dark:text-[#f5ebd9]">
                   {language === 'ar'
                     ? `الذين باركوا هذا التأمل (${modalLikers.length || totalLikes})`
                     : `People who blessed this reflection (${modalLikers.length || totalLikes})`}
@@ -836,19 +836,19 @@ export const PostCard: React.FC<PostCardProps> = ({
               <button
                 type="button"
                 onClick={() => setShowLikesModal(false)}
-                className="p-1 rounded-lg text-[#8b6b4a] hover:text-[#3d2b18] hover:bg-[#c5a059]/15 transition-colors cursor-pointer"
+                className="p-1 rounded-lg text-(--tx-soft) hover:text-(--tx-strong) hover:bg-(--ac-gold)/15 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-4 max-h-80 overflow-y-auto divide-y divide-[#c5a059]/10 space-y-2">
+            <div className="p-4 max-h-80 overflow-y-auto divide-y divide-(--ln-gold)/10 space-y-2">
               {isLoadingLikers ? (
-                <div className="py-6 text-center text-xs text-[#8b6b4a] dark:text-[#c5a059] animate-pulse">
+                <div className="py-6 text-center text-xs text-(--tx-soft) dark:text-(--ac-gold-tx) animate-pulse">
                   {language === 'ar' ? 'جارٍ تحميل أبناء الرعية...' : 'Loading parishioners...'}
                 </div>
               ) : modalLikers.length === 0 ? (
-                <div className="py-6 text-center text-xs text-[#8b6b4a] dark:text-[#a89379]">
+                <div className="py-6 text-center text-xs text-(--tx-soft) dark:text-[#a89379]">
                   {totalLikes > 0
                     ? language === 'ar'
                       ? `${totalLikes} أعضاء باركوا هذا التأمل`
@@ -861,7 +861,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                 modalLikers.map((liker, i) => (
                   <div
                     key={i}
-                    className="flex items-center justify-between py-2 pt-2 cursor-pointer hover:bg-[#c5a059]/10 rounded-xl px-2 transition-colors"
+                    className="flex items-center justify-between py-2 pt-2 cursor-pointer hover:bg-(--ac-gold)/10 rounded-xl px-2 transition-colors"
                     onClick={() => {
                       setShowLikesModal(false);
                       onSelectUser?.({
@@ -876,13 +876,13 @@ export const PostCard: React.FC<PostCardProps> = ({
                       <img
                         src={liker.userAvatar || liker.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
                         alt={liker.userName || liker.name || 'User'}
-                        className="w-9 h-9 rounded-full object-cover border border-[#c5a059]"
+                        className="w-9 h-9 rounded-full object-cover border border-(--ln-gold)"
                       />
                       <div>
-                        <div className="font-serif font-bold text-xs text-[#3d2b18] dark:text-[#f5ebd9]">
+                        <div className="font-serif font-bold text-xs text-(--tx-strong) dark:text-[#f5ebd9]">
                           {liker.userName || liker.name || 'Orthodox Parishioner'}
                         </div>
-                        <div className="text-[10px] text-[#8b6b4a] dark:text-[#a89379]">
+                        <div className="text-[10px] text-(--tx-soft) dark:text-[#a89379]">
                           {liker.userId === currentProfile?.id
                             ? language === 'ar'
                               ? 'أنت'
@@ -899,10 +899,10 @@ export const PostCard: React.FC<PostCardProps> = ({
                           setShowLikesModal(false);
                           onOpenMessengerWithUser(liker.userId || liker.id || liker.userName);
                         }}
-                        className="p-1.5 rounded-lg text-[#8b6b4a] hover:text-[#3d2b18] hover:bg-[#c5a059]/20 transition-colors"
+                        className="p-1.5 rounded-lg text-(--tx-soft) hover:text-(--tx-strong) hover:bg-(--ac-gold)/20 transition-colors"
                         title={language === 'ar' ? 'إرسال رسالة' : 'Send Message'}
                       >
-                        <MessageSquare className="w-3.5 h-3.5 text-[#a8833c]" />
+                        <MessageSquare className="w-3.5 h-3.5 text-(--ac-bronze-tx)" />
                       </button>
                     )}
                   </div>

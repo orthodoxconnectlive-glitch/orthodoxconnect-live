@@ -435,14 +435,14 @@ export const VideosView: React.FC<VideosViewProps> = ({
     <div className="w-full flex flex-col items-center relative select-none pb-4">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#1c1611]/95 border-2 border-[#c5a059] text-[#f5ebd9] text-xs font-serif uppercase tracking-wider font-bold shadow-2xl animate-fade-in flex items-center gap-2">
-          <CheckCircle className="w-4 h-4 text-[#c5a059]" />
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#1c1611]/95 border-2 border-(--ln-gold) text-[#f5ebd9] text-xs font-serif uppercase tracking-wider font-bold shadow-2xl animate-fade-in flex items-center gap-2">
+          <CheckCircle className="w-4 h-4 text-(--ac-gold-tx)" />
           <span>{toastMessage}</span>
         </div>
       )}
 
       {/* Main TikTok Container Frame */}
-      <div className="relative w-full max-w-[420px] h-[calc(100vh-6.5rem)] min-h-[580px] max-h-[860px] bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-[#c5a059]/40 flex flex-col">
+      <div className="relative w-full max-w-[420px] h-[calc(100vh-6.5rem)] min-h-[580px] max-h-[860px] bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-(--ln-gold)/40 flex flex-col">
         {/* TikTok Top Floating Header (Following | For You + Search & Upload buttons) */}
         <div className="absolute top-0 inset-x-0 z-40 px-4 py-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between text-white pointer-events-none">
           {/* Search Toggle */}
@@ -463,7 +463,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
               onClick={() => setActiveTab('following')}
               className={`text-sm font-bold tracking-wider uppercase transition-all cursor-pointer ${
                 activeTab === 'following'
-                  ? 'text-white border-b-2 border-[#c5a059] pb-0.5 drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]'
+                  ? 'text-white border-b-2 border-(--ln-gold) pb-0.5 drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]'
                   : 'text-white/60 hover:text-white/90'
               }`}
             >
@@ -477,7 +477,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
               onClick={() => setActiveTab('foryou')}
               className={`text-sm font-bold tracking-wider uppercase transition-all cursor-pointer ${
                 activeTab === 'foryou'
-                  ? 'text-white border-b-2 border-[#c5a059] pb-0.5 drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]'
+                  ? 'text-white border-b-2 border-(--ln-gold) pb-0.5 drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]'
                   : 'text-white/60 hover:text-white/90'
               }`}
             >
@@ -489,7 +489,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
           <button
             type="button"
             onClick={() => setIsUploadModalOpen(true)}
-            className="p-2 rounded-full bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] cursor-pointer transition-transform active:scale-95 shadow-md flex items-center justify-center font-bold pointer-events-auto"
+            className="p-2 rounded-full bg-(--ac-gold) hover:bg-(--ac-bronze) text-(--tx-ink) cursor-pointer transition-transform active:scale-95 shadow-md flex items-center justify-center font-bold pointer-events-auto"
             title="Upload Orthodox Video"
             aria-label="Upload Video"
           >
@@ -499,15 +499,15 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
         {/* Expandable Top Search / Hashtag Bar */}
         {isSearchOpen && (
-          <div className="absolute top-14 inset-x-3 z-40 bg-[#1c1611]/95 backdrop-blur-xl border border-[#c5a059] rounded-2xl p-3 shadow-2xl space-y-2 animate-fade-in text-[#f5ebd9]">
+          <div className="absolute top-14 inset-x-3 z-40 bg-[#1c1611]/95 backdrop-blur-xl border border-(--ln-gold) rounded-2xl p-3 shadow-2xl space-y-2 animate-fade-in text-[#f5ebd9]">
             <div className="relative flex items-center">
-              <Search className="w-4 h-4 text-[#c5a059] absolute left-3" />
+              <Search className="w-4 h-4 text-(--ac-gold-tx) absolute left-3" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search sermons, hymns, priests..."
-                className="w-full bg-[#282019] border border-[#c5a059]/50 rounded-xl pl-9 pr-8 py-1.5 text-xs text-[#f5ebd9] placeholder-[#a89379] focus:outline-none"
+                className="w-full bg-[#282019] border border-(--ln-gold)/50 rounded-xl pl-9 pr-8 py-1.5 text-xs text-[#f5ebd9] placeholder-(--tx-ph-dark) focus:outline-none"
               />
               {searchQuery && (
                 <button
@@ -529,8 +529,8 @@ export const VideosView: React.FC<VideosViewProps> = ({
                   onClick={() => handleHashtagClick(tag)}
                   className={`px-2 py-0.5 rounded-full text-[10px] font-serif border whitespace-nowrap cursor-pointer transition-colors ${
                     selectedHashtag === tag
-                      ? 'bg-[#c5a059] text-[#1c1611] border-[#c5a059] font-bold'
-                      : 'bg-[#282019] text-[#c5a059] border-[#c5a059]/40 hover:bg-[#c5a059]/20'
+                      ? 'bg-(--ac-gold) text-(--tx-ink) border-(--ln-gold) font-bold'
+                      : 'bg-[#282019] text-(--ac-gold-tx) border-(--ln-gold)/40 hover:bg-(--ac-gold)/20'
                   }`}
                 >
                   {tag}
@@ -539,7 +539,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
             </div>
 
             {selectedHashtag && (
-              <div className="flex items-center justify-between pt-1 border-t border-[#c5a059]/20 text-[11px] text-[#c5a059]">
+              <div className="flex items-center justify-between pt-1 border-t border-(--ln-gold)/20 text-[11px] text-(--ac-gold-tx)">
                 <span>Active Tag: <b>{selectedHashtag}</b></span>
                 <button
                   type="button"
@@ -556,14 +556,14 @@ export const VideosView: React.FC<VideosViewProps> = ({
         {/* Video Feed Snap-Scroll Container */}
         {loading ? (
           <div className="w-full h-full flex flex-col items-center justify-center text-[#f5ebd9] space-y-3 bg-[#1c1611]">
-            <Sparkles className="w-10 h-10 text-[#c5a059] animate-spin" />
-            <p className="text-xs font-serif uppercase tracking-wider text-[#c5a059] font-bold">
+            <Sparkles className="w-10 h-10 text-(--ac-gold-tx) animate-spin" />
+            <p className="text-xs font-serif uppercase tracking-wider text-(--ac-gold-tx) font-bold">
               Loading Orthodox Feed...
             </p>
           </div>
         ) : filteredVideos.length === 0 ? (
           <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-[#1c1611] text-[#f5ebd9] space-y-3">
-            <Film className="w-12 h-12 text-[#c5a059]/50" />
+            <Film className="w-12 h-12 text-(--ac-gold-tx)/50" />
             <h3 className="font-serif-coptic font-bold text-sm text-[#f5ebd9] uppercase">
               No Videos Found
             </h3>
@@ -576,7 +576,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('foryou')}
-                className="px-4 py-2 rounded-xl bg-[#c5a059] text-[#1c1611] font-serif font-bold text-xs uppercase cursor-pointer shadow-md"
+                className="px-4 py-2 rounded-xl bg-(--ac-gold) text-(--tx-ink) font-serif font-bold text-xs uppercase cursor-pointer shadow-md"
               >
                 Explore For You
               </button>
@@ -624,7 +624,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
         <button
           type="button"
           onClick={handleScrollPrev}
-          className="w-11 h-11 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#1c1611] shadow-xl flex items-center justify-center transition-all cursor-pointer active:scale-90"
+          className="w-11 h-11 rounded-full bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) text-(--ac-gold-tx) hover:bg-(--ac-gold) hover:text-(--tx-ink) shadow-xl flex items-center justify-center transition-all cursor-pointer active:scale-90"
           title="Previous Video (Up Arrow)"
           aria-label="Previous Video"
         >
@@ -633,7 +633,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
         <button
           type="button"
           onClick={handleScrollNext}
-          className="w-11 h-11 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059] hover:text-[#1c1611] shadow-xl flex items-center justify-center transition-all cursor-pointer active:scale-90"
+          className="w-11 h-11 rounded-full bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) text-(--ac-gold-tx) hover:bg-(--ac-gold) hover:text-(--tx-ink) shadow-xl flex items-center justify-center transition-all cursor-pointer active:scale-90"
           title="Next Video (Down Arrow)"
           aria-label="Next Video"
         >
@@ -644,10 +644,10 @@ export const VideosView: React.FC<VideosViewProps> = ({
       {/* Upload Video Modal Drawer */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#1c1611] border-2 border-[#c5a059] rounded-3xl max-w-md w-full p-6 text-[#f5ebd9] shadow-2xl relative space-y-4 animate-fade-in">
-            <div className="flex items-center justify-between border-b border-[#c5a059]/30 pb-3">
+          <div className="bg-[#1c1611] border-2 border-(--ln-gold) rounded-3xl max-w-md w-full p-6 text-[#f5ebd9] shadow-2xl relative space-y-4 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-(--ln-gold)/30 pb-3">
               <div className="flex items-center gap-2">
-                <Video className="w-5 h-5 text-[#c5a059]" />
+                <Video className="w-5 h-5 text-(--ac-gold-tx)" />
                 <h3 className="font-serif-coptic font-bold text-base text-[#f5ebd9] uppercase">
                   Upload Vertical Video
                 </h3>
@@ -663,15 +663,15 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
             <form onSubmit={handleVideoUploadSubmit} className="space-y-4">
               {/* File Input */}
-              <div className="border-2 border-dashed border-[#c5a059]/50 rounded-2xl p-6 text-center hover:border-[#c5a059] transition-colors bg-[#282019]/50">
-                <Upload className="w-10 h-10 text-[#c5a059] mx-auto mb-2" />
+              <div className="border-2 border-dashed border-(--ln-gold)/50 rounded-2xl p-6 text-center hover:border-(--ln-gold) transition-colors bg-[#282019]/50">
+                <Upload className="w-10 h-10 text-(--ac-gold-tx) mx-auto mb-2" />
                 <p className="text-xs font-serif text-[#f5ebd9] font-bold mb-1">
                   {uploadFile ? uploadFile.name : 'Select a 9:16 vertical video'}
                 </p>
                 <p className="text-[11px] text-[#a89379] font-serif mb-3">
                   Supports MP4, WebM, MOV directly streamed to Bunny CDN
                 </p>
-                <label className="px-4 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase tracking-wider cursor-pointer inline-block shadow-md">
+                <label className="px-4 py-2 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-(--tx-ink) font-serif font-bold text-xs uppercase tracking-wider cursor-pointer inline-block shadow-md">
                   <span>{uploadFile ? 'Change Video' : 'Browse Files'}</span>
                   <input
                     type="file"
@@ -686,7 +686,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
               {/* Caption Input */}
               <div>
-                <label className="block text-xs font-serif text-[#c5a059] uppercase tracking-wider font-bold mb-1">
+                <label className="block text-xs font-serif text-(--ac-gold-tx) uppercase tracking-wider font-bold mb-1">
                   Description & Hashtags
                 </label>
                 <textarea
@@ -694,23 +694,23 @@ export const VideosView: React.FC<VideosViewProps> = ({
                   value={uploadCaption}
                   onChange={(e) => setUploadCaption(e.target.value)}
                   placeholder="Share the liturgical occasion, sermon quote, or reflection (e.g., #Orthodox #Liturgy #JesusPrayer)..."
-                  className="w-full bg-[#282019] border border-[#c5a059] rounded-xl p-3 text-xs text-[#f5ebd9] placeholder-[#a89379] focus:outline-none focus:ring-1 focus:ring-[#c5a059]"
+                  className="w-full bg-[#282019] border border-(--ln-gold) rounded-xl p-3 text-xs text-[#f5ebd9] placeholder-(--tx-ph-dark) focus:outline-none focus:ring-1 focus:ring-(--ac-gold)"
                 />
               </div>
 
               {/* Progress Bar while Uploading */}
               {isUploading && (
-                <div className="space-y-2 p-3.5 rounded-2xl bg-[#282019] border border-[#c5a059]/40 animate-fade-in shadow-inner">
+                <div className="space-y-2 p-3.5 rounded-2xl bg-[#282019] border border-(--ln-gold)/40 animate-fade-in shadow-inner">
                   <div className="flex items-center justify-between text-xs font-serif text-[#f5ebd9]">
-                    <span className="flex items-center gap-1.5 text-[#c5a059] font-medium">
+                    <span className="flex items-center gap-1.5 text-(--ac-gold-tx) font-medium">
                       <Sparkles className="w-3.5 h-3.5 animate-spin" />
                       <span>{uploadStatusText || 'Uploading to Bunny Stream CDN...'}</span>
                     </span>
-                    <span className="font-bold font-mono text-[#c5a059]">{uploadProgress}%</span>
+                    <span className="font-bold font-mono text-(--ac-gold-tx)">{uploadProgress}%</span>
                   </div>
-                  <div className="w-full bg-[#1c1611] rounded-full h-2 overflow-hidden border border-[#c5a059]/20">
+                  <div className="w-full bg-[#1c1611] rounded-full h-2 overflow-hidden border border-(--ln-gold)/20">
                     <div
-                      className="bg-gradient-to-r from-[#c5a059] to-[#eedcb5] h-full transition-all duration-300 rounded-full"
+                      className="bg-gradient-to-r from-(--ac-gold) to-(--chip-light) h-full transition-all duration-300 rounded-full"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
@@ -723,14 +723,14 @@ export const VideosView: React.FC<VideosViewProps> = ({
                   type="button"
                   onClick={() => !isUploading && setIsUploadModalOpen(false)}
                   disabled={isUploading}
-                  className="flex-1 py-2.5 rounded-xl border border-[#c5a059]/40 text-[#c5a059] font-serif font-bold text-xs uppercase hover:bg-[#282019] cursor-pointer disabled:opacity-40"
+                  className="flex-1 py-2.5 rounded-xl border border-(--ln-gold)/40 text-(--ac-gold-tx) font-serif font-bold text-xs uppercase hover:bg-[#282019] cursor-pointer disabled:opacity-40"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!uploadFile || isUploading}
-                  className="flex-1 py-2.5 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase disabled:opacity-40 cursor-pointer shadow-lg transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-(--tx-ink) font-serif font-bold text-xs uppercase disabled:opacity-40 cursor-pointer shadow-lg transition-colors flex items-center justify-center gap-2"
                 >
                   {isUploading ? (
                     <>

@@ -124,14 +124,14 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
   const activeStory = activeStoryIndex !== null ? stories[activeStoryIndex] : null;
 
   return (
-    <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-3 shadow-lg">
+    <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-3 shadow-lg">
       <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1">
         {/* Add Story Button */}
         <button
           onClick={() => setIsCreateOpen(true)}
           className="flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer"
         >
-          <div className="relative w-16 h-16 rounded-full bg-[#eedcb5] dark:bg-[#282019] border-2 border-dashed border-[#c5a059] flex items-center justify-center transition-transform group-hover:scale-105 shadow-md">
+          <div className="relative w-16 h-16 rounded-full bg-(--bg-soft) dark:bg-[#282019] border-2 border-dashed border-(--ln-gold) flex items-center justify-center transition-transform group-hover:scale-105 shadow-md">
             <img
               src={profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
               alt="You"
@@ -141,7 +141,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
               <Plus className="w-6 h-6 text-white" />
             </div>
           </div>
-          <span className="text-[10px] font-serif font-bold text-[#3d2b18] dark:text-[#f5ebd9] uppercase tracking-wider">
+          <span className="text-[10px] font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider">
             {language === 'ar' ? 'قصة جديدة' : 'Share Story'}
           </span>
         </button>
@@ -153,16 +153,16 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
             onClick={() => handleOpenStory(idx)}
             className="flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer"
           >
-            <div className="p-0.5 rounded-full bg-gradient-to-tr from-[#c5a059] via-[#f5ebd9] to-[#8f6e30] shadow-md transition-transform group-hover:scale-105">
+            <div className="p-0.5 rounded-full bg-gradient-to-tr from-(--ac-gold) via-[#f5ebd9] to-(--ac-bronze-dk) shadow-md transition-transform group-hover:scale-105">
               <div className="w-15 h-15 rounded-full p-0.5 bg-[#1c1611]">
                 <img
                   src={story.authorAvatar}
                   alt={story.authorName}
-                  className="w-full h-full rounded-full object-cover border border-[#c5a059]"
+                  className="w-full h-full rounded-full object-cover border border-(--ln-gold)"
                 />
               </div>
             </div>
-            <span className="text-[10px] font-serif font-bold text-[#3d2b18] dark:text-[#f5ebd9] uppercase tracking-wider truncate w-16 text-center">
+            <span className="text-[10px] font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider truncate w-16 text-center">
               {story.authorName.split(' ')[0]}
             </span>
           </button>
@@ -175,7 +175,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
           {/* Close button */}
           <button
             onClick={() => setActiveStoryIndex(null)}
-            className="absolute top-6 right-6 rtl:right-auto rtl:left-6 z-50 p-2.5 rounded-full bg-stone-900/80 text-white hover:bg-[#c5a059] hover:text-[#3d2b18] transition-colors cursor-pointer"
+            className="absolute top-6 right-6 rtl:right-auto rtl:left-6 z-50 p-2.5 rounded-full bg-stone-900/80 text-white hover:bg-(--ac-gold) hover:text-(--tx-strong) transition-colors cursor-pointer"
           >
             <X className="w-6 h-6" />
           </button>
@@ -184,20 +184,20 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
           <button
             onClick={handlePrevStory}
             disabled={activeStoryIndex === 0}
-            className="absolute left-4 rtl:left-auto rtl:right-4 top-1/2 -translate-y-1/2 z-40 p-3 rounded-full bg-black/60 text-white hover:bg-[#c5a059] hover:text-[#3d2b18] disabled:opacity-20 cursor-pointer transition-all"
+            className="absolute left-4 rtl:left-auto rtl:right-4 top-1/2 -translate-y-1/2 z-40 p-3 rounded-full bg-black/60 text-white hover:bg-(--ac-gold) hover:text-(--tx-strong) disabled:opacity-20 cursor-pointer transition-all"
           >
             <ChevronLeft className="w-6 h-6 rtl:rotate-180" />
           </button>
 
           <button
             onClick={handleNextStory}
-            className="absolute right-4 rtl:right-auto rtl:left-4 top-1/2 -translate-y-1/2 z-40 p-3 rounded-full bg-black/60 text-white hover:bg-[#c5a059] hover:text-[#3d2b18] cursor-pointer transition-all"
+            className="absolute right-4 rtl:right-auto rtl:left-4 top-1/2 -translate-y-1/2 z-40 p-3 rounded-full bg-black/60 text-white hover:bg-(--ac-gold) hover:text-(--tx-strong) cursor-pointer transition-all"
           >
             <ChevronRight className="w-6 h-6 rtl:rotate-180" />
           </button>
 
           {/* Story Container Card */}
-          <div className="relative w-full max-w-sm h-[80vh] min-h-[500px] rounded-3xl bg-[#1c1611] border-2 border-[#c5a059] overflow-hidden shadow-2xl flex flex-col justify-between">
+          <div className="relative w-full max-w-sm h-[80vh] min-h-[500px] rounded-3xl bg-[#1c1611] border-2 border-(--ln-gold) overflow-hidden shadow-2xl flex flex-col justify-between">
             {/* Background Story Image */}
             <img
               src={activeStory.imageUrl}
@@ -223,13 +223,13 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
               <img
                 src={activeStory.authorAvatar}
                 alt={activeStory.authorName}
-                className="w-10 h-10 rounded-full border-2 border-[#c5a059] object-cover"
+                className="w-10 h-10 rounded-full border-2 border-(--ln-gold) object-cover"
               />
               <div>
                 <h4 className="font-serif-coptic font-bold text-xs text-[#f5ebd9] uppercase tracking-wider hover:underline">
                   {activeStory.authorName}
                 </h4>
-                <p className="text-[10px] text-[#c5a059] font-serif uppercase tracking-widest flex items-center gap-1">
+                <p className="text-[10px] text-(--ac-gold-tx) font-serif uppercase tracking-widest flex items-center gap-1">
                   <Church className="w-3 h-3" /> {activeStory.authorParish}
                 </p>
               </div>
@@ -238,10 +238,10 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
             {/* Bottom Caption Overlay */}
             {activeStory.caption && (
               <div className="relative z-10 p-5 space-y-2">
-                <p className="text-sm text-[#f5ebd9] font-serif leading-relaxed bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-[#c5a059]/40">
+                <p className="text-sm text-[#f5ebd9] font-serif leading-relaxed bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-(--ln-gold)/40">
                   {activeStory.caption}
                 </p>
-                <span className="text-[9px] text-[#c5a059] font-serif uppercase tracking-wider block text-right rtl:text-left font-bold">
+                <span className="text-[9px] text-(--ac-gold-tx) font-serif uppercase tracking-wider block text-right rtl:text-left font-bold">
                   {language === 'ar' ? 'قصة الرعية · 24 س' : 'Parish Story · 24h'}
                 </span>
               </div>
@@ -253,7 +253,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
       {/* Share Story Modal */}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="relative w-full max-w-md bg-[#1c1611] border-2 border-[#c5a059] rounded-3xl p-6 shadow-2xl text-[#f5ebd9]">
+          <div className="relative w-full max-w-md bg-[#1c1611] border-2 border-(--ln-gold) rounded-3xl p-6 shadow-2xl text-[#f5ebd9]">
             <button
               onClick={() => setIsCreateOpen(false)}
               className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-1.5 rounded-full text-[#a89379] hover:text-[#f5ebd9] hover:bg-[#282019] transition-colors cursor-pointer"
@@ -261,8 +261,8 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
               <X className="w-5 h-5" />
             </button>
 
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[#c5a059]/30">
-              <Sparkles className="w-5 h-5 text-[#c5a059]" />
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-(--ln-gold)/30">
+              <Sparkles className="w-5 h-5 text-(--ac-gold-tx)" />
               <h3 className="font-serif-coptic font-bold text-sm text-[#f5ebd9] uppercase tracking-wider">
                 {language === 'ar' ? 'مشاركة قصة للرعية' : 'Share Parish Story'}
               </h3>
@@ -270,7 +270,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
 
             <form onSubmit={handlePublishStory} className="space-y-4 text-xs font-serif">
               <div>
-                <label className="block text-[#c5a059] font-bold uppercase tracking-wider mb-1.5">
+                <label className="block text-(--ac-gold-tx) font-bold uppercase tracking-wider mb-1.5">
                   {language === 'ar' ? 'رابط صورة القصة' : 'Story Image URL'}
                 </label>
                 <div className="relative">
@@ -281,7 +281,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
                     placeholder="https://images.unsplash.com/..."
-                    className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2.5 rounded-xl bg-[#282019] border border-[#c5a059] text-[#f5ebd9] placeholder-[#a89379] focus:outline-none"
+                    className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2.5 rounded-xl bg-[#282019] border border-(--ln-gold) text-[#f5ebd9] placeholder-(--tx-ph-dark) focus:outline-none"
                   />
                 </div>
               </div>
@@ -298,7 +298,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
                       type="button"
                       onClick={() => setImageUrl(url)}
                       className={`relative h-16 rounded-xl overflow-hidden border-2 cursor-pointer transition-transform hover:scale-105 ${
-                        imageUrl === url ? 'border-[#c5a059] ring-2 ring-[#c5a059]' : 'border-transparent'
+                        imageUrl === url ? 'border-(--ln-gold) ring-2 ring-(--ac-gold)' : 'border-transparent'
                       }`}
                     >
                       <img src={url} alt={`Sample ${i}`} className="w-full h-full object-cover" />
@@ -308,7 +308,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
               </div>
 
               <div>
-                <label className="block text-[#c5a059] font-bold uppercase tracking-wider mb-1.5">
+                <label className="block text-(--ac-gold-tx) font-bold uppercase tracking-wider mb-1.5">
                   {language === 'ar' ? 'تسمية توضيحية / خاطرة روحية' : 'Caption / Spiritual Note'}
                 </label>
                 <textarea
@@ -320,7 +320,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
                       ? 'شارك فكرة، آية، أو بركة مع رعيتك...'
                       : 'Share a thought, verse, or blessing with your parish...'
                   }
-                  className="w-full p-3 rounded-xl bg-[#282019] border border-[#c5a059] text-[#f5ebd9] placeholder-[#a89379] focus:outline-none"
+                  className="w-full p-3 rounded-xl bg-[#282019] border border-(--ln-gold) text-[#f5ebd9] placeholder-(--tx-ph-dark) focus:outline-none"
                 />
               </div>
 
@@ -335,7 +335,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
                 <button
                   type="submit"
                   disabled={isSubmitting || !imageUrl.trim()}
-                  className="px-5 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-white font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-40"
+                  className="px-5 py-2 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-40"
                 >
                   <Send className="w-3.5 h-3.5 rtl:rotate-180" />
                   <span>{language === 'ar' ? 'نشر القصة' : 'Publish Story'}</span>

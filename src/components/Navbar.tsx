@@ -133,13 +133,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-[#eedcb5] dark:bg-[#120e0b] border-b-2 border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] shadow-md">
+      <header className="sticky top-0 z-40 bg-(--bg-soft) dark:bg-[#120e0b] border-b-2 border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] shadow-md">
         <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
           {/* Left: Brand & Menu */}
           <div className="flex items-center gap-2 shrink min-w-0">
             <button
               onClick={() => setIsDrawerOpen(true)}
-              className="lg:hidden p-2 rounded-xl bg-[#e6d3ab]/80 dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059]/20 transition-all cursor-pointer shrink-0"
+              className="lg:hidden p-2 rounded-xl bg-(--bg-deep)/80 dark:bg-[#282019] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold)/20 transition-all cursor-pointer shrink-0"
               title="Open Navigation Menu"
             >
               <Menu className="w-5 h-5" />
@@ -149,16 +149,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onNavigate('feed')}
               className="flex items-center gap-2 cursor-pointer group min-w-0 text-left rtl:text-right"
             >
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#c5a059] dark:bg-[#d4af37] p-0.5 shadow-md flex items-center justify-center shrink-0">
-                <div className="w-full h-full bg-[#3d2b18] dark:bg-[#120e0b] rounded-[10px] flex items-center justify-center text-[#c5a059] font-bold text-sm sm:text-base">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-(--ac-gold) dark:bg-(--ac-bright) p-0.5 shadow-md flex items-center justify-center shrink-0">
+                <div className="w-full h-full bg-(--chip-dark) dark:bg-[#120e0b] rounded-[10px] flex items-center justify-center text-(--ac-gold-tx) font-bold text-sm sm:text-base">
                   ☨
                 </div>
               </div>
               <div className="min-w-0">
-                <h1 className="font-serif-coptic font-bold text-xs sm:lg text-[#3d2b18] dark:text-[#f5ebd9] tracking-tight leading-none truncate">
+                <h1 className="font-serif-coptic font-bold text-xs sm:lg text-(--tx-strong) dark:text-[#f5ebd9] tracking-tight leading-none truncate">
                   {t('appName')}
                 </h1>
-                <p className="text-[7px] sm:text-[9px] text-[#7c5f3d] dark:text-[#a89379] tracking-[0.15em] sm:tracking-[0.2em] uppercase font-serif mt-0.5 font-semibold truncate">
+                <p className="text-[7px] sm:text-[9px] text-(--tx-mute) dark:text-[#a89379] tracking-[0.15em] sm:tracking-[0.2em] uppercase font-serif mt-0.5 font-semibold truncate">
                   {language === 'ar' ? 'إيمان · شركة مقدسة' : 'FAITH · FELLOWSHIP'}
                 </p>
               </div>
@@ -168,13 +168,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Desktop Search Bar */}
           <div className="hidden lg:flex items-center flex-1 max-w-xs mx-4">
             <div className="relative w-full">
-              <Search className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-[#7c5f3d] dark:text-[#a89379]" />
+              <Search className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-(--tx-mute) dark:text-[#a89379]" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('searchParish')}
-                className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-1.5 text-[11px] font-serif uppercase tracking-wider rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#7c5f3d]/60 focus:outline-none focus:border-[#a8833c]"
+                className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-1.5 text-[11px] font-serif uppercase tracking-wider rounded-full bg-(--bg-card) dark:bg-[#1c1611] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute)/60 focus:outline-none focus:border-(--ln-bronze)"
               />
             </div>
           </div>
@@ -182,28 +182,28 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Right Action Buttons */}
           <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             {/* Coptic Date Badge */}
-            <div className="hidden md:flex items-center gap-1.5 h-8 sm:h-9 px-3 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[11px] font-serif font-bold text-[#3d2b18] dark:text-[#f5ebd9] shadow-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#c5a059] animate-pulse" />
+            <div className="hidden md:flex items-center gap-1.5 h-8 sm:h-9 px-3 rounded-full bg-(--bg-card) dark:bg-[#1c1611] border border-(--ln-gold) dark:border-[#8b6b4a] text-[11px] font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9] shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-(--ac-gold) animate-pulse" />
               <span>{todayData.date}</span>
             </div>
 
             {/* Language Switcher */}
             <button
               onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-              className="h-8 sm:h-9 px-2.5 rounded-full bg-[#f6ebd6] dark:bg-[#1c1611] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white transition-all flex items-center gap-1 text-xs font-bold font-serif shadow-sm cursor-pointer shrink-0"
+              className="h-8 sm:h-9 px-2.5 rounded-full bg-(--bg-card) dark:bg-[#1c1611] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold) hover:text-white transition-all flex items-center gap-1 text-xs font-bold font-serif shadow-sm cursor-pointer shrink-0"
               title={language === 'en' ? 'التحويل إلى اللغة العربية' : 'Switch to English'}
             >
-              <Globe className="w-3.5 h-3.5 text-[#a8833c] dark:text-[#d4af37]" />
+              <Globe className="w-3.5 h-3.5 text-(--ac-bronze-tx) dark:text-(--ac-bright-tx)" />
               <span>{language === 'en' ? 'عربي' : 'EN'}</span>
             </button>
 
             {/* Mobile Search Toggle */}
             <button
               onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-              className={`lg:hidden w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0 ${
+              className={`lg:hidden w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0 ${
                 isMobileSearchOpen
-                  ? 'bg-[#c5a059] text-white'
-                  : 'bg-[#f6ebd6] dark:bg-[#1c1611] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white'
+                  ? 'bg-(--ac-gold) text-white'
+                  : 'bg-(--bg-card) dark:bg-[#1c1611] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold) hover:text-white'
               }`}
               title="Search"
             >
@@ -213,33 +213,33 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Live Broadcast Button */}
             <button
               onClick={() => onNavigate('live')}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm shrink-0 ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm shrink-0 ${
                 currentView === 'live'
-                  ? 'bg-[#c5a059] text-white'
-                  : 'bg-[#f6ebd6] dark:bg-[#1c1611] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white'
+                  ? 'bg-(--ac-gold) text-white'
+                  : 'bg-(--bg-card) dark:bg-[#1c1611] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold) hover:text-white'
               }`}
               title={t('goLive')}
             >
               <Radio className="w-4 h-4 text-red-600 dark:text-red-400" />
               <span className="absolute top-0 right-0 flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-2 ring-[#eedcb5] dark:ring-[#120e0b]"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-2 ring-(--bg-soft) dark:ring-[#120e0b]"></span>
               </span>
             </button>
 
             {/* Messages Button */}
             <button
               onClick={() => onNavigate('messages')}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm shrink-0 ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm shrink-0 ${
                 currentView === 'messages'
-                  ? 'bg-[#c5a059] text-white'
-                  : 'bg-[#f6ebd6] dark:bg-[#1c1611] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white'
+                  ? 'bg-(--ac-gold) text-white'
+                  : 'bg-(--bg-card) dark:bg-[#1c1611] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold) hover:text-white'
               }`}
               title={t('messages')}
             >
               <MessageSquare className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
               {unreadMessageCount > 0 && (
-                <span className="absolute -top-1 -right-1 px-1 min-w-[16px] h-4 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center shadow-sm ring-2 ring-[#eedcb5] dark:ring-[#120e0b]">
+                <span className="absolute -top-1 -right-1 px-1 min-w-[16px] h-4 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center shadow-sm ring-2 ring-(--bg-soft) dark:ring-[#120e0b]">
                   {unreadMessageCount}
                 </span>
               )}
@@ -249,16 +249,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="relative shrink-0">
               <button
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059] dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
                   isNotifOpen || currentView === 'notifications'
-                    ? 'bg-[#c5a059] text-white'
-                    : 'bg-[#f6ebd6] dark:bg-[#1c1611] text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#c5a059] hover:text-white'
+                    ? 'bg-(--ac-gold) text-white'
+                    : 'bg-(--bg-card) dark:bg-[#1c1611] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold) hover:text-white'
                 }`}
                 title={t('notifications')}
               >
                 <Bell className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-bold flex items-center justify-center shadow-md animate-pulse ring-2 ring-[#eedcb5] dark:ring-[#120e0b]">
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-bold flex items-center justify-center shadow-md animate-pulse ring-2 ring-(--bg-soft) dark:ring-[#120e0b]">
                     {unreadCount}
                   </span>
                 )}
@@ -278,23 +278,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Mobile Search Dropdown Panel */}
         {isMobileSearchOpen && (
-          <div className="lg:hidden px-4 py-2 bg-[#f6ebd6] dark:bg-[#1c1611] border-t border-[#c5a059]/40">
+          <div className="lg:hidden px-4 py-2 bg-(--bg-card) dark:bg-[#1c1611] border-t border-(--ln-gold)/40">
             <div className="relative w-full">
-              <Search className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-[#7c5f3d] dark:text-[#a89379]" />
+              <Search className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-(--tx-mute) dark:text-[#a89379]" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('searchParish')}
                 autoFocus
-                className="w-full pl-10 rtl:pl-4 rtl:pr-10 pr-4 py-2 text-xs font-serif uppercase tracking-wider rounded-full bg-[#eddcb9] dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] text-[#3d2b18] dark:text-[#f5ebd9] placeholder-[#7c5f3d]/60 focus:outline-none focus:border-[#a8833c]"
+                className="w-full pl-10 rtl:pl-4 rtl:pr-10 pr-4 py-2 text-xs font-serif uppercase tracking-wider rounded-full bg-(--bg-page) dark:bg-[#282019] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute)/60 focus:outline-none focus:border-(--ln-bronze)"
               />
             </div>
           </div>
         )}
 
         {/* Sub-Navigation Tabs */}
-        <div className="border-t border-[#c5a059]/40 bg-[#f3e3be]/90 dark:bg-[#18120e]/90 px-4">
+        <div className="border-t border-(--ln-gold)/40 bg-[#f3e3be]/90 dark:bg-[#18120e]/90 px-4">
           <div className="max-w-2xl mx-auto flex items-center justify-around h-11">
             {subTabs.map((tab) => {
               const Icon = tab.icon;
@@ -305,14 +305,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => onNavigate(tab.id)}
                   className={`relative h-full px-3 sm:px-4 flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                     isActive
-                      ? 'text-[#a8833c] dark:text-[#d4af37] font-bold'
-                      : 'text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18]'
+                      ? 'text-(--ac-bronze-tx) dark:text-(--ac-bright-tx) font-bold'
+                      : 'text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong)'
                   }`}
                   title={tab.label}
                 >
                   <Icon className="w-5 h-5" />
                   {isActive && (
-                    <span className="absolute bottom-0 inset-x-0 h-1 bg-[#a8833c] dark:bg-[#d4af37] rounded-t-md shadow-sm" />
+                    <span className="absolute bottom-0 inset-x-0 h-1 bg-(--ac-bronze) dark:bg-(--ac-bright) rounded-t-md shadow-sm" />
                   )}
                 </button>
               );
@@ -320,12 +320,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => onNavigate('myNetwork')}
-              className={`relative h-full px-3 flex items-center justify-center text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18] ${
-                currentView === 'myNetwork' ? 'text-[#a8833c]' : ''
+              className={`relative h-full px-3 flex items-center justify-center text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) ${
+                currentView === 'myNetwork' ? 'text-(--ac-bronze-tx)' : ''
               }`}
               title={language === 'ar' ? 'غرف الرعايا القبطية' : 'Coptic Parish Rooms'}
             >
-              <div className="w-6 h-6 rounded-full bg-[#3d2b18] text-[#c5a059] flex items-center justify-center font-bold text-xs shadow-sm">
+              <div className="w-6 h-6 rounded-full bg-(--chip-dark) text-(--ac-gold-tx) flex items-center justify-center font-bold text-xs shadow-sm">
                 ☨
               </div>
             </button>
@@ -341,20 +341,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
           />
 
-          <div className="relative w-80 max-w-[85vw] bg-[#eddcb9] dark:bg-[#18120e] h-full shadow-2xl p-4 sm:p-5 flex flex-col justify-between overflow-y-auto border-r-2 rtl:border-r-0 rtl:border-l-2 border-[#c5a059] dark:border-[#8b6b4a] z-50">
+          <div className="relative w-80 max-w-[85vw] bg-(--bg-page) dark:bg-[#18120e] h-full shadow-2xl p-4 sm:p-5 flex flex-col justify-between overflow-y-auto border-r-2 rtl:border-r-0 rtl:border-l-2 border-(--ln-gold) dark:border-[#8b6b4a] z-50">
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-[#c5a059]/40">
+              <div className="flex items-center justify-between pb-3 border-b border-(--ln-gold)/40">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-[#c5a059] dark:bg-[#d4af37] p-0.5 shadow-md flex items-center justify-center shrink-0">
-                    <div className="w-full h-full bg-[#3d2b18] dark:bg-[#120e0b] rounded-[10px] flex items-center justify-center text-[#c5a059] font-bold text-base">
+                  <div className="w-9 h-9 rounded-xl bg-(--ac-gold) dark:bg-(--ac-bright) p-0.5 shadow-md flex items-center justify-center shrink-0">
+                    <div className="w-full h-full bg-(--chip-dark) dark:bg-[#120e0b] rounded-[10px] flex items-center justify-center text-(--ac-gold-tx) font-bold text-base">
                       ☨
                     </div>
                   </div>
                   <div>
-                    <h2 className="font-serif-coptic font-bold text-base text-[#3d2b18] dark:text-[#f5ebd9]">
+                    <h2 className="font-serif-coptic font-bold text-base text-(--tx-strong) dark:text-[#f5ebd9]">
                       {t('appName')}
                     </h2>
-                    <p className="text-[8px] text-[#7c5f3d] dark:text-[#a89379] tracking-[0.2em] font-serif uppercase">
+                    <p className="text-[8px] text-(--tx-mute) dark:text-[#a89379] tracking-[0.2em] font-serif uppercase">
                       {language === 'ar' ? 'إيمان · شركة مقدسة' : 'FAITH · FELLOWSHIP'}
                     </p>
                   </div>
@@ -362,7 +362,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   onClick={() => setIsDrawerOpen(false)}
-                  className="w-8 h-8 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] text-[#3d2b18] dark:text-[#f5ebd9] flex items-center justify-center hover:bg-[#c5a059] hover:text-white transition-all cursor-pointer"
+                  className="w-8 h-8 rounded-xl bg-(--bg-card) dark:bg-[#282019] border border-(--ln-gold) text-(--tx-strong) dark:text-[#f5ebd9] flex items-center justify-center hover:bg-(--ac-gold) hover:text-white transition-all cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -374,23 +374,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onNavigate('profile');
                     setIsDrawerOpen(false);
                   }}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-2xl bg-[#f6ebd6] dark:bg-[#282019] hover:bg-[#e6d3ab] transition-all text-left rtl:text-right group cursor-pointer border-2 border-[#c5a059] dark:border-[#8b6b4a] shadow-md"
+                  className="w-full flex items-center gap-3 p-2.5 rounded-2xl bg-(--bg-card) dark:bg-[#282019] hover:bg-(--bg-deep) transition-all text-left rtl:text-right group cursor-pointer border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-md"
                 >
                   <img
                     src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
                     alt={profile.full_name}
-                    className="w-10 h-10 rounded-full object-cover border-2 border-[#c5a059] shrink-0"
+                    className="w-10 h-10 rounded-full object-cover border-2 border-(--ln-gold) shrink-0"
                   />
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-serif-coptic font-bold text-xs text-[#3d2b18] dark:text-[#f5ebd9] uppercase tracking-wider truncate group-hover:text-[#a8833c] transition-colors">
+                    <h3 className="font-serif-coptic font-bold text-xs text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider truncate group-hover:text-(--ac-bronze-tx) transition-colors">
                       {profile.full_name}
                     </h3>
-                    <p className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-wider truncate">
+                    <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif uppercase tracking-wider truncate">
                       {profile.parish || (language === 'ar' ? 'كنيسة مارمرقس' : 'ST. MARK')}
                     </p>
                   </div>
                   {profile.role && (
-                    <span className="px-2 py-0.5 rounded-full bg-[#e6d3ab] dark:bg-[#382b20] border border-[#c5a059] text-[9px] font-serif font-bold text-[#a8833c] uppercase shrink-0">
+                    <span className="px-2 py-0.5 rounded-full bg-(--bg-deep) dark:bg-[#382b20] border border-(--ln-gold) text-[9px] font-serif font-bold text-(--ac-bronze-tx) uppercase shrink-0">
                       {profile.role.toUpperCase()}
                     </span>
                   )}
@@ -401,7 +401,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     openAuthModal();
                     setIsDrawerOpen(false);
                   }}
-                  className="w-full py-2.5 rounded-2xl bg-[#c5a059] text-white font-serif font-bold text-xs tracking-wider uppercase shadow-md cursor-pointer"
+                  className="w-full py-2.5 rounded-2xl bg-(--ac-gold) text-white font-serif font-bold text-xs tracking-wider uppercase shadow-md cursor-pointer"
                 >
                   {t('signInRegister')}
                 </button>
@@ -412,16 +412,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onNavigate('live');
                   setIsDrawerOpen(false);
                 }}
-                className="w-full p-3 rounded-2xl bg-[#f6ebd6] dark:bg-[#241c15] border-2 border-[#c5a059] dark:border-[#8b6b4a] shadow-md flex items-center gap-3 text-left rtl:text-right group cursor-pointer hover:border-[#a8833c] transition-all"
+                className="w-full p-3 rounded-2xl bg-(--bg-card) dark:bg-[#241c15] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-md flex items-center gap-3 text-left rtl:text-right group cursor-pointer hover:border-(--ln-bronze) transition-all"
               >
-                <div className="w-9 h-9 rounded-xl bg-[#e6d3ab] dark:bg-[#32251a] flex items-center justify-center text-[#a8833c] shrink-0 border border-[#c5a059]/50">
+                <div className="w-9 h-9 rounded-xl bg-(--bg-deep) dark:bg-[#32251a] flex items-center justify-center text-(--ac-bronze-tx) shrink-0 border border-(--ln-gold)/50">
                   <Video className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-serif-coptic font-bold text-xs text-[#3d2b18] dark:text-[#f5ebd9] tracking-wide">
+                  <h3 className="font-serif-coptic font-bold text-xs text-(--tx-strong) dark:text-[#f5ebd9] tracking-wide">
                     {language === 'ar' ? 'بدء اجتماع صلاة مباشر' : 'START PRAYER MEETING'}
                   </h3>
-                  <p className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] tracking-wider uppercase font-serif">
+                  <p className="text-[9px] text-(--tx-mute) dark:text-[#a89379] tracking-wider uppercase font-serif">
                     {language === 'ar' ? 'الصلاة معاً عبر الفيديو' : 'PRAY TOGETHER OVER VIDEO'}
                   </p>
                 </div>
@@ -442,8 +442,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }}
                       className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-serif text-xs uppercase tracking-wider transition-all cursor-pointer ${
                         isActive
-                          ? 'bg-[#c5a059] text-white shadow-md font-bold'
-                          : 'text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#f6ebd6]/80'
+                          ? 'bg-(--ac-gold) text-white shadow-md font-bold'
+                          : 'text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--bg-card)/80'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -462,7 +462,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         )}
 
                         {item.count ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#eedcb5] dark:bg-[#32251a] text-[#3d2b18] dark:text-[#f5ebd9] border border-[#c5a059]">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-(--bg-soft) dark:bg-[#32251a] text-(--tx-strong) dark:text-[#f5ebd9] border border-(--ln-gold)">
                             {item.count}
                           </span>
                         ) : null}
@@ -476,23 +476,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onOpenInvite();
                     setIsDrawerOpen(false);
                   }}
-                  className="w-full p-3 rounded-2xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] hover:border-[#a8833c] transition-all text-left rtl:text-right group cursor-pointer shadow-sm mt-2"
+                  className="w-full p-3 rounded-2xl bg-(--bg-card) dark:bg-[#282019] border border-(--ln-gold) dark:border-[#8b6b4a] hover:border-(--ln-bronze) transition-all text-left rtl:text-right group cursor-pointer shadow-sm mt-2"
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <QrCode className="w-4 h-4 text-[#a8833c] group-hover:scale-110 transition-transform" />
-                    <span className="text-xs font-serif font-bold uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9]">
+                    <QrCode className="w-4 h-4 text-(--ac-bronze-tx) group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-serif font-bold uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9]">
                       {t('inviteFriends')}
                     </span>
                   </div>
-                  <p className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] leading-tight font-serif uppercase">
+                  <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] leading-tight font-serif uppercase">
                     {t('referralSub')}
                   </p>
                 </button>
               </nav>
 
-              <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-3.5 shadow-lg text-xs space-y-2.5">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-[#3d2b18] dark:text-[#f5ebd9] font-serif font-bold text-[9px] uppercase tracking-wider">
-                  <Sparkles className="w-3 h-3 text-[#a8833c]" />
+              <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-3.5 shadow-lg text-xs space-y-2.5">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) text-(--tx-strong) dark:text-[#f5ebd9] font-serif font-bold text-[9px] uppercase tracking-wider">
+                  <Sparkles className="w-3 h-3 text-(--ac-bronze-tx)" />
                   <span>{todayData.date}</span>
                 </div>
 
@@ -504,33 +504,33 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
 
                 <div>
-                  <h4 className="font-serif-coptic font-bold text-xs text-[#3d2b18] dark:text-[#f5ebd9] uppercase tracking-wider">
+                  <h4 className="font-serif-coptic font-bold text-xs text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider">
                     ⛪ {todayData.saintName}
                   </h4>
-                  <p className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] italic font-serif">
+                  <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] italic font-serif">
                     {todayData.saintTitle}
                   </p>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-[#eedcb5]/80 dark:bg-[#282019]/80 border border-[#c5a059] space-y-1">
-                  <div className="flex items-center gap-1.5 text-[#a8833c] font-bold text-[10px] uppercase tracking-wider">
+                <div className="p-2.5 rounded-xl bg-(--bg-soft)/80 dark:bg-[#282019]/80 border border-(--ln-gold) space-y-1">
+                  <div className="flex items-center gap-1.5 text-(--ac-bronze-tx) font-bold text-[10px] uppercase tracking-wider">
                     <BookOpen className="w-3 h-3" />
                     <span>{t('dailyScripture')}</span>
                   </div>
-                  <p className="text-[10px] text-[#3d2b18] dark:text-[#f5ebd9] italic font-serif leading-relaxed">
+                  <p className="text-[10px] text-(--tx-strong) dark:text-[#f5ebd9] italic font-serif leading-relaxed">
                     "{todayData.scriptureText}"
                   </p>
-                  <span className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] font-serif font-bold uppercase block text-right rtl:text-left">
+                  <span className="text-[9px] text-(--tx-mute) dark:text-[#a89379] font-serif font-bold uppercase block text-right rtl:text-left">
                     — {todayData.scriptureRef}
                   </span>
                 </div>
               </div>
 
-              <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-3 shadow-lg space-y-2">
+              <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-3 shadow-lg space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1">
-                    <Globe className="w-4 h-4 text-[#a8833c]" />
-                    <span className="font-serif text-[10px] font-bold uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9]">
+                    <Globe className="w-4 h-4 text-(--ac-bronze-tx)" />
+                    <span className="font-serif text-[10px] font-bold uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9]">
                       {language === 'ar' ? 'اللغة' : 'LANGUAGE'}
                     </span>
                   </div>
@@ -538,7 +538,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       onClick={() => setLanguage('en')}
                       className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-colors cursor-pointer ${
-                        language === 'en' ? 'bg-[#c5a059] text-white' : 'text-[#7c5f3d]'
+                        language === 'en' ? 'bg-(--ac-gold) text-white' : 'text-(--tx-mute)'
                       }`}
                     >
                       EN
@@ -546,7 +546,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       onClick={() => setLanguage('ar')}
                       className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-colors cursor-pointer ${
-                        language === 'ar' ? 'bg-[#c5a059] text-white' : 'text-[#7c5f3d]'
+                        language === 'ar' ? 'bg-(--ac-gold) text-white' : 'text-(--tx-mute)'
                       }`}
                     >
                       عربي
@@ -554,15 +554,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-[#c5a059]/30">
-                  <span className="font-serif text-[10px] font-bold uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9]">
+                <div className="flex items-center justify-between pt-2 border-t border-(--ln-gold)/30">
+                  <span className="font-serif text-[10px] font-bold uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9]">
                     {language === 'ar' ? 'المظهر' : 'THEME'}
                   </span>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setTheme('ancient')}
                       className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                        theme === 'ancient' ? 'bg-[#c5a059] text-white' : 'text-[#7c5f3d]'
+                        theme === 'ancient' ? 'bg-(--ac-gold) text-white' : 'text-(--tx-mute)'
                       }`}
                       title={t('ancientGold')}
                     >
@@ -571,7 +571,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       onClick={() => setTheme('dark')}
                       className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                        theme === 'dark' ? 'bg-[#c5a059] text-white' : 'text-[#7c5f3d]'
+                        theme === 'dark' ? 'bg-(--ac-gold) text-white' : 'text-(--tx-mute)'
                       }`}
                       title={t('dark')}
                     >
@@ -580,7 +580,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       onClick={() => setTheme('light')}
                       className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                        theme === 'light' ? 'bg-[#c5a059] text-white' : 'text-[#7c5f3d]'
+                        theme === 'light' ? 'bg-(--ac-gold) text-white' : 'text-(--tx-mute)'
                       }`}
                       title={t('light')}
                     >
@@ -592,8 +592,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {profile && (
-              <div className="pt-3 border-t border-[#c5a059]/40 flex items-center justify-between">
-                <span className="text-[10px] font-serif text-[#7c5f3d] dark:text-[#a89379] uppercase">
+              <div className="pt-3 border-t border-(--ln-gold)/40 flex items-center justify-between">
+                <span className="text-[10px] font-serif text-(--tx-mute) dark:text-[#a89379] uppercase">
                   {language === 'ar' ? `تسجيل الدخول باسم ${profile.full_name}` : `Logged in as ${profile.full_name}`}
                 </span>
                 <button

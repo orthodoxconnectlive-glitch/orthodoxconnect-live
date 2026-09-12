@@ -131,7 +131,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-lg bg-[#1c1611] border-2 border-[#c5a059] rounded-3xl p-6 shadow-2xl text-[#f5ebd9] max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-[#1c1611] border-2 border-(--ln-gold) rounded-3xl p-6 shadow-2xl text-[#f5ebd9] max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-1.5 rounded-full text-[#a89379] hover:text-[#f5ebd9] hover:bg-[#282019] transition-colors cursor-pointer"
@@ -139,8 +139,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-3 mb-6 pb-3 border-b border-[#c5a059]/30">
-          <div className="w-10 h-10 rounded-2xl bg-[#c5a059]/20 border border-[#c5a059] flex items-center justify-center text-[#c5a059]">
+        <div className="flex items-center gap-3 mb-6 pb-3 border-b border-(--ln-gold)/30">
+          <div className="w-10 h-10 rounded-2xl bg-(--ac-gold)/20 border border-(--ln-gold) flex items-center justify-center text-(--ac-gold-tx)">
             <User className="w-5 h-5" />
           </div>
           <div>
@@ -175,7 +175,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           {/* Avatar Preview & URL / Presets / Upload */}
           <div className="space-y-2">
-            <label className="block text-[#c5a059] font-serif font-bold uppercase tracking-wider text-[11px]">
+            <label className="block text-(--ac-gold-tx) font-serif font-bold uppercase tracking-wider text-[11px]">
               {language === 'ar' ? 'الصورة الشخصية' : 'Profile Photo / Avatar'}
             </label>
 
@@ -184,7 +184,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 <img
                   src={avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
                   alt="Avatar Preview"
-                  className="w-16 h-16 rounded-2xl border-2 border-[#c5a059] object-cover shrink-0 shadow-lg"
+                  className="w-16 h-16 rounded-2xl border-2 border-(--ln-gold) object-cover shrink-0 shadow-lg"
                 />
               </div>
 
@@ -196,11 +196,11 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                     value={avatarUrl}
                     onChange={(e) => setAvatarUrl(e.target.value)}
                     placeholder={language === 'ar' ? 'الصق رابط الصورة (https://...)' : 'Paste photo URL (https://...)'}
-                    className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 rounded-xl bg-[#282019] border border-[#c5a059]/40 text-[#f5ebd9] placeholder-[#a89379]/60 focus:outline-none focus:border-[#c5a059] text-xs font-serif"
+                    className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 rounded-xl bg-[#282019] border border-(--ln-gold)/40 text-[#f5ebd9] placeholder-(--tx-ph-dark)/60 focus:outline-none focus:border-(--ln-gold) text-xs font-serif"
                   />
                 </div>
 
-                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] text-[11px] font-serif font-bold uppercase tracking-wider rounded-xl cursor-pointer transition-colors shadow-md">
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-(--ac-gold) hover:bg-(--ac-bronze) text-(--tx-ink) text-[11px] font-serif font-bold uppercase tracking-wider rounded-xl cursor-pointer transition-colors shadow-md">
                   <Upload className="w-3.5 h-3.5" />
                   <span>{language === 'ar' ? 'تحميل صورة من الجهاز' : 'Upload Photo from Device'}</span>
                   <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
@@ -220,7 +220,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                     type="button"
                     onClick={() => setAvatarUrl(url)}
                     className={`w-10 h-10 rounded-2xl overflow-hidden border-2 cursor-pointer transition-transform hover:scale-105 ${
-                      avatarUrl === url ? 'border-[#c5a059] ring-2 ring-[#c5a059]' : 'border-[#282019]'
+                      avatarUrl === url ? 'border-(--ln-gold) ring-2 ring-(--ac-gold)' : 'border-[#282019]'
                     }`}
                   >
                     <img src={url} alt={`Preset ${i}`} className="w-full h-full object-cover" />
@@ -232,7 +232,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
 
           {/* Full Name */}
           <div>
-            <label className="block text-[#c5a059] font-serif font-bold uppercase tracking-wider text-[11px] mb-1">
+            <label className="block text-(--ac-gold-tx) font-serif font-bold uppercase tracking-wider text-[11px] mb-1">
               {t('fullName')}
             </label>
             <div className="relative">
@@ -242,14 +242,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 rounded-xl bg-[#282019] border border-[#c5a059]/40 text-[#f5ebd9] focus:outline-none focus:border-[#c5a059] font-serif"
+                className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 rounded-xl bg-[#282019] border border-(--ln-gold)/40 text-[#f5ebd9] focus:outline-none focus:border-(--ln-gold) font-serif"
               />
             </div>
           </div>
 
           {/* Parish */}
           <div>
-            <label className="block text-[#c5a059] font-serif font-bold uppercase tracking-wider text-[11px] mb-1">
+            <label className="block text-(--ac-gold-tx) font-serif font-bold uppercase tracking-wider text-[11px] mb-1">
               {t('parish')}
             </label>
             <div className="relative">
@@ -260,14 +260,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 value={parish}
                 onChange={(e) => setParish(e.target.value)}
                 placeholder={language === 'ar' ? 'مثال: كاتدرائية القديس مرقس القبطية الأرثوذكسية' : 'e.g. St. Mark Coptic Orthodox Cathedral'}
-                className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 rounded-xl bg-[#282019] border border-[#c5a059]/40 text-[#f5ebd9] placeholder-[#a89379]/60 focus:outline-none focus:border-[#c5a059] font-serif"
+                className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 rounded-xl bg-[#282019] border border-(--ln-gold)/40 text-[#f5ebd9] placeholder-(--tx-ph-dark)/60 focus:outline-none focus:border-(--ln-gold) font-serif"
               />
             </div>
           </div>
 
           {/* Bio */}
           <div>
-            <label className="block text-[#c5a059] font-serif font-bold uppercase tracking-wider text-[11px] mb-1">
+            <label className="block text-(--ac-gold-tx) font-serif font-bold uppercase tracking-wider text-[11px] mb-1">
               {t('bio')}
             </label>
             <div className="relative">
@@ -277,14 +277,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 placeholder={language === 'ar' ? 'خاطرة قصيرة أو نبذة عن عضويتك بالرعية...' : 'A short reflection or parish bio...'}
-                className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 rounded-xl bg-[#282019] border border-[#c5a059]/40 text-[#f5ebd9] placeholder-[#a89379]/60 focus:outline-none focus:border-[#c5a059] font-serif"
+                className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 rounded-xl bg-[#282019] border border-(--ln-gold)/40 text-[#f5ebd9] placeholder-(--tx-ph-dark)/60 focus:outline-none focus:border-(--ln-gold) font-serif"
               />
             </div>
           </div>
 
           {/* Password Update */}
-          <div className="pt-3 border-t border-[#c5a059]/30 space-y-3">
-            <div className="flex items-center gap-1.5 text-[#c5a059] font-serif font-bold uppercase tracking-wider text-[11px]">
+          <div className="pt-3 border-t border-(--ln-gold)/30 space-y-3">
+            <div className="flex items-center gap-1.5 text-(--ac-gold-tx) font-serif font-bold uppercase tracking-wider text-[11px]">
               <KeyRound className="w-4 h-4" />
               <span>{language === 'ar' ? 'الأمان وتغيير كلمة المرور' : 'Security & Change Password'}</span>
             </div>
@@ -300,7 +300,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder={language === 'ar' ? 'اترك الحقل فارغاً إذا لم ترغب بالتغيير' : 'Leave blank if unchanged'}
-                  className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 rounded-xl bg-[#282019] border border-[#c5a059]/40 text-[#f5ebd9] placeholder-[#a89379]/60 focus:outline-none focus:border-[#c5a059] font-serif"
+                  className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 rounded-xl bg-[#282019] border border-(--ln-gold)/40 text-[#f5ebd9] placeholder-(--tx-ph-dark)/60 focus:outline-none focus:border-(--ln-gold) font-serif"
                 />
               </div>
             </div>
@@ -317,7 +317,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder={language === 'ar' ? 'أعد إدخال كلمة المرور الجديدة' : 'Re-enter new password'}
-                    className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 rounded-xl bg-[#282019] border border-[#c5a059]/40 text-[#f5ebd9] placeholder-[#a89379]/60 focus:outline-none focus:border-[#c5a059] font-serif"
+                    className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 rounded-xl bg-[#282019] border border-(--ln-gold)/40 text-[#f5ebd9] placeholder-(--tx-ph-dark)/60 focus:outline-none focus:border-(--ln-gold) font-serif"
                   />
                 </div>
               </div>
@@ -328,14 +328,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl bg-[#282019] hover:bg-[#3d2b18] text-[#a89379] font-serif font-bold text-xs uppercase tracking-wider cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-[#282019] hover:bg-(--chip-dark) text-[#a89379] font-serif font-bold text-xs uppercase tracking-wider cursor-pointer"
             >
               {t('cancel')}
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-2.5 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase tracking-wider shadow-lg cursor-pointer disabled:opacity-50 transition-colors"
+              className="px-6 py-2.5 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-(--tx-ink) font-serif font-bold text-xs uppercase tracking-wider shadow-lg cursor-pointer disabled:opacity-50 transition-colors"
             >
               {isSubmitting
                 ? language === 'ar'

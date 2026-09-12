@@ -99,15 +99,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="w-full space-y-4">
       {/* Facebook-style Left Navigation Sidebar Card */}
-      <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-3.5 shadow-lg">
+      <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-3.5 shadow-lg">
         {/* Top Controls: Language Selector & Dark/Light Theme Toggle */}
-        <div className="flex items-center justify-between p-2 mb-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] shadow-sm text-xs">
+        <div className="flex items-center justify-between p-2 mb-3 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) dark:border-[#8b6b4a] shadow-sm text-xs">
           <div className="flex items-center gap-1">
-            <Globe className="w-3.5 h-3.5 text-[#a8833c] mr-1 rtl:mr-0 rtl:ml-1 shrink-0" />
+            <Globe className="w-3.5 h-3.5 text-(--ac-bronze-tx) mr-1 rtl:mr-0 rtl:ml-1 shrink-0" />
             <button
               onClick={() => setLanguage('en')}
               className={`px-2 py-0.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
-                language === 'en' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18]'
+                language === 'en' ? 'bg-(--ac-gold) text-white shadow-sm' : 'text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong)'
               }`}
             >
               EN
@@ -115,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={() => setLanguage('ar')}
               className={`px-2 py-0.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
-                language === 'ar' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18]'
+                language === 'ar' ? 'bg-(--ac-gold) text-white shadow-sm' : 'text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong)'
               }`}
             >
               عربي
@@ -126,7 +126,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={() => setTheme('ancient')}
               className={`p-1 rounded-xl transition-all cursor-pointer ${
-                theme === 'ancient' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18]'
+                theme === 'ancient' ? 'bg-(--ac-gold) text-white shadow-sm' : 'text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong)'
               }`}
               title={t('ancientGold')}
             >
@@ -135,7 +135,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={() => setTheme('dark')}
               className={`p-1 rounded-xl transition-all cursor-pointer ${
-                theme === 'dark' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18]'
+                theme === 'dark' ? 'bg-(--ac-gold) text-white shadow-sm' : 'text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong)'
               }`}
               title={t('dark')}
             >
@@ -144,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={() => setTheme('light')}
               className={`p-1 rounded-xl transition-all cursor-pointer ${
-                theme === 'light' ? 'bg-[#c5a059] text-white shadow-sm' : 'text-[#7c5f3d] dark:text-[#a89379] hover:text-[#3d2b18]'
+                theme === 'light' ? 'bg-(--ac-gold) text-white shadow-sm' : 'text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong)'
               }`}
               title={t('light')}
             >
@@ -157,23 +157,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {profile ? (
           <button
             onClick={() => onNavigate('profile')}
-            className="w-full flex items-center gap-3 p-2.5 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] hover:bg-[#e6d3ab] transition-all text-left rtl:text-right mb-3 group cursor-pointer border-2 border-[#c5a059] dark:border-[#8b6b4a] shadow-md"
+            className="w-full flex items-center gap-3 p-2.5 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] hover:bg-(--bg-deep) transition-all text-left rtl:text-right mb-3 group cursor-pointer border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-md"
           >
             <img
               src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
               alt={profile.full_name}
-              className="w-10 h-10 rounded-full object-cover border-2 border-[#c5a059] shrink-0"
+              className="w-10 h-10 rounded-full object-cover border-2 border-(--ln-gold) shrink-0"
             />
             <div className="flex-1 min-w-0">
-              <h3 className="font-serif-coptic font-bold text-xs text-[#3d2b18] dark:text-[#f5ebd9] uppercase tracking-wider truncate group-hover:text-[#a8833c] transition-colors">
+              <h3 className="font-serif-coptic font-bold text-xs text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider truncate group-hover:text-(--ac-bronze-tx) transition-colors">
                 {profile.full_name}
               </h3>
-              <p className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif uppercase tracking-wider truncate">
+              <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif uppercase tracking-wider truncate">
                 {profile.parish || (language === 'ar' ? 'كنيسة أرثوذكسية' : 'ORTHODOX CHURCH')}
               </p>
             </div>
             {profile.role && (
-              <span className="px-2 py-0.5 rounded-full bg-[#e6d3ab] dark:bg-[#382b20] border border-[#c5a059] text-[9px] font-serif font-bold text-[#a8833c] uppercase shrink-0">
+              <span className="px-2 py-0.5 rounded-full bg-(--bg-deep) dark:bg-[#382b20] border border-(--ln-gold) text-[9px] font-serif font-bold text-(--ac-bronze-tx) uppercase shrink-0">
                 {profile.role.toUpperCase()}
               </span>
             )}
@@ -181,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ) : (
           <button
             onClick={() => openAuthModal()}
-            className="w-full flex items-center justify-center gap-2 p-2.5 rounded-2xl bg-[#a8833c] hover:bg-[#8f6e30] text-white transition-all mb-3 text-center cursor-pointer shadow-md font-serif font-bold text-xs uppercase tracking-wider border-2 border-[#c5a059]"
+            className="w-full flex items-center justify-center gap-2 p-2.5 rounded-2xl bg-(--ac-bronze) hover:bg-(--ac-bronze-dk) text-white transition-all mb-3 text-center cursor-pointer shadow-md font-serif font-bold text-xs uppercase tracking-wider border-2 border-(--ln-gold)"
           >
             <User className="w-4 h-4" />
             <span>{t('signInRegister')}</span>
@@ -200,8 +200,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => onNavigate(item.id)}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-serif text-xs uppercase tracking-wider transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-[#c5a059] text-white shadow-md font-bold'
-                    : 'text-[#3d2b18] dark:text-[#f5ebd9] hover:bg-[#eedcb5]/80 dark:hover:bg-[#282019]'
+                    ? 'bg-(--ac-gold) text-white shadow-md font-bold'
+                    : 'text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--bg-soft)/80 dark:hover:bg-[#282019]'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -220,13 +220,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   )}
 
                   {item.badge && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#3d2b18] text-[#c5a059] shadow-sm">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-(--chip-dark) text-(--ac-gold-tx) shadow-sm">
                       {item.badge}
                     </span>
                   )}
 
                   {item.count ? (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#eedcb5] dark:bg-[#32251a] text-[#3d2b18] dark:text-[#f5ebd9] border border-[#c5a059]">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-(--bg-soft) dark:bg-[#32251a] text-(--tx-strong) dark:text-[#f5ebd9] border border-(--ln-gold)">
                       {item.count}
                     </span>
                   ) : null}
@@ -237,18 +237,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         {/* Invite Friends Referral Card */}
-        <div className="mt-4 pt-3 border-t border-[#c5a059]/30">
+        <div className="mt-4 pt-3 border-t border-(--ln-gold)/30">
           <button
             onClick={onOpenInvite}
-            className="w-full p-3 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] dark:border-[#8b6b4a] hover:border-[#a8833c] transition-all text-left rtl:text-right group cursor-pointer shadow-sm"
+            className="w-full p-3 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) dark:border-[#8b6b4a] hover:border-(--ln-bronze) transition-all text-left rtl:text-right group cursor-pointer shadow-sm"
           >
             <div className="flex items-center gap-2 mb-1">
-              <QrCode className="w-4 h-4 text-[#a8833c] group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-serif font-bold uppercase tracking-wider text-[#3d2b18] dark:text-[#f5ebd9]">
+              <QrCode className="w-4 h-4 text-(--ac-bronze-tx) group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-serif font-bold uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9]">
                 {t('inviteFriends')}
               </span>
             </div>
-            <p className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] leading-tight font-serif uppercase">
+            <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] leading-tight font-serif uppercase">
               {t('referralSub')}
             </p>
           </button>
@@ -256,11 +256,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Liturgical Daily Calendar & Fasting Widget (Sidebar Only) */}
-      <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg text-xs space-y-3">
+      <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg text-xs space-y-3">
         {/* Date & Fasting Badges */}
         <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#eedcb5] dark:bg-[#282019] border border-[#c5a059] text-[#3d2b18] dark:text-[#f5ebd9] font-serif font-bold text-[9px] uppercase tracking-wider">
-            <Sparkles className="w-3 h-3 text-[#a8833c]" />
+          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) text-(--tx-strong) dark:text-[#f5ebd9] font-serif font-bold text-[9px] uppercase tracking-wider">
+            <Sparkles className="w-3 h-3 text-(--ac-bronze-tx)" />
             {todayData.date}
           </div>
 
@@ -274,24 +274,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Saint of the Day */}
         <div>
-          <h4 className="font-serif-coptic font-bold text-xs text-[#3d2b18] dark:text-[#f5ebd9] uppercase tracking-wider">
+          <h4 className="font-serif-coptic font-bold text-xs text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider">
             ⛪ {todayData.saintName}
           </h4>
-          <p className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] italic font-serif">
+          <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] italic font-serif">
             {todayData.saintTitle}
           </p>
         </div>
 
         {/* Daily Scripture Quote */}
-        <div className="p-2.5 rounded-xl bg-[#eedcb5]/80 dark:bg-[#282019]/80 border border-[#c5a059] space-y-1">
-          <div className="flex items-center gap-1.5 text-[#a8833c] font-bold text-[10px] uppercase tracking-wider">
+        <div className="p-2.5 rounded-xl bg-(--bg-soft)/80 dark:bg-[#282019]/80 border border-(--ln-gold) space-y-1">
+          <div className="flex items-center gap-1.5 text-(--ac-bronze-tx) font-bold text-[10px] uppercase tracking-wider">
             <BookOpen className="w-3 h-3" />
             <span>{t('dailyScripture')}</span>
           </div>
-          <p className="text-[11px] text-[#3d2b18] dark:text-[#f5ebd9] italic font-serif leading-relaxed">
+          <p className="text-[11px] text-(--tx-strong) dark:text-[#f5ebd9] italic font-serif leading-relaxed">
             "{todayData.scriptureText}"
           </p>
-          <span className="text-[9px] text-[#7c5f3d] dark:text-[#a89379] font-serif font-bold uppercase block text-right rtl:text-left">
+          <span className="text-[9px] text-(--tx-mute) dark:text-[#a89379] font-serif font-bold uppercase block text-right rtl:text-left">
             — {todayData.scriptureRef}
           </span>
         </div>
@@ -299,7 +299,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Calendar Button */}
         <button
           onClick={() => onNavigate('calendar')}
-          className="w-full py-2.5 rounded-xl bg-[#a8833c] hover:bg-[#8f6e30] text-white font-serif font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+          className="w-full py-2.5 rounded-xl bg-(--ac-bronze) hover:bg-(--ac-bronze-dk) text-white font-serif font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
         >
           <CalendarIcon className="w-3.5 h-3.5" />
           <span>{t('calendar')}</span>

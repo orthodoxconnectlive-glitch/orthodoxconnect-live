@@ -592,7 +592,7 @@ export const LiveBroadcastView: React.FC = () => {
           {/* Share Stream Link Button */}
           <button
             onClick={() => setIsShareLinkOpen(true)}
-            className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer shrink-0 uppercase tracking-wider"
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-(--tx-ink) font-serif font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer shrink-0 uppercase tracking-wider"
           >
             <Link2 className="w-4 h-4" />
             <span>{language === 'ar' ? 'مشاركة رابط بث' : 'Share Stream Link'}</span>
@@ -788,8 +788,8 @@ export const LiveBroadcastView: React.FC = () => {
       {/* Share Live Stream Link Modal */}
       {isShareLinkOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="relative w-full max-w-lg bg-[#eddcb9] dark:bg-[#18120e] border-2 border-[#c5a059] rounded-3xl p-6 shadow-2xl space-y-4 text-[#3d2b18] dark:text-[#f5ebd9]">
-            <div className="flex items-center justify-between pb-3 border-b border-[#c5a059]/40">
+          <div className="relative w-full max-w-lg bg-(--bg-page) dark:bg-[#18120e] border-2 border-(--ln-gold) rounded-3xl p-6 shadow-2xl space-y-4 text-(--tx-strong) dark:text-[#f5ebd9]">
+            <div className="flex items-center justify-between pb-3 border-b border-(--ln-gold)/40">
               <div className="flex items-center gap-2">
                 <Radio className="w-5 h-5 text-red-600 animate-pulse" />
                 <h3 className="font-serif-coptic font-bold text-base">
@@ -798,7 +798,7 @@ export const LiveBroadcastView: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsShareLinkOpen(false)}
-                className="p-1.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] hover:bg-[#c5a059] hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-xl bg-(--bg-card) dark:bg-[#282019] border border-(--ln-gold) hover:bg-(--ac-gold) hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -806,7 +806,7 @@ export const LiveBroadcastView: React.FC = () => {
 
             <form onSubmit={handleShareCustomLink} className="space-y-3.5">
               <div>
-                <label className="block text-[11px] font-serif uppercase tracking-wider font-bold text-[#7c5f3d] dark:text-[#a89379] mb-1">
+                <label className="block text-[11px] font-serif uppercase tracking-wider font-bold text-(--tx-mute) dark:text-[#a89379] mb-1">
                   {language === 'ar' ? 'عنوان البث أو القداس' : 'Broadcast / Liturgy Title'}
                 </label>
                 <input
@@ -815,12 +815,12 @@ export const LiveBroadcastView: React.FC = () => {
                   value={linkTitle}
                   onChange={(e) => setLinkTitle(e.target.value)}
                   placeholder={language === 'ar' ? 'القداس الإلهي وعظة الأحد' : 'Sunday Divine Liturgy & Sermon'}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] text-xs font-serif text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none focus:border-[#a8833c]"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-(--bg-card) dark:bg-[#282019] border border-(--ln-gold) text-xs font-serif text-(--tx-strong) dark:text-[#f5ebd9] focus:outline-none focus:border-(--ln-bronze)"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-serif uppercase tracking-wider font-bold text-[#7c5f3d] dark:text-[#a89379] mb-1">
+                <label className="block text-[11px] font-serif uppercase tracking-wider font-bold text-(--tx-mute) dark:text-[#a89379] mb-1">
                   {language === 'ar' ? 'رابط البث (YouTube / Facebook / Bunny / HLS / MP4)' : 'Stream URL (YouTube, Facebook, Bunny, HLS)'}
                 </label>
                 <input
@@ -829,13 +829,13 @@ export const LiveBroadcastView: React.FC = () => {
                   value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}
                   placeholder="https://www.youtube.com/watch?v=... or https://iframe.mediadelivery.net/..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] text-xs font-serif text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none focus:border-[#a8833c]"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-(--bg-card) dark:bg-[#282019] border border-(--ln-gold) text-xs font-serif text-(--tx-strong) dark:text-[#f5ebd9] focus:outline-none focus:border-(--ln-bronze)"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-serif uppercase tracking-wider font-bold text-[#7c5f3d] dark:text-[#a89379] mb-1">
+                  <label className="block text-[11px] font-serif uppercase tracking-wider font-bold text-(--tx-mute) dark:text-[#a89379] mb-1">
                     {language === 'ar' ? 'اسم الكنيسة / الرعية' : 'Parish Name'}
                   </label>
                   <input
@@ -843,12 +843,12 @@ export const LiveBroadcastView: React.FC = () => {
                     value={linkParish}
                     onChange={(e) => setLinkParish(e.target.value)}
                     placeholder="St. Mark Coptic Church"
-                    className="w-full px-3 py-2 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] text-xs font-serif text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none focus:border-[#a8833c]"
+                    className="w-full px-3 py-2 rounded-xl bg-(--bg-card) dark:bg-[#282019] border border-(--ln-gold) text-xs font-serif text-(--tx-strong) dark:text-[#f5ebd9] focus:outline-none focus:border-(--ln-bronze)"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-serif uppercase tracking-wider font-bold text-[#7c5f3d] dark:text-[#a89379] mb-1">
+                  <label className="block text-[11px] font-serif uppercase tracking-wider font-bold text-(--tx-mute) dark:text-[#a89379] mb-1">
                     {language === 'ar' ? 'الكاهن / الخادم' : 'Priest / Celebrant'}
                   </label>
                   <input
@@ -856,23 +856,23 @@ export const LiveBroadcastView: React.FC = () => {
                     value={linkCelebrant}
                     onChange={(e) => setLinkCelebrant(e.target.value)}
                     placeholder="Fr. Mina"
-                    className="w-full px-3 py-2 rounded-xl bg-[#f6ebd6] dark:bg-[#282019] border border-[#c5a059] text-xs font-serif text-[#3d2b18] dark:text-[#f5ebd9] focus:outline-none focus:border-[#a8833c]"
+                    className="w-full px-3 py-2 rounded-xl bg-(--bg-card) dark:bg-[#282019] border border-(--ln-gold) text-xs font-serif text-(--tx-strong) dark:text-[#f5ebd9] focus:outline-none focus:border-(--ln-bronze)"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#c5a059]/30">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-(--ln-gold)/30">
                 <button
                   type="button"
                   onClick={() => setIsShareLinkOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-[#c5a059] text-xs font-serif uppercase font-bold text-[#7c5f3d] dark:text-[#a89379] hover:bg-[#f6ebd6] transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-(--ln-gold) text-xs font-serif uppercase font-bold text-(--tx-mute) dark:text-[#a89379] hover:bg-(--bg-card) transition-colors cursor-pointer"
                 >
                   {language === 'ar' ? 'إلغاء' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingLink || !linkUrl.trim() || !linkTitle.trim()}
-                  className="px-5 py-2 rounded-xl bg-[#c5a059] hover:bg-[#a8833c] text-[#1c1611] font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-(--tx-ink) font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
                 >
                   <Send className="w-3.5 h-3.5 rtl:rotate-180" />
                   <span>

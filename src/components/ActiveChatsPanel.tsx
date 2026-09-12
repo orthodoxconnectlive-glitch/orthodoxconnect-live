@@ -130,28 +130,28 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
 
   return (
     <aside className="w-full space-y-6">
-      <div className="bg-[#f6ebd6] dark:bg-[#1c1611] border-2 border-[#c5a059] dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg">
-        <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#c5a059]/30">
-          <h3 className="font-serif-coptic font-bold text-xs text-[#3d2b18] dark:text-[#f5ebd9] uppercase tracking-wider flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-[#a8833c]" />
+      <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg">
+        <div className="flex items-center justify-between mb-4 pb-2 border-b border-(--ln-gold)/30">
+          <h3 className="font-serif-coptic font-bold text-xs text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-(--ac-bronze-tx)" />
             <span>{t('activeChats')}</span>
           </h3>
-          <span className="px-2 py-0.5 rounded-full text-[9px] font-serif font-bold uppercase tracking-wider bg-[#eedcb5] dark:bg-[#32251a] text-[#3d2b18] dark:text-[#f5ebd9] border border-[#c5a059]">
+          <span className="px-2 py-0.5 rounded-full text-[9px] font-serif font-bold uppercase tracking-wider bg-(--bg-soft) dark:bg-[#32251a] text-(--tx-strong) dark:text-[#f5ebd9] border border-(--ln-gold)">
             {t('onlineNow')}
           </span>
         </div>
 
         {loading ? (
-          <div className="py-6 text-center text-xs text-[#7c5f3d] dark:text-[#a89379] font-serif">
+          <div className="py-6 text-center text-xs text-(--tx-mute) dark:text-[#a89379] font-serif">
             {language === 'ar' ? 'جارٍ تحميل الأعضاء النشطين...' : 'Loading active members...'}
           </div>
         ) : users.length === 0 ? (
-          <div className="py-6 px-3 text-center space-y-2 rounded-2xl bg-[#eedcb5]/40 dark:bg-[#282019]/40 border border-[#c5a059]/30">
-            <User className="w-6 h-6 text-[#a8833c] mx-auto opacity-70" />
-            <p className="text-xs font-serif font-bold text-[#3d2b18] dark:text-[#f5ebd9]">
+          <div className="py-6 px-3 text-center space-y-2 rounded-2xl bg-(--bg-soft)/40 dark:bg-[#282019]/40 border border-(--ln-gold)/30">
+            <User className="w-6 h-6 text-(--ac-bronze-tx) mx-auto opacity-70" />
+            <p className="text-xs font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9]">
               {language === 'ar' ? 'لا يوجد أعضاء متصلون حالياً' : 'No members online'}
             </p>
-            <p className="text-[11px] text-[#7c5f3d] dark:text-[#a89379] font-serif">
+            <p className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif">
               {language === 'ar'
                 ? 'قم بدعوة أصدقاء الرعية أو تحقق لاحقاً عند انضمام أعضاء آخرين!'
                 : 'Invite parish friends or check back when other members join!'}
@@ -162,7 +162,7 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
             {users.map((user) => (
               <div
                 key={user.id}
-                className="w-full flex items-center justify-between p-2.5 rounded-2xl bg-[#eedcb5]/60 dark:bg-[#282019]/60 hover:bg-[#eedcb5] dark:hover:bg-[#282019] transition-all text-left rtl:text-right group border border-[#c5a059]/40 cursor-pointer"
+                className="w-full flex items-center justify-between p-2.5 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019]/60 hover:bg-(--bg-soft) dark:hover:bg-[#282019] transition-all text-left rtl:text-right group border border-(--ln-gold)/40 cursor-pointer"
               >
                 <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
                   <div
@@ -181,7 +181,7 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
                     <img
                       src={user.avatar}
                       alt={user.name}
-                      className="w-9 h-9 rounded-full object-cover border-2 border-[#c5a059]"
+                      className="w-9 h-9 rounded-full object-cover border-2 border-(--ln-gold)"
                     />
                     {user.isOnline && (
                       <span className="absolute bottom-0 right-0 rtl:right-auto rtl:left-0 w-2.5 h-2.5 bg-emerald-600 rounded-full border-2 border-[#f6ebd6]" />
@@ -193,7 +193,7 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
                     onClick={() => onOpenMessenger(user.id)}
                   >
                     <p
-                      className="text-xs font-serif-coptic font-bold text-[#3d2b18] dark:text-[#f5ebd9] uppercase tracking-wider truncate hover:underline hover:text-[#a8833c] transition-colors"
+                      className="text-xs font-serif-coptic font-bold text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider truncate hover:underline hover:text-(--ac-bronze-tx) transition-colors"
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelectUser?.({
@@ -206,13 +206,13 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
                     >
                       {user.name}
                     </p>
-                    <p className="text-[10px] text-[#7c5f3d] dark:text-[#a89379] font-serif truncate">
+                    <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif truncate">
                       {user.lastMessage}
                     </p>
                   </div>
                 </div>
 
-                <ChevronRight className="w-3.5 h-3.5 text-[#7c5f3d] group-hover:text-[#a8833c] transition-colors shrink-0 rtl:rotate-180" />
+                <ChevronRight className="w-3.5 h-3.5 text-(--tx-mute) group-hover:text-(--ac-bronze-tx) transition-colors shrink-0 rtl:rotate-180" />
               </div>
             ))}
           </div>
@@ -220,7 +220,7 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
 
         <button
           onClick={() => onOpenMessenger()}
-          className="w-full mt-4 py-2.5 rounded-2xl bg-[#eedcb5] dark:bg-[#282019] hover:bg-[#c5a059] hover:text-white text-[#3d2b18] dark:text-[#f5ebd9] font-serif font-bold text-xs uppercase tracking-wider border border-[#c5a059] transition-all text-center cursor-pointer shadow-sm"
+          className="w-full mt-4 py-2.5 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] hover:bg-(--ac-gold) hover:text-white text-(--tx-strong) dark:text-[#f5ebd9] font-serif font-bold text-xs uppercase tracking-wider border border-(--ln-gold) transition-all text-center cursor-pointer shadow-sm"
         >
           {language === 'ar' ? 'عرض جميع الرسائل' : 'View All Messages'}
         </button>

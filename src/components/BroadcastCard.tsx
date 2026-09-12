@@ -191,7 +191,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
       id={elementMediaId}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`relative rounded-2xl overflow-hidden bg-black border-2 border-[#c5a059]/40 shadow-xl group ${className}`}
+      className={`relative rounded-2xl overflow-hidden bg-black border-2 border-(--ln-gold)/40 shadow-xl group ${className}`}
     >
       {hasError ? (
         /* Graceful error fallback card */
@@ -202,7 +202,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
           <h4 className="text-[#f5ebd9] font-serif font-bold text-sm mb-1">
             Broadcast Video Unavailable
           </h4>
-          <p className="text-[#eedcb5]/70 text-xs max-w-sm mb-3 font-serif">
+          <p className="text-(--chip-light)/70 text-xs max-w-sm mb-3 font-serif">
             Unable to stream this video file. The source link may be offline or in an unsupported format.
           </p>
           <button
@@ -211,7 +211,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               setHasError(false);
               setIsPlaying(false);
             }}
-            className="px-3.5 py-1.5 rounded-xl bg-[#3d2b18] hover:bg-[#c5a059] text-[#c5a059] hover:text-[#1c130c] font-serif font-bold text-xs flex items-center gap-1.5 transition-colors border border-[#c5a059]/40 cursor-pointer shadow-md"
+            className="px-3.5 py-1.5 rounded-xl bg-(--chip-dark) hover:bg-(--ac-gold) text-(--ac-gold-tx) hover:text-(--tx-ink) font-serif font-bold text-xs flex items-center gap-1.5 transition-colors border border-(--ln-gold)/40 cursor-pointer shadow-md"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Retry Connection</span>
@@ -243,8 +243,8 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
                   <Radio className="w-3 h-3 animate-spin" /> Live Broadcast
                 </span>
               ) : (
-                <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#3d2b18]/90 backdrop-blur-sm text-[#c5a059] border border-[#c5a059]/40 text-[10px] font-serif font-bold uppercase tracking-wider shadow-md">
-                  <Video className="w-3 h-3 text-[#c5a059]" /> Recorded Broadcast
+                <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-(--chip-dark)/90 backdrop-blur-sm text-(--ac-gold-tx) border border-(--ln-gold)/40 text-[10px] font-serif font-bold uppercase tracking-wider shadow-md">
+                  <Video className="w-3 h-3 text-(--ac-gold-tx)" /> Recorded Broadcast
                 </span>
               )}
               {authorParish && (
@@ -282,7 +282,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
               <button
                 type="button"
                 onClick={handleUnmuteLiveStream}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#c5a059] to-[#8f6e30] hover:from-[#e6d3ab] hover:to-[#c5a059] text-[#1c130c] font-serif font-bold text-xs flex items-center gap-2 shadow-2xl transition-all transform hover:scale-105 active:scale-95 cursor-pointer border border-[#f5ebd9]"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-(--ac-gold) to-(--ac-bronze-dk) hover:from-(--bg-deep) hover:to-(--ac-gold) text-(--tx-ink) font-serif font-bold text-xs flex items-center gap-2 shadow-2xl transition-all transform hover:scale-105 active:scale-95 cursor-pointer border border-(--ln-light)"
                 title="Click to enable live stream audio"
               >
                 <VolumeX className="w-4 h-4 text-red-900" />
@@ -299,19 +299,19 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
             >
               <div className="relative flex items-center justify-center">
                 {/* Pulsing golden aura */}
-                <div className="absolute w-20 h-20 rounded-full bg-[#c5a059]/30 animate-ping opacity-60 pointer-events-none" />
+                <div className="absolute w-20 h-20 rounded-full bg-(--ac-gold)/30 animate-ping opacity-60 pointer-events-none" />
 
                 <button
                   type="button"
-                  className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-[#c5a059] to-[#8f6e30] hover:from-[#e6d3ab] hover:to-[#c5a059] text-[#1c130c] shadow-2xl flex items-center justify-center border-2 border-[#f5ebd9] transition-transform transform group-hover:scale-110 active:scale-95 cursor-pointer"
+                  className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-(--ac-gold) to-(--ac-bronze-dk) hover:from-(--bg-deep) hover:to-(--ac-gold) text-(--tx-ink) shadow-2xl flex items-center justify-center border-2 border-(--ln-light) transition-transform transform group-hover:scale-110 active:scale-95 cursor-pointer"
                   title="Play Recorded Broadcast"
                   aria-label="Play Recorded Broadcast"
                 >
-                  <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-current ml-1 text-[#1c130c]" />
+                  <Play className="w-8 h-8 sm:w-10 sm:h-10 fill-current ml-1 text-(--tx-ink)" />
                 </button>
               </div>
 
-              <div className="mt-4 px-4 py-1.5 rounded-full bg-[#3d2b18]/90 backdrop-blur-md border border-[#c5a059]/50 text-[#f5ebd9] text-xs font-serif font-bold uppercase tracking-wider shadow-lg flex items-center gap-2">
+              <div className="mt-4 px-4 py-1.5 rounded-full bg-(--chip-dark)/90 backdrop-blur-md border border-(--ln-gold)/50 text-[#f5ebd9] text-xs font-serif font-bold uppercase tracking-wider shadow-lg flex items-center gap-2">
                 <span>{hasStarted ? 'Resume Broadcast' : 'Play Broadcast'}</span>
               </div>
             </div>

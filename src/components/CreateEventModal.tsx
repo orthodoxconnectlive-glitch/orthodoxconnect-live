@@ -73,18 +73,18 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-xl bg-[#fdfaf5] dark:bg-[#1c1611] border border-[#d4af37]/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-left rtl:text-right">
+      <div className="w-full max-w-xl bg-(--bg-card-hi) dark:bg-[#1c1611] border border-(--ln-bright)/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-left rtl:text-right">
         {/* Modal Header */}
-        <div className="p-5 border-b border-[#d4af37]/20 bg-[#f1ebd7] dark:bg-[#282019] flex items-center justify-between">
+        <div className="p-5 border-b border-(--ln-bright)/20 bg-(--bg-inset) dark:bg-[#282019] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#d4af37] text-white flex items-center justify-center shadow-md">
+            <div className="w-9 h-9 rounded-xl bg-(--ac-bright) text-white flex items-center justify-center shadow-md">
               <CalendarIcon className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-serif font-bold text-lg text-[#5a4632] dark:text-[#f5ebd9]">
+              <h3 className="font-serif font-bold text-lg text-(--tx-head) dark:text-[#f5ebd9]">
                 {language === 'ar' ? 'إنشاء مناسبة رعوية جديدة' : 'Create Parish Event'}
               </h3>
-              <p className="text-xs text-[#8b6b4a] dark:text-[#a89379]">
+              <p className="text-xs text-(--tx-soft) dark:text-[#a89379]">
                 {language === 'ar'
                   ? 'جدولة القداسات الإلهية، الأعياد، دراسات الكتاب، واللقاءات الروحية'
                   : 'Schedule Divine Liturgies, Feasts, Bible Studies, and Gatherings'}
@@ -94,7 +94,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-[#8b6b4a] dark:text-[#a89379] hover:bg-[#d4af37]/10 hover:text-[#5a4632] dark:hover:text-white transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-(--tx-soft) dark:text-[#a89379] hover:bg-(--ac-bright)/10 hover:text-(--tx-head) dark:hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -103,7 +103,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
           <div>
-            <label className="block text-xs font-bold text-[#8b6b4a] dark:text-[#c5a059] uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-1.5">
               {language === 'ar' ? 'عنوان المناسبة *' : 'Event Title *'}
             </label>
             <input
@@ -116,19 +116,19 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               }
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/30 text-xs text-[#2c2c2c] dark:text-[#f5ebd9] placeholder-[#8b6b4a]/60 focus:outline-none focus:border-[#d4af37]"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-body) dark:text-[#f5ebd9] placeholder-(--tx-soft)/60 focus:outline-none focus:border-(--ln-bright)"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-[#8b6b4a] dark:text-[#c5a059] uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-1.5">
                 {language === 'ar' ? 'التصنيف' : 'Category'}
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as EventItem['category'])}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/30 text-xs text-[#2c2c2c] dark:text-[#f5ebd9] focus:outline-none focus:border-[#d4af37]"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-body) dark:text-[#f5ebd9] focus:outline-none focus:border-(--ln-bright)"
               >
                 <option value="liturgy">{language === 'ar' ? 'قداس إلهي وخدمة كنسية' : 'Divine Liturgy & Service'}</option>
                 <option value="feast">{language === 'ar' ? 'عيد كنسي وسيدي كبير' : 'Great Feast Day'}</option>
@@ -141,11 +141,11 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#8b6b4a] dark:text-[#c5a059] uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-1.5">
                 {t('parish')}
               </label>
-              <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/30 text-xs text-[#5a4632] dark:text-[#f5ebd9] font-semibold">
-                <Church className="w-4 h-4 text-[#d4af37]" />
+              <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-head) dark:text-[#f5ebd9] font-semibold">
+                <Church className="w-4 h-4 text-(--ac-bright-tx)" />
                 <span>{profile?.parish || (language === 'ar' ? 'كاتدرائية الثالوث الأقدس' : 'Holy Trinity Cathedral')}</span>
               </div>
             </div>
@@ -153,7 +153,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-[#8b6b4a] dark:text-[#c5a059] uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-1.5">
                 {language === 'ar' ? 'التاريخ *' : 'Date *'}
               </label>
               <input
@@ -161,12 +161,12 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 required
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/30 text-xs text-[#2c2c2c] dark:text-[#f5ebd9] focus:outline-none focus:border-[#d4af37]"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-body) dark:text-[#f5ebd9] focus:outline-none focus:border-(--ln-bright)"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#8b6b4a] dark:text-[#c5a059] uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-1.5">
                 {language === 'ar' ? 'الوقت' : 'Time'}
               </label>
               <input
@@ -174,14 +174,14 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 placeholder={language === 'ar' ? 'مثال: 09:30 صباحاً' : 'e.g. 09:30 AM'}
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/30 text-xs text-[#2c2c2c] dark:text-[#f5ebd9] focus:outline-none focus:border-[#d4af37]"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-body) dark:text-[#f5ebd9] focus:outline-none focus:border-(--ln-bright)"
               />
             </div>
           </div>
 
           {/* Location Type Switcher */}
           <div>
-            <label className="block text-xs font-bold text-[#8b6b4a] dark:text-[#c5a059] uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-1.5">
               {language === 'ar' ? 'نوع المكان' : 'Location Type'}
             </label>
             <div className="flex gap-2">
@@ -190,8 +190,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 onClick={() => setLocationType('physical')}
                 className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
                   locationType === 'physical'
-                    ? 'bg-[#d4af37] text-white border-[#d4af37] shadow-sm'
-                    : 'bg-[#f5f2ed] dark:bg-[#282019] text-[#8b6b4a] dark:text-[#a89379] border-[#d4af37]/20 hover:border-[#d4af37]/40'
+                    ? 'bg-(--ac-bright) text-white border-(--ln-bright) shadow-sm'
+                    : 'bg-(--bg-inset2) dark:bg-[#282019] text-(--tx-soft) dark:text-[#a89379] border-(--ln-bright)/20 hover:border-(--ln-bright)/40'
                 }`}
               >
                 <MapPin className="w-4 h-4" />
@@ -203,8 +203,8 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 onClick={() => setLocationType('virtual')}
                 className={`flex-1 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
                   locationType === 'virtual'
-                    ? 'bg-[#d4af37] text-white border-[#d4af37] shadow-sm'
-                    : 'bg-[#f5f2ed] dark:bg-[#282019] text-[#8b6b4a] dark:text-[#a89379] border-[#d4af37]/20 hover:border-[#d4af37]/40'
+                    ? 'bg-(--ac-bright) text-white border-(--ln-bright) shadow-sm'
+                    : 'bg-(--bg-inset2) dark:bg-[#282019] text-(--tx-soft) dark:text-[#a89379] border-(--ln-bright)/20 hover:border-(--ln-bright)/40'
                 }`}
               >
                 <Video className="w-4 h-4" />
@@ -215,7 +215,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
           {locationType === 'physical' ? (
             <div>
-              <label className="block text-xs font-bold text-[#8b6b4a] dark:text-[#c5a059] uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-1.5">
                 {language === 'ar' ? 'عنوان المقر' : 'Venue Address'}
               </label>
               <input
@@ -223,12 +223,12 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 placeholder={language === 'ar' ? 'مثال: قاعة كاتدرائية القديس مرقس، القاهرة' : 'e.g. Holy Trinity Cathedral Hall, 450 Harvard St, Boston'}
                 value={locationAddress}
                 onChange={(e) => setLocationAddress(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/30 text-xs text-[#2c2c2c] dark:text-[#f5ebd9] placeholder-[#8b6b4a]/60 focus:outline-none focus:border-[#d4af37]"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-body) dark:text-[#f5ebd9] placeholder-(--tx-soft)/60 focus:outline-none focus:border-(--ln-bright)"
               />
             </div>
           ) : (
             <div>
-              <label className="block text-xs font-bold text-[#8b6b4a] dark:text-[#c5a059] uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-1.5">
                 {language === 'ar' ? 'رابط البث أو الغرفة الافتراضية' : 'Virtual Link or Stream URL'}
               </label>
               <input
@@ -236,13 +236,13 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                 placeholder="https://orthodoxconnect.live/room-bible"
                 value={virtualLink}
                 onChange={(e) => setVirtualLink(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/30 text-xs text-[#2c2c2c] dark:text-[#f5ebd9] placeholder-[#8b6b4a]/60 focus:outline-none focus:border-[#d4af37]"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-body) dark:text-[#f5ebd9] placeholder-(--tx-soft)/60 focus:outline-none focus:border-(--ln-bright)"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-bold text-[#8b6b4a] dark:text-[#c5a059] uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-1.5">
               {language === 'ar' ? 'الوصف والتفاصيل' : 'Description'}
             </label>
             <textarea
@@ -254,19 +254,19 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               }
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/30 text-xs text-[#2c2c2c] dark:text-[#f5ebd9] placeholder-[#8b6b4a]/60 focus:outline-none focus:border-[#d4af37]"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-body) dark:text-[#f5ebd9] placeholder-(--tx-soft)/60 focus:outline-none focus:border-(--ln-bright)"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-[#8b6b4a] dark:text-[#c5a059] uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-1.5">
               {language === 'ar' ? 'رابط صورة الغلاف أو اختر نموذجاً' : 'Cover Image URL or Presets'}
             </label>
             <input
               type="text"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#f5f2ed] dark:bg-[#282019] border border-[#d4af37]/30 text-xs text-[#2c2c2c] dark:text-[#f5ebd9] focus:outline-none focus:border-[#d4af37] mb-2"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-body) dark:text-[#f5ebd9] focus:outline-none focus:border-(--ln-bright) mb-2"
             />
             <div className="flex gap-2">
               {PRESET_IMAGES.map((img, idx) => (
@@ -275,7 +275,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                   type="button"
                   onClick={() => setImageUrl(img)}
                   className={`h-12 flex-1 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
-                    imageUrl === img ? 'border-[#d4af37] ring-2 ring-[#d4af37]/40' : 'border-transparent opacity-60 hover:opacity-100'
+                    imageUrl === img ? 'border-(--ln-bright) ring-2 ring-(--ac-bright)/40' : 'border-transparent opacity-60 hover:opacity-100'
                   }`}
                 >
                   <img src={img} alt="Preset cover" className="w-full h-full object-cover" />
@@ -284,18 +284,18 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
             </div>
           </div>
 
-          <div className="pt-3 border-t border-[#d4af37]/20 flex items-center justify-end gap-3">
+          <div className="pt-3 border-t border-(--ln-bright)/20 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold text-[#8b6b4a] dark:text-[#a89379] hover:bg-[#f1ebd7] dark:hover:bg-[#282019] transition-colors cursor-pointer"
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-(--tx-soft) dark:text-[#a89379] hover:bg-(--bg-inset) dark:hover:bg-[#282019] transition-colors cursor-pointer"
             >
               {t('cancel')}
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2.5 rounded-xl bg-[#d4af37] hover:bg-[#b89528] text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:bg-(--ac-bright-dk) text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
             >
               <Sparkles className="w-4 h-4" />
               <span>

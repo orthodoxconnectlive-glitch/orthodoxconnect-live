@@ -1,0 +1,17 @@
+{
+  "name": "OrthodoxConnect",
+  "short_name": "OrthodoxConnect",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3f2b1d",
+  "description": "Orthodox community social networking platform.",
+  "icons": [
+    {
+      "src": "/launchericon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

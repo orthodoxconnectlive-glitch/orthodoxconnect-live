@@ -103,6 +103,30 @@ export interface D1BookRow {
 let d1TablesInitialized = false;
 export async function ensureD1Tables(db?: D1Database) {
   if (!db || d1TablesInitialized) return;
+  // Standalone churches table creation — runs before the legacy giant batch,
+  // which is non-fatal and may throw (its catch would otherwise skip this).
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS churches (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        avatar TEXT DEFAULT '',
+        cover TEXT DEFAULT '',
+        description TEXT DEFAULT '',
+        address TEXT DEFAULT '',
+        city TEXT DEFAULT '',
+        country TEXT DEFAULT '',
+        priest_name TEXT DEFAULT '',
+        phone TEXT DEFAULT '',
+        website TEXT DEFAULT '',
+        service_times TEXT DEFAULT '',
+        owner_id TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `);
+  } catch (churchTblErr) {
+    console.warn('[ensureD1Tables] churches table notice:', churchTblErr);
+  }
   try {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS profiles (
@@ -374,29 +398,6 @@ export async function ensureD1Tables(db?: D1Database) {
       }
     } catch (storyMigErr) {
       console.warn('[ensureD1Tables] stories migration notice:', storyMigErr);
-    }
-    try {
-      // Churches table (standalone exec so a giant-batch failure can't skip it)
-      await db.exec(`
-      CREATE TABLE IF NOT EXISTS churches (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        avatar TEXT DEFAULT '',
-        cover TEXT DEFAULT '',
-        description TEXT DEFAULT '',
-        address TEXT DEFAULT '',
-        city TEXT DEFAULT '',
-        country TEXT DEFAULT '',
-        priest_name TEXT DEFAULT '',
-        phone TEXT DEFAULT '',
-        website TEXT DEFAULT '',
-        service_times TEXT DEFAULT '',
-        owner_id TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-      `);
-    } catch (churchMigErr) {
-      console.warn('[ensureD1Tables] churches migration notice:', churchMigErr);
     }
     d1TablesInitialized = true;
   } catch (e) {

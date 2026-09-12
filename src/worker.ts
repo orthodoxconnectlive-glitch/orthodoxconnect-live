@@ -604,6 +604,19 @@ export function extractBunnyVideoGuid(input?: string | null): string | null {
   return trimmed;
 }
 
+// Schema migrations are idempotent; run them once per worker isolate and
+// cache the promise so every API request doesn't pay the check cost.
+let schemaEnsuredPromise: Promise<void> | null = null;
+function ensureD1TablesOnce(db: D1Database): Promise<void> {
+  if (!schemaEnsuredPromise) {
+    schemaEnsuredPromise = ensureD1Tables(db).catch((e) => {
+      console.warn('[ensureD1TablesOnce] failed, will retry on next request:', e);
+      schemaEnsuredPromise = null;
+    });
+  }
+  return schemaEnsuredPromise;
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -618,7 +631,9 @@ export default {
 
     try {
       if (env.DB) {
-        await ensureD1Tables(env.DB);
+        // Schema check runs once per worker isolate, not on every request,
+        // so API responses don't pay the migration-check cost each time.
+        await ensureD1TablesOnce(env.DB);
       }
 
       // 2. Health check
@@ -1581,32 +1596,63 @@ export default {
             if (posts.length > 0) {
               const auth = getAuthIdentity(request);
               const currentUserId = url.searchParams.get('user_id') || auth.id || '';
+              const postIds: string[] = posts.map((p: any) => p.id);
 
-              for (const p of posts) {
-                try {
+              // Batched enrichment: 4 queries total instead of 4-per-post.
+              // D1 bound-parameter limits mean we chunk post IDs into groups of 50.
+              const likedByUser = new Set<string>();
+              const likesCount = new Map<string, number>();
+              const commentsCount = new Map<string, number>();
+              const likersMap = new Map<string, any[]>();
+
+              try {
+                for (let i = 0; i < postIds.length; i += 50) {
+                  const chunk = postIds.slice(i, i + 50);
+                  const placeholders = chunk.map(() => '?').join(',');
+
                   if (currentUserId) {
-                    const userLikeRow = await env.DB.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?').bind(p.id, currentUserId).first();
-                    p.is_liked = Boolean(userLikeRow);
-                  } else {
-                    p.is_liked = false;
+                    const likedRows = await env.DB.prepare(
+                      `SELECT post_id FROM post_likes WHERE post_id IN (${placeholders}) AND user_id = ?`
+                    ).bind(...chunk, currentUserId).all<any>();
+                    for (const r of (likedRows?.results || [])) likedByUser.add(String(r.post_id));
                   }
 
-                  // Precise sync with post_likes count
-                  const likeCountRow = await env.DB.prepare('SELECT COUNT(*) as cnt FROM post_likes WHERE post_id = ?').bind(p.id).first<{ cnt: number }>();
-                  p.likes_count = likeCountRow ? Number(likeCountRow.cnt) : (Number(p.likes_count) || 0);
+                  const likeCountRows = await env.DB.prepare(
+                    `SELECT post_id, COUNT(*) as cnt FROM post_likes WHERE post_id IN (${placeholders}) GROUP BY post_id`
+                  ).bind(...chunk).all<any>();
+                  for (const r of (likeCountRows?.results || [])) likesCount.set(String(r.post_id), Number(r.cnt));
 
-                  const commCountRow = await env.DB.prepare('SELECT COUNT(*) as cnt FROM post_comments WHERE post_id = ?').bind(p.id).first<{ cnt: number }>();
-                  p.comments_count = commCountRow ? Number(commCountRow.cnt) : (Number(p.comments_count) || 0);
+                  const commCountRows = await env.DB.prepare(
+                    `SELECT post_id, COUNT(*) as cnt FROM post_comments WHERE post_id IN (${placeholders}) GROUP BY post_id`
+                  ).bind(...chunk).all<any>();
+                  for (const r of (commCountRows?.results || [])) commentsCount.set(String(r.post_id), Number(r.cnt));
 
-                  const likersRows = await env.DB.prepare('SELECT user_id, user_name, user_avatar FROM post_likes WHERE post_id = ? ORDER BY created_at DESC LIMIT 15').bind(p.id).all<any>();
-                  p.likers = (likersRows?.results || []).map((r: any) => ({
-                    userId: r.user_id,
-                    userName: r.user_name || 'Orthodox Member',
-                    userAvatar: r.user_avatar,
-                  }));
-                } catch (calcErr) {
-                  // Fall back smoothly
+                  const likersRows = await env.DB.prepare(
+                    `SELECT post_id, user_id, user_name, user_avatar FROM post_likes WHERE post_id IN (${placeholders}) ORDER BY created_at DESC`
+                  ).bind(...chunk).all<any>();
+                  for (const r of (likersRows?.results || [])) {
+                    const key = String(r.post_id);
+                    const arr = likersMap.get(key) || [];
+                    if (arr.length < 15) {
+                      arr.push({
+                        userId: r.user_id,
+                        userName: r.user_name || 'Orthodox Member',
+                        userAvatar: r.user_avatar,
+                      });
+                      likersMap.set(key, arr);
+                    }
+                  }
                 }
+              } catch (calcErr) {
+                // Fall back smoothly
+              }
+
+              for (const p of posts) {
+                const key = String(p.id);
+                p.is_liked = likedByUser.has(key);
+                p.likes_count = likesCount.has(key) ? likesCount.get(key) : (Number(p.likes_count) || 0);
+                p.comments_count = commentsCount.has(key) ? commentsCount.get(key) : (Number(p.comments_count) || 0);
+                p.likers = likersMap.get(key) || [];
               }
             }
           }

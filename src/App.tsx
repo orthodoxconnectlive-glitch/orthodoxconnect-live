@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, Suspense, lazy } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { MediaProvider } from './context/MediaContext';
@@ -16,18 +16,29 @@ import { AuthPage } from './components/AuthPage';
 import { loadNotifications } from './utils/notifications';
 
 import { FeedView } from './views/FeedView';
-import { VideosView } from './views/VideosView';
-import { LiveBroadcastView } from './views/LiveBroadcastView';
-import { GroupRoomsView } from './views/GroupRoomsView';
-import { MessengerView } from './views/MessengerView';
-import { ProfileView, UserProfileData } from './views/ProfileView';
-import { AdminPanelView } from './views/AdminPanelView';
-import { CalendarView } from './views/CalendarView';
-import { ChurchesView } from './views/ChurchesView';
-import { ChurchProfileView } from './views/ChurchProfileView';
-import { NotificationsView } from './views/NotificationsView';
-import { LibraryView } from './views/LibraryView';
+// Route-based code splitting: every non-default view loads on demand,
+// keeping the initial bundle small for a fast first paint.
+const VideosView = lazy(() => import('./views/VideosView').then((m) => ({ default: m.VideosView })));
+const LiveBroadcastView = lazy(() => import('./views/LiveBroadcastView').then((m) => ({ default: m.LiveBroadcastView })));
+const GroupRoomsView = lazy(() => import('./views/GroupRoomsView').then((m) => ({ default: m.GroupRoomsView })));
+const MessengerView = lazy(() => import('./views/MessengerView').then((m) => ({ default: m.MessengerView })));
+const ProfileView = lazy(() => import('./views/ProfileView').then((m) => ({ default: m.ProfileView })));
+import type { UserProfileData } from './views/ProfileView';
+const AdminPanelView = lazy(() => import('./views/AdminPanelView').then((m) => ({ default: m.AdminPanelView })));
+const CalendarView = lazy(() => import('./views/CalendarView').then((m) => ({ default: m.CalendarView })));
+const ChurchesView = lazy(() => import('./views/ChurchesView').then((m) => ({ default: m.ChurchesView })));
+const ChurchProfileView = lazy(() => import('./views/ChurchProfileView').then((m) => ({ default: m.ChurchProfileView })));
+const NotificationsView = lazy(() => import('./views/NotificationsView').then((m) => ({ default: m.NotificationsView })));
+const LibraryView = lazy(() => import('./views/LibraryView').then((m) => ({ default: m.LibraryView })));
 import { updateSEOForView } from './utils/seo';
+
+// Lightweight fallback shown while a lazily-loaded view chunk downloads.
+const ViewLoadingFallback = () => (
+  <div className="flex flex-col items-center justify-center py-20 gap-3">
+    <div className="w-10 h-10 rounded-full border-4 border-(--ln-gold) border-t-transparent animate-spin" />
+    <p className="text-xs text-(--tx-mute) font-serif">Loading…</p>
+  </div>
+);
 
 function AppContent() {
   const [currentView, setCurrentView] = useState<string>(() => {
@@ -217,7 +228,7 @@ function AppContent() {
 
             {/* Main Feed Column */}
             <div className="col-span-1 lg:col-span-8 xl:col-span-6 min-w-0">
-              {renderView()}
+              <Suspense fallback={<ViewLoadingFallback />}>{renderView()}</Suspense>
             </div>
 
             {/* Right Active Chats / Community Widgets Panel */}
@@ -231,7 +242,7 @@ function AppContent() {
         ) : (
           /* Dedicated View Layout */
           <div className="w-full min-h-[calc(100vh-8rem)]">
-            {renderView()}
+            <Suspense fallback={<ViewLoadingFallback />}>{renderView()}</Suspense>
           </div>
         )}
       </main>

@@ -576,7 +576,9 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
       body: body as any,
     });
     (globalThis as any).__lastPushStatus = res.status;
-    if (!res.ok && (res.status === 404 || res.status === 410)) {
+    if (!res.ok && (res.status === 400 || res.status === 404 || res.status === 410)) {
+      // 400 = bad request (e.g. subscription created with a different VAPID key);
+      // 404/410 = subscription gone. All are dead — remove so they can't linger.
       try { await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(sub.endpoint).run(); } catch (e) {}
     }
     return res.ok;

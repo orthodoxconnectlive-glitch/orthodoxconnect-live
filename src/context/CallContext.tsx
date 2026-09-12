@@ -17,10 +17,13 @@ interface CallPartnerInfo {
 
 interface CallContextType {
   callState: CallState | null;
+  localStream: MediaStream | null;
+  remoteStream: MediaStream | null;
   initiateCall: (partner: CallPartnerInfo, type: 'audio' | 'video') => void;
   answerCall: () => void;
   declineCall: () => void;
   endCall: () => void;
+  switchCamera: () => Promise<void>;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -63,6 +66,12 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
   const [callState, setCallState] = useState<CallState | null>(null);
   const activeCallRef = useRef<CallState | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const facingModeRef = useRef<'user' | 'environment'>('user');
+  const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
 
   // Sync ref with state
   useEffect(() => {
@@ -138,6 +147,65 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Partner accepted our outgoing call
         soundSynth.stopOutgoingRing();
         setCallState((prev) => (prev ? { ...prev, status: 'connected', startedAt: Date.now() } : null));
+        // WebRTC: create the offer now that the callee picked up
+        (async () => {
+          const cur = activeCallRef.current;
+          if (!cur) return;
+          try {
+            const pc = createPeerConnection(cur.id, cur.partnerId, cur.type);
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            sendSdpSignal('WEBRTC_OFFER', cur.id, cur.partnerId, cur.type, JSON.stringify(offer));
+          } catch (e) {
+            console.warn('[webrtc] offer failed:', e);
+          }
+        })();
+      } else if (signal.type === 'WEBRTC_OFFER' && signal.callId === activeCallRef.current?.id && signal.sdp) {
+        // Callee side: offer arrived — answer it
+        (async () => {
+          const cur = activeCallRef.current;
+          if (!cur) return;
+          try {
+            const pc = createPeerConnection(cur.id, cur.partnerId, cur.type);
+            await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(signal.sdp!)));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            sendSdpSignal('WEBRTC_ANSWER', cur.id, cur.partnerId, cur.type, JSON.stringify(answer));
+            // Flush any ICE candidates that arrived before the remote description
+            for (const init of pendingIceRef.current) {
+              try { await pc.addIceCandidate(new RTCIceCandidate(init)); } catch (e) {}
+            }
+            pendingIceRef.current = [];
+          } catch (e) {
+            console.warn('[webrtc] answer failed:', e);
+          }
+        })();
+      } else if (signal.type === 'WEBRTC_ANSWER' && signal.callId === activeCallRef.current?.id && signal.sdp) {
+        // Caller side: answer arrived — complete the handshake
+        (async () => {
+          const pc = peerConnectionRef.current;
+          if (!pc) return;
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(signal.sdp!)));
+            for (const init of pendingIceRef.current) {
+              try { await pc.addIceCandidate(new RTCIceCandidate(init)); } catch (e) {}
+            }
+            pendingIceRef.current = [];
+          } catch (e) {
+            console.warn('[webrtc] setRemoteDescription(answer) failed:', e);
+          }
+        })();
+      } else if (signal.type === 'WEBRTC_ICE' && signal.callId === activeCallRef.current?.id && signal.candidate) {
+        // Trickle ICE from the other side
+        (async () => {
+          const pc = peerConnectionRef.current;
+          const init = JSON.parse(signal.candidate!) as RTCIceCandidateInit;
+          if (pc && pc.remoteDescription) {
+            try { await pc.addIceCandidate(new RTCIceCandidate(init)); } catch (e) {}
+          } else {
+            pendingIceRef.current.push(init);
+          }
+        })();
       } else if (
         (signal.type === 'DECLINE_CALL' || signal.type === 'END_CALL') &&
         signal.callId === activeCallRef.current?.id
@@ -155,6 +223,150 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [profile?.id, profile?.full_name]);
 
+  // --- WebRTC: local media -------------------------------------------------
+  const startLocalStream = async (callType: 'audio' | 'video', facing: 'user' | 'environment' = 'user') => {
+    try {
+      // Stop any previous tracks first
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      const constraints: MediaStreamConstraints = {
+        audio: true,
+        video:
+          callType === 'video'
+            ? { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }
+            : false,
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      localStreamRef.current = stream;
+      facingModeRef.current = facing;
+      setLocalStream(stream);
+      return stream;
+    } catch (err) {
+      console.warn('[webrtc] getUserMedia failed:', err);
+      return null;
+    }
+  };
+
+  const stopLocalStream = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    }
+    setLocalStream(null);
+  };
+
+  const closePeerConnection = () => {
+    if (peerConnectionRef.current) {
+      try { peerConnectionRef.current.close(); } catch (e) {}
+      peerConnectionRef.current = null;
+    }
+    pendingIceRef.current = [];
+    setRemoteStream(null);
+  };
+
+  // --- WebRTC: peer connection ----------------------------------------------
+  const createPeerConnection = (callId: string, partnerId: string, callType: 'audio' | 'video') => {
+    closePeerConnection();
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    });
+    peerConnectionRef.current = pc;
+
+    // Send our ICE candidates to the other side through the signal channel
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        callSignaling.sendSignal({
+          type: 'WEBRTC_ICE',
+          callId,
+          callerId: profile?.id || 'me',
+          callerName: profile?.full_name || 'Parishioner',
+          targetUserId: partnerId,
+          callType,
+          timestamp: Date.now(),
+          candidate: JSON.stringify(event.candidate.toJSON()),
+        });
+      }
+    };
+
+    // Remote media arrived — show it
+    pc.ontrack = (event) => {
+      const [stream] = event.streams;
+      if (stream) {
+        setRemoteStream(stream);
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        console.warn('[webrtc] connection', pc.connectionState);
+      }
+    };
+
+    // Attach our local tracks
+    const ls = localStreamRef.current;
+    if (ls) {
+      ls.getTracks().forEach((track) => pc.addTrack(track, ls));
+    }
+
+    return pc;
+  };
+
+  const sendSdpSignal = (
+    type: 'WEBRTC_OFFER' | 'WEBRTC_ANSWER',
+    callId: string,
+    partnerId: string,
+    callType: 'audio' | 'video',
+    sdp: string,
+  ) => {
+    callSignaling.sendSignal({
+      type,
+      callId,
+      callerId: profile?.id || 'me',
+      callerName: profile?.full_name || 'Parishioner',
+      targetUserId: partnerId,
+      callType,
+      timestamp: Date.now(),
+      sdp,
+    });
+  };
+
+  // --- WebRTC: camera switch ---------------------------------------------------
+  const switchCamera = async () => {
+    const cur = activeCallRef.current;
+    if (!cur || cur.type !== 'video') return;
+    const nextFacing = facingModeRef.current === 'user' ? 'environment' : 'user';
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: nextFacing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      const newVideoTrack = stream.getVideoTracks()[0];
+      if (!newVideoTrack) return;
+      // Swap the track on the live peer connection (no renegotiation needed)
+      const sender = peerConnectionRef.current
+        ?.getSenders()
+        .find((sn) => sn.track && sn.track.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(newVideoTrack);
+      }
+      // Stop the old video tracks, keep audio
+      localStreamRef.current?.getVideoTracks().forEach((t) => t.stop());
+      const ls = localStreamRef.current;
+      if (ls) {
+        ls.getVideoTracks().forEach((t) => ls.removeTrack(t));
+        ls.addTrack(newVideoTrack);
+        setLocalStream(ls);
+      } else {
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+      }
+      facingModeRef.current = nextFacing;
+    } catch (err) {
+      console.warn('[webrtc] switchCamera failed:', err);
+    }
+  };
+
   const initiateCall = (partner: CallPartnerInfo, type: 'audio' | 'video') => {
     const callId = 'call-' + Date.now();
     const newCall: CallState = {
@@ -169,6 +381,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setCallState(newCall);
+
+    // Open our camera/mic right away so media is ready for WebRTC
+    startLocalStream(type, 'user');
 
     // Play outgoing ringback tone
     soundSynth.playOutgoingRing();
@@ -200,6 +415,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!callState) return;
 
     soundSynth.stopIncomingRingtone();
+
+    // Open our camera/mic so we can answer with two-way media
+    startLocalStream(callState.type, 'user');
 
     // Broadcast ACCEPT_CALL
     callSignaling.sendSignal({
@@ -234,6 +452,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Log it in the chat so the caller sees the missed call
     logCallMessage(callState.partnerId, callState.type, 'missed');
 
+    closePeerConnection();
+    stopLocalStream();
     setCallState(null);
   };
 
@@ -265,6 +485,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logCallMessage(cur.partnerId, cur.type, 'missed');
     }
 
+    closePeerConnection();
+    stopLocalStream();
     setCallState(null);
   };
 
@@ -272,10 +494,13 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <CallContext.Provider
       value={{
         callState,
+        localStream,
+        remoteStream,
         initiateCall,
         answerCall,
         declineCall,
         endCall,
+        switchCamera,
       }}
     >
       {children}

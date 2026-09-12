@@ -301,10 +301,14 @@ export async function ensureD1Tables(db?: D1Database) {
         caller_avatar TEXT,
         target_user_id TEXT,
         call_type TEXT,
+        sdp TEXT,
+        candidate TEXT,
         created_at INTEGER
       );
 
       CREATE INDEX IF NOT EXISTS idx_call_signals_target ON call_signals(target_user_id, created_at);
+      try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN sdp TEXT').run(); } catch (e) {}
+      try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN candidate TEXT').run(); } catch (e) {}
 
       CREATE TABLE IF NOT EXISTS push_subscriptions (
         user_id TEXT,
@@ -2443,10 +2447,12 @@ export default {
           const callerAvatar = sig.callerAvatar || sig.caller_avatar || null;
           const targetUserId = String(sig.targetUserId || sig.target_user_id || '');
           const callType = String(sig.callType || sig.call_type || 'audio');
+          const sdp = typeof sig.sdp === 'string' ? sig.sdp : null;
+          const candidate = typeof sig.candidate === 'string' ? sig.candidate : null;
           try { await env.DB.prepare('DELETE FROM call_signals WHERE created_at < ?').bind(nowMs - 120000).run(); } catch (e) {}
           await env.DB.prepare(
-            'INSERT INTO call_signals (id, call_id, sig_type, caller_id, caller_name, caller_avatar, target_user_id, call_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-          ).bind(id, callId, sigType, callerId, callerName, callerAvatar, targetUserId, callType, nowMs).run();
+            'INSERT INTO call_signals (id, call_id, sig_type, caller_id, caller_name, caller_avatar, target_user_id, call_type, sdp, candidate, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          ).bind(id, callId, sigType, callerId, callerName, callerAvatar, targetUserId, callType, sdp, candidate, nowMs).run();
 
           if (sigType === 'OFFER_CALL' && targetUserId) {
             try {
@@ -2482,7 +2488,7 @@ export default {
           let signals: any[] = [];
           if (userId) {
             const { results } = await env.DB.prepare(
-              'SELECT id, call_id, sig_type, caller_id, caller_name, caller_avatar, target_user_id, call_type, created_at FROM call_signals WHERE target_user_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 50'
+              'SELECT id, call_id, sig_type, caller_id, caller_name, caller_avatar, target_user_id, call_type, sdp, candidate, created_at FROM call_signals WHERE target_user_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 50'
             ).bind(userId, since).all();
             signals = results || [];
           }

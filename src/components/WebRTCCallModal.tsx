@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { CallState } from '../types';
 import { useTheme } from '../context/ThemeContext';
+import { useCall } from '../context/CallContext';
 
 interface WebRTCCallModalProps {
   callState: CallState | null;
@@ -22,6 +23,7 @@ interface WebRTCCallModalProps {
 
 export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onEndCall }) => {
   const { t } = useTheme();
+  const { localStream, remoteStream, switchCamera } = useCall();
 
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
@@ -29,20 +31,26 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
   const [callDuration, setCallDuration] = useState(0);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+
+  // Attach the local stream (owned by CallContext) to the preview element
+  useEffect(() => {
+    if (localVideoRef.current && localStream && callState?.type === 'video') {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream, callState?.type]);
+
+  // Attach the remote stream when the other side's media arrives
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
 
   useEffect(() => {
-    if (!callState || callState.status === 'idle' || callState.status === 'ended') {
-      stopLocalStream();
-      return;
-    }
-
-    // Start local media stream for WebRTC
-    startLocalStream();
-
     // Timer for active call duration
     let timer: any = null;
-    if (callState.status === 'connected') {
+    if (callState?.status === 'connected') {
       timer = setInterval(() => {
         setCallDuration((prev) => prev + 1);
       }, 1000);
@@ -53,36 +61,11 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [callState?.status, callState?.type]);
-
-  const startLocalStream = async () => {
-    try {
-      const constraints = {
-        audio: true,
-        video: callState?.type === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      localStreamRef.current = stream;
-
-      if (localVideoRef.current && callState?.type === 'video') {
-        localVideoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      console.warn('Media devices access fallback:', err);
-    }
-  };
-
-  const stopLocalStream = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
-    }
-  };
+  }, [callState?.status]);
 
   const handleToggleMute = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach((track) => {
+    if (localStream) {
+      localStream.getAudioTracks().forEach((track) => {
         track.enabled = isMuted; // Toggle track
       });
     }
@@ -90,8 +73,8 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
   };
 
   const handleToggleVideo = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getVideoTracks().forEach((track) => {
+    if (localStream) {
+      localStream.getVideoTracks().forEach((track) => {
         track.enabled = isVideoOff; // Toggle track
       });
     }
@@ -99,7 +82,6 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
   };
 
   const handleEndCallClick = () => {
-    stopLocalStream();
     onEndCall();
   };
 
@@ -147,26 +129,47 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
         <div className="w-full flex-1 my-6 flex flex-col items-center justify-center relative rounded-2xl bg-stone-900/80 border border-amber-900/30 overflow-hidden p-6">
           {callState.type === 'video' && !isVideoOff ? (
             <div className="relative w-full h-full min-h-[280px] flex items-center justify-center">
-              {/* Local Video Stream */}
-              <video
-                ref={localVideoRef}
-                data-user-initiated="true"
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full max-h-[300px] object-cover rounded-2xl border-2 border-amber-500/40 shadow-inner bg-black"
-              />
-
-              {/* Remote Stream Overlay / Partner Avatar */}
-              <div className="absolute bottom-3 right-3 w-28 h-20 rounded-xl bg-stone-950/90 border-2 border-amber-500 shadow-2xl overflow-hidden flex flex-col items-center justify-center p-1">
-                <img
-                  src={callState.partnerAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
-                  alt={callState.partnerName}
-                  className="w-8 h-8 rounded-full object-cover mb-1 border border-amber-400"
+              {/* Remote Video Stream (the other person) — full stage */}
+              {remoteStream ? (
+                <video
+                  ref={remoteVideoRef}
+                  data-user-initiated="true"
+                  autoPlay
+                  playsInline
+                  className="w-full h-full max-h-[300px] object-cover rounded-2xl border-2 border-amber-500/40 shadow-inner bg-black"
                 />
-                <span className="text-[9px] font-bold text-amber-200 truncate max-w-full">
-                  {callState.partnerName}
-                </span>
+              ) : (
+                <div className="w-full h-full max-h-[300px] rounded-2xl border-2 border-amber-500/40 bg-black flex flex-col items-center justify-center gap-3">
+                  <img
+                    src={callState.partnerAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
+                    alt={callState.partnerName}
+                    className="w-20 h-20 rounded-full object-cover border-2 border-amber-400"
+                  />
+                  <span className="text-xs font-bold text-amber-200">
+                    {callState.partnerName}
+                  </span>
+                  <span className="text-[10px] text-stone-400 animate-pulse">
+                    {t('connecting') || 'Connecting video...'}
+                  </span>
+                </div>
+              )}
+
+              {/* Local Video Stream — picture-in-picture */}
+              <div className="absolute bottom-3 right-3 w-28 h-20 rounded-xl bg-stone-950/90 border-2 border-amber-500 shadow-2xl overflow-hidden">
+                {localStream ? (
+                  <video
+                    ref={localVideoRef}
+                    data-user-initiated="true"
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-[9px] text-stone-400">...</span>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -225,6 +228,16 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
               title={isVideoOff ? t('cameraOn') : t('cameraOff')}
             >
               {isVideoOff ? <VideoOff className="w-6 h-6" /> : <Video className="w-6 h-6" />}
+            </button>
+          )}
+
+          {callState.type === 'video' && !isVideoOff && (
+            <button
+              onClick={() => switchCamera()}
+              className="p-4 rounded-full transition-all cursor-pointer shadow-lg bg-stone-800 text-amber-300 hover:bg-stone-700"
+              title={t('switchCamera') || 'Switch camera'}
+            >
+              <SwitchCamera className="w-6 h-6" />
             </button>
           )}
 

@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Post } from '../types';
 import { loadPostsByAuthor } from '../utils/posts';
+import { BUNNY_LIBRARY_ID } from '../utils/posts';
+import { parseVideoEmbed, extractCleanVideoId } from '../components/PostCard';
 import { getFollowersCount, getFollowingCount, isFollowing, toggleFollow } from '../utils/follows';
 
 export interface UserProfileData {
@@ -21,6 +23,74 @@ interface ProfileViewProps {
   onBack?: () => void;
   onOpenMessengerWithUser?: (contactId?: string) => void;
 }
+
+// Renders a profile post's video correctly: YouTube/Vimeo/Bunny as iframes,
+// direct media files as a native <video>. The raw video_id (e.g. a youtu.be
+// URL or Bunny GUID) can never be fed straight into a <video> tag.
+const ProfilePostVideo: React.FC<{ post: Post }> = ({ post }) => {
+  const rawSource =
+    post.videoId || post.video_id || post.video || post.videoUrl || post.video_url || undefined;
+  if (!rawSource) return null;
+  const parsed = parseVideoEmbed(rawSource);
+  const cleanId = extractCleanVideoId(rawSource);
+  const libraryId = BUNNY_LIBRARY_ID || '713265';
+
+  if (parsed && (parsed.type === 'youtube' || parsed.type === 'vimeo')) {
+    return (
+      <div className="relative w-full overflow-hidden rounded-2xl bg-black aspect-video mt-2 border border-(--ln-gold)">
+        <iframe
+          src={parsed.embedUrl}
+          title="Video player"
+          className="absolute inset-0 w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  if ((parsed && parsed.type === 'bunny') || cleanId) {
+    const embedUrl =
+      parsed && parsed.type === 'bunny'
+        ? parsed.embedUrl
+        : `https://iframe.mediadelivery.net/embed/${libraryId}/${cleanId}?autoplay=false&preload=true&responsive=true`;
+    return (
+      <div className="relative w-full overflow-hidden rounded-2xl bg-black aspect-video mt-2 border border-(--ln-gold)">
+        <iframe
+          src={embedUrl}
+          title="Video player"
+          className="absolute inset-0 w-full h-full"
+          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+          allowFullScreen
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  if (parsed && parsed.type === 'direct') {
+    return (
+      <video
+        data-media-id={`profile-post-video-${post.id}`}
+        src={parsed.embedUrl}
+        controls
+        playsInline
+        preload="none"
+        muted
+        onPointerDown={(e) => {
+          e.currentTarget.dataset.userInitiated = 'true';
+        }}
+        onTouchStart={(e) => {
+          e.currentTarget.dataset.userInitiated = 'true';
+        }}
+        className="rounded-2xl max-h-72 w-full object-cover mt-2 border border-(--ln-gold) bg-black"
+      />
+    );
+  }
+
+  return null;
+};
 
 export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenEditProfile,
@@ -255,21 +325,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 />
               )}
 
-              {post.video && (
-                <video
-                  data-media-id={`profile-post-video-${post.id}`}
-                  src={post.video}
-                  controls
-                  playsInline
-                  autoPlay={false}
-                  preload="none"
-                  muted={true}
-                  onPointerDown={(e) => {
-                    e.currentTarget.dataset.userInitiated = 'true';
-                  }}
-                  className="rounded-2xl max-h-72 w-full object-cover mt-2 border border-(--ln-gold) bg-black"
-                />
-              )}
+              <ProfilePostVideo post={post} />
             </div>
           ))
         )}

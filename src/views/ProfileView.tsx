@@ -28,7 +28,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onBack,
   onOpenMessengerWithUser,
 }) => {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, loading: authLoading } = useAuth();
   const { t } = useTheme();
 
   const isSelf =
@@ -51,15 +51,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [followingState, setFollowingState] = useState<boolean>(false);
 
   useEffect(() => {
+    // When viewing your own profile, wait for auth hydration so we filter
+    // by the real user id (not just the display name).
+    if (isSelf && authLoading) return;
     fetchUserPosts();
     if (!isSelf) {
       setFollowingState(isFollowing(targetName));
     }
-  }, [targetName, isSelf]);
+  }, [targetName, isSelf, authLoading, profile?.id, viewedUser?.id]);
 
   const fetchUserPosts = async () => {
     setLoading(true);
-    const posts = await loadPostsByAuthor(viewedUser?.id || targetName);
+    // Prefer the stable user id (works for your own profile and for other
+    // users' profiles alike); fall back to the display name for legacy
+    // posts stored without an author id.
+    const authorKey = viewedUser?.id || (isSelf ? (profile as any)?.id : undefined) || targetName;
+    const posts = await loadPostsByAuthor(authorKey);
     setUserPosts(posts);
     setLoading(false);
   };

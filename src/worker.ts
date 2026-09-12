@@ -1563,8 +1563,10 @@ export default {
           const params: any[] = [];
 
           if (authorId) {
-            conditions.push('author_id = ?');
-            params.push(authorId);
+            // Match by author id, or by author name as a fallback for
+            // legacy posts stored without an author id.
+            conditions.push('(author_id = ? OR author_name = ?)');
+            params.push(authorId, authorId);
           }
           if (groupId) {
             conditions.push('group_id = ?');

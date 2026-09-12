@@ -255,7 +255,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({
     profile?.role === 'admin' ||
     profile?.role === 'owner' ||
     profile?.role === 'super_admin' ||
-    profile?.email === 'orthodoxconnect.live@gmail.com';
+    profile?.email === 'orthodoxconnect.live@gmail.com' ||
+    profile?.id === '9e63fd72-f7c1-4748-b463-1137b469c7f5';
 
   const authorHandle = `@${authorName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'orthodox'}`;
 

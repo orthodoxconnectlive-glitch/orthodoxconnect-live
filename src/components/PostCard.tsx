@@ -230,7 +230,8 @@ export const PostCard: React.FC<PostCardProps> = ({
     currentProfile?.role === 'admin' ||
     currentProfile?.role === 'owner' ||
     currentProfile?.role === 'super_admin' ||
-    currentProfile?.email === 'orthodoxconnect.live@gmail.com';
+    currentProfile?.email === 'orthodoxconnect.live@gmail.com' ||
+    currentProfile?.id === '9e63fd72-f7c1-4748-b463-1137b469c7f5';
 
   const handleLikeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -466,11 +467,11 @@ export const PostCard: React.FC<PostCardProps> = ({
           {isSuperAdminOrAuthor && onDeletePost && (
             <button
               type="button"
-              onClick={() => onDeletePost(post.id)}
-              className="p-1.5 rounded-lg text-(--tx-mute) hover:text-red-700 hover:bg-red-100 transition-colors cursor-pointer"
+              onClick={() => { if (window.confirm(t('delete') + '?')) onDeletePost(post.id); }}
+              className="p-1.5 rounded-lg text-red-500 hover:text-white hover:bg-red-600 transition-colors cursor-pointer"
               title={t('delete')}
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-4 h-4" />
             </button>
           )}
         </div>

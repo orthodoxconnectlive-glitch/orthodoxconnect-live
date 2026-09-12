@@ -7,6 +7,7 @@ import { loadPostsByAuthor } from '../utils/posts';
 import { BUNNY_LIBRARY_ID } from '../utils/posts';
 import { parseVideoEmbed, extractCleanVideoId } from '../components/PostCard';
 import { getFollowersCount, getFollowingCount, isFollowing, toggleFollow } from '../utils/follows';
+import { testPushNotification } from '../utils/pushClient';
 
 export interface UserProfileData {
   id?: string;
@@ -116,6 +117,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     : viewedUser?.bio || 'Orthodox Christian seeking fellowship, prayer, and spiritual growth in our holy faith.';
 
   const [userPosts, setUserPosts] = useState<Post[]>([]);
+  const [pushTestMsg, setPushTestMsg] = useState<string | null>(null);
+  const [pushTesting, setPushTesting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [followingState, setFollowingState] = useState<boolean>(false);
 
@@ -233,6 +236,25 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <LogOut className="w-4 h-4" />
                 <span>Logout</span>
               </button>
+              <button
+                onClick={async () => {
+                  setPushTesting(true);
+                  setPushTestMsg('Resetting…');
+                  const uid = (profile as any)?.id || '';
+                  const res = await testPushNotification(uid);
+                  setPushTesting(false);
+                  setPushTestMsg(res === 'ok' ? '✅ Call notifications reset — test push sent!' : '⚠️ ' + res);
+                }}
+                disabled={pushTesting}
+                className="px-4 py-2.5 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] text-(--tx-strong) dark:text-[#f5ebd9] border border-(--ln-gold) font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                title="Reset push notifications for calls"
+              >
+                <span>🔔</span>
+                <span>{pushTesting ? 'Resetting…' : 'Reset Call Alerts'}</span>
+              </button>
+              {pushTestMsg && (
+                <div className="text-xs font-serif mt-1 text-(--tx-strong) dark:text-[#f5ebd9]">{pushTestMsg}</div>
+              )}
             </div>
           ) : (            <div className="flex items-center gap-3 shrink-0">
               <button

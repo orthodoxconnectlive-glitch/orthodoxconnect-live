@@ -157,7 +157,14 @@ export const MarketplaceView: React.FC = () => {
       setListings((prev) => prev.filter((l) => l.id !== listing.id));
       setSelected(null);
     } catch (e: any) {
-      alert(e?.message || (ar ? 'تعذر حذف الإعلان.' : 'Could not delete the listing.'));
+      // Diagnostic: show what identity the app is sending so we can debug auth mismatches
+      let diag = '';
+      try {
+        const raw = localStorage.getItem('orthodox_user_profile');
+        const p = raw ? JSON.parse(raw) : null;
+        diag = ` [me: id=${p?.id || 'none'} email=${p?.email || 'none'} role=${p?.role || 'none'} | seller=${listing.seller_id || 'none'}]`;
+      } catch (de) {}
+      alert((e?.message || (ar ? 'تعذر حذف الإعلان.' : 'Could not delete the listing.')) + diag);
     }
   };
 

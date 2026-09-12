@@ -279,6 +279,12 @@ export const storiesApi = {
     });
     return res.story;
   },
+
+  async delete(id: string): Promise<void> {
+    await apiFetch(`/api/stories/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 /* =========================================================
@@ -311,6 +317,12 @@ export const churchesApi = {
       body: JSON.stringify(patch),
     });
     return res.church;
+  },
+
+  async delete(id: string): Promise<void> {
+    await apiFetch(`/api/churches/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
   },
 };
 

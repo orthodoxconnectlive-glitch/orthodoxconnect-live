@@ -1,5 +1,6 @@
 export interface Story {
   id: string;
+  authorId?: string;
   authorName: string;
   authorAvatar: string;
   authorParish: string;

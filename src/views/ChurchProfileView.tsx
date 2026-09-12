@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Church as ChurchIcon, ArrowLeft, MapPin, User, Phone, Globe, Clock, Pencil, Loader2, Check, X, Upload } from 'lucide-react';
+import { Church as ChurchIcon, ArrowLeft, MapPin, User, Phone, Globe, Clock, Pencil, Loader2, Check, X, Upload, Trash2 } from 'lucide-react';
 import { churchesApi } from '../lib/api';
 import { Church } from '../types';
 import { compressImageToDataUrl } from '../utils/storage';
@@ -25,6 +25,8 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
   const [joining, setJoining] = useState(false);
   const [joined, setJoined] = useState(false);
   const [formError, setFormError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // edit form
   const [name, setName] = useState('');
@@ -56,6 +58,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
   }, [churchId]);
 
   const isOwner = !!church && !!profile?.id && church.owner_id === profile.id;
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';
 
   const openEdit = () => {
     if (!church) return;
@@ -109,6 +112,23 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
       setFormError(ar ? 'فشل حفظ التعديلات.' : 'Failed to save changes.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteChurch = async () => {
+    if (!church || deleting) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setDeleting(true);
+    try {
+      await churchesApi.delete(church.id);
+      onBack();
+    } catch (e) {
+      console.warn('Church delete failed:', e);
+      setDeleting(false);
+      setConfirmDelete(false);
     }
   };
 
@@ -200,6 +220,19 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
                 >
                   <Pencil className="w-3.5 h-3.5" />
                   {ar ? 'تعديل' : 'Edit'}
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={handleDeleteChurch}
+                  onBlur={() => setConfirmDelete(false)}
+                  disabled={deleting}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider shadow cursor-pointer disabled:opacity-60 ${
+                    confirmDelete ? 'bg-red-700 text-white' : 'bg-red-900/20 text-red-400 border border-red-800/50 hover:bg-red-800 hover:text-white'
+                  }`}
+                >
+                  {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  {confirmDelete ? (ar ? 'تأكيد الحذف؟' : 'Confirm delete?') : (ar ? 'حذف' : 'Delete')}
                 </button>
               )}
               <button

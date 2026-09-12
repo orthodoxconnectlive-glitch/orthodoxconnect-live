@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Sparkles, X, ChevronLeft, ChevronRight, Send, Image as ImageIcon, Church, Film, Music, Play, Pause, Upload, Loader2 } from 'lucide-react';
+import { Plus, Sparkles, X, ChevronLeft, ChevronRight, Send, Image as ImageIcon, Church, Film, Music, Play, Pause, Upload, Loader2, Trash2 } from 'lucide-react';
 import { storiesApi } from '../lib/api';
 import { Story, loadStories, saveStory } from '../utils/stories';
 import { compressImageToDataUrl, uploadVideoToBunnyStream, BUNNY_LIBRARY_ID } from '../utils/storage';
@@ -137,8 +137,10 @@ const StoryAudioPlayer: React.FC<{ src: string; artUrl: string }> = ({ src, artU
 
 export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
   const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';
   const { t, language } = useTheme();
   const [stories, setStories] = useState<Story[]>([]);
+  const [deletingStory, setDeletingStory] = useState(false);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
 
   // Create Story Modal state
@@ -167,6 +169,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
         if (data && data.length > 0) {
           const mapped: Story[] = data.map((d: any) => ({
             id: d.id,
+            authorId: d.author_id || d.authorId,
             authorName: d.author_name || d.authorName || (ar ? 'عضو الرعية' : 'Parish Member'),
             authorAvatar:
               d.author_avatar ||
@@ -458,6 +461,30 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
           >
             <X className="w-6 h-6" />
           </button>
+
+          {/* Delete button (author or admin) */}
+          {(isAdmin || (profile?.id && activeStory.authorId && profile.id === activeStory.authorId)) && (
+            <button
+              onClick={async () => {
+                if (deletingStory) return;
+                if (!window.confirm(ar ? 'حذف هذه القصة نهائياً؟' : 'Delete this story permanently?')) return;
+                setDeletingStory(true);
+                try {
+                  await storiesApi.delete(activeStory.id);
+                  setStories((prev) => prev.filter((st) => st.id !== activeStory.id));
+                  setActiveStoryIndex(null);
+                } catch (e) {
+                  console.warn('Story delete failed:', e);
+                } finally {
+                  setDeletingStory(false);
+                }
+              }}
+              className="absolute top-6 left-6 rtl:left-auto rtl:right-6 z-50 p-2.5 rounded-full bg-stone-900/80 text-white hover:bg-red-700 transition-colors cursor-pointer"
+              title={ar ? 'حذف' : 'Delete'}
+            >
+              <Trash2 className="w-6 h-6" />
+            </button>
+          )}
 
           {/* Prev/Next Overlay Nav Buttons */}
           <button

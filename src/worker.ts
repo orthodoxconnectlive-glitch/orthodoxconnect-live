@@ -1142,6 +1142,27 @@ export default {
         }
       }
 
+      // 6a. Single Story (/api/stories/:id) — admin/author delete
+      if (url.pathname.startsWith('/api/stories/')) {
+        const storyId = decodeURIComponent(url.pathname.replace('/api/stories/', '').trim());
+        if (storyId && !storyId.includes('/') && request.method === 'DELETE') {
+          const auth = getAuthIdentity(request);
+          let story: any = null;
+          if (env.DB) {
+            story = await env.DB.prepare('SELECT * FROM stories WHERE id = ?').bind(storyId).first();
+          }
+          if (!story) return jsonResponse({ success: false, error: 'Story not found' }, 404);
+          const isAuthor = Boolean(auth.id && story.author_id && auth.id === story.author_id);
+          if (!auth.isAdmin && !isAuthor) {
+            return jsonResponse({ success: false, error: 'Forbidden: Admin access required.' }, 403);
+          }
+          if (env.DB) {
+            await env.DB.prepare('DELETE FROM stories WHERE id = ?').bind(storyId).run();
+          }
+          return jsonResponse({ success: true, id: storyId, message: 'Story deleted successfully.' });
+        }
+      }
+
       // 6b. Churches Endpoints (/api/churches)
       if (url.pathname === '/api/churches' || url.pathname === '/api/churches/') {
         // Bulletproof: ensure the table exists on the request path itself.
@@ -1253,6 +1274,16 @@ export default {
             }
             return jsonResponse({ success: true, church: updated });
           }
+          if (request.method === 'DELETE') {
+            const auth = getAuthIdentity(request);
+            if (!auth.isAdmin) {
+              return jsonResponse({ success: false, error: 'Forbidden: Admin access required.' }, 403);
+            }
+            if (env.DB) {
+              await env.DB.prepare('DELETE FROM churches WHERE id = ?').bind(churchId).run();
+            }
+            return jsonResponse({ success: true, id: churchId, message: 'Church deleted successfully.' });
+          }
         }
       }
 
@@ -1335,6 +1366,15 @@ export default {
         }
 
         if (request.method === 'DELETE') {
+          const auth = getAuthIdentity(request);
+          let event: any = null;
+          if (env.DB) {
+            event = await env.DB.prepare('SELECT * FROM events WHERE id = ?').bind(eventId).first();
+          }
+          const isHost = Boolean(auth.id && event && event.host_id && auth.id === event.host_id);
+          if (!auth.isAdmin && !isHost) {
+            return jsonResponse({ success: false, error: 'Forbidden: Admin access required.' }, 403);
+          }
           if (env.DB) {
             await env.DB.prepare('DELETE FROM events WHERE id = ?').bind(eventId).run();
           }
@@ -1989,6 +2029,10 @@ export default {
         }
 
         if (request.method === 'DELETE') {
+          const auth = getAuthIdentity(request);
+          if (!auth.isAdmin) {
+            return jsonResponse({ success: false, error: 'Forbidden: Admin access required.' }, 403);
+          }
           if (env.DB) {
             await env.DB.prepare('DELETE FROM books WHERE id = ?').bind(bookId).run();
           }

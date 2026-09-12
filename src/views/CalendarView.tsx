@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Plus, MapPin, Video, Church, Sparkles, Filter, Search, BookOpen, Utensils } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, MapPin, Video, Church, Sparkles, Filter, Search, BookOpen, Utensils, Trash2 } from 'lucide-react';
 import { getTodayLiturgicalDay, getUpcomingFeasts } from '../data/liturgical';
 import { EventItem } from '../types';
 import { loadEvents, setEventRsvp } from '../utils/events';
+import { eventsApi } from '../lib/api';
 import { CreateEventModal } from '../components/CreateEventModal';
 import { EventDetailModal } from '../components/EventDetailModal';
 import { DailyReadings } from '../components/DailyReadings';
@@ -12,6 +13,7 @@ import { gregorianToCoptic } from '../utils/copticDate';
 
 export const CalendarView: React.FC = () => {
   const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';
   const { t, language } = useTheme();
 
   const todayData = getTodayLiturgicalDay(language);
@@ -35,6 +37,17 @@ export const CalendarView: React.FC = () => {
   useEffect(() => {
     fetchEvents();
   }, []);
+
+  const handleDeleteEvent = async (e: React.MouseEvent, evt: EventItem) => {
+    e.stopPropagation();
+    if (!window.confirm(language === 'ar' ? 'حذف هذه الفعالية نهائياً؟' : 'Delete this event permanently?')) return;
+    try {
+      await eventsApi.delete(evt.id);
+      setEventsList((prev) => prev.filter((item) => item.id !== evt.id));
+    } catch (err) {
+      console.warn('Event delete failed:', err);
+    }
+  };
 
   const fetchEvents = async () => {
     const data = await loadEvents();
@@ -208,6 +221,15 @@ export const CalendarView: React.FC = () => {
                       <span className="absolute top-3 left-3 rtl:left-auto rtl:right-3 px-2.5 py-1 rounded-full bg-(--ac-bright) text-white font-bold text-[10px] uppercase shadow-md">
                         {evt.category.replace('_', ' ')}
                       </span>
+                      {isAdmin && (
+                        <button
+                          onClick={(e) => handleDeleteEvent(e, evt)}
+                          className="absolute top-3 right-3 rtl:right-auto rtl:left-3 p-2 rounded-full bg-black/60 text-white hover:bg-red-700 transition-colors cursor-pointer"
+                          title={language === 'ar' ? 'حذف' : 'Delete'}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
 
                       <div className="absolute bottom-3 left-3 rtl:left-auto rtl:right-3 right-3 rtl:right-auto rtl:left-3 text-white flex items-center justify-between text-xs">
                         <span className="font-bold flex items-center gap-1 text-amber-200">

@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { MediaProvider } from './context/MediaContext';
 import { CallProvider } from './context/CallContext';
+import { GroupCallProvider } from './context/GroupCallContext';
+import { GroupCallModal } from './components/GroupCallModal';
 import { GlobalNotificationToast } from './components/GlobalNotificationToast';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
@@ -299,7 +301,10 @@ function AppRoot() {
 
   return (
     <CallProvider>
-      <AppContent />
+      <GroupCallProvider>
+        <AppContent />
+        <GroupCallModal />
+      </GroupCallProvider>
     </CallProvider>
   );
 }

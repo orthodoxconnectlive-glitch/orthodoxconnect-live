@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { profilesApi } from '../lib/api';
+import { profilesApi, groupCallsApi } from '../lib/api';
+import { useGroupCall } from '../context/GroupCallContext';
+import { useAuth } from '../context/AuthContext';
 import {
   Users,
   Church,
@@ -17,6 +19,7 @@ import {
   Heart,
   Shield,
   Volume2,
+  Video,
 } from 'lucide-react';
 import { GroupRoom } from '../types';
 import { GroupRoomModal } from '../components/GroupRoomModal';
@@ -87,7 +90,7 @@ interface GroupRoomsViewProps {
 }
 
 export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, onOpenMessengerWithUser }) => {
-  const { t } = useTheme();
+  const { t, language } = useTheme();
   const [activeTab, setActiveTab] = useState<'followed' | 'groups' | 'discover'>('followed');
   const [followedNames, setFollowedNames] = useState<string[]>([]);
   const [joinedGroupIds, setJoinedGroupIds] = useState<string[]>([]);
@@ -95,6 +98,46 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
   const [searchQuery, setSearchQuery] = useState('');
   const [activeRoomModal, setActiveRoomModal] = useState<GroupRoom | null>(null);
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [liveCalls, setLiveCalls] = useState<Record<string, any>>({});
+  const { joinCall, activeCall: activeGroupCall, leaveCall } = useGroupCall();
+  const { profile } = useAuth();
+
+  // Poll for live group calls on each room
+  useEffect(() => {
+    let stopped = false;
+    const check = async () => {
+      const map: Record<string, any> = {};
+      for (const g of ALL_GROUPS) {
+        try {
+          const calls = await groupCallsApi.listActive(g.id);
+          if (calls.length > 0) map[g.id] = calls[0];
+        } catch (e) {}
+        if (stopped) return;
+      }
+      if (!stopped) setLiveCalls(map);
+    };
+    check();
+    const iv = setInterval(check, 15000);
+    return () => { stopped = true; clearInterval(iv); };
+  }, []);
+
+  const handleGroupVideoCall = async (group: GroupRoom) => {
+    // If we're already in a group call, leave it first
+    if (activeGroupCall) leaveCall();
+    const existing = liveCalls[group.id];
+    if (existing) {
+      await joinCall(existing.id, group.id, group.name);
+    } else {
+      const callId = await groupCallsApi.start(
+        group.id,
+        group.name,
+        (profile?.id || '').replace(/^auth-/, ''),
+        profile?.full_name || 'Host',
+      );
+      setLiveCalls((prev) => ({ ...prev, [group.id]: { id: callId } }));
+      await joinCall(callId, group.id, group.name, true);
+    }
+  };
 
   const [membersList, setMembersList] = useState<ParishMember[]>([]);
 
@@ -513,6 +556,21 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
                       <span className="text-[10px] text-(--ac-bronze-tx) font-bold uppercase tracking-wider">
                         Host: {group.hostName}
                       </span>
+
+                      <button
+                        onClick={() => handleGroupVideoCall(group)}
+                        className={`px-4 py-2 rounded-xl font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all cursor-pointer text-xs ${
+                          liveCalls[group.id]
+                            ? 'bg-red-600 hover:bg-red-500 text-white animate-pulse'
+                            : 'bg-emerald-700 hover:bg-emerald-600 text-white'
+                        }`}
+                        title={liveCalls[group.id]
+                          ? (language === 'ar' ? 'انضم للمكالمة الجارية' : 'Join live call')
+                          : (language === 'ar' ? 'ابدأ مكالمة فيديو جماعية' : 'Start group video call')}
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        <span>{liveCalls[group.id] ? (language === 'ar' ? 'مباشر — انضم' : 'Live — Join') : (language === 'ar' ? 'مكالمة فيديو' : 'Video Call')}</span>
+                      </button>
 
                       <button
                         onClick={() => handleToggleGroupJoin(group.id)}

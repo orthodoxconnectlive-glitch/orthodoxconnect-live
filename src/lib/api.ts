@@ -504,3 +504,23 @@ export const reportsApi = {
     });
   },
 };
+
+export const groupCallsApi = {
+  async listActive(roomId: string): Promise<any[]> {
+    const res = await apiFetch<{ calls: any[] }>(`/api/group-calls?room_id=${encodeURIComponent(roomId)}`);
+    return res.calls || [];
+  },
+  async start(roomId: string, roomName: string, hostId: string, hostName: string): Promise<string> {
+    const res = await apiFetch<{ id: string }>('/api/group-calls', {
+      method: 'POST',
+      body: JSON.stringify({ room_id: roomId, room_name: roomName, host_id: hostId, host_name: hostName }),
+    });
+    return res.id;
+  },
+  async end(callId: string): Promise<void> {
+    await apiFetch(`/api/group-calls/${encodeURIComponent(callId)}`, { method: 'DELETE' });
+  },
+  async heartbeat(callId: string): Promise<void> {
+    await apiFetch(`/api/group-calls/${encodeURIComponent(callId)}/heartbeat`, { method: 'POST' });
+  },
+};

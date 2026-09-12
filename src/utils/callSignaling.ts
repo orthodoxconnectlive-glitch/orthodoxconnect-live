@@ -7,7 +7,7 @@
  */
 
 export interface CallSignalPayload {
-  type: 'OFFER_CALL' | 'RINGING' | 'ACCEPT_CALL' | 'DECLINE_CALL' | 'END_CALL' | 'WEBRTC_OFFER' | 'WEBRTC_ANSWER' | 'WEBRTC_ICE';
+  type: 'OFFER_CALL' | 'RINGING' | 'ACCEPT_CALL' | 'DECLINE_CALL' | 'END_CALL' | 'WEBRTC_OFFER' | 'WEBRTC_ANSWER' | 'WEBRTC_ICE' | 'GROUP_JOIN' | 'GROUP_LEAVE' | 'GROUP_OFFER' | 'GROUP_ANSWER' | 'GROUP_ICE';
   callId: string;
   callerId: string;
   callerName: string;
@@ -18,6 +18,7 @@ export interface CallSignalPayload {
   timestamp: number;
   sdp?: string;
   candidate?: string;
+  meta?: string;
 }
 
 const CALLS_CHANNEL_NAME = 'orthodox_calls_broadcast_channel';
@@ -140,6 +141,7 @@ export class CallSignalingService {
               timestamp: ts,
               sdp: s.sdp || undefined,
               candidate: s.candidate || undefined,
+              meta: s.meta || undefined,
             } as CallSignalPayload);
             // Consume so it is not delivered twice
             if (sid) {

@@ -303,12 +303,24 @@ export async function ensureD1Tables(db?: D1Database) {
         call_type TEXT,
         sdp TEXT,
         candidate TEXT,
+        meta TEXT,
         created_at INTEGER
       );
 
       CREATE INDEX IF NOT EXISTS idx_call_signals_target ON call_signals(target_user_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS group_calls (
+        id TEXT PRIMARY KEY,
+        room_id TEXT,
+        room_name TEXT,
+        host_id TEXT,
+        host_name TEXT,
+        started_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_group_calls_room ON group_calls(room_id, started_at);
       try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN sdp TEXT').run(); } catch (e) {}
       try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN candidate TEXT').run(); } catch (e) {}
+      try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN meta TEXT').run(); } catch (e) {}
 
       CREATE TABLE IF NOT EXISTS push_subscriptions (
         user_id TEXT,
@@ -2449,10 +2461,11 @@ export default {
           const callType = String(sig.callType || sig.call_type || 'audio');
           const sdp = typeof sig.sdp === 'string' ? sig.sdp : null;
           const candidate = typeof sig.candidate === 'string' ? sig.candidate : null;
+          const meta = typeof sig.meta === 'string' ? sig.meta : (sig.meta ? JSON.stringify(sig.meta) : null);
           try { await env.DB.prepare('DELETE FROM call_signals WHERE created_at < ?').bind(nowMs - 120000).run(); } catch (e) {}
           await env.DB.prepare(
-            'INSERT INTO call_signals (id, call_id, sig_type, caller_id, caller_name, caller_avatar, target_user_id, call_type, sdp, candidate, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-          ).bind(id, callId, sigType, callerId, callerName, callerAvatar, targetUserId, callType, sdp, candidate, nowMs).run();
+            'INSERT INTO call_signals (id, call_id, sig_type, caller_id, caller_name, caller_avatar, target_user_id, call_type, sdp, candidate, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          ).bind(id, callId, sigType, callerId, callerName, callerAvatar, targetUserId, callType, sdp, candidate, meta, nowMs).run();
 
           if (sigType === 'OFFER_CALL' && targetUserId) {
             try {
@@ -2488,7 +2501,7 @@ export default {
           let signals: any[] = [];
           if (userId) {
             const { results } = await env.DB.prepare(
-              'SELECT id, call_id, sig_type, caller_id, caller_name, caller_avatar, target_user_id, call_type, sdp, candidate, created_at FROM call_signals WHERE target_user_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 50'
+              'SELECT id, call_id, sig_type, caller_id, caller_name, caller_avatar, target_user_id, call_type, sdp, candidate, meta, created_at FROM call_signals WHERE target_user_id = ? AND created_at > ? ORDER BY created_at ASC LIMIT 50'
             ).bind(userId, since).all();
             signals = results || [];
           }
@@ -2501,6 +2514,54 @@ export default {
         if (request.method === 'DELETE' && env.DB && sigId) {
           await env.DB.prepare('DELETE FROM call_signals WHERE id = ?').bind(sigId).run();
           return jsonResponse({ success: true, id: sigId });
+        }
+      }
+
+      // 17b. Group calls — announce / discover / end live group video calls
+      if (url.pathname === '/api/group-calls' && env.DB) {
+        if (request.method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const roomId = String(body.room_id || body.roomId || '');
+          if (!roomId) return jsonResponse({ success: false, error: 'room_id required' }, 400);
+          const id = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `gc-${Date.now()}`);
+          const now = new Date().toISOString();
+          await env.DB.prepare(
+            'INSERT INTO group_calls (id, room_id, room_name, host_id, host_name, started_at) VALUES (?, ?, ?, ?, ?, ?)'
+          ).bind(
+            id,
+            roomId,
+            String(body.room_name || body.roomName || 'Group Call'),
+            String(body.host_id || body.hostId || ''),
+            String(body.host_name || body.hostName || 'Host'),
+            now,
+          ).run();
+          return jsonResponse({ success: true, id, room_id: roomId, started_at: now });
+        }
+        if (request.method === 'GET') {
+          const roomId = String(url.searchParams.get('room_id') || url.searchParams.get('roomId') || '');
+          // Active = heartbeat within the last 2 minutes (stale ones are pruned on read)
+          const cutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+          try { await env.DB.prepare('DELETE FROM group_calls WHERE started_at < ?').bind(cutoff).run(); } catch (e) {}
+          let rows: any[] = [];
+          if (roomId) {
+            const { results } = await env.DB.prepare(
+              'SELECT id, room_id, room_name, host_id, host_name, started_at FROM group_calls WHERE room_id = ? ORDER BY started_at DESC LIMIT 5'
+            ).bind(roomId).all();
+            rows = results || [];
+          }
+          return jsonResponse({ success: true, calls: rows });
+        }
+      }
+      if (url.pathname.startsWith('/api/group-calls/') && env.DB) {
+        const rest = decodeURIComponent(url.pathname.replace('/api/group-calls/', '').trim());
+        if (request.method === 'DELETE' && rest && !rest.includes('/')) {
+          await env.DB.prepare('DELETE FROM group_calls WHERE id = ?').bind(rest).run();
+          return jsonResponse({ success: true, id: rest });
+        }
+        if (request.method === 'POST' && rest.endsWith('/heartbeat')) {
+          const callId = rest.replace('/heartbeat', '');
+          await env.DB.prepare('UPDATE group_calls SET started_at = ? WHERE id = ?').bind(new Date().toISOString(), callId).run();
+          return jsonResponse({ success: true, id: callId });
         }
       }
 

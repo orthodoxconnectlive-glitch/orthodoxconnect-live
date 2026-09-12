@@ -294,6 +294,13 @@ export const messagesApi = {
     });
     return res.message;
   },
+
+  async markAsRead(readerId: string, partnerId: string): Promise<void> {
+    await apiFetch('/api/messages', {
+      method: 'PATCH',
+      body: JSON.stringify({ reader_id: readerId, partner_id: partnerId }),
+    }).catch(() => {});
+  },
 };
 
 /* =========================================================

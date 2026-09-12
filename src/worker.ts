@@ -1144,6 +1144,20 @@ export default {
             message: { id, sender_id: senderId, sender_name: senderName, receiver_id: receiverId, content, image_url: imageUrl, video_url: videoUrl, audio_url: audioUrl, created_at: createdAt },
           }, 201);
         }
+        // Mark messages as read: PATCH /api/messages with { reader_id, partner_id }
+        // marks all messages from partner_id to reader_id as read.
+        if (request.method === 'PATCH' && env.DB) {
+          const body: any = await request.json().catch(() => ({}));
+          const readerId = String(body.reader_id || body.readerId || '').replace(/^auth-/, '');
+          const partnerId = String(body.partner_id || body.partnerId || '').replace(/^auth-/, '');
+          if (!readerId || !partnerId) {
+            return jsonResponse({ success: false, error: 'reader_id and partner_id required' }, 400);
+          }
+          await env.DB.prepare(
+            'UPDATE messages SET is_read = 1 WHERE receiver_id = ? AND sender_id = ? AND is_read = 0'
+          ).bind(readerId, partnerId).run();
+          return jsonResponse({ success: true });
+        }
       }
 
       // 6. Stories Endpoints (/api/stories)

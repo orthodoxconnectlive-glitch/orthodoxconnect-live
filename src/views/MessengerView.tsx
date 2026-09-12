@@ -492,7 +492,32 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
         const localMsgs = loadLocalMessagesForContact(activeContact.id);
         const msgMap = new Map<string, ExtendedMessage>();
         localMsgs.forEach((m) => msgMap.set(m.id, m));
-        data.forEach((m: any) => msgMap.set(m.id, m as ExtendedMessage));
+        data.forEach((m: any) => {
+          const serverMsg = m as ExtendedMessage;
+          // Defensive dedupe: if a local optimistic message ('msg-' id) matches
+          // this server message by sender + content + time, drop the local copy
+          // so the same message never appears twice.
+          for (const [localId, localMsg] of msgMap) {
+            if (
+              localId.startsWith('msg-') &&
+              localMsg.sender_id === serverMsg.sender_id &&
+              (localMsg.content || '').trim() === (serverMsg.content || '').trim() &&
+              Math.abs(
+                new Date(localMsg.created_at).getTime() - new Date(serverMsg.created_at).getTime()
+              ) < 120000
+            ) {
+              msgMap.delete(localId);
+              break;
+            }
+          }
+          msgMap.set(serverMsg.id, serverMsg);
+        });
+
+        // Mark the partner's messages as read on the server (real read receipts).
+        // The sender will see "Seen" on their next poll.
+        if (myCleanId && cleanContactId) {
+          messagesApi.markAsRead(myCleanId, cleanContactId);
+        }
 
         const merged = Array.from(msgMap.values()).sort(
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -577,13 +602,24 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     const cleanReceiverId = activeContact.id.replace(/^auth-/, '');
 
     try {
-      await messagesApi.send({
+      const serverMsg = await messagesApi.send({
         sender_id: cleanSenderId || 'me',
         receiver_id: cleanReceiverId,
         content: newMsg.content,
         image_url: newMsg.image_url,
         video_url: newMsg.video_url,
       });
+      // Replace the optimistic message (local 'msg-' id) with the server's
+      // version (real id) so the poll merge doesn't show it twice.
+      if (serverMsg && serverMsg.id) {
+        setMessages((prev) => {
+          const updated = prev.map((m) =>
+            m.id === newMsg.id ? ({ ...m, ...serverMsg } as ExtendedMessage) : m
+          );
+          saveLocalMessagesForContact(activeContact.id, updated);
+          return updated;
+        });
+      }
     } catch (err) {
       console.warn('Message send error:', err);
     }
@@ -1091,7 +1127,9 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                   <div className="flex items-center gap-1 mt-1 px-1">
                     <TimeAgo date={msg.created_at} className="text-[10px] text-gray-400 dark:text-gray-500 font-medium" />
                     {isMe && index === messages.length - 1 && (
-                      <span className="text-[10px] text-blue-500 font-medium">· Seen</span>
+                      <span className="text-[10px] text-blue-500 font-medium">
+                        · {(msg as any).is_read ? 'Seen' : 'Sent'}
+                      </span>
                     )}
                   </div>
                 </div>

@@ -115,6 +115,25 @@ CREATE TABLE IF NOT EXISTS stories (
 CREATE INDEX IF NOT EXISTS idx_stories_created_at ON stories(created_at DESC);
 
 -- 8. Parish Events Table
+CREATE TABLE IF NOT EXISTS churches (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  avatar TEXT DEFAULT '',
+  cover TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  address TEXT DEFAULT '',
+  city TEXT DEFAULT '',
+  country TEXT DEFAULT '',
+  priest_name TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  website TEXT DEFAULT '',
+  service_times TEXT DEFAULT '',
+  owner_id TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_churches_name ON churches(name);
+
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,

@@ -3,7 +3,7 @@
  * 100% Cloudflare Workers + D1 SQLite Backend
  */
 
-import { User, UserProfile, Post, Message, EventItem, Story, NotificationItem, ContentReport } from '../types';
+import { User, UserProfile, Post, Message, EventItem, Story, NotificationItem, ContentReport, Church } from '../types';
 
 export const API_BASE_URL = '';
 
@@ -278,6 +278,39 @@ export const storiesApi = {
       body: JSON.stringify(story),
     });
     return res.story;
+  },
+};
+
+/* =========================================================
+   CHURCHES API (Cloudflare D1)
+========================================================= */
+
+export const churchesApi = {
+  async list(q?: string): Promise<Church[]> {
+    const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+    const res = await apiFetch<{ churches: Church[] }>(`/api/churches${qs}`);
+    return res.churches || [];
+  },
+
+  async get(id: string): Promise<Church | null> {
+    const res = await apiFetch<{ church: Church }>(`/api/churches/${encodeURIComponent(id)}`);
+    return res.church || null;
+  },
+
+  async create(church: Partial<Church>): Promise<Church> {
+    const res = await apiFetch<{ church: Church }>('/api/churches', {
+      method: 'POST',
+      body: JSON.stringify(church),
+    });
+    return res.church;
+  },
+
+  async update(id: string, patch: Partial<Church>): Promise<Church> {
+    const res = await apiFetch<{ church: Church }>(`/api/churches/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+    return res.church;
   },
 };
 

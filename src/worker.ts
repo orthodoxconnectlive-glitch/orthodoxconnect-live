@@ -186,6 +186,23 @@ export async function ensureD1Tables(db?: D1Database) {
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
 
+      CREATE TABLE IF NOT EXISTS churches (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        avatar TEXT DEFAULT '',
+        cover TEXT DEFAULT '',
+        description TEXT DEFAULT '',
+        address TEXT DEFAULT '',
+        city TEXT DEFAULT '',
+        country TEXT DEFAULT '',
+        priest_name TEXT DEFAULT '',
+        phone TEXT DEFAULT '',
+        website TEXT DEFAULT '',
+        service_times TEXT DEFAULT '',
+        owner_id TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
       CREATE TABLE IF NOT EXISTS events (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
@@ -1098,6 +1115,107 @@ export default {
             success: true,
             story: { id, author_id: authorId, author_name: authorName, author_avatar: authorAvatar, author_parish: authorParish, image_url: imageUrl, media_type: mediaType, caption, created_at: createdAt },
           }, 201);
+        }
+      }
+
+      // 6b. Churches Endpoints (/api/churches)
+      if (url.pathname === '/api/churches' || url.pathname === '/api/churches/') {
+        if (request.method === 'GET') {
+          let churches: any[] = [];
+          if (env.DB) {
+            const q = (url.searchParams.get('q') || '').trim();
+            let stmt;
+            if (q) {
+              const like = `%${q}%`;
+              stmt = env.DB.prepare(
+                `SELECT * FROM churches WHERE name LIKE ? OR city LIKE ? OR country LIKE ? ORDER BY name ASC LIMIT 100`
+              ).bind(like, like, like);
+            } else {
+              stmt = env.DB.prepare('SELECT * FROM churches ORDER BY name ASC LIMIT 100');
+            }
+            const { results } = await stmt.all();
+            churches = results || [];
+          }
+          return jsonResponse({ success: true, churches });
+        }
+
+        if (request.method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const name = (body.name || '').trim();
+          if (!name) {
+            return jsonResponse({ success: false, error: 'Church name is required' }, 400);
+          }
+          const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `church_${Date.now()}`);
+          const auth = getAuthIdentity(request);
+          const ownerId = body.owner_id || auth.id || null;
+          const row = {
+            id,
+            name,
+            avatar: body.avatar || '',
+            cover: body.cover || '',
+            description: body.description || '',
+            address: body.address || '',
+            city: body.city || '',
+            country: body.country || '',
+            priest_name: body.priest_name || '',
+            phone: body.phone || '',
+            website: body.website || '',
+            service_times: body.service_times || '',
+            owner_id: ownerId,
+            created_at: new Date().toISOString(),
+          };
+          if (env.DB) {
+            await env.DB.prepare(`
+              INSERT INTO churches (id, name, avatar, cover, description, address, city, country, priest_name, phone, website, service_times, owner_id, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(row.id, row.name, row.avatar, row.cover, row.description, row.address, row.city, row.country, row.priest_name, row.phone, row.website, row.service_times, row.owner_id, row.created_at).run();
+          }
+          return jsonResponse({ success: true, church: row }, 201);
+        }
+      }
+
+      // Single Church (/api/churches/:id)
+      if (url.pathname.startsWith('/api/churches/')) {
+        const churchId = decodeURIComponent(url.pathname.replace('/api/churches/', '').trim());
+        if (churchId && !churchId.includes('/')) {
+          if (request.method === 'GET') {
+            let church: any = null;
+            if (env.DB) {
+              church = await env.DB.prepare('SELECT * FROM churches WHERE id = ?').bind(churchId).first();
+            }
+            if (!church) return jsonResponse({ success: false, error: 'Church not found' }, 404);
+            return jsonResponse({ success: true, church });
+          }
+          if (request.method === 'PATCH') {
+            const body: any = await request.json().catch(() => ({}));
+            const auth = getAuthIdentity(request);
+            let existing: any = null;
+            if (env.DB) {
+              existing = await env.DB.prepare('SELECT * FROM churches WHERE id = ?').bind(churchId).first();
+            }
+            if (!existing) return jsonResponse({ success: false, error: 'Church not found' }, 404);
+            const isOwner = auth.id && existing.owner_id && auth.id === existing.owner_id;
+            if (!isOwner && !auth.isAdmin) {
+              return jsonResponse({ success: false, error: 'Not authorized to edit this church' }, 403);
+            }
+            const fields = ['name', 'avatar', 'cover', 'description', 'address', 'city', 'country', 'priest_name', 'phone', 'website', 'service_times'];
+            const sets: string[] = [];
+            const vals: any[] = [];
+            for (const f of fields) {
+              if (body[f] !== undefined) {
+                sets.push(`${f} = ?`);
+                vals.push(body[f]);
+              }
+            }
+            if (sets.length && env.DB) {
+              await env.DB.prepare(`UPDATE churches SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, churchId).run();
+            }
+            let updated: any = existing;
+            if (env.DB) {
+              updated = await env.DB.prepare('SELECT * FROM churches WHERE id = ?').bind(churchId).first();
+            }
+            return jsonResponse({ success: true, church: updated });
+          }
         }
       }
 

@@ -43,3 +43,20 @@ export interface Post {
   reshare_kind?: string;
   likers?: { userId: string; userName: string; userAvatar?: string }[];
 }
+
+export interface Church {
+  id: string;
+  name: string;
+  avatar?: string;
+  cover?: string;
+  description?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  priest_name?: string;
+  phone?: string;
+  website?: string;
+  service_times?: string;
+  owner_id?: string;
+  created_at?: string;
+}

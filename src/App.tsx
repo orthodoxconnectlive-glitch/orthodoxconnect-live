@@ -23,6 +23,8 @@ import { MessengerView } from './views/MessengerView';
 import { ProfileView, UserProfileData } from './views/ProfileView';
 import { AdminPanelView } from './views/AdminPanelView';
 import { CalendarView } from './views/CalendarView';
+import { ChurchesView } from './views/ChurchesView';
+import { ChurchProfileView } from './views/ChurchProfileView';
 import { NotificationsView } from './views/NotificationsView';
 import { LibraryView } from './views/LibraryView';
 import { updateSEOForView } from './utils/seo';
@@ -47,6 +49,7 @@ function AppContent() {
     }
   });
   const [viewedUserProfile, setViewedUserProfile] = useState<UserProfileData | null>(null);
+  const [selectedChurchId, setSelectedChurchId] = useState<string | null>(null);
   // When a notification targets a specific post, we navigate to the feed and
   // ask FeedView to scroll to + highlight that post, then clear it.
   const [focusPostId, setFocusPostId] = useState<string | null>(null);
@@ -118,6 +121,11 @@ function AppContent() {
     setCurrentView('profile');
   };
 
+  const handleOpenChurch = (churchId: string) => {
+    setSelectedChurchId(churchId);
+    setCurrentView('churchProfile');
+  };
+
   const handleNavigate = (view: string, postId?: string) => {
     if (view === 'profile') {
       setViewedUserProfile(null); // Clicking "Profile" in nav resets to logged-in user profile
@@ -171,6 +179,14 @@ function AppContent() {
         return <AdminPanelView />;
       case 'calendar':
         return <CalendarView />;
+      case 'churches':
+        return <ChurchesView onOpenChurch={handleOpenChurch} />;
+      case 'churchProfile':
+        return selectedChurchId ? (
+          <ChurchProfileView churchId={selectedChurchId} onBack={() => setCurrentView('churches')} />
+        ) : (
+          <ChurchesView onOpenChurch={handleOpenChurch} />
+        );
       default:
         return <FeedView onSelectUser={handleSelectUser} />;
     }

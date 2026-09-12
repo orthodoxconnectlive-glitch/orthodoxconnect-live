@@ -36,6 +36,7 @@ export const LibraryView: React.FC = () => {
 
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [bibleBooks, setBibleBooks] = useState<Book[]>([]);
 
   const initialFormState = {
     title_ar: '',
@@ -51,6 +52,7 @@ export const LibraryView: React.FC = () => {
 
   const categories = [
     { id: 'all', ar: 'الكل', en: 'All' },
+    { id: 'bible', ar: 'الكتاب المقدس', en: 'Bible' },
     { id: 'patristics', ar: 'آبائيات', en: 'Patristics' },
     { id: 'dogmatics', ar: 'عقيدة ولاهوت', en: 'Dogmatics' },
     { id: 'spiritual', ar: 'روحيات وسير قديسين', en: 'Spiritual' },
@@ -75,6 +77,14 @@ export const LibraryView: React.FC = () => {
   useEffect(() => {
     fetchBooks();
   }, [search, selectedCategory]);
+
+  // Special featured Bible section — always shows Bible-category books
+  useEffect(() => {
+    fetch('/api/books?category=bible')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setBibleBooks(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
 
   const openAddModal = () => {
     setEditingBookId(null);
@@ -219,6 +229,53 @@ export const LibraryView: React.FC = () => {
           {language === 'ar' ? 'كتب، مراجع، ودراسات آبائية وكتابية' : 'Books, patristics & theological references'}
         </p>
       </div>
+
+      {/* Special Bible spotlight */}
+      {bibleBooks.length > 0 && (
+        <div className="rounded-3xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg bg-gradient-to-br from-[#2b1d12] via-[#1c1410] to-[#2b1d12]">
+          <div className="flex flex-col sm:flex-row items-center gap-5 p-5 sm:p-6">
+            {bibleBooks[0].cover_image_url && (
+              <img
+                src={bibleBooks[0].cover_image_url}
+                alt={language === 'ar' ? bibleBooks[0].title_ar : (bibleBooks[0].title_en || bibleBooks[0].title_ar)}
+                className="w-28 sm:w-36 rounded-xl shadow-2xl border border-[#8b6b4a]/50 shrink-0"
+              />
+            )}
+            <div className="flex-1 text-center sm:text-left rtl:sm:text-right">
+              <div className="text-[10px] font-serif uppercase tracking-[0.25em] text-[#d4a24e] mb-1">
+                ✦ {language === 'ar' ? 'الكتاب المقدس' : 'The Holy Bible'} ✦
+              </div>
+              <h2 className="font-serif-coptic font-bold text-xl sm:text-2xl text-[#f5ebd9] mb-1">
+                {language === 'ar' ? bibleBooks[0].title_ar : (bibleBooks[0].title_en || bibleBooks[0].title_ar)}
+              </h2>
+              {bibleBooks[0].description && (
+                <p className="text-xs text-[#c9b18c] font-serif leading-relaxed mb-4 line-clamp-3">
+                  {bibleBooks[0].description}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2 justify-center sm:justify-start rtl:sm:justify-end">
+                <a
+                  href={bibleBooks[0].file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-2.5 rounded-full bg-[#d4a24e] hover:bg-[#e5b85c] text-[#1c1410] text-sm font-serif font-bold flex items-center gap-2 shadow-md transition-all"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  {language === 'ar' ? 'اقرأ الآن' : 'Read Now'}
+                </a>
+                <a
+                  href={bibleBooks[0].file_url}
+                  download
+                  className="px-5 py-2.5 rounded-full border border-[#d4a24e]/60 text-[#e8d5ae] text-sm font-serif font-bold flex items-center gap-2 hover:bg-[#d4a24e]/10 transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  {language === 'ar' ? 'تحميل' : 'Download'}
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter / Search Bar */}
       <div className="flex flex-col md:flex-row gap-3 items-center justify-between">

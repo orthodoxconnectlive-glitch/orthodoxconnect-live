@@ -25,11 +25,23 @@ export function setAuthToken(token: string | null): void {
   } catch (e) {}
 }
 
+export function getAuthProfile(): { id?: string; email?: string; role?: string } | null {
+  try {
+    const raw = localStorage.getItem('orthodox_user_profile');
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    return { id: p?.id, email: p?.email, role: p?.role };
+  } catch (e) {
+    return null;
+  }
+}
+
 export async function apiFetch<T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   const token = getAuthToken();
+  const authProfile = getAuthProfile();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
@@ -37,6 +49,16 @@ export async function apiFetch<T = any>(
 
   if (token && !headers['Authorization']) {
     headers['Authorization'] = `Bearer ${token}`;
+  }
+  // Identify the user to the Worker so owner/admin checks work (delete, edit, etc.)
+  if (authProfile?.id && !headers['x-user-id']) {
+    headers['x-user-id'] = authProfile.id;
+  }
+  if (authProfile?.email && !headers['x-user-email']) {
+    headers['x-user-email'] = authProfile.email;
+  }
+  if (authProfile?.role && !headers['x-user-role']) {
+    headers['x-user-role'] = authProfile.role;
   }
 
   const res = await fetch(`${API_BASE_URL}${endpoint}`, {

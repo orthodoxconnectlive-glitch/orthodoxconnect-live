@@ -156,8 +156,8 @@ export const MarketplaceView: React.FC = () => {
       await marketplaceApi.remove(listing.id);
       setListings((prev) => prev.filter((l) => l.id !== listing.id));
       setSelected(null);
-    } catch (e) {
-      console.warn('Delete listing notice:', e);
+    } catch (e: any) {
+      alert(e?.message || (ar ? 'تعذر حذف الإعلان.' : 'Could not delete the listing.'));
     }
   };
 

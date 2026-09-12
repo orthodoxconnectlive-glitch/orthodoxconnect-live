@@ -210,12 +210,19 @@ export async function triggerBrowserNotification(title: string, options?: Notifi
     return false;
   }
 
+  // Never show a blank notification: fall back to a default title/body.
+  const safeTitle = (title && title.trim()) ? title : 'OrthodoxConnect';
+  const safeOptions: NotificationOptions = { ...(options || {}) };
+  if (!safeOptions.body || !(safeOptions.body as string).trim()) {
+    safeOptions.body = 'You have a new update in your parish community.';
+  }
+
   try {
     if (Notification.permission === 'granted') {
-      const notif = new Notification(title, {
+      const notif = new Notification(safeTitle, {
         icon: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=192',
         badge: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=96',
-        ...options,
+        ...safeOptions,
       });
 
       notif.onclick = () => {
@@ -226,9 +233,9 @@ export async function triggerBrowserNotification(title: string, options?: Notifi
     } else if (Notification.permission !== 'denied') {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
-        const notif = new Notification(title, {
+        const notif = new Notification(safeTitle, {
           icon: 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=192',
-          ...options,
+          ...safeOptions,
         });
         notif.onclick = () => {
           window.focus();

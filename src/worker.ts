@@ -2353,10 +2353,13 @@ export default {
 
           // Phone-top Web Push to the recipient's devices (like Instagram/Facebook).
           // Fires for every notification type: messages, blessings, comments, etc.
+          const pushInfo: any = { attempted: false, subscriptions: 0, sent: 0 };
           if (recipientId && recipientId !== 'all' && env.DB) {
+            pushInfo.attempted = true;
             try {
               const { results } = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?').bind(recipientId).all();
               const subs = results || [];
+              pushInfo.subscriptions = subs.length;
               if (subs.length > 0) {
                 const pushPayload = {
                   type,
@@ -2368,13 +2371,14 @@ export default {
                 for (const s of subs as any[]) {
                   if (s && s.endpoint && s.p256dh && s.auth) {
                     await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
+                    pushInfo.sent++;
                   }
                 }
               }
-            } catch (e) { console.warn('[notifications] push failed:', (e as any)?.message || e); }
+            } catch (e) { pushInfo.error = (e as any)?.message || String(e); }
           }
 
-          return jsonResponse({ success: true, notification: { id, recipient_id: recipientId, actor_name: actorName, title, body: notifBody, created_at: createdAt } }, 201);
+          return jsonResponse({ success: true, notification: { id, recipient_id: recipientId, actor_name: actorName, title, body: notifBody, created_at: createdAt }, _push: pushInfo }, 201);
         }
       }
 

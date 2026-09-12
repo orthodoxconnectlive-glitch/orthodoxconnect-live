@@ -2485,6 +2485,27 @@ export default {
       }
 
       // 17c. Push subscriptions (Web Push for calls when app is closed)
+      // Test push endpoint: send a test notification to all of a user's devices
+      if (url.pathname === '/api/push-subscriptions/test' && request.method === 'POST' && env.DB) {
+        const body: any = await request.json().catch(() => ({}));
+        const userId = String(body.user_id || body.userId || '');
+        if (!userId) return jsonResponse({ success: false, error: 'user_id required' }, 400);
+        const { results } = await env.DB.prepare(
+          'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?'
+        ).bind(userId).all();
+        let sent = 0;
+        for (const s of (results || []) as any[]) {
+          const ok = await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, {
+            title: 'OrthodoxConnect ✓',
+            body: 'Push notifications are working on this device!',
+            icon: 'https://orthodoxconnect.live/launchericon-512x512.png',
+            badge: 'https://orthodoxconnect.live/launchericon-512x512.png',
+            data: { url: '/' },
+          });
+          if (ok) sent++;
+        }
+        return jsonResponse({ success: true, subscriptions: (results || []).length, sent });
+      }
       if (url.pathname === '/api/push-subscriptions' || url.pathname === '/api/push-subscriptions/') {
         if (request.method === 'POST' && env.DB) {
           const body: any = await request.json().catch(() => ({}));

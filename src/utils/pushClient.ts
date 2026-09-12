@@ -93,3 +93,56 @@ export async function removePushSubscription(userId: string): Promise<void> {
     console.warn('[push] unsubscribe failed:', e);
   }
 }
+
+/**
+ * Force a fresh push subscription: unsubscribe any existing one, create a new
+ * subscription, register it with the server, and ask the server to send a test
+ * push. Returns a status message for the UI.
+ */
+export async function testPushNotification(userId: string): Promise<string> {
+  try {
+    if (!userId) return 'Not logged in';
+    if (typeof window === 'undefined') return 'Not supported';
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return 'Push not supported in this browser';
+    }
+    const reg = await navigator.serviceWorker.ready;
+    // Drop any stale subscription so we get a fresh endpoint
+    const oldSub = await reg.pushManager.getSubscription();
+    if (oldSub) {
+      try { await oldSub.unsubscribe(); } catch (e) {}
+    }
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      return 'Notification permission denied — enable it in browser settings';
+    }
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+    const subJson = sub.toJSON();
+    const endpoint = subJson.endpoint || '';
+    const p256dh = (subJson.keys && (subJson.keys as any).p256dh) || '';
+    const auth = (subJson.keys && (subJson.keys as any).auth) || '';
+    if (!endpoint || !p256dh || !auth) return 'Failed to create subscription';
+
+    const regRes = await fetch('/api/push-subscriptions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, subscription: { endpoint, keys: { p256dh, auth } } }),
+    });
+    if (!regRes.ok) return 'Server registration failed';
+
+    // Ask server to send a test push to this device
+    const testRes = await fetch('/api/push-subscriptions/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId }),
+    });
+    if (!testRes.ok) return 'Registered, but test send failed';
+    return 'ok';
+  } catch (e) {
+    console.warn('[push] test failed:', e);
+    return 'Error: ' + ((e as any)?.message || 'unknown');
+  }
+}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Church, Edit, UserPlus, UserCheck, MessageSquare, ArrowLeft, LogOut } from 'lucide-react';
+import { Church, Edit, UserPlus, UserCheck, MessageSquare, ArrowLeft, LogOut, Bell } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Post } from '../types';
@@ -7,6 +7,7 @@ import { loadPostsByAuthor } from '../utils/posts';
 import { BUNNY_LIBRARY_ID } from '../utils/posts';
 import { parseVideoEmbed, extractCleanVideoId } from '../components/PostCard';
 import { getFollowersCount, getFollowingCount, isFollowing, toggleFollow } from '../utils/follows';
+import { testPushNotification } from '../utils/pushClient';
 
 export interface UserProfileData {
   id?: string;
@@ -99,7 +100,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenMessengerWithUser,
 }) => {
   const { profile, signOut, loading: authLoading } = useAuth();
-  const { t } = useTheme();
+  const { t, language } = useTheme();
 
   const isSelf =
     !viewedUser ||
@@ -119,6 +120,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [followingState, setFollowingState] = useState<boolean>(false);
+  const [pushTestMsg, setPushTestMsg] = useState<string>('');
+  const [pushTesting, setPushTesting] = useState<boolean>(false);
+
+  const handleTestPush = async () => {
+    if (!profile?.id) return;
+    setPushTesting(true);
+    setPushTestMsg(language === 'ar' ? 'جارٍ الاختبار...' : 'Testing...');
+    const result = await testPushNotification(profile.id);
+    setPushTesting(false);
+    if (result === 'ok') {
+      setPushTestMsg(language === 'ar' ? '✓ تم الإرسال! تحقق من أعلى هاتفك' : '✓ Sent! Check the top of your phone');
+    } else {
+      setPushTestMsg(result);
+    }
+    setTimeout(() => setPushTestMsg(''), 8000);
+  };
 
   useEffect(() => {
     // When viewing your own profile, wait for auth hydration so we filter
@@ -219,13 +236,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
           {/* Action Buttons */}
           {isSelf ? (
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <button
                 onClick={onOpenEditProfile}
                 className="px-4 py-2.5 rounded-2xl bg-(--ac-bronze) hover:bg-(--ac-bronze-dk) text-white font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all cursor-pointer"
               >
                 <Edit className="w-4 h-4" />
                 <span>{t('editProfile')}</span>
+              </button>
+              <button
+                onClick={handleTestPush}
+                disabled={pushTesting}
+                title={language === 'ar' ? 'اختبار إشعارات الهاتف' : 'Test phone notifications'}
+                className="px-4 py-2.5 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) text-(--tx-strong) dark:text-[#f5ebd9] font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Bell className="w-4 h-4" />
+                <span>{language === 'ar' ? 'اختبار الإشعارات' : 'Test Notifications'}</span>
               </button>
               <button
                 onClick={signOut}
@@ -235,8 +261,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <span>Logout</span>
               </button>
             </div>
-          ) : (
-            <div className="flex items-center gap-3 shrink-0">
+          ) : (            <div className="flex items-center gap-3 shrink-0">
               <button
                 onClick={handleToggleFollowUser}
                 className={`px-5 py-2.5 rounded-2xl font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all cursor-pointer ${
@@ -270,6 +295,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
           )}
         </div>
+        {pushTestMsg && (
+          <div className="mt-3 text-center text-xs font-serif px-4 py-2 rounded-xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9]">
+            {pushTestMsg}
+          </div>
+        )}
       </div>
 
       {/* User's Posts Section */}

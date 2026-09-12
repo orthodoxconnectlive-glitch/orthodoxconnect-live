@@ -37,12 +37,20 @@ export async function ensurePushSubscription(userId: string): Promise<void> {
     const reg = await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
 
-    // Key rotation: if the VAPID key changed since this subscription was created,
-    // the old subscription is useless — drop it and subscribe fresh.
+    // Key rotation: if we have no record of which VAPID key this subscription was
+    // made with, or it differs from the current key, the subscription is useless —
+    // drop it and subscribe fresh. (Keys were rotated 2026-09-12.)
     try {
       const usedKey = localStorage.getItem(VAPID_KEY_STORAGE);
-      if (sub && usedKey && usedKey !== VAPID_PUBLIC_KEY) {
+      if (sub && usedKey !== VAPID_PUBLIC_KEY) {
         try { await sub.unsubscribe(); } catch (e) {}
+        try {
+          await fetch('/api/push-subscriptions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'clear_all', user_id: getUserId() }),
+          });
+        } catch (e) {}
         sub = null;
       }
     } catch (e) {}

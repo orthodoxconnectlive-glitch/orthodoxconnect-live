@@ -1051,6 +1051,22 @@ export default {
 
       // 5. Messages Endpoints (/api/messages)
       if (url.pathname === '/api/messages' || url.pathname === '/api/messages/') {
+        // Self-heal: very early app versions created the messages table without
+        // receiver_id (and other columns), so server-side save/load silently broke.
+        if (env.DB) {
+          const missingCols = [
+            'receiver_id TEXT',
+            "content TEXT NOT NULL DEFAULT ''",
+            'image_url TEXT',
+            'video_url TEXT',
+            'audio_url TEXT',
+            'is_read INTEGER DEFAULT 0',
+            "created_at TEXT NOT NULL DEFAULT (datetime('now'))",
+          ];
+          for (const col of missingCols) {
+            try { await env.DB.prepare(`ALTER TABLE messages ADD COLUMN ${col}`).run(); } catch (e) { /* column already exists */ }
+          }
+        }
         if (request.method === 'GET') {
           const user1 = url.searchParams.get('user1') || url.searchParams.get('sender_id');
           const user2 = url.searchParams.get('user2') || url.searchParams.get('receiver_id');

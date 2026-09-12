@@ -2453,6 +2453,7 @@ export default {
           try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN sdp TEXT').run(); } catch (e) {}
           try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN candidate TEXT').run(); } catch (e) {}
           try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN meta TEXT').run(); } catch (e) {}
+          try { await env.DB.prepare('CREATE TABLE IF NOT EXISTS push_debug_log (id TEXT PRIMARY KEY, created_at TEXT, info TEXT)').run(); } catch (e) {}
         }
         if (request.method === 'POST' && env.DB) {
           const sig: any = await request.json().catch(() => ({}));
@@ -2507,6 +2508,15 @@ export default {
                 }
               }
               pushDiag = { attempted: true, subscriptions: subs.length, sent, targetUserId, strippedTarget };
+              try {
+                const logId = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `log-${Date.now()}`);
+                await env.DB.prepare('INSERT INTO push_debug_log (id, created_at, info) VALUES (?, ?, ?)').bind(
+                  logId, new Date().toISOString(),
+                  JSON.stringify({ ...pushDiag, subUserIds: (subs as any[]).map((x: any) => x.user_id), callId })
+                ).run();
+                // Keep only the last 20 entries
+                try { await env.DB.prepare('DELETE FROM push_debug_log WHERE id NOT IN (SELECT id FROM push_debug_log ORDER BY created_at DESC LIMIT 20)').run(); } catch (e) {}
+              } catch (e) {}
             } catch (e) { console.warn('[call-signals] push failed:', (e as any)?.message || e); }
           }
           return jsonResponse({ success: true, id, _push: pushDiag }, 201);
@@ -2578,6 +2588,16 @@ export default {
           const callId = rest.replace('/heartbeat', '');
           await env.DB.prepare('UPDATE group_calls SET started_at = ? WHERE id = ?').bind(new Date().toISOString(), callId).run();
           return jsonResponse({ success: true, id: callId });
+        }
+      }
+
+      // 17b2. Push debug log (temporary diagnostic)
+      if (url.pathname === '/api/debug/push-log' && env.DB) {
+        try {
+          const { results } = await env.DB.prepare('SELECT created_at, info FROM push_debug_log ORDER BY created_at DESC LIMIT 10').all();
+          return jsonResponse({ success: true, entries: results || [] });
+        } catch (e) {
+          return jsonResponse({ success: true, entries: [] });
         }
       }
 

@@ -5,6 +5,7 @@ import { EventItem } from '../types';
 import { loadEvents, setEventRsvp } from '../utils/events';
 import { CreateEventModal } from '../components/CreateEventModal';
 import { EventDetailModal } from '../components/EventDetailModal';
+import { DailyReadings } from '../components/DailyReadings';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { gregorianToCoptic } from '../utils/copticDate';
@@ -327,6 +328,9 @@ export const CalendarView: React.FC = () => {
               <p className="italic">"{todayData.scriptureText}"</p>
             </div>
           </div>
+
+          {/* Real Daily Lectionary (Katameros) */}
+          <DailyReadings language={language === 'ar' ? 'ar' : 'en'} />
 
           {/* Upcoming Great Feasts Grid */}
           <div className="space-y-3">

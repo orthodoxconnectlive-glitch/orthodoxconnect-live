@@ -25,7 +25,19 @@ export function setAuthToken(token: string | null): void {
   } catch (e) {}
 }
 
+// In-memory profile set by AuthContext (more reliable than localStorage which can be empty)
+let memoryAuthProfile: { id?: string; email?: string; role?: string } | null = null;
+
+export function setMemoryAuthProfile(p: { id?: string; email?: string; role?: string } | null): void {
+  memoryAuthProfile = p;
+}
+
 export function getAuthProfile(): { id?: string; email?: string; role?: string } | null {
+  // 1. In-memory (set by AuthContext on every profile change) — most reliable
+  if (memoryAuthProfile?.id || memoryAuthProfile?.email) {
+    return memoryAuthProfile;
+  }
+  // 2. localStorage fallback
   try {
     const raw = localStorage.getItem('orthodox_user_profile');
     if (!raw) return null;

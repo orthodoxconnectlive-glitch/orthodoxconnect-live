@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserProfile, UserRole } from '../types';
-import { authApi, profilesApi } from '../lib/api';
+import { authApi, profilesApi, setMemoryAuthProfile } from '../lib/api';
 import { setCurrentUserId } from '../utils/notifications';
 
 interface AuthContextType {
@@ -24,6 +24,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+
+  // Keep the API client's in-memory identity in sync (fixes owner/admin actions when localStorage is empty)
+  useEffect(() => {
+    try {
+      setMemoryAuthProfile(profile ? { id: (profile as any).id, email: (profile as any).email, role: (profile as any).role } : null);
+    } catch (e) {}
+  }, [profile]);
 
   useEffect(() => {
     async function initAuth() {

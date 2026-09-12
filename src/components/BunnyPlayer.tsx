@@ -258,6 +258,7 @@ export const BunnyPlayer: React.FC<BunnyPlayerProps> = ({
             autoPlay
             playsInline
             muted
+            data-user-initiated="true"
             className="w-full h-full object-cover transform scale-x-[-1]"
           />
           {!webcamTrackLive && (

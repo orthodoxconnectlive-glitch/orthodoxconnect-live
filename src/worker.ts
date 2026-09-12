@@ -546,6 +546,7 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
     const subject = (env.VAPID_SUBJECT || 'mailto:admin@orthodoxconnect.live').trim();
     if (!vapidPublic || !vapidPrivate) {
       console.warn('[push] VAPID keys not configured; skipping push');
+      (globalThis as any).__lastPushStatus = 'no-vapid-keys';
       return false;
     }
     const body = await encryptPushPayload(sub.p256dh, sub.auth, new TextEncoder().encode(JSON.stringify(payload)));
@@ -560,12 +561,14 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
       },
       body: body as any,
     });
+    (globalThis as any).__lastPushStatus = res.status;
     if (!res.ok && (res.status === 404 || res.status === 410)) {
       try { await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(sub.endpoint).run(); } catch (e) {}
     }
     return res.ok;
   } catch (e) {
     console.warn('[push] send failed:', (e as any)?.message || e);
+    (globalThis as any).__lastPushStatus = 'exception: ' + ((e as any)?.message || e);
     return false;
   }
 }
@@ -2498,16 +2501,19 @@ export default {
               };
               let sent = 0;
               const seen = new Set<string>();
+              const sendResults: any[] = [];
               for (const s of subs as any[]) {
                 if (s && s.endpoint && s.p256dh && s.auth && !seen.has(s.endpoint)) {
                   seen.add(s.endpoint);
                   try {
-                    await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
-                    sent++;
+                    (globalThis as any).__lastPushStatus = null;
+                    const ok = await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
+                    if (ok) sent++;
+                    sendResults.push({ ok, status: (globalThis as any).__lastPushStatus, endpointHost: String(s.endpoint).split('/')[2] || '' });
                   } catch (pe) { console.warn('[call-signals] push send failed:', (pe as any)?.message || pe); }
                 }
               }
-              pushDiag = { attempted: true, subscriptions: subs.length, sent, targetUserId, strippedTarget };
+              pushDiag = { attempted: true, subscriptions: subs.length, sent, targetUserId, strippedTarget, sendResults };
               try {
                 const logId = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `log-${Date.now()}`);
                 await env.DB.prepare('INSERT INTO push_debug_log (id, created_at, info) VALUES (?, ?, ?)').bind(

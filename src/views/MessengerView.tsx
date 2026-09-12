@@ -117,8 +117,10 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
 
   // Clear the message badge when the messages view is opened
   useEffect(() => {
-    markNotificationsAsReadByType('message', profile?.id).catch(() => {});
-  }, []);
+    if (profile?.id) {
+      markNotificationsAsReadByType('message', profile.id).catch(() => {});
+    }
+  }, [profile?.id]);
 
   const LOCAL_MESSAGES_KEY = 'orthodox_local_messages_v2';
 

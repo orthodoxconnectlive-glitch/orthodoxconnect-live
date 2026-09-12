@@ -93,7 +93,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const handleMarkAllRead = async () => {
-    await markAllNotificationsAsRead();
+    await markAllNotificationsAsRead(profile?.id);
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
   };
 

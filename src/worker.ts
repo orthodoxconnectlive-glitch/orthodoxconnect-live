@@ -2614,6 +2614,7 @@ export default {
 
       // 17b1. Store VAPID keys in D1 (admin; survives redeploys)
       if (url.pathname === '/api/admin/vapid-keys' && request.method === 'POST' && env.DB) {
+        try { await env.DB.prepare('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)').run(); } catch (e) {}
         const body: any = await request.json().catch(() => ({}));
         const pub = String(body.public_key || '');
         const priv = String(body.private_key || '');

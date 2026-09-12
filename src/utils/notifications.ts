@@ -164,6 +164,23 @@ try {
 
 }
 
+// Mark specific notification IDs as read (used by "Read all" with the visible list)
+export function markNotificationIdsAsRead ( ids: string [ ] ): void {
+
+try {
+
+    const readIds = getReadNotifIds ( ) ;
+
+    ids . forEach ( ( id ) => { if ( id ) readIds . add ( String ( id ) ) ; } ) ;
+
+    saveReadNotifIds ( readIds ) ;
+
+    try { window . dispatchEvent ( new Event ( 'orthodox:notifications_updated' ) ) ; } catch ( e ) { }
+
+  } catch ( e ) { }
+
+}
+
 function getDeletedNotifIds ( ): Set < string > {
 
 try {

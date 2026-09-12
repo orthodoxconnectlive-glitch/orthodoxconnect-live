@@ -28,7 +28,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { NotificationItem } from '../types';
 import { NotificationDropdown } from './NotificationDropdown';
-import { loadNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../utils/notifications';
+import { loadNotifications, markNotificationAsRead, markAllNotificationsAsRead, markNotificationIdsAsRead } from '../utils/notifications';
 import { getTodayLiturgicalDay } from '../data/liturgical';
 
 interface NavbarProps {
@@ -93,7 +93,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const handleMarkAllRead = async () => {
-    await markAllNotificationsAsRead(profile?.id);
+    // Mark the currently visible notifications as read locally (IDs from state, not just localStorage)
+    // so the 10-second poll can't resurrect them as unread.
+    try {
+      markNotificationIdsAsRead(notifications.map((n) => n.id));
+    } catch (e) {}
+    try {
+      await markAllNotificationsAsRead(profile?.id);
+    } catch (e) {}
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
   };
 

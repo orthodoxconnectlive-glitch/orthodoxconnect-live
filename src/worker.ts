@@ -181,6 +181,7 @@ export async function ensureD1Tables(db?: D1Database) {
         author_avatar TEXT DEFAULT 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
         author_parish TEXT DEFAULT 'Orthodox Church',
         image_url TEXT NOT NULL,
+        media_type TEXT DEFAULT 'image',
         caption TEXT DEFAULT '',
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
@@ -337,6 +338,25 @@ export async function ensureD1Tables(db?: D1Database) {
       }
     } catch (streamMigErr) {
       console.warn('[ensureD1Tables] live_streams migration notice:', streamMigErr);
+    }
+    try {
+      // Stories media columns (media_type: image | video | audio)
+      const requiredStoryCols: Array<[string, string]> = [
+        ['media_type', "TEXT DEFAULT 'image'"],
+      ];
+      for (const [colName, colDef] of requiredStoryCols) {
+        try {
+          await db.exec(`ALTER TABLE stories ADD COLUMN ${colName} ${colDef}`);
+        } catch (colErr: any) {
+          const colMsg = String((colErr && colErr.message) || colErr || '');
+          if (!/duplicate column/i.test(colMsg)) {
+            throw colErr;
+          }
+          // Column already exists - nothing to do.
+        }
+      }
+    } catch (storyMigErr) {
+      console.warn('[ensureD1Tables] stories migration notice:', storyMigErr);
     }
     d1TablesInitialized = true;
   } catch (e) {
@@ -1063,19 +1083,20 @@ export default {
           const authorAvatar = body.author_avatar || body.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
           const authorParish = body.author_parish || body.authorParish || 'Orthodox Church';
           const imageUrl = body.image_url || body.imageUrl || '';
+          const mediaType = body.media_type || body.mediaType || 'image';
           const caption = body.caption || '';
           const createdAt = body.created_at || new Date().toISOString();
 
           if (env.DB) {
             await env.DB.prepare(`
-              INSERT INTO stories (id, author_id, author_name, author_avatar, author_parish, image_url, caption, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(id, authorId, authorName, authorAvatar, authorParish, imageUrl, caption, createdAt).run();
+              INSERT INTO stories (id, author_id, author_name, author_avatar, author_parish, image_url, media_type, caption, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(id, authorId, authorName, authorAvatar, authorParish, imageUrl, mediaType, caption, createdAt).run();
           }
 
           return jsonResponse({
             success: true,
-            story: { id, author_id: authorId, author_name: authorName, author_avatar: authorAvatar, author_parish: authorParish, image_url: imageUrl, caption, created_at: createdAt },
+            story: { id, author_id: authorId, author_name: authorName, author_avatar: authorAvatar, author_parish: authorParish, image_url: imageUrl, media_type: mediaType, caption, created_at: createdAt },
           }, 201);
         }
       }
@@ -1216,7 +1237,7 @@ export default {
             await env.DB.prepare(`
               INSERT INTO live_streams (id, title, host_parish, priest_name, media_url, is_live, viewers_count, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(id, title, hostParish, priestName, mediaUrl, isLive, viewers_count, createdAt).run();
+            `).bind(id, title, hostParish, priestName, mediaUrl, isLive, viewersCount, createdAt).run();
           }
 
           return jsonResponse({

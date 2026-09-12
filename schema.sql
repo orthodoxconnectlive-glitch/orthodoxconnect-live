@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS stories (
   author_avatar TEXT DEFAULT 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
   author_parish TEXT DEFAULT 'Orthodox Church',
   image_url TEXT NOT NULL,
+  media_type TEXT DEFAULT 'image',
   caption TEXT DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

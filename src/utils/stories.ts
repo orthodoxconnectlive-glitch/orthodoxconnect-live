@@ -4,6 +4,8 @@ export interface Story {
   authorAvatar: string;
   authorParish: string;
   imageUrl: string;
+  /** 'image' | 'video' (Bunny guid) | 'audio' (data URL). Defaults to 'image'. */
+  mediaType?: 'image' | 'video' | 'audio';
   caption: string;
   createdAt: string;
 }

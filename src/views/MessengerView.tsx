@@ -1045,6 +1045,19 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
           {messages.map((msg, index) => {
             const isMe = msg.sender_id === (profile?.id || 'me');
             const isHovered = hoveredMsgId === msg.id;
+            // Call log messages (missed/ended calls) render as centered system bubbles
+            const isCallLog = typeof msg.content === 'string' && msg.content.startsWith('\uD83D\uDCDE');
+
+            if (isCallLog) {
+              return (
+                <div key={msg.id} className="flex justify-center my-1">
+                  <div className="px-4 py-1.5 rounded-full bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold)/40 text-(--tx-soft) dark:text-[#f5ebd9] text-[11px] font-serif flex items-center gap-1.5">
+                    <span>{msg.content}</span>
+                    <TimeAgo date={msg.created_at} className="text-[10px] text-gray-400 dark:text-gray-500" />
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <div

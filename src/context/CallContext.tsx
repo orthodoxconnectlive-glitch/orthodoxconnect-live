@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { soundSynth, triggerBrowserNotification } from '../utils/ringtone';
 import { callSignaling, CallSignalPayload } from '../utils/callSignaling';
 import { ensurePushSubscription } from '../utils/pushClient';
+import { messagesApi } from '../lib/api';
 import { IncomingCallModal } from '../components/IncomingCallModal';
 import { WebRTCCallModal } from '../components/WebRTCCallModal';
 
@@ -29,6 +30,37 @@ const NO_ANSWER_TIMEOUT_MS = 30000;
 
 export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile } = useAuth();
+
+  // Write a call event (missed/ended) into the 1:1 chat so both sides see it.
+  const logCallMessage = async (
+    partnerId: string,
+    callType: 'audio' | 'video',
+    kind: 'missed' | 'ended',
+    durationSec?: number,
+  ) => {
+    try {
+      const myId = (profile?.id || '').replace(/^auth-/, '');
+      const cleanPartnerId = (partnerId || '').replace(/^auth-/, '');
+      if (!myId || !cleanPartnerId) return;
+      const callLabel = callType === 'video' ? 'video' : 'voice';
+      let content: string;
+      if (kind === 'missed') {
+        content = `\uD83D\uDCDE Missed ${callLabel} call`;
+      } else {
+        const mins = Math.floor((durationSec || 0) / 60);
+        const secs = (durationSec || 0) % 60;
+        const dur = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+        content = `\uD83D\uDCDE ${callLabel === 'video' ? 'Video' : 'Voice'} call ended • ${dur}`;
+      }
+      await messagesApi.send({
+        sender_id: myId,
+        receiver_id: cleanPartnerId,
+        content,
+      });
+    } catch (e) {
+      console.warn('[call] log message failed:', e);
+    }
+  };
   const [callState, setCallState] = useState<CallState | null>(null);
   const activeCallRef = useRef<CallState | null>(null);
 
@@ -199,6 +231,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       timestamp: Date.now(),
     });
 
+    // Log it in the chat so the caller sees the missed call
+    logCallMessage(callState.partnerId, callState.type, 'missed');
+
     setCallState(null);
   };
 
@@ -221,6 +256,14 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       callType: cur.type,
       timestamp: Date.now(),
     });
+
+    // Log in the chat: missed if never connected, otherwise ended w/ duration
+    if (cur.status === 'connected' && cur.startedAt) {
+      const secs = Math.max(1, Math.round((Date.now() - cur.startedAt) / 1000));
+      logCallMessage(cur.partnerId, cur.type, 'ended', secs);
+    } else {
+      logCallMessage(cur.partnerId, cur.type, 'missed');
+    }
 
     setCallState(null);
   };

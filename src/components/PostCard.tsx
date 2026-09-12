@@ -181,15 +181,27 @@ export const PostCard: React.FC<PostCardProps> = ({
     window.speechSynthesis.cancel();
     const chunks = postContent.match(/[^.!?،؛\n]+[.!?،؛\n]?/g) || [postContent];
     const voices = window.speechSynthesis.getVoices();
-    const arabicVoice = voices.find((v) => v.lang.startsWith('ar'));
+    // Detect content language: if mostly Arabic script, use Arabic voice; otherwise American English
+    const arabicChars = (postContent.match(/[\u0600-\u06FF]/g) || []).length;
+    const isArabic = arabicChars > postContent.length * 0.3;
+    let voice: SpeechSynthesisVoice | undefined;
+    let lang: string;
+    if (isArabic) {
+      lang = 'ar-SA';
+      voice = voices.find((v) => v.lang.startsWith('ar'));
+    } else {
+      lang = 'en-US';
+      // Prefer American English voice for a natural US accent
+      voice = voices.find((v) => v.lang === 'en-US') || voices.find((v) => v.lang.startsWith('en'));
+    }
 
     setIsSpeaking(true);
 
     chunks.forEach((chunk, index) => {
       const utterance = new SpeechSynthesisUtterance(chunk.trim());
-      utterance.lang = 'ar-SA';
+      utterance.lang = lang;
       utterance.rate = 0.9;
-      if (arabicVoice) utterance.voice = arabicVoice;
+      if (voice) utterance.voice = voice;
 
       if (index === chunks.length - 1) {
         utterance.onend = () => setIsSpeaking(false);

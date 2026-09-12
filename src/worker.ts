@@ -2473,6 +2473,7 @@ export default {
             'INSERT INTO call_signals (id, call_id, sig_type, caller_id, caller_name, caller_avatar, target_user_id, call_type, sdp, candidate, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
           ).bind(id, callId, sigType, callerId, callerName, callerAvatar, targetUserId, callType, sdp, candidate, meta, nowMs).run();
 
+          let pushDiag: any = null;
           if (sigType === 'OFFER_CALL' && targetUserId) {
             try {
               const notifId = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `notif-${Date.now()}`);
@@ -2483,7 +2484,9 @@ export default {
                 `${callerName} is calling you.`, null, 'messages', 0, new Date().toISOString()).run();
             } catch (e) { console.warn('[call-signals] bell insert failed:', (e as any)?.message || e); }
             try {
-              const { results } = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?').bind(targetUserId).all();
+              // Match subscriptions on both raw and auth--stripped user ID formats
+              const strippedTarget = targetUserId.replace(/^auth-/, '');
+              const { results } = await env.DB.prepare('SELECT endpoint, p256dh, auth, user_id FROM push_subscriptions WHERE user_id = ? OR user_id = ?').bind(targetUserId, strippedTarget).all();
               const subs = results || [];
               const pushPayload = {
                 type: 'call',
@@ -2492,14 +2495,21 @@ export default {
                 icon: callerAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
                 data: { url: '/?call=' + callId, callId, callerName, callType },
               };
+              let sent = 0;
+              const seen = new Set<string>();
               for (const s of subs as any[]) {
-                if (s && s.endpoint && s.p256dh && s.auth) {
-                  await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
+                if (s && s.endpoint && s.p256dh && s.auth && !seen.has(s.endpoint)) {
+                  seen.add(s.endpoint);
+                  try {
+                    await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
+                    sent++;
+                  } catch (pe) { console.warn('[call-signals] push send failed:', (pe as any)?.message || pe); }
                 }
               }
+              pushDiag = { attempted: true, subscriptions: subs.length, sent, targetUserId, strippedTarget };
             } catch (e) { console.warn('[call-signals] push failed:', (e as any)?.message || e); }
           }
-          return jsonResponse({ success: true, id }, 201);
+          return jsonResponse({ success: true, id, _push: pushDiag }, 201);
         }
         if (request.method === 'GET' && env.DB) {
           const userId = url.searchParams.get('user_id') || '';

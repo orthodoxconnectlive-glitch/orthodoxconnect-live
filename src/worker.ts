@@ -1144,6 +1144,19 @@ export default {
 
       // 6b. Churches Endpoints (/api/churches)
       if (url.pathname === '/api/churches' || url.pathname === '/api/churches/') {
+        // Bulletproof: ensure the table exists on the request path itself.
+        if (env.DB) {
+          try {
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS churches (
+              id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT DEFAULT '',
+              cover TEXT DEFAULT '', description TEXT DEFAULT '', address TEXT DEFAULT '',
+              city TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '',
+              phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '',
+              owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+          } catch (ctErr) {
+            console.warn('[churches] ensure table notice:', ctErr);
+          }
+        }
         if (request.method === 'GET') {
           let churches: any[] = [];
           if (env.DB) {

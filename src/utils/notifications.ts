@@ -334,6 +334,8 @@ isRead,
 
               senderAvatar: d . actor_avatar || d . sender_avatar || undefined ,
 
+              senderId: d . actor_id || d . sender_id || undefined ,
+
             } ;
 
           } ) ;
@@ -431,6 +433,8 @@ sourceActorUserId?: string
     senderName: notif . senderName ,
 
     senderAvatar: notif . senderAvatar ,
+
+    senderId: ( notif as any ) . senderId ,
 
     isRead: false ,
 

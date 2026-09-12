@@ -435,19 +435,25 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     };
   }, [activeContact?.id]);
 
-  const fetchMessages = async () => {
+  const fetchMessages = async (silent = false) => {
     if (!activeContact) return;
-    setIsMessagesLoading(true);
-    const localMsgs = loadLocalMessagesForContact(activeContact.id);
-    setMessages(localMsgs);
+    if (!silent) {
+      setIsMessagesLoading(true);
+      const localMsgs = loadLocalMessagesForContact(activeContact.id);
+      setMessages(localMsgs);
+    }
 
     const cleanContactId = activeContact.id.replace(/^auth-/, '');
+    const myCleanId = (profile?.id || '').replace(/^auth-/, '');
 
     try {
-      const data = await messagesApi.getConversation(cleanContactId);
+      const data = myCleanId
+        ? await messagesApi.getChat(myCleanId, cleanContactId)
+        : await messagesApi.getConversation(cleanContactId);
 
       if (data && data.length > 0) {
         // Merge Cloudflare D1 messages with local messages
+        const localMsgs = loadLocalMessagesForContact(activeContact.id);
         const msgMap = new Map<string, ExtendedMessage>();
         localMsgs.forEach((m) => msgMap.set(m.id, m));
         data.forEach((m: any) => msgMap.set(m.id, m as ExtendedMessage));
@@ -462,9 +468,18 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     } catch (err) {
       console.warn('Messages load notice:', err);
     } finally {
-      setIsMessagesLoading(false);
+      if (!silent) setIsMessagesLoading(false);
     }
   };
+
+  // Poll for new messages while a chat is open so incoming messages appear live
+  useEffect(() => {
+    if (!activeContact) return;
+    const poll = setInterval(() => {
+      fetchMessages(true);
+    }, 8000);
+    return () => clearInterval(poll);
+  }, [activeContact?.id]);
 
   const handleSendMessage = async (customContent?: string, e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -547,6 +562,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
           body: sendText.trim() || 'Sent an attachment',
           senderName: profile?.full_name || 'Parishioner',
           senderAvatar: profile?.avatar_url,
+          senderId: profile?.id,
           link: 'messages',
         },
         profile.id

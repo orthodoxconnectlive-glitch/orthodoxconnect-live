@@ -1055,7 +1055,7 @@ export default {
           const user1 = url.searchParams.get('user1') || url.searchParams.get('sender_id');
           const user2 = url.searchParams.get('user2') || url.searchParams.get('receiver_id');
           const contactId = url.searchParams.get('contact_id');
-          const myId = url.searchParams.get('my_id') || getAuthIdentity(request).id;
+          const myId = url.searchParams.get('my_id') || url.searchParams.get('user1') || getAuthIdentity(request).id;
 
           let messages: any[] = [];
 

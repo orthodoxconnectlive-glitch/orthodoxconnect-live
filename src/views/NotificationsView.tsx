@@ -54,7 +54,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     );
 
     if (notif.type === 'message' && onOpenMessengerWithUser) {
-      onOpenMessengerWithUser(notif.senderName || 'user-1');
+      onOpenMessengerWithUser((notif as any).senderId || notif.senderName || 'user-1');
       return;
     }
 

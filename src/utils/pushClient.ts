@@ -5,8 +5,10 @@
  */
 
 // VAPID public key (safe to ship in client code)
+// Rotated 2026-09-12 after the previous key was lost from worker env on redeploy.
 const VAPID_PUBLIC_KEY =
-  'BIOd2w3oH0M41g64TK_M7_80MOtbIKfNYzPBg-dqJxfM-9VBnCoQmKYzvqokHsk6F89OPJWDtM2OlH9rA0ozKr0';
+  'BDrZbE-xWZdI4bykRXZG1pZRSV1g4_zxXVLzZvBISWGEsLuluW5G0nTNatg8MqBNcsoZLLApuLPk6RHyjJHPQ98';
+const VAPID_KEY_STORAGE = 'oc-vapid-key-used';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -34,6 +36,16 @@ export async function ensurePushSubscription(userId: string): Promise<void> {
 
     const reg = await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
+
+    // Key rotation: if the VAPID key changed since this subscription was created,
+    // the old subscription is useless — drop it and subscribe fresh.
+    try {
+      const usedKey = localStorage.getItem(VAPID_KEY_STORAGE);
+      if (sub && usedKey && usedKey !== VAPID_PUBLIC_KEY) {
+        try { await sub.unsubscribe(); } catch (e) {}
+        sub = null;
+      }
+    } catch (e) {}
 
     if (!sub) {
       const permission = await Notification.requestPermission();
@@ -68,6 +80,7 @@ export async function ensurePushSubscription(userId: string): Promise<void> {
       console.warn('[push] server registration failed:', res.status);
     } else {
       console.log('[push] device registered for call notifications');
+      try { localStorage.setItem(VAPID_KEY_STORAGE, VAPID_PUBLIC_KEY); } catch (e) {}
     }
   } catch (e) {
     console.warn('[push] subscription failed:', e);

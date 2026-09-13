@@ -673,6 +673,16 @@ export default {
       }
 
       // 2. Health check
+      if (url.pathname === '/api/admin/cleanup-test-accounts') {
+        // TEMPORARY: Delete all @oc-test.local profiles (Hany authorized 2026-09-12)
+        const auth = getAuthIdentity(request);
+        if (!auth.isAdmin) return jsonResponse({ success: false, error: 'Admin only' }, 403);
+        if (env.DB) {
+          const del = await env.DB.prepare("DELETE FROM profiles WHERE email LIKE '%@oc-test.local'").run();
+          return jsonResponse({ success: true, deleted: del.meta.changes });
+        }
+        return jsonResponse({ success: false, error: 'No DB' }, 500);
+      }
       if (url.pathname === '/api/health') {
         return jsonResponse({
           status: 'ok',

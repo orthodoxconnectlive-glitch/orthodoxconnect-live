@@ -93,15 +93,28 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const handleMarkAllRead = async () => {
-    // Mark the currently visible notifications as read locally (IDs from state, not just localStorage)
-    // so the 10-second poll can't resurrect them as unread.
-    try {
-      markNotificationIdsAsRead(notifications.map((n) => n.id));
-    } catch (e) {}
+    // Mark all as read: update UI immediately, then persist locally and on server.
+    // Use a functional update so it works even if the notifications state is stale.
+    setNotifications((prev) => {
+      const ids = prev.map((n) => n.id).filter(Boolean);
+      try {
+        if (ids.length > 0) markNotificationIdsAsRead(ids);
+      } catch (e) {}
+      // Also mark every ID we know about from localStorage
+      try {
+        const local = JSON.parse(localStorage.getItem('oc_notifications') || '[]');
+        const localIds = local.map((n: any) => n.id).filter(Boolean);
+        if (localIds.length > 0) markNotificationIdsAsRead(localIds);
+      } catch (e) {}
+      return prev.map((n) => ({ ...n, isRead: true }));
+    });
     try {
       await markAllNotificationsAsRead(profile?.id);
     } catch (e) {}
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    // Force a refresh so the badge count updates
+    try {
+      window.dispatchEvent(new Event('orthodox:notifications_updated'));
+    } catch (e) {}
   };
 
   const unreadMessageCount = notifications.filter((n) => n.type === 'message' && !n.isRead).length;

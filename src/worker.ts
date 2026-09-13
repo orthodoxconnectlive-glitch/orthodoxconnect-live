@@ -723,6 +723,7 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
   let imageH = '512';
   let bodyHtml = '';
   let appLink = APP_URL + '/';
+  let found = false;
 
   try {
     if (isLive) {
@@ -730,6 +731,7 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
         'SELECT id, title, host_parish, priest_name, is_live, viewers_count, created_at FROM live_streams WHERE id = ?'
       ).bind(id).first<any>();
       if (s) {
+        found = true;
         const live = Number(s.is_live) === 1;
         title = String(s.title || 'Live broadcast') + ' — OrthodoxConnect';
         desc = `${s.priest_name || 'Orthodox Church'} · ${s.host_parish || ''}`.trim();
@@ -745,11 +747,17 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
         'SELECT id, content, video_id, author_name, author_parish, author_avatar, image_url, likes_count, comments_count, created_at FROM posts WHERE id = ?'
       ).bind(id).first<any>();
       if (p) {
+        found = true;
         const text = String(p.content || '');
         const ytId = extractYouTubeId(p.video_id);
+        const rawImg = String(p.image_url || '');
+        const isDataImg = /^data:image\//i.test(rawImg);
+        const dataImgUrl = APP_URL + '/post-image/' + encodeURIComponent(String(p.id));
         const postImg = ytId
           ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`
-          : safeImgUrl(p.image_url, DEFAULT_IMG);
+          : isDataImg
+            ? dataImgUrl
+            : safeImgUrl(p.image_url, DEFAULT_IMG);
         if (ytId) { imageW = '480'; imageH = '360'; }
         title = `${p.author_name || 'Orthodox Parishioner'} on OrthodoxConnect`;
         if (text) {
@@ -774,7 +782,7 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
           </div>
           ${text ? `<p class="content">${escHtml(text)}</p>` : ''}
           ${ytId ? `<a href="${escHtml(appLink)}"><img class="media" src="${escHtml(postImg)}" alt="Video thumbnail"/></a>` : ''}
-          ${!ytId && p.image_url && safeImgUrl(p.image_url, '') ? `<img class="media" src="${escHtml(safeImgUrl(p.image_url, DEFAULT_IMG))}" alt="Post image" onerror="this.style.display='none'"/>` : ''}
+          ${!ytId && (isDataImg || safeImgUrl(p.image_url, '')) ? `<img class="media" src="${escHtml(isDataImg ? dataImgUrl : safeImgUrl(p.image_url, DEFAULT_IMG))}" alt="Post image" onerror="this.style.display='none'"/>` : ''}
           <div class="meta">❤ ${escHtml(String(p.likes_count || 0))} &nbsp; 💬 ${escHtml(String(p.comments_count || 0))}</div>`;
       }
     }
@@ -838,7 +846,7 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
 </body>
 </html>`;
   return new Response(html, {
-    status: 200,
+    status: found ? 200 : 404,
     headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300' },
   });
 }
@@ -3641,6 +3649,32 @@ export default {
 
           return jsonResponse({ success: true, id: targetUserId, message: 'User deleted successfully.' });
         }
+      }
+
+      // Public post image: /post-image/:id — decodes the inline base64 data-URI
+      // photos stored on posts so link-preview scrapers (Facebook/WhatsApp)
+      // can fetch a real og:image. No login required.
+      if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
+          url.pathname.startsWith('/post-image/')) {
+        const imgId = decodeURIComponent(url.pathname.replace('/post-image/', '').split('/')[0].trim());
+        if (imgId) {
+          try {
+            const row = await env.DB.prepare('SELECT image_url FROM posts WHERE id = ?').bind(imgId).first<any>();
+            const m = /^data:(image\/[a-zA-Z0-9+.-]+);base64,([A-Za-z0-9+/=\s]+)$/.exec(String(row?.image_url || ''));
+            if (m) {
+              const bin = atob(m[2].replace(/\s+/g, ''));
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              const imgHeaders: Record<string, string> = {
+                'Content-Type': m[1],
+                'Cache-Control': 'public, max-age=31536000, immutable',
+                'Content-Length': String(bytes.length),
+              };
+              return new Response(request.method === 'HEAD' ? null : bytes, { status: 200, headers: imgHeaders });
+            }
+          } catch (e) {}
+        }
+        return new Response('Not found', { status: 404 });
       }
 
       // Public share pages: /post/:id and /live/:id (OG tags + preview + app CTA).

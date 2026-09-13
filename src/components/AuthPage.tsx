@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User, Church, Cross, LogIn, AlertCircle, Sparkles } from 'lucide-react';
+import { Mail, Lock, User, Church, Cross, LogIn, AlertCircle, Sparkles, Globe } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
 export const AuthPage: React.FC = () => {
   const { signIn, signUp } = useAuth();
-  const { t, language } = useTheme();
+  const { t, language, setLanguage } = useTheme();
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -66,6 +66,16 @@ export const AuthPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-(--bg-page) dark:bg-[#0f0c09] text-(--tx-strong) dark:text-[#f5ebd9] flex items-center justify-center p-4 selection:bg-(--ac-gold) selection:text-white transition-colors text-left rtl:text-right">
       <div className="w-full max-w-md bg-(--bg-card) dark:bg-[#1a140e] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+        {/* Language Toggle */}
+        <button
+          type="button"
+          onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+          title={language === 'en' ? 'التحويل إلى اللغة العربية' : 'Switch to English'}
+          className="absolute top-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-(--ln-gold)/50 bg-(--bg-soft)/80 dark:bg-[#282019]/80 text-xs font-bold text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] backdrop-blur-sm transition-colors cursor-pointer"
+        >
+          <Globe className="w-3.5 h-3.5" />
+          <span>{language === 'en' ? 'عربي' : 'EN'}</span>
+        </button>
         {/* Ambient Glow */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-(--ac-gold)/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-(--ac-bronze)/10 rounded-full blur-3xl pointer-events-none" />

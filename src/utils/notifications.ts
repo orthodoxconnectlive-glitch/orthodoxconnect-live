@@ -343,6 +343,10 @@ try {
 
               link: d . link || ( d . post_id ? 'feed' : undefined ) ,
 
+              post_id: d . post_id || d . postId || undefined ,
+
+              postId: d . post_id || d . postId || undefined ,
+
 isRead,
 
               createdAt: d . created_at || new Date ( ) . toISOString ( ) ,

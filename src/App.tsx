@@ -8,6 +8,7 @@ import { GroupCallModal } from './components/GroupCallModal';
 import { GlobalNotificationToast } from './components/GlobalNotificationToast';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
+import { NotificationPrompt } from './components/NotificationPrompt';
 import { ActiveChatsPanel } from './components/ActiveChatsPanel';
 import { LiturgicalBanner } from './components/LiturgicalBanner';
 import { InviteModal } from './components/InviteModal';
@@ -224,6 +225,9 @@ function AppContent() {
         onNavigate={handleNavigate}
         currentView={currentView}
       />
+
+      {/* Notification enable prompt */}
+      <NotificationPrompt />
 
       {/* Main Container Layout */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

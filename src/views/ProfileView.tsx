@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Church, Edit, UserPlus, UserCheck, MessageSquare, ArrowLeft, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { Post } from '../types';
-import { loadPostsByAuthor } from '../utils/posts';
-import { BUNNY_LIBRARY_ID } from '../utils/posts';
-import { parseVideoEmbed, extractCleanVideoId } from '../components/PostCard';
+import { Post, PostComment } from '../types';
+import { loadPostsByAuthor, togglePostLike, fetchPostComments, addPostComment, deletePostComment, deletePost } from '../utils/posts';
+import { PostCard } from '../components/PostCard';
+import { ReshareModal } from '../components/ReshareModal';
+import { ReportContentModal } from '../components/ReportContentModal';
+import { addNotification } from '../utils/notifications';
 import { getFollowingCount, isFollowing, toggleFollow } from '../utils/follows';
 import { testPushNotification } from '../utils/pushClient';
 
@@ -25,74 +27,6 @@ interface ProfileViewProps {
   onOpenMessengerWithUser?: (contactId?: string) => void;
 }
 
-// Renders a profile post's video correctly: YouTube/Vimeo/Bunny as iframes,
-// direct media files as a native <video>. The raw video_id (e.g. a youtu.be
-// URL or Bunny GUID) can never be fed straight into a <video> tag.
-const ProfilePostVideo: React.FC<{ post: Post }> = ({ post }) => {
-  const rawSource =
-    post.videoId || post.video_id || post.video || post.videoUrl || post.video_url || undefined;
-  if (!rawSource) return null;
-  const parsed = parseVideoEmbed(rawSource);
-  const cleanId = extractCleanVideoId(rawSource);
-  const libraryId = BUNNY_LIBRARY_ID || '713265';
-
-  if (parsed && (parsed.type === 'youtube' || parsed.type === 'vimeo')) {
-    return (
-      <div className="relative w-full overflow-hidden rounded-2xl bg-black aspect-video mt-2 border border-(--ln-gold)">
-        <iframe
-          src={parsed.embedUrl}
-          title="Video player"
-          className="absolute inset-0 w-full h-full"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-          loading="lazy"
-        />
-      </div>
-    );
-  }
-
-  if ((parsed && parsed.type === 'bunny') || cleanId) {
-    const embedUrl =
-      parsed && parsed.type === 'bunny'
-        ? parsed.embedUrl
-        : `https://iframe.mediadelivery.net/embed/${libraryId}/${cleanId}?autoplay=false&preload=true&responsive=true`;
-    return (
-      <div className="relative w-full overflow-hidden rounded-2xl bg-black aspect-video mt-2 border border-(--ln-gold)">
-        <iframe
-          src={embedUrl}
-          title="Video player"
-          className="absolute inset-0 w-full h-full"
-          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-          allowFullScreen
-          loading="lazy"
-        />
-      </div>
-    );
-  }
-
-  if (parsed && parsed.type === 'direct') {
-    return (
-      <video
-        data-media-id={`profile-post-video-${post.id}`}
-        src={parsed.embedUrl}
-        controls
-        playsInline
-        preload="none"
-        muted
-        onPointerDown={(e) => {
-          e.currentTarget.dataset.userInitiated = 'true';
-        }}
-        onTouchStart={(e) => {
-          e.currentTarget.dataset.userInitiated = 'true';
-        }}
-        className="rounded-2xl max-h-72 w-full object-cover mt-2 border border-(--ln-gold) bg-black"
-      />
-    );
-  }
-
-  return null;
-};
-
 export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenEditProfile,
   viewedUser,
@@ -100,7 +34,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onOpenMessengerWithUser,
 }) => {
   const { profile, signOut, loading: authLoading } = useAuth();
-  const { t } = useTheme();
+  const { t, language } = useTheme();
   const isSelf =
     !viewedUser ||
     !viewedUser.name ||
@@ -121,6 +55,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [pushTesting, setPushTesting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [followingState, setFollowingState] = useState<boolean>(false);
+  const [commentsMap, setCommentsMap] = useState<Record<string, PostComment[]>>({});
+  const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
+  const [reshareTargetPost, setReshareTargetPost] = useState<Post | null>(null);
+  const [reportModalData, setReportModalData] = useState<{
+    isOpen: boolean;
+    contentType: 'post' | 'comment';
+    contentId: string;
+    targetAuthorName: string;
+    snippet: string;
+  }>({
+    isOpen: false,
+    contentType: 'post',
+    contentId: '',
+    targetAuthorName: '',
+    snippet: '',
+  });
 
   useEffect(() => {
     // When viewing your own profile, wait for auth hydration so we filter
@@ -146,6 +96,144 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const handleToggleFollowUser = () => {
     const isNow = toggleFollow(targetName);
     setFollowingState(isNow);
+  };
+
+  // Like / comment / delete on this profile's posts — same behavior as the feed.
+  const handleToggleLike = async (postId: string) => {
+    try {
+      const targetPost: any = userPosts.find((p) => p.id === postId) || null;
+      const res = await togglePostLike(postId, profile);
+      if (res.success) {
+        setUserPosts((prev) =>
+          prev.map((p) => {
+            if (p.id === postId) {
+              const updatedCount =
+                typeof res.likes_count === 'number'
+                  ? res.likes_count
+                  : res.liked
+                  ? (p.likesCount || 0) + 1
+                  : Math.max(0, (p.likesCount || 1) - 1);
+              return {
+                ...p,
+                isLiked: res.liked,
+                is_liked: res.liked,
+                likesCount: updatedCount,
+                likes_count: updatedCount,
+                likers: res.likers && res.likers.length > 0 ? res.likers : p.likers,
+              };
+            }
+            return p;
+          })
+        );
+        if (res.liked) {
+          const ownerId = targetPost ? String(targetPost.authorId || targetPost.author_id || '') : '';
+          const actorId = profile?.id ? String(profile.id) : '';
+          if (ownerId && actorId && ownerId !== actorId) {
+            addNotification(
+              {
+                userId: ownerId,
+                type: 'like',
+                title: language === 'ar' ? 'بركة جديدة' : 'New blessing',
+                body:
+                  language === 'ar'
+                    ? `${profile?.full_name || 'عضو الرعية'} بارك منشورك`
+                    : `${profile?.full_name || 'A parishioner'} blessed your post`,
+                link: 'feed',
+                senderName: profile?.full_name,
+                senderAvatar: profile?.avatar_url,
+              },
+              actorId
+            ).catch((notifErr) => {
+              console.warn('[ProfileView] Like notification failed:', notifErr);
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[ProfileView] Error syncing like:', err);
+    }
+  };
+
+  const handleToggleComments = async (postId: string) => {
+    const isOpening = activeCommentPostId !== postId;
+    setActiveCommentPostId(isOpening ? postId : null);
+    if (isOpening && !commentsMap[postId]) {
+      try {
+        const fetched = await fetchPostComments(postId);
+        if (fetched) {
+          setCommentsMap((prev) => ({ ...prev, [postId]: fetched }));
+        }
+      } catch (err) {
+        console.warn('Error fetching comments:', err);
+      }
+    }
+  };
+
+  const handleAddComment = async (postId: string, commentText: string) => {
+    const text = commentText.trim();
+    if (!text) return;
+    const tempId = `temp-${Date.now()}`;
+    const optimisticComment: PostComment = {
+      id: tempId,
+      postId,
+      post_id: postId,
+      userId: profile?.id,
+      user_id: profile?.id,
+      authorName: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
+      author_name: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
+      authorAvatar:
+        profile?.avatar_url ||
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      author_avatar:
+        profile?.avatar_url ||
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      content: text,
+      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    setCommentsMap((prev) => ({
+      ...prev,
+      [postId]: [...(prev[postId] || []), optimisticComment],
+    }));
+    setUserPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p))
+    );
+    await addPostComment(postId, text, profile);
+  };
+
+  const handleDeleteComment = async (postId: string, commentId: string) => {
+    setCommentsMap((prev) => ({
+      ...prev,
+      [postId]: (prev[postId] || []).filter((c) => c.id !== commentId),
+    }));
+    setUserPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId ? { ...p, commentsCount: Math.max(0, (p.commentsCount || 1) - 1) } : p
+      )
+    );
+    await deletePostComment(postId, commentId, profile);
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    const res = await deletePost(postId, profile);
+    if (res.success) {
+      setUserPosts((prev) => prev.filter((p) => p.id !== postId));
+    }
+  };
+
+  const handleOpenReport = (
+    contentType: 'post' | 'comment',
+    contentId: string,
+    targetAuthorName: string,
+    snippet: string
+  ) => {
+    setReportModalData({
+      isOpen: true,
+      contentType,
+      contentId,
+      targetAuthorName,
+      snippet,
+    });
   };
 
   const followingCount = getFollowingCount();
@@ -305,48 +393,55 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
         ) : (
           userPosts.map((post) => (
-            <div
+            <PostCard
               key={post.id}
-              className="p-5 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] space-y-3 shadow-lg"
-            >
-              <div className="flex items-center gap-3">
-                <img
-                  src={post.authorAvatar || targetAvatar}
-                  alt={post.authorName}
-                  className="w-9 h-9 rounded-full object-cover border-2 border-(--ln-gold)"
-                />
-                <div>
-                  <span className="text-xs font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9] block">
-                    {post.authorName}
-                  </span>
-                  <span className="text-[10px] font-serif text-(--ac-bronze-tx) block">
-                    {new Date(post.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-
-              {post.text && (
-                <p className="text-xs text-(--tx-strong) dark:text-[#f5ebd9] font-serif leading-relaxed">
-                  {post.text}
-                </p>
-              )}
-
-              {post.image && (
-                <img
-                  src={post.image}
-                  alt="Post content"
-                  className="rounded-2xl max-h-72 w-full object-cover mt-2 border border-(--ln-gold)"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = 'none';
-                  }}
-                />
-              )}
-
-              <ProfilePostVideo post={post} />
-            </div>
+              post={post}
+              currentProfile={
+                profile
+                  ? {
+                      id: profile.id,
+                      email: profile.email || '',
+                      full_name: profile.full_name || '',
+                      parish: profile.parish || '',
+                      bio: profile.bio,
+                      avatar_url: profile.avatar_url,
+                      role: (profile.role as any) || 'user',
+                      created_at: profile.created_at,
+                    }
+                  : null
+              }
+              onOpenMessengerWithUser={onOpenMessengerWithUser}
+              onToggleFollow={isSelf ? undefined : () => handleToggleFollowUser()}
+              isFollowed={followingState}
+              onToggleLike={handleToggleLike}
+              onDeletePost={handleDeletePost}
+              onOpenReport={handleOpenReport}
+              onReshare={(p) => setReshareTargetPost(p)}
+              comments={commentsMap[post.id] || []}
+              isCommentsOpen={activeCommentPostId === post.id}
+              onToggleComments={() => handleToggleComments(post.id)}
+              onAddComment={handleAddComment}
+              onDeleteComment={handleDeleteComment}
+            />
           ))
         )}
       </div>
+
+      <ReshareModal
+        post={reshareTargetPost}
+        isOpen={Boolean(reshareTargetPost)}
+        onClose={() => setReshareTargetPost(null)}
+        onReshareCreated={(newPost) => setUserPosts([newPost, ...userPosts])}
+      />
+
+      <ReportContentModal
+        isOpen={reportModalData.isOpen}
+        onClose={() => setReportModalData((prev) => ({ ...prev, isOpen: false }))}
+        contentType={reportModalData.contentType}
+        contentId={reportModalData.contentId}
+        targetAuthorName={reportModalData.targetAuthorName}
+        contentSnippet={reportModalData.snippet}
+      />
     </div>
   );
 };

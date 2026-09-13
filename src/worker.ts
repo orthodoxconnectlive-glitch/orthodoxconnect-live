@@ -24,6 +24,11 @@ export interface ExecutionContext {
   passThroughOnException(): void;
 }
 
+export interface ScheduledEvent {
+  cron: string;
+  scheduledTime: number;
+}
+
 export interface Env {
   DB: D1Database;
   BUNNY_LIBRARY_ID?: string;
@@ -678,6 +683,535 @@ function ensureD1TablesOnce(db: D1Database): Promise<void> {
     });
   }
   return schemaEnsuredPromise;
+}
+
+// ---------------------------------------------------------------------------
+// OrthodoxConnect Community Bots — clearly-labeled automated daily posts.
+// ---------------------------------------------------------------------------
+// These are OFFICIAL bots, never humans in disguise:
+// - every bot profile id starts with "bot-"
+// - display names carry a 🤖 and bios state "I am not a human"
+// - the frontend renders a BOT badge next to the name (see PostCard.tsx)
+// A daily cron trigger (wrangler.toml [triggers]) runs runCommunityBots().
+// Post ids embed the date (botpost-<botid>-YYYY-MM-DD) so re-runs and
+// manual seeds are idempotent.
+
+interface CommunityBotDef {
+  id: string;
+  name: string;
+  parish: string;
+  bio: string;
+  avatar: string;
+}
+
+const COMMUNITY_BOTS: CommunityBotDef[] = [
+  {
+    id: 'bot-daily-verse',
+    name: 'Daily Verse 🤖',
+    parish: 'OrthodoxConnect',
+    bio: 'Official OrthodoxConnect bot 🤖 — I post one Bible verse every morning. I am not a human.',
+    avatar:
+      'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&q=80&w=200',
+  },
+  {
+    id: 'bot-saint-of-day',
+    name: 'Saint of the Day 🤖',
+    parish: 'OrthodoxConnect',
+    bio: 'Official OrthodoxConnect bot 🤖 — I share one saint story every morning. I am not a human.',
+    avatar:
+      'https://images.unsplash.com/photo-1438032005730-c779502df39b?auto=format&fit=crop&q=80&w=200',
+  },
+  {
+    id: 'bot-church-calendar',
+    name: 'Church Calendar 🤖',
+    parish: 'OrthodoxConnect',
+    bio: 'Official OrthodoxConnect bot 🤖 — feasts, fasts and liturgical reminders. I am not a human.',
+    avatar:
+      'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&q=80&w=200',
+  },
+];
+
+interface VerseItem {
+  en: string;
+  ar: string;
+  refEn: string;
+  refAr: string;
+}
+
+const DAILY_VERSES: VerseItem[] = [
+  {
+    en: 'For God so loved the world that He gave His only begotten Son, that whoever believes in Him should not perish but have everlasting life.',
+    ar: 'لأنه هكذا أحب الله العالم حتى بذل ابنه الوحيد، لكي لا يهلك كل من يؤمن به بل تكون له الحياة الأبدية.',
+    refEn: 'John 3:16',
+    refAr: 'يوحنا 3:16',
+  },
+  {
+    en: 'I can do all things through Christ who strengthens me.',
+    ar: 'أستطيع كل شيء في المسيح الذي يقويني.',
+    refEn: 'Philippians 4:13',
+    refAr: 'فيلبي 4:13',
+  },
+  {
+    en: 'The Lord is my shepherd; I shall not want.',
+    ar: 'الرب راعيّ فلا يعوزني شيء.',
+    refEn: 'Psalm 23:1',
+    refAr: 'مزمور 23:1',
+  },
+  {
+    en: 'And we know that all things work together for good to those who love God.',
+    ar: 'ونحن نعلم أن كل الأشياء تعمل معاً للخير للذين يحبون الله.',
+    refEn: 'Romans 8:28',
+    refAr: 'رومية 8:28',
+  },
+  {
+    en: 'Trust in the Lord with all your heart, and lean not on your own understanding.',
+    ar: 'توكل على الرب بكل قلبك، وعلى فهمك لا تعتمد.',
+    refEn: 'Proverbs 3:5',
+    refAr: 'أمثال 3:5',
+  },
+  {
+    en: 'Fear not, for I am with you; be not dismayed, for I am your God.',
+    ar: 'لا تخف لأني معك، لا تتلفت لأني إلهك.',
+    refEn: 'Isaiah 41:10',
+    refAr: 'إشعياء 41:10',
+  },
+  {
+    en: 'Come to Me, all you who labor and are heavy laden, and I will give you rest.',
+    ar: 'تعالوا إليّ يا جميع المتعبين والثقيلي الأحمال، وأنا أريحكم.',
+    refEn: 'Matthew 11:28',
+    refAr: 'متى 11:28',
+  },
+  {
+    en: 'God is our refuge and strength, a very present help in trouble.',
+    ar: 'الله لنا ملجأ وقوة، عوناً في الضيقات وُجد شديداً.',
+    refEn: 'Psalm 46:1',
+    refAr: 'مزمور 46:1',
+  },
+  {
+    en: 'Be strong and of good courage; do not be afraid, for the Lord your God is with you wherever you go.',
+    ar: 'تشدد وتشجع، لا ترهب ولا ترتعب، لأن الرب إلهك معك حيثما تذهب.',
+    refEn: 'Joshua 1:9',
+    refAr: 'يشوع 1:9',
+  },
+  {
+    en: 'Now may the God of hope fill you with all joy and peace in believing.',
+    ar: 'وليملأكم إله الرجاء كل فرح وسلام في الإيمان.',
+    refEn: 'Romans 15:13',
+    refAr: 'رومية 15:13',
+  },
+  {
+    en: 'Your word is a lamp to my feet and a light to my path.',
+    ar: 'سراج لرجلي كلامك ونور لسبيلي.',
+    refEn: 'Psalm 119:105',
+    refAr: 'مزمور 119:105',
+  },
+  {
+    en: 'Let your light so shine before men, that they may see your good works and glorify your Father in heaven.',
+    ar: 'فليضئ نوركم هكذا قدام الناس، لكي يروا أعمالكم الحسنة ويمجدوا أباكم الذي في السماوات.',
+    refEn: 'Matthew 5:16',
+    refAr: 'متى 5:16',
+  },
+  {
+    en: 'Let all that you do be done with love.',
+    ar: 'لتكن كل أموركم في محبة.',
+    refEn: '1 Corinthians 16:14',
+    refAr: 'كورنثوس الأولى 16:14',
+  },
+  {
+    en: 'Delight yourself also in the Lord, and He shall give you the desires of your heart.',
+    ar: 'تلذذ بالرب فيعطيك سؤل قلبك.',
+    refEn: 'Psalm 37:4',
+    refAr: 'مزمور 37:4',
+  },
+  {
+    en: 'But those who wait on the Lord shall renew their strength; they shall mount up with wings like eagles.',
+    ar: 'وأما منتظرو الرب فيجددون قوة، يرفعون أجنحة كالنسور.',
+    refEn: 'Isaiah 40:31',
+    refAr: 'إشعياء 40:31',
+  },
+  {
+    en: 'Peace I leave with you, My peace I give to you; not as the world gives do I give to you.',
+    ar: 'سلاماً أترك لكم، سلامي أعطيكم، ليس كما يعطي العالم أعطيكم أنا.',
+    refEn: 'John 14:27',
+    refAr: 'يوحنا 14:27',
+  },
+  {
+    en: 'Be anxious for nothing, but in everything by prayer and supplication, with thanksgiving, let your requests be made known to God.',
+    ar: 'لا تهتموا بشيء، بل في كل شيء بالصلاة والدعاء مع الشكر، لتُعلم طلباتكم لدى الله.',
+    refEn: 'Philippians 4:6',
+    refAr: 'فيلبي 4:6',
+  },
+  {
+    en: 'Oh, taste and see that the Lord is good; blessed is the man who trusts in Him!',
+    ar: 'ذوقوا وانظروا ما أطيب الرب! طوبى للرجل المتوكل عليه.',
+    refEn: 'Psalm 34:8',
+    refAr: 'مزمور 34:8',
+  },
+  {
+    en: 'He has shown you, O man, what is good; and what does the Lord require of you but to do justly, to love mercy, and to walk humbly with your God?',
+    ar: 'قد أخبرك أيها الإنسان ما هو صالح، وماذا يطلب منك الرب إلا أن تصنع الحق وتحب الرحمة وتسلك متواضعاً مع إلهك.',
+    refEn: 'Micah 6:8',
+    refAr: 'ميخا 6:8',
+  },
+  {
+    en: 'But seek first the kingdom of God and His righteousness, and all these things shall be added to you.',
+    ar: 'لكن اطلبوا أولاً ملكوت الله وبره، وهذه كلها تُزاد لكم.',
+    refEn: 'Matthew 6:33',
+    refAr: 'متى 6:33',
+  },
+  {
+    en: 'Cast your burden on the Lord, and He shall sustain you.',
+    ar: 'ألق على الرب همك فهو يعولك.',
+    refEn: 'Psalm 55:22',
+    refAr: 'مزمور 55:22',
+  },
+  {
+    en: 'For God has not given us a spirit of fear, but of power and of love and of a sound mind.',
+    ar: 'لأن الله لم يعطنا روح الفشل، بل روح القوة والمحبة والنصح.',
+    refEn: '2 Timothy 1:7',
+    refAr: 'تيموثاوس الثانية 1:7',
+  },
+  {
+    en: 'Now faith is the substance of things hoped for, the evidence of things not seen.',
+    ar: 'وأما الإيمان فهو الثقة بما يُرجى والإيقان بأمور لا تُرى.',
+    refEn: 'Hebrews 11:1',
+    refAr: 'عبرانيين 11:1',
+  },
+  {
+    en: 'He who dwells in the secret place of the Most High shall abide under the shadow of the Almighty.',
+    ar: 'الساكن في ستر العلي، في ظل القدير يبيت.',
+    refEn: 'Psalm 91:1',
+    refAr: 'مزمور 91:1',
+  },
+  {
+    en: 'If any of you lacks wisdom, let him ask of God, who gives to all liberally.',
+    ar: 'وإنما إن كان أحدكم تعوزه حكمة، فليطلب من الله الذي يعطي الجميع بسخاء.',
+    refEn: 'James 1:5',
+    refAr: 'يعقوب 1:5',
+  },
+  {
+    en: 'We love Him because He first loved us.',
+    ar: 'نحن نحبه لأنه هو أحبنا أولاً.',
+    refEn: '1 John 4:19',
+    refAr: 'يوحنا الأولى 4:19',
+  },
+  {
+    en: 'This is the day the Lord has made; we will rejoice and be glad in it.',
+    ar: 'هذا هو اليوم الذي صنعه الرب، نبتهج ونفرح فيه.',
+    refEn: 'Psalm 118:24',
+    refAr: 'مزمور 118:24',
+  },
+  {
+    en: 'And whatever you do, do it heartily, as to the Lord and not to men.',
+    ar: 'وكل ما فعلتم، فاعملوا من القلب، كما للرب ليس للناس.',
+    refEn: 'Colossians 3:23',
+    refAr: 'كولوسي 3:23',
+  },
+  {
+    en: "Through the Lord's mercies we are not consumed, because His compassions fail not. They are new every morning; great is Your faithfulness.",
+    ar: 'إنه من إحسانات الرب أننا لم نفن، لأن مراحمه لا تزول. هي جديدة في كل صباح. عظيمة أمانتك.',
+    refEn: 'Lamentations 3:22-23',
+    refAr: 'مراثي إرميا 3:22-23',
+  },
+  {
+    en: 'And God will wipe away every tear from their eyes; there shall be no more death, nor sorrow, nor crying.',
+    ar: 'وسيمسح الله كل دمعة من عيونهم، والموت لا يكون فيما بعد، ولا يكون حزن ولا صراخ.',
+    refEn: 'Revelation 21:4',
+    refAr: 'رؤيا 21:4',
+  },
+];
+
+interface SaintItem {
+  en: string;
+  ar: string;
+}
+
+const SAINTS_OF_DAY: SaintItem[] = [
+  {
+    en: 'St. Mary the Theotokos — the Mother of God and our loving intercessor in heaven.',
+    ar: 'السيدة العذراء مريم والدة الإله — أمنا وشفيعتنا في السماء.',
+  },
+  {
+    en: 'St. Anthony the Great — left everything to follow Christ in the desert and became the father of monasticism.',
+    ar: 'القديس أنطونيوس الكبير — ترك كل شيء وتبع المسيح في البرية، فصار أب الرهبنة.',
+  },
+  {
+    en: 'St. Athanasius the Apostolic — the fearless defender of the faith against Arianism.',
+    ar: 'القديس أثناسيوس الرسولي — المدافع الشجاع عن الإيمان ضد الأريوسية.',
+  },
+  {
+    en: 'St. Cyril of Alexandria — the Pillar of Faith who defended the Theotokos at Ephesus.',
+    ar: 'القديس كيرلس عمود الدين — حامي لقب والدة الإله في مجمع أفسس.',
+  },
+  {
+    en: 'St. Mark the Apostle — who brought the Gospel to Egypt and founded our Coptic Church.',
+    ar: 'القديس مرقس الرسول — كاروز الديار المصرية ومؤسس كنيستنا القبطية.',
+  },
+  {
+    en: 'St. Mina the Wonder-Worker — whose miracles are countless and whose monastery draws millions.',
+    ar: 'القديس مارمينا العجائبي — عجائبه لا تُحصى وديره يقصده الملايين.',
+  },
+  {
+    en: 'St. George the Great Martyr — the brave soldier of Christ.',
+    ar: 'القديس مارجرجس الشهيد العظيم — الجندي الشجاع للمسيح.',
+  },
+  {
+    en: 'St. Demiana — the pure virgin martyr who chose Christ above all.',
+    ar: 'القديسة دميانة — الشهيدة العفيفة التي اختارت المسيح فوق كل شيء.',
+  },
+  {
+    en: 'St. Moses the Black — from a life of sin to a giant of repentance and sainthood.',
+    ar: 'القديس موسى الأسود — من حياة الخطية إلى عملاق التوبة والقداسة.',
+  },
+  {
+    en: 'St. Pachomius — founder of communal monastic life.',
+    ar: 'القديس باخوميوس — مؤسس حياة الشركة الرهبانية.',
+  },
+  {
+    en: 'St. Macarius the Great — the lamp of the desert of Scetis.',
+    ar: 'القديس مقاريوس الكبير — مصباح برية شيهيت.',
+  },
+  {
+    en: 'St. Shenouda the Archimandrite — the great leader of the White Monastery.',
+    ar: 'القديس شنودة رئيس المتوحدين — القائد العظيم للدير الأبيض.',
+  },
+  {
+    en: 'St. Pope Kyrillos VI — the man of prayer whose miracles continue to this day.',
+    ar: 'البابا كيرلس السادس — رجل الصلاة الذي ما زالت عجائبه حتى اليوم.',
+  },
+  {
+    en: 'St. Abanoub — the child martyr who confessed Christ boldly.',
+    ar: 'القديس أبانوب — الشهيد الطفل الذي اعترف بالمسيح بشجاعة.',
+  },
+  {
+    en: 'St. Barbara — the wise virgin martyr.',
+    ar: 'القديسة بربارة — الشهيدة العذراء الحكيمة.',
+  },
+  {
+    en: 'St. Philopateer Mercurius — the saint with the two swords.',
+    ar: 'القديس فيلوباتير مرقوريوس — القديس ذو السيفين.',
+  },
+  {
+    en: 'St. Marina the Martyr — who defeated the devil and confessed Christ.',
+    ar: 'القديسة مارينا الشهيدة — التي غلبت الشيطان واعترفت بالمسيح.',
+  },
+  {
+    en: 'St. John the Baptist — the Forerunner who prepared the way of the Lord.',
+    ar: 'القديس يوحنا المعمدان — السابق الذي أعد طريق الرب.',
+  },
+  {
+    en: 'St. Stephen — the first martyr and archdeacon, full of faith and the Holy Spirit.',
+    ar: 'القديس استفانوس — أول الشهداء ورئيس الشمامسة، المملوء إيماناً وروحاً قدساً.',
+  },
+  {
+    en: 'St. Paul the Apostle — from persecutor to the great preacher to the nations.',
+    ar: 'القديس بولس الرسول — من مضطهد إلى الكارز العظيم للأمم.',
+  },
+  {
+    en: 'St. Peter the Apostle — the rock on whom Christ built His Church.',
+    ar: 'القديس بطرس الرسول — الصخرة التي بنى عليها المسيح كنيسته.',
+  },
+  {
+    en: 'St. Thomas the Apostle — whose doubt turned into the greatest confession: "My Lord and my God!"',
+    ar: 'القديس توما الرسول — الذي تحول شكه إلى أعظم اعتراف: "ربي وإلهي!"',
+  },
+  {
+    en: 'St. Mary Magdalene — the first witness of the Resurrection.',
+    ar: 'القديسة مريم المجدلية — أول شاهدة للقيامة.',
+  },
+  {
+    en: 'St. Verena — who served the sick and taught cleanliness in Switzerland.',
+    ar: 'القديسة فيرينا — التي خدمت المرضى وعلّمت النظافة في سويسرا.',
+  },
+  {
+    en: 'St. Simon the Tanner — through whose faith the Mokattam mountain was moved.',
+    ar: 'القديس سمعان الخراز — الذي بإيمانه انتقل جبل المقطم.',
+  },
+  {
+    en: 'St. Bishoy — the beloved of Christ, who washed the feet of the Lord.',
+    ar: 'القديس أنبا بيشوي — حبيب المسيح الذي غسل قدمي الرب.',
+  },
+  {
+    en: 'St. Paula — the first hermit, who lived a hidden life of prayer in the desert.',
+    ar: 'القديس أنبا بولا — أول السواح، عاش حياة الصلاة الخفية في البرية.',
+  },
+  {
+    en: 'St. Didymus the Blind — the brilliant blind teacher of Alexandria.',
+    ar: 'القديس ديديموس الضرير — المعلم السكندري البصير رغم العمى.',
+  },
+  {
+    en: 'St. Clement of Alexandria — the great teacher of the Catechetical School.',
+    ar: 'القديس إكليمنضس السكندري — المعلم العظيم للمدرسة اللاهوتية.',
+  },
+  {
+    en: 'St. Severus of Antioch — the great defender of the Orthodox faith.',
+    ar: 'القديس ساويرس الأنطاكي — المدافع العظيم عن الإيمان الأرثوذكسي.',
+  },
+];
+
+interface CalendarItem {
+  en: string;
+  ar: string;
+}
+
+const CALENDAR_NOTES: CalendarItem[] = [
+  {
+    en: 'The Coptic calendar is one of the oldest calendars still in use — over 1,700 years old! 📅',
+    ar: 'التقويم القبطي من أقدم التقاويم المستخدمة حتى اليوم — أكثر من ١٧٠٠ سنة! 📅',
+  },
+  {
+    en: 'The Great Lent is 55 days of repentance and prayer, ending with Holy Week. ✝️',
+    ar: 'الصوم الكبير ٥٥ يوماً من التوبة والصلاة، ينتهي بأسبوع الآلام. ✝️',
+  },
+  {
+    en: 'The Nativity Fast (43 days) prepares our hearts to receive Christ the newborn King. 👑',
+    ar: 'صوم الميلاد (٤٣ يوماً) يُعد قلوبنا لاستقبال المسيح الملك المولود. 👑',
+  },
+  {
+    en: "The Apostles' Fast begins after Pentecost and ends on the feast of Sts. Peter and Paul (July 12). 🕊️",
+    ar: 'صوم الرسل يبدأ بعد عيد العنصرة وينتهي بعيد القديسين بطرس وبولس (١٢ يوليو). 🕊️',
+  },
+  {
+    en: "The Fast of St. Mary (15 days, starting August 7) honors the Theotokos. 🌿",
+    ar: 'صوم السيدة العذراء (١٥ يوماً بدءاً من ٧ أغسطس) إكراماً لوالدة الإله. 🌿',
+  },
+  {
+    en: "Jonah's Fast (3 days) reminds us of Nineveh's repentance. 🐋",
+    ar: 'صوم يونان (٣ أيام) يذكرنا بتوبة أهل نينوى. 🐋',
+  },
+  {
+    en: 'The Paramoun days are strict fasting days before Nativity and Epiphany. 🙏',
+    ar: 'أيام البرامون صوم انقطاعي قبل عيدي الميلاد والغطاس. 🙏',
+  },
+  {
+    en: 'Coptic Christmas is celebrated on January 7 (29 Kiahk). 🎄',
+    ar: 'يُحتفل بعيد الميلاد القبطي في ٧ يناير (٢٩ كيهك). 🎄',
+  },
+  {
+    en: "The Epiphany (January 19) celebrates Christ's baptism in the Jordan. 💧",
+    ar: 'عيد الغطاس (١٩ يناير) نحتفل فيه بمعمودية المسيح في الأردن. 💧',
+  },
+  {
+    en: 'Palm Sunday opens Holy Week — the holiest week of the year. 🌿',
+    ar: 'أحد الشعانين يفتتح أسبوع الآلام — أقدس أسبوع في السنة. 🌿',
+  },
+  {
+    en: 'The Holy Fifty days after Resurrection are days of joy with no fasting. 🎉',
+    ar: 'الخمسون المقدسة بعد القيامة أيام فرح بلا صوم. 🎉',
+  },
+  {
+    en: 'The Nayrouz (September 11) is the Coptic New Year and the feast of the martyrs.',
+    ar: 'عيد النيروز (١١ سبتمبر) رأس السنة القبطية وعيد الشهداء.',
+  },
+  {
+    en: 'Every morning the Church prays the Agpeya — join the first hour and start your day with God. ☀️',
+    ar: 'كل صباح تصلي الكنيسة الأجبية — شارك في صلاة باكر وابدأ يومك مع الله. ☀️',
+  },
+  {
+    en: 'The Divine Liturgy is heaven on earth — try to attend every Sunday. ⛪',
+    ar: 'القداس الإلهي هو السماء على الأرض — احرص على الحضور كل أحد. ⛪',
+  },
+];
+
+function botDayOfYear(d: Date): number {
+  const start = Date.UTC(d.getUTCFullYear(), 0, 0);
+  return Math.floor((d.getTime() - start) / 86400000);
+}
+
+function versePostFor(dayOfYear: number): string {
+  const v = DAILY_VERSES[dayOfYear % DAILY_VERSES.length];
+  return (
+    '📖 Daily Verse — آية اليوم\n\n' +
+    '"' +
+    v.en +
+    '"\n— ' +
+    v.refEn +
+    '\n\n"' +
+    v.ar +
+    '"\n— ' +
+    v.refAr
+  );
+}
+
+function saintPostFor(dayOfYear: number): string {
+  const s = SAINTS_OF_DAY[dayOfYear % SAINTS_OF_DAY.length];
+  return '☨ Saint of the Day — قديس اليوم\n\n' + s.en + '\n\n' + s.ar;
+}
+
+function calendarPostFor(d: Date, dayOfYear: number): string {
+  const wd = d.getUTCDay(); // 3 = Wednesday, 5 = Friday
+  if (wd === 3 || wd === 5) {
+    const dayNameEn = wd === 3 ? 'Wednesday' : 'Friday';
+    const dayNameAr = wd === 3 ? 'الأربعاء' : 'الجمعة';
+    return (
+      '⛪ Fasting Reminder — تذكير بالصوم\n\n' +
+      'Today is ' +
+      dayNameEn +
+      ', a fasting day in our Church — we remember the betrayal and the Crucifixion. May your fast be blessed! 🙏\n\n' +
+      'اليوم ' +
+      dayNameAr +
+      '، وهو يوم صوم في كنيستنا — نتذكر الخيانة والصلب. صوماً مباركاً! 🙏'
+    );
+  }
+  const c = CALENDAR_NOTES[dayOfYear % CALENDAR_NOTES.length];
+  return '📅 Church Calendar — التقويم الكنسي\n\n' + c.en + '\n\n' + c.ar;
+}
+
+async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
+  // 1. Make sure the bot profiles exist (idempotent).
+  for (const bot of COMMUNITY_BOTS) {
+    try {
+      await db
+        .prepare(
+          `INSERT INTO profiles (id, email, full_name, parish, bio, avatar_url, role, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'user', datetime('now'), datetime('now'))
+           ON CONFLICT(id) DO UPDATE SET
+             full_name = excluded.full_name,
+             parish = excluded.parish,
+             bio = excluded.bio,
+             avatar_url = excluded.avatar_url,
+             updated_at = datetime('now')`
+        )
+        .bind(bot.id, bot.id + '@orthodoxconnect.bot', bot.name, bot.parish, bot.bio, bot.avatar)
+        .run();
+    } catch (e) {
+      console.warn('[bots] ensure profile failed for ' + bot.id, e);
+    }
+  }
+
+  // 2. One post per bot per day (idempotent by dated post id).
+  const dayStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+  const doy = botDayOfYear(now);
+  const jobs: Array<{ bot: CommunityBotDef; content: string }> = [
+    { bot: COMMUNITY_BOTS[0], content: versePostFor(doy) },
+    { bot: COMMUNITY_BOTS[1], content: saintPostFor(doy) },
+    { bot: COMMUNITY_BOTS[2], content: calendarPostFor(now, doy) },
+  ];
+
+  for (const job of jobs) {
+    const postId = 'botpost-' + job.bot.id + '-' + dayStr;
+    try {
+      const existing = await db.prepare('SELECT id FROM posts WHERE id = ?').bind(postId).first();
+      if (existing) continue;
+      await db
+        .prepare(
+          `INSERT INTO posts (id, content, video_id, author_id, author_name, author_parish, author_avatar, image_url, group_id, likes_count, comments_count, reshares_count, created_at)
+           VALUES (?, ?, NULL, ?, ?, ?, ?, NULL, NULL, 0, 0, 0, ?)`
+        )
+        .bind(
+          postId,
+          job.content,
+          job.bot.id,
+          job.bot.name,
+          job.bot.parish,
+          job.bot.avatar,
+          now.toISOString()
+        )
+        .run();
+    } catch (e) {
+      console.warn('[bots] post failed for ' + job.bot.id, e);
+    }
+  }
 }
 
 export default {
@@ -2883,6 +3417,17 @@ export default {
     } catch (err: any) {
       console.error('[Cloudflare Worker Error]:', err);
       return jsonResponse({ success: false, error: err?.message || 'Internal Server Error' }, 500);
+    }
+  },
+
+  // Daily community bots: verse, saint, and calendar posts.
+  async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
+    try {
+      if (!env.DB) return;
+      await ensureD1TablesOnce(env.DB);
+      await runCommunityBots(env.DB, new Date(event.scheduledTime || Date.now()));
+    } catch (err) {
+      console.error('[bots] scheduled run failed:', err);
     }
   },
 };

@@ -371,6 +371,11 @@ export const PostCard: React.FC<PostCardProps> = ({
               >
                 {authorName}
               </h4>
+              {authorId?.startsWith('bot-') && (
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-(--bg-soft) text-(--tx-mute) border border-(--ln-gold)">
+                  🤖 {language === 'ar' ? 'بوت' : 'BOT'}
+                </span>
+              )}
 
               {currentProfile?.full_name?.toLowerCase() !== authorName.toLowerCase() && (
                 <div className="flex items-center gap-1.5">

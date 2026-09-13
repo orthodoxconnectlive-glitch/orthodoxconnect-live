@@ -1115,7 +1115,7 @@ function calendarPostFor(d: Date): string {
     const sod = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
     const days = Math.round((sod(nx.date) - sod(d)) / 86400000);
     const whenEn = days <= 0 ? 'today' : days === 1 ? 'tomorrow' : 'in ' + days + ' days';
-    const whenAr = days <= 0 ? 'اليوم' : days === 1 ? 'غداً' : days === 2 ? 'بعد يومين' : 'بعد ' + days + ' أيام';
+    const whenAr = days <= 0 ? 'اليوم' : days === 1 ? 'غداً' : days === 2 ? 'بعد يومين' : days <= 10 ? 'بعد ' + days + ' أيام' : 'بعد ' + days + ' يوماً';
     return (
       '📅 Coming Up — قريباً\n\n' +
       nx.nameEn + ' — ' + whenEn + '\n' +

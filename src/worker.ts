@@ -5,6 +5,12 @@
  * Live Streams, Moderation Reports, Notifications, Bunny Stream, and Books Library.
  */
 
+import {
+  getTodayCommemoration,
+  getFastingInfo,
+  getUpcomingFeastsFrom,
+} from './utils/liturgicalEngine';
+
 export interface D1PreparedStatement {
   bind(...values: any[]): D1PreparedStatement;
   first<T = unknown>(colName?: string): Promise<T | null>;
@@ -1049,70 +1055,6 @@ const SAINTS_OF_DAY: SaintItem[] = [
   },
 ];
 
-interface CalendarItem {
-  en: string;
-  ar: string;
-}
-
-const CALENDAR_NOTES: CalendarItem[] = [
-  {
-    en: 'The Coptic calendar is one of the oldest calendars still in use — over 1,700 years old! 📅',
-    ar: 'التقويم القبطي من أقدم التقاويم المستخدمة حتى اليوم — أكثر من ١٧٠٠ سنة! 📅',
-  },
-  {
-    en: 'The Great Lent is 55 days of repentance and prayer, ending with Holy Week. ✝️',
-    ar: 'الصوم الكبير ٥٥ يوماً من التوبة والصلاة، ينتهي بأسبوع الآلام. ✝️',
-  },
-  {
-    en: 'The Nativity Fast (43 days) prepares our hearts to receive Christ the newborn King. 👑',
-    ar: 'صوم الميلاد (٤٣ يوماً) يُعد قلوبنا لاستقبال المسيح الملك المولود. 👑',
-  },
-  {
-    en: "The Apostles' Fast begins after Pentecost and ends on the feast of Sts. Peter and Paul (July 12). 🕊️",
-    ar: 'صوم الرسل يبدأ بعد عيد العنصرة وينتهي بعيد القديسين بطرس وبولس (١٢ يوليو). 🕊️',
-  },
-  {
-    en: "The Fast of St. Mary (15 days, starting August 7) honors the Theotokos. 🌿",
-    ar: 'صوم السيدة العذراء (١٥ يوماً بدءاً من ٧ أغسطس) إكراماً لوالدة الإله. 🌿',
-  },
-  {
-    en: "Jonah's Fast (3 days) reminds us of Nineveh's repentance. 🐋",
-    ar: 'صوم يونان (٣ أيام) يذكرنا بتوبة أهل نينوى. 🐋',
-  },
-  {
-    en: 'The Paramoun days are strict fasting days before Nativity and Epiphany. 🙏',
-    ar: 'أيام البرامون صوم انقطاعي قبل عيدي الميلاد والغطاس. 🙏',
-  },
-  {
-    en: 'Coptic Christmas is celebrated on January 7 (29 Kiahk). 🎄',
-    ar: 'يُحتفل بعيد الميلاد القبطي في ٧ يناير (٢٩ كيهك). 🎄',
-  },
-  {
-    en: "The Epiphany (January 19) celebrates Christ's baptism in the Jordan. 💧",
-    ar: 'عيد الغطاس (١٩ يناير) نحتفل فيه بمعمودية المسيح في الأردن. 💧',
-  },
-  {
-    en: 'Palm Sunday opens Holy Week — the holiest week of the year. 🌿',
-    ar: 'أحد الشعانين يفتتح أسبوع الآلام — أقدس أسبوع في السنة. 🌿',
-  },
-  {
-    en: 'The Holy Fifty days after Resurrection are days of joy with no fasting. 🎉',
-    ar: 'الخمسون المقدسة بعد القيامة أيام فرح بلا صوم. 🎉',
-  },
-  {
-    en: 'The Nayrouz (September 11) is the Coptic New Year and the feast of the martyrs.',
-    ar: 'عيد النيروز (١١ سبتمبر) رأس السنة القبطية وعيد الشهداء.',
-  },
-  {
-    en: 'Every morning the Church prays the Agpeya — join the first hour and start your day with God. ☀️',
-    ar: 'كل صباح تصلي الكنيسة الأجبية — شارك في صلاة باكر وابدأ يومك مع الله. ☀️',
-  },
-  {
-    en: 'The Divine Liturgy is heaven on earth — try to attend every Sunday. ⛪',
-    ar: 'القداس الإلهي هو السماء على الأرض — احرص على الحضور كل أحد. ⛪',
-  },
-];
-
 function botDayOfYear(d: Date): number {
   const start = Date.UTC(d.getUTCFullYear(), 0, 0);
   return Math.floor((d.getTime() - start) / 86400000);
@@ -1122,14 +1064,8 @@ function versePostFor(dayOfYear: number): string {
   const v = DAILY_VERSES[dayOfYear % DAILY_VERSES.length];
   return (
     '📖 Daily Verse — آية اليوم\n\n' +
-    '"' +
-    v.en +
-    '"\n— ' +
-    v.refEn +
-    '\n\n"' +
-    v.ar +
-    '"\n— ' +
-    v.refAr
+    '"' + v.en + '"\n— ' + v.refEn + '\n\n' +
+    '"' + v.ar + '"\n— ' + v.refAr
   );
 }
 
@@ -1138,23 +1074,60 @@ function saintPostFor(dayOfYear: number): string {
   return '☨ Saint of the Day — قديس اليوم\n\n' + s.en + '\n\n' + s.ar;
 }
 
-function calendarPostFor(d: Date, dayOfYear: number): string {
-  const wd = d.getUTCDay(); // 3 = Wednesday, 5 = Friday
-  if (wd === 3 || wd === 5) {
-    const dayNameEn = wd === 3 ? 'Wednesday' : 'Friday';
-    const dayNameAr = wd === 3 ? 'الأربعاء' : 'الجمعة';
+interface CalendarItem {
+  en: string;
+  ar: string;
+}
+
+// NOTE: the old rotating CALENDAR_NOTES were removed — the calendar bot is
+// now fully date-driven: real feasts, the real daily fasting rule, and a
+// countdown to the next feast, all from liturgicalEngine.ts.
+
+function calendarPostFor(d: Date): string {
+  // 1. A real feast today? Announce it with its verse.
+  const feast = getTodayCommemoration(d);
+  if (feast) {
     return (
-      '⛪ Fasting Reminder — تذكير بالصوم\n\n' +
-      'Today is ' +
-      dayNameEn +
-      ', a fasting day in our Church — we remember the betrayal and the Crucifixion. May your fast be blessed! 🙏\n\n' +
-      'اليوم ' +
-      dayNameAr +
-      '، وهو يوم صوم في كنيستنا — نتذكر الخيانة والصلب. صوماً مباركاً! 🙏'
+      '☨ Feast Today — عيد اليوم\n\n' +
+      feast.titleEn + ': ' + feast.nameEn + '\n' +
+      '"' + feast.textEn + '"\n— ' + feast.refEn + '\n\n' +
+      feast.titleAr + ': ' + feast.nameAr + '\n' +
+      '"' + feast.textAr + '"\n— ' + feast.refAr + '\n\n' +
+      '🕊️ ' + feast.fastingEn + ' — ' + feast.fastingAr
     );
   }
-  const c = CALENDAR_NOTES[dayOfYear % CALENDAR_NOTES.length];
-  return '📅 Church Calendar — التقويم الكنسي\n\n' + c.en + '\n\n' + c.ar;
+
+  // 2. No feast: today's real fasting rule.
+  const fastEn = getFastingInfo(d, 'en');
+  const fastAr = getFastingInfo(d, 'ar');
+  if (fastEn.type !== 'fast_free') {
+    return (
+      '⛪ Today in the Church — اليوم في الكنيسة\n\n' +
+      '🙏 ' + fastEn.label + '\n' +
+      '🙏 ' + fastAr.label
+    );
+  }
+
+  // 3. No fast either: count down to the next feast.
+  const upcoming = getUpcomingFeastsFrom(d, 1);
+  if (upcoming.length > 0) {
+    const nx = upcoming[0];
+    const sod = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const days = Math.round((sod(nx.date) - sod(d)) / 86400000);
+    const whenEn = days <= 0 ? 'today' : days === 1 ? 'tomorrow' : 'in ' + days + ' days';
+    const whenAr = days <= 0 ? 'اليوم' : days === 1 ? 'غداً' : days === 2 ? 'بعد يومين' : 'بعد ' + days + ' أيام';
+    return (
+      '📅 Coming Up — قريباً\n\n' +
+      nx.nameEn + ' — ' + whenEn + '\n' +
+      nx.nameAr + ' — ' + whenAr
+    );
+  }
+
+  return (
+    '⛪ Today in the Church — اليوم في الكنيسة\n\n' +
+    'No fasting today — a good day to pray, read, and give thanks. 🙏\n' +
+    'لا يوجد صوم اليوم — يوم جميل للصلاة والقراءة والشكر. 🙏'
+  );
 }
 
 async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
@@ -1185,7 +1158,7 @@ async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
   const jobs: Array<{ bot: CommunityBotDef; content: string }> = [
     { bot: COMMUNITY_BOTS[0], content: versePostFor(doy) },
     { bot: COMMUNITY_BOTS[1], content: saintPostFor(doy) },
-    { bot: COMMUNITY_BOTS[2], content: calendarPostFor(now, doy) },
+    { bot: COMMUNITY_BOTS[2], content: calendarPostFor(now) },
   ];
 
   for (const job of jobs) {

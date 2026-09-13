@@ -148,7 +148,7 @@ export async function ensureD1Tables(db?: D1Database) {
         full_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner',
         parish TEXT NOT NULL DEFAULT 'Orthodox Church',
         bio TEXT DEFAULT 'Orthodox Christian seeking fellowship and spiritual growth.',
-        avatar_url TEXT DEFAULT 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+        avatar_url TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png',
         role TEXT NOT NULL DEFAULT 'user',
         is_banned INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -170,7 +170,7 @@ export async function ensureD1Tables(db?: D1Database) {
         author_id TEXT,
         author_name TEXT DEFAULT 'Orthodox Parishioner',
         author_parish TEXT DEFAULT 'Orthodox Church',
-        author_avatar TEXT DEFAULT 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png',
         image_url TEXT,
         group_id TEXT,
         likes_count INTEGER DEFAULT 0,
@@ -193,7 +193,7 @@ export async function ensureD1Tables(db?: D1Database) {
         post_id TEXT NOT NULL,
         user_id TEXT,
         author_name TEXT DEFAULT 'Orthodox Parishioner',
-        author_avatar TEXT DEFAULT 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png',
         content TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
@@ -215,7 +215,7 @@ export async function ensureD1Tables(db?: D1Database) {
         id TEXT PRIMARY KEY,
         author_id TEXT,
         author_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner',
-        author_avatar TEXT DEFAULT 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+        author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png',
         author_parish TEXT DEFAULT 'Orthodox Church',
         image_url TEXT NOT NULL,
         media_type TEXT DEFAULT 'image',
@@ -1409,7 +1409,7 @@ export default {
           const fullName = body.full_name || body.fullName || (email ? email.split('@')[0] : 'Orthodox Parishioner');
           const parish = body.parish || 'Orthodox Church';
           const bio = body.bio || 'Orthodox Christian seeking fellowship and spiritual growth.';
-          const avatarUrl = body.avatar_url || body.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
+          const avatarUrl = body.avatar_url || body.avatarUrl || 'https://orthodoxconnect.live/launchericon-512x512.png';
           const isSuperAdmin = email === SUPER_ADMIN_EMAIL;
           const role = isSuperAdmin ? 'super_admin' : (body.role || 'user');
 
@@ -1500,7 +1500,7 @@ export default {
               if (env.DB) {
                 await env.DB.prepare(`
                   INSERT OR REPLACE INTO profiles (id, email, password_hash, full_name, parish, bio, avatar_url, role, is_banned, created_at, updated_at)
-                  VALUES (?, ?, ?, 'Super Admin', 'Holy Synod Headquarters', 'Global Administrator for OrthodoxConnect.', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200', 'super_admin', 0, ?, ?)
+                  VALUES (?, ?, ?, 'Super Admin', 'Holy Synod Headquarters', 'Global Administrator for OrthodoxConnect.', 'https://orthodoxconnect.live/launchericon-512x512.png', 'super_admin', 0, ?, ?)
                 `).bind(superId, email, inputHash, now, now).run();
               }
               profileRow = {
@@ -1510,7 +1510,7 @@ export default {
                 full_name: 'Super Admin',
                 parish: 'Holy Synod Headquarters',
                 bio: 'Global Administrator for OrthodoxConnect.',
-                avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+                avatar_url: 'https://orthodoxconnect.live/launchericon-512x512.png',
                 role: 'super_admin',
                 is_banned: 0,
                 created_at: now,
@@ -1561,7 +1561,7 @@ export default {
             full_name: profileRow.full_name || 'Orthodox Parishioner',
             parish: profileRow.parish || 'Orthodox Church',
             bio: profileRow.bio || '',
-            avatar_url: profileRow.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+            avatar_url: profileRow.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
             role: profileRow.role || 'user',
             created_at: profileRow.created_at,
           };
@@ -1727,7 +1727,7 @@ export default {
           const fullName = body.full_name || body.fullName || 'Orthodox Parishioner';
           const parish = body.parish || 'Orthodox Church';
           const bio = body.bio || 'Orthodox Christian seeking fellowship.';
-          const avatarUrl = body.avatar_url || body.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
+          const avatarUrl = body.avatar_url || body.avatarUrl || 'https://orthodoxconnect.live/launchericon-512x512.png';
           const role = email === SUPER_ADMIN_EMAIL ? 'super_admin' : (body.role || 'user');
           const now = new Date().toISOString();
 
@@ -1951,7 +1951,7 @@ export default {
           }
           const authorId = authStory.id;
           const authorName = body.author_name || body.authorName || 'Orthodox Parishioner';
-          const authorAvatar = body.author_avatar || body.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
+          const authorAvatar = body.author_avatar || body.authorAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png';
           const authorParish = body.author_parish || body.authorParish || 'Orthodox Church';
           const imageUrl = body.image_url || body.imageUrl || '';
           const mediaType = body.media_type || body.mediaType || 'image';
@@ -2829,7 +2829,7 @@ export default {
           const authorAvatar =
             body.author_avatar ??
             body.authorAvatar ??
-            'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+            'https://orthodoxconnect.live/launchericon-512x512.png';
           const rawImageUrl = body.image_url ?? body.image ?? null;
           const imageUrl = videoId ? null : (rawImageUrl || null);
           const groupId = body.group_id ?? body.groupId ?? null;
@@ -2883,7 +2883,7 @@ export default {
                 authorId ?? null,
                 authorName ?? 'Orthodox Parishioner',
                 authorParish ?? 'Orthodox Church',
-                authorAvatar ?? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+                authorAvatar ?? 'https://orthodoxconnect.live/launchericon-512x512.png',
                 imageUrl ?? null,
                 groupId ?? null,
                 likesCount ?? 0,
@@ -2934,7 +2934,7 @@ export default {
         }
 
         const actorName = body.author_name || body.userName || body.user_name || auth.email || 'Orthodox Parishioner';
-        const actorAvatar = body.author_avatar || body.userAvatar || body.user_avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+        const actorAvatar = body.author_avatar || body.userAvatar || body.user_avatar || 'https://orthodoxconnect.live/launchericon-512x512.png';
 
         let isLiked = false;
         let likesCount = 0;
@@ -3045,7 +3045,7 @@ export default {
           }
           const userId = auth.id;
           const authorName = body.author_name || body.authorName || auth.email || 'Orthodox Parishioner';
-          const authorAvatar = body.author_avatar || body.authorAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+          const authorAvatar = body.author_avatar || body.authorAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png';
           const createdAt = body.created_at || new Date().toISOString();
 
           if (!content) {
@@ -3336,7 +3336,7 @@ export default {
                   type,
                   title,
                   body: notifBody || title,
-                  icon: actorAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+                  icon: actorAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png',
                   data: { url: '/', notifType: type, link: link || undefined, notifId: id },
                 };
                 for (const s of subs as any[]) {
@@ -3421,7 +3421,7 @@ export default {
                 type: 'call',
                 title: `📞 Incoming ${callType === 'video' ? 'Video' : 'Voice'} Call`,
                 body: `${callerName} is calling you on OrthodoxConnect.`,
-                icon: callerAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+                icon: callerAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png',
                 data: { url: '/?call=' + callId, callId, callerName, callType },
               };
               let sent = 0;
@@ -3652,6 +3652,25 @@ export default {
         if (shareId) {
           return await renderSharePage(env.DB, isLivePath, shareId);
         }
+      }
+
+      // TEMP one-time migration: placeholder Unsplash avatars -> app logo.
+      if (url.pathname === '/api/admin/migrate-avatars' && request.method === 'POST' && env.DB) {
+        const LOGO = 'https://orthodoxconnect.live/launchericon-512x512.png';
+        const counts: Record<string, number> = {};
+        const targets: Array<[string, string]> = [
+          ['profiles', 'avatar_url'],
+          ['posts', 'author_avatar'],
+          ['post_comments', 'author_avatar'],
+          ['stories', 'author_avatar'],
+        ];
+        for (const [t, c] of targets) {
+          const r = await env.DB.prepare(
+            `UPDATE ${t} SET ${c} = ? WHERE ${c} LIKE '%images.unsplash.com/photo-1535713875002%' OR ${c} LIKE '%images.unsplash.com/photo-1544005313%'`
+          ).bind(LOGO).run();
+          counts[t] = (r as any).meta?.changes ?? 0;
+        }
+        return jsonResponse({ success: true, counts });
       }
 
       return jsonResponse({ success: false, error: 'Endpoint Not Found' }, 404);

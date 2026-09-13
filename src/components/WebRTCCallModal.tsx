@@ -141,7 +141,7 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
               ) : (
                 <div className="w-full h-full max-h-[300px] rounded-2xl border-2 border-amber-500/40 bg-black flex flex-col items-center justify-center gap-3">
                   <img
-                    src={callState.partnerAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
+                    src={callState.partnerAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
                     alt={callState.partnerName}
                     className="w-20 h-20 rounded-full object-cover border-2 border-amber-400"
                   />
@@ -177,7 +177,7 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
             <div className="flex flex-col items-center text-center space-y-4">
               <div className="relative">
                 <img
-                  src={callState.partnerAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
+                  src={callState.partnerAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
                   alt={callState.partnerName}
                   className="w-28 h-28 rounded-full object-cover border-4 border-amber-500 shadow-2xl"
                 />

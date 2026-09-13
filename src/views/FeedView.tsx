@@ -404,7 +404,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         author_parish: profile?.parish || (language === 'ar' ? 'كنيسة أرثوذكسية' : 'Orthodox Church'),
         author_avatar:
           profile?.avatar_url ||
-          'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+          'https://orthodoxconnect.live/launchericon-512x512.png',
         created_at: new Date().toISOString(),
       };
 
@@ -557,10 +557,10 @@ export const FeedView: React.FC<FeedViewProps> = ({
       author_name: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
       authorAvatar:
         profile?.avatar_url ||
-        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        'https://orthodoxconnect.live/launchericon-512x512.png',
       author_avatar:
         profile?.avatar_url ||
-        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        'https://orthodoxconnect.live/launchericon-512x512.png',
       content: text,
       createdAt: new Date().toISOString(),
       created_at: new Date().toISOString(),

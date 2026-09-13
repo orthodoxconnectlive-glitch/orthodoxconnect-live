@@ -232,7 +232,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-(--bg-inset) dark:bg-[#282019] border border-(--ln-bright)/20 text-xs text-(--tx-head) dark:text-[#f5ebd9]"
                   >
                     <img
-                      src={rsvp.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
+                      src={rsvp.userAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
                       alt={rsvp.userName}
                       className="w-5 h-5 rounded-full object-cover border border-(--ln-bright)/40"
                     />

@@ -52,7 +52,7 @@ const ParticipantTile: React.FC<{
       ) : (
         <div className="flex flex-col items-center gap-2 p-4">
           <img
-            src={avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
+            src={avatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
             alt={name}
             className="w-16 h-16 rounded-full object-cover border-2 border-amber-500"
           />

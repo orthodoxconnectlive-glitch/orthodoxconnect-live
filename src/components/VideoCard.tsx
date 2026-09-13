@@ -137,7 +137,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const authorAvatar =
     video.authorAvatar ||
     rawItem.author_avatar ||
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+    'https://orthodoxconnect.live/launchericon-512x512.png';
   const authorId = video.authorId || rawItem.author_id;
   const videoText = video.text || rawItem.content || '';
   const postImage = video.image || rawItem.image_url || rawItem.image || rawItem.photo_url;

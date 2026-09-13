@@ -36,11 +36,11 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
   }, [isOpen, profile]);
 
   const AVATAR_PRESETS = [
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+    'https://orthodoxconnect.live/launchericon-512x512.png',
     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
     'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
     'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
-    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+    'https://orthodoxconnect.live/launchericon-512x512.png',
   ];
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -182,7 +182,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
             <div className="flex gap-4 items-center">
               <div className="relative">
                 <img
-                  src={avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
+                  src={avatarUrl || 'https://orthodoxconnect.live/launchericon-512x512.png'}
                   alt="Avatar Preview"
                   className="w-16 h-16 rounded-2xl border-2 border-(--ln-gold) object-cover shrink-0 shadow-lg"
                 />

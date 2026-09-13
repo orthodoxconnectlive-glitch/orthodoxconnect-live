@@ -29,7 +29,7 @@ export function getOrCreateClientIdentity(explicitProfile?: any): {
     return {
       userId: String(profile.id),
       userName: profile.full_name || profile.name || 'Orthodox Parishioner',
-      userAvatar: profile.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      userAvatar: profile.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
     };
   }
 
@@ -38,7 +38,7 @@ export function getOrCreateClientIdentity(explicitProfile?: any): {
     return {
       userId: `user-${profile.email.trim().toLowerCase()}`,
       userName: profile.full_name || profile.email.split('@')[0],
-      userAvatar: profile.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      userAvatar: profile.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
     };
   }
 
@@ -57,7 +57,7 @@ export function getOrCreateClientIdentity(explicitProfile?: any): {
   return {
     userId: guestId,
     userName: 'Orthodox Parishioner',
-    userAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+    userAvatar: 'https://orthodoxconnect.live/launchericon-512x512.png',
   };
 }
 

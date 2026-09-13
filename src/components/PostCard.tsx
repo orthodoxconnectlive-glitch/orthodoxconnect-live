@@ -214,7 +214,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   const authorName = post.authorName || post.author_name || rawPost.profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner');
   const authorParish = post.authorParish || post.author_parish || rawPost.profile?.parish || (language === 'ar' ? 'كنيسة أرثوذكسية' : 'Orthodox Parish');
-  const authorAvatar = post.authorAvatar || post.author_avatar || rawPost.profile?.avatar_url || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+  const authorAvatar = post.authorAvatar || post.author_avatar || rawPost.profile?.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png';
   const authorId = post.authorId || post.author_id || rawPost.author_id;
   const postImage = post.imageUrl || post.image || post.image_url || null;
 
@@ -282,8 +282,8 @@ export const PostCard: React.FC<PostCardProps> = ({
         postId: post.id,
         author_name: language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner',
         authorName: language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner',
-        author_avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-        authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        author_avatar: 'https://orthodoxconnect.live/launchericon-512x512.png',
+        authorAvatar: 'https://orthodoxconnect.live/launchericon-512x512.png',
         content: c,
         created_at: new Date().toISOString(),
         createdAt: new Date().toISOString(),
@@ -620,7 +620,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               likers.slice(0, 3).map((l, i) => (
                 <img
                   key={i}
-                  src={l.userAvatar || l.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
+                  src={l.userAvatar || l.avatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
                   alt={l.userName || l.name || 'Liker'}
                   className="w-5 h-5 rounded-full border border-white dark:border-[#1f1914] object-cover"
                 />
@@ -749,7 +749,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                 return (
                   <div key={comm.id} className="flex items-start gap-2.5 group">
                     <img
-                      src={comm.author_avatar || comm.authorAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
+                      src={comm.author_avatar || comm.authorAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
                       alt={comm.author_name || comm.authorName || 'User'}
                       className="w-8 h-8 rounded-full object-cover border border-(--ln-gold)/40 mt-0.5 shrink-0 cursor-pointer"
                       onClick={() =>
@@ -819,7 +819,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
           <form onSubmit={handleCommentSubmit} className="flex items-center gap-2 pt-1.5">
             <img
-              src={currentProfile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
+              src={currentProfile?.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png'}
               alt="You"
               className="w-8 h-8 rounded-full object-cover border border-(--ln-gold) shrink-0"
             />
@@ -900,7 +900,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   >
                     <div className="flex items-center gap-3">
                       <img
-                        src={liker.userAvatar || liker.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
+                        src={liker.userAvatar || liker.avatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
                         alt={liker.userName || liker.name || 'User'}
                         className="w-9 h-9 rounded-full object-cover border border-(--ln-gold)"
                       />

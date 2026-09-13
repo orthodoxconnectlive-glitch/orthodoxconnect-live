@@ -156,7 +156,7 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
           name: p.full_name || 'Parish Member',
           title: 'Parishioner',
           parish: p.parish || 'Orthodox Church',
-          avatar: p.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+          avatar: p.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
           bio: p.bio || 'Orthodox Christian parishioner.',
           isOnline: true,
         }));

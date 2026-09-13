@@ -174,7 +174,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
             authorAvatar:
               d.author_avatar ||
               d.authorAvatar ||
-              'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+              'https://orthodoxconnect.live/launchericon-512x512.png',
             authorParish: d.author_parish || d.authorParish || (ar ? 'كنيسة أرثوذكسية' : 'Orthodox Church'),
             imageUrl: d.image_url || d.imageUrl || '',
             mediaType: d.media_type || d.mediaType || 'image',
@@ -317,7 +317,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
         authorName: profile?.full_name || (ar ? 'عضو الرعية' : 'Orthodox Parishioner'),
         authorAvatar:
           profile?.avatar_url ||
-          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+          'https://orthodoxconnect.live/launchericon-512x512.png',
         authorParish: profile?.parish || (ar ? 'كاتدرائية الثالوث الأقدس' : 'Holy Trinity Cathedral'),
         imageUrl: mediaUrl,
         mediaType,
@@ -403,7 +403,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
         >
           <div className="relative w-16 h-16 rounded-full bg-(--bg-soft) dark:bg-[#282019] border-2 border-dashed border-(--ln-gold) flex items-center justify-center transition-transform group-hover:scale-105 shadow-md">
             <img
-              src={profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
+              src={profile?.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png'}
               alt="You"
               className="w-full h-full rounded-full object-cover opacity-70"
             />

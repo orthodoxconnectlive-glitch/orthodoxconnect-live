@@ -164,7 +164,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="w-full flex items-center gap-3 p-2.5 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] hover:bg-(--bg-deep) transition-all text-left rtl:text-right mb-3 group cursor-pointer border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-md"
           >
             <img
-              src={profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'}
+              src={profile.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png'}
               alt={profile.full_name}
               className="w-10 h-10 rounded-full object-cover border-2 border-(--ln-gold) shrink-0"
             />

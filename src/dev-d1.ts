@@ -48,13 +48,13 @@ export function getDevD1Database(): D1Database {
       db.exec(`
         INSERT INTO profiles (id, email, password_hash, full_name, parish, bio, avatar_url, role, is_banned, created_at, updated_at)
         VALUES 
-          ('user-fr-anthony', 'fr.anthony@orthodox.org', 'seeded', 'Fr. Anthony Shenouda', 'St. Mark Coptic Orthodox Cathedral', 'Priest and spiritual father.', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200', 'clergy', 0, datetime('now'), datetime('now')),
+          ('user-fr-anthony', 'fr.anthony@orthodox.org', 'seeded', 'Fr. Anthony Shenouda', 'St. Mark Coptic Orthodox Cathedral', 'Priest and spiritual father.', 'https://orthodoxconnect.live/launchericon-512x512.png', 'clergy', 0, datetime('now'), datetime('now')),
           ('user-deacon-mark', 'deacon.mark@orthodox.org', 'seeded', 'Deacon Mark Mikhail', 'St. George Coptic Orthodox Church', 'Youth leader and servant.', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200', 'user', 0, datetime('now'), datetime('now')),
-          ('super-admin-root', 'orthodoxconnect.live@gmail.com', 'seeded', 'Super Admin', 'Holy Synod Headquarters', 'Global Administrator for OrthodoxConnect.', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200', 'super_admin', 0, datetime('now'), datetime('now'));
+          ('super-admin-root', 'orthodoxconnect.live@gmail.com', 'seeded', 'Super Admin', 'Holy Synod Headquarters', 'Global Administrator for OrthodoxConnect.', 'https://orthodoxconnect.live/launchericon-512x512.png', 'super_admin', 0, datetime('now'), datetime('now'));
 
         INSERT INTO posts (id, content, video_id, author_id, author_name, author_parish, author_avatar, image_url, likes_count, comments_count, reshares_count, created_at)
         VALUES 
-          ('post-seed-1', 'Blessed Feast of the Transfiguration of our Lord and Savior Jesus Christ! "Lord, it is good for us to be here; if You wish, let us make here three tabernacles: one for You, one for Moses, and one for Elijah." (Matthew 17:4)', NULL, 'user-fr-anthony', 'Fr. Anthony Shenouda', 'St. Mark Coptic Orthodox Cathedral', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200', 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800', 14, 1, 5, datetime('now', '-2 hours')),
+          ('post-seed-1', 'Blessed Feast of the Transfiguration of our Lord and Savior Jesus Christ! "Lord, it is good for us to be here; if You wish, let us make here three tabernacles: one for You, one for Moses, and one for Elijah." (Matthew 17:4)', NULL, 'user-fr-anthony', 'Fr. Anthony Shenouda', 'St. Mark Coptic Orthodox Cathedral', 'https://orthodoxconnect.live/launchericon-512x512.png', 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=800', 14, 1, 5, datetime('now', '-2 hours')),
           ('post-seed-2', 'Glory to God! The youth choir has uploaded the live recording of the midnight praises (Tasbeha) from Friday night.', 'sample-bunny-guid-01', 'user-deacon-mark', 'Deacon Mark Mikhail', 'St. George Coptic Orthodox Church', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200', NULL, 22, 0, 4, datetime('now', '-5 hours'));
 
         INSERT INTO post_likes (post_id, user_id, user_name, user_avatar, created_at)
@@ -64,7 +64,7 @@ export function getDevD1Database(): D1Database {
           ('post-seed-1', 'user-kyrollos-m', 'Kyrollos Mansour', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200', datetime('now', '-1 hour')),
           ('post-seed-1', 'user-peter-hanna', 'Peter Hanna', 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=200', datetime('now', '-2 hours')),
           ('post-seed-1', 'user-marina-ibrahim', 'Marina Ibrahim', 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200', datetime('now', '-2 hours')),
-          ('post-seed-2', 'user-fr-anthony', 'Fr. Anthony Shenouda', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200', datetime('now', '-2 hours')),
+          ('post-seed-2', 'user-fr-anthony', 'Fr. Anthony Shenouda', 'https://orthodoxconnect.live/launchericon-512x512.png', datetime('now', '-2 hours')),
           ('post-seed-2', 'user-david-shenouda', 'David Shenouda', 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=200', datetime('now', '-3 hours')),
           ('post-seed-2', 'user-sarah-boulos', 'Sarah Boulos', 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=200', datetime('now', '-4 hours'));
 
@@ -74,7 +74,7 @@ export function getDevD1Database(): D1Database {
 
         INSERT INTO stories (id, author_id, author_name, author_avatar, author_parish, image_url, caption, created_at)
         VALUES 
-          ('story-seed-1', 'user-fr-anthony', 'Fr. Anthony Shenouda', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200', 'St. Mark Cathedral', 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=600', 'Daily Liturgy reflection', datetime('now', '-3 hours'));
+          ('story-seed-1', 'user-fr-anthony', 'Fr. Anthony Shenouda', 'https://orthodoxconnect.live/launchericon-512x512.png', 'St. Mark Cathedral', 'https://images.unsplash.com/photo-1548625361-1959779df5ff?auto=format&fit=crop&q=80&w=600', 'Daily Liturgy reflection', datetime('now', '-3 hours'));
 
         INSERT INTO live_streams (id, title, host_parish, priest_name, media_url, is_live, viewers_count, created_at)
         VALUES 
@@ -82,7 +82,7 @@ export function getDevD1Database(): D1Database {
 
         INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at)
         VALUES 
-          ('notif-seed-1', 'all', 'user-fr-anthony', 'Fr. Anthony Shenouda', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200', 'system', 'Welcome to OrthodoxConnect', 'Connect with your parish, watch spiritual reflections, and join the community.', NULL, 'feed', 0, datetime('now'));
+          ('notif-seed-1', 'all', 'user-fr-anthony', 'Fr. Anthony Shenouda', 'https://orthodoxconnect.live/launchericon-512x512.png', 'system', 'Welcome to OrthodoxConnect', 'Connect with your parish, watch spiritual reflections, and join the community.', NULL, 'feed', 0, datetime('now'));
       `);
     }
   } catch (err) {

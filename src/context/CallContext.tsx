@@ -135,7 +135,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // 2. Trigger native OS Web Notification even if app/tab is backgrounded/minimized
         triggerBrowserNotification(`📞 Incoming Call from ${signal.callerName}`, {
           body: `${signal.callerParish || 'Orthodox Parishioner'} is calling you on OrthodoxConnect. Click to answer.`,
-          icon: signal.callerAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+          icon: signal.callerAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png',
           tag: 'incoming-call',
           requireInteraction: true,
         });
@@ -395,7 +395,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       callId,
       callerId: profile?.id || 'parishioner-' + Date.now(),
       callerName: profile?.full_name || 'Orthodox Parishioner',
-      callerAvatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      callerAvatar: profile?.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
       callerParish: profile?.parish || 'Orthodox Parish',
       targetUserId: partner.id,
       callType: type,

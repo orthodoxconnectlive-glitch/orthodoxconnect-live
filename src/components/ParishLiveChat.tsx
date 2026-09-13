@@ -29,7 +29,7 @@ const INITIAL_MESSAGES_EN: ChatMessage[] = [
     role: 'member',
     text: 'Lord Have Mercy 🙏 Blessed feast day to all!',
     timestamp: '10:02 AM',
-    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150',
+    avatarUrl: 'https://orthodoxconnect.live/launchericon-512x512.png',
   },
   {
     id: 'msg-3',
@@ -64,7 +64,7 @@ const INITIAL_MESSAGES_AR: ChatMessage[] = [
     role: 'member',
     text: 'يا رب ارحم 🙏 عيد مبارك ومقدس للجميع!',
     timestamp: '10:02 ص',
-    avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150',
+    avatarUrl: 'https://orthodoxconnect.live/launchericon-512x512.png',
   },
   {
     id: 'msg-3',
@@ -146,7 +146,7 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
       }),
       avatarUrl:
         profile?.avatar_url ||
-        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150',
+        'https://orthodoxconnect.live/launchericon-512x512.png',
     };
 
     setMessages((prev) => [...prev, newMessage]);
@@ -172,7 +172,7 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
       isBlessingRequest: true,
       avatarUrl:
         profile?.avatar_url ||
-        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150',
+        'https://orthodoxconnect.live/launchericon-512x512.png',
     };
 
     setMessages((prev) => [...prev, blessingMessage]);
@@ -240,7 +240,7 @@ export const ParishLiveChat: React.FC<ParishLiveChatProps> = ({ parishName }) =>
             <img
               src={
                 msg.avatarUrl ||
-                'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150'
+                'https://orthodoxconnect.live/launchericon-512x512.png'
               }
               alt={msg.author}
               className="w-6 h-6 rounded-full object-cover border border-amber-600/30 shrink-0 mt-0.5"

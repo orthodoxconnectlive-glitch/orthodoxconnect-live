@@ -58,12 +58,12 @@ export const GroupRoomModal: React.FC<GroupRoomModalProps> = ({ room, isOpen, on
     {
       name: room.hostName,
       role: language === 'ar' ? 'المستضيف' : 'Host',
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      avatar: 'https://orthodoxconnect.live/launchericon-512x512.png',
     },
     {
       name: profile?.full_name || (language === 'ar' ? 'أنت' : 'You'),
       role: language === 'ar' ? 'مشارك' : 'Participant',
-      avatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      avatar: profile?.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
     },
   ];
 

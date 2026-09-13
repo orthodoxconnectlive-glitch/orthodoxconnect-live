@@ -307,7 +307,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
         authorParish: profile?.parish || 'Orthodox Church',
         authorAvatar:
           profile?.avatar_url ||
-          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+          'https://orthodoxconnect.live/launchericon-512x512.png',
         authorId: profile?.id,
         video_id: uploadedGuid,
         video: uploadedGuid,
@@ -415,7 +415,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
       authorName: profile?.full_name || 'Orthodox Parishioner',
       authorAvatar:
         profile?.avatar_url ||
-        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+        'https://orthodoxconnect.live/launchericon-512x512.png',
       text: trimmed,
       createdAt: 'Just now',
     };

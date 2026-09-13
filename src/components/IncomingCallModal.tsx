@@ -40,7 +40,7 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
               <img
                 src={
                   callState.partnerAvatar ||
-                  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'
+                  'https://orthodoxconnect.live/launchericon-512x512.png'
                 }
                 alt={callState.partnerName}
                 className="w-full h-full object-cover rounded-full"

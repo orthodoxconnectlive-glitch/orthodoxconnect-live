@@ -181,7 +181,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
         id: savedContactId,
         name: 'Parish Member',
         parish: 'Orthodox Fellowship',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+        avatar: 'https://orthodoxconnect.live/launchericon-512x512.png',
         isOnline: true,
       };
     }
@@ -225,7 +225,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
               name: displayName,
               full_name: p.full_name || undefined,
               parish: p.parish || 'Orthodox Church',
-              avatar: p.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+              avatar: p.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
               isOnline: true,
               lastMessage: activePartnerIds.has(p.id) ? 'Active conversation' : 'Tap to chat',
             };
@@ -334,7 +334,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
         id: initialContactId,
         name: 'Parish Member',
         parish: 'Orthodox Fellowship',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+        avatar: 'https://orthodoxconnect.live/launchericon-512x512.png',
         isOnline: true,
         lastMessage: 'Started a new conversation',
         lastMessageTime: 'Just now',
@@ -762,7 +762,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
               <img
                 src={
                   profile?.avatar_url ||
-                  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'
+                  'https://orthodoxconnect.live/launchericon-512x512.png'
                 }
                 alt={profile?.full_name || 'User'}
                 className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-zinc-700 cursor-pointer hover:opacity-90"
@@ -804,7 +804,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
               <img
                 src={
                   profile?.avatar_url ||
-                  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'
+                  'https://orthodoxconnect.live/launchericon-512x512.png'
                 }
                 alt="Your Story"
                 className="w-11 h-11 rounded-full object-cover"
@@ -1404,7 +1404,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
               </div>
               <div className="grid grid-cols-3 gap-1.5">
                 <img
-                  src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200"
+                  src="https://orthodoxconnect.live/launchericon-512x512.png"
                   alt="Shared"
                   className="w-full h-16 object-cover rounded-lg"
                 />

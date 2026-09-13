@@ -195,7 +195,7 @@ export const AdminPanelView: React.FC = () => {
       full_name: name,
       parish,
       role,
-      avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+      avatar_url: 'https://orthodoxconnect.live/launchericon-512x512.png',
       created_at: new Date().toISOString(),
     };
 
@@ -482,7 +482,7 @@ export const AdminPanelView: React.FC = () => {
                             <img
                               src={
                                 user.avatar_url ||
-                                'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'
+                                'https://orthodoxconnect.live/launchericon-512x512.png'
                               }
                               alt={user.full_name}
                               className="w-8 h-8 rounded-full object-cover border border-(--ln-bright)/40"

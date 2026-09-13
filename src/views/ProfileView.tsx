@@ -42,8 +42,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const targetName = isSelf ? profile?.full_name || 'My Profile' : viewedUser!.name;
   const targetAvatar = isSelf
-    ? profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200'
-    : viewedUser?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
+    ? profile?.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png'
+    : viewedUser?.avatar || 'https://orthodoxconnect.live/launchericon-512x512.png';
   const targetRole = isSelf ? profile?.role || 'Parish Member' : viewedUser?.role || 'Orthodox Member';
   const targetParish = isSelf ? profile?.parish || 'St. George Parish' : viewedUser?.parish || 'Holy Trinity Cathedral';
   const targetBio = isSelf
@@ -183,10 +183,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       author_name: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
       authorAvatar:
         profile?.avatar_url ||
-        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        'https://orthodoxconnect.live/launchericon-512x512.png',
       author_avatar:
         profile?.avatar_url ||
-        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        'https://orthodoxconnect.live/launchericon-512x512.png',
       content: text,
       createdAt: new Date().toISOString(),
       created_at: new Date().toISOString(),

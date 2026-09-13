@@ -25,7 +25,7 @@ const DEFAULT_ACTIVE_MEMBERS_EN: ActiveChatUser[] = [
     id: 'user-fr-athanasios',
     name: 'Fr. Athanasios',
     parish: "St. Anthony's Monastery",
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+    avatar: 'https://orthodoxconnect.live/launchericon-512x512.png',
     isOnline: true,
     lastMessage: 'Peace be with you all. ☨',
   },
@@ -60,7 +60,7 @@ const DEFAULT_ACTIVE_MEMBERS_AR: ActiveChatUser[] = [
     id: 'user-fr-athanasios',
     name: 'أبونا أثناسيوس',
     parish: 'دير القديس أنطونيوس',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+    avatar: 'https://orthodoxconnect.live/launchericon-512x512.png',
     isOnline: true,
     lastMessage: 'سلام ونعمة للجميع. ☨',
   },
@@ -109,7 +109,7 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
             parish: p.parish || (language === 'ar' ? 'كنيسة أرثوذكسية' : 'Orthodox Church'),
             avatar:
               p.avatar_url ||
-              'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200',
+              'https://orthodoxconnect.live/launchericon-512x512.png',
             isOnline: true,
             lastMessage: language === 'ar' ? 'اضغط لفتح المحادثة' : 'Tap to open chat',
           }));

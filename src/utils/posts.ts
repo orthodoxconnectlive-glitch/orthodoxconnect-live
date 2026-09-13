@@ -50,8 +50,8 @@ export function mapRowToPost(row: any): Post {
       author_name: 'Orthodox Parishioner',
       authorParish: 'Orthodox Church',
       author_parish: 'Orthodox Church',
-      authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-      author_avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      authorAvatar: 'https://orthodoxconnect.live/launchericon-512x512.png',
+      author_avatar: 'https://orthodoxconnect.live/launchericon-512x512.png',
       createdAt: new Date().toISOString(),
       created_at: new Date().toISOString(),
     };
@@ -76,7 +76,7 @@ export function mapRowToPost(row: any): Post {
     row.authorAvatar ||
     row.profile?.avatar_url ||
     row.profiles?.avatar_url ||
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
+    'https://orthodoxconnect.live/launchericon-512x512.png';
 
   const authorId = row.author_id || row.authorId || undefined;
   const rawVideo = row.video_id || row.videoId || row.video || row.video_url || undefined;
@@ -261,7 +261,7 @@ export function getActiveUserIdentity(overrideProfile?: any): {
       userName: profile.full_name || profile.name || 'Orthodox Parishioner',
       userAvatar:
         profile.avatar_url ||
-        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        'https://orthodoxconnect.live/launchericon-512x512.png',
       email: profile.email || '',
       role: profile.role || 'user',
     };
@@ -273,7 +273,7 @@ export function getActiveUserIdentity(overrideProfile?: any): {
       userName: profile.full_name || profile.email.split('@')[0],
       userAvatar:
         profile.avatar_url ||
-        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+        'https://orthodoxconnect.live/launchericon-512x512.png',
       email: profile.email,
       role: profile.role || 'user',
     };
@@ -298,7 +298,7 @@ export function getActiveUserIdentity(overrideProfile?: any): {
     userId: guestId,
     userName: 'Orthodox Parishioner',
     userAvatar:
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      'https://orthodoxconnect.live/launchericon-512x512.png',
     email: '',
     role: 'guest',
   };
@@ -444,7 +444,7 @@ export async function savePost(postPartial: Partial<Post>): Promise<Post> {
     authorParish: postPartial.authorParish || 'Orthodox Church',
     authorAvatar:
       postPartial.authorAvatar ||
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+      'https://orthodoxconnect.live/launchericon-512x512.png',
     authorId: postPartial.authorId,
     image: videoGuid ? undefined : postPartial.image,
     video: videoGuid,
@@ -579,8 +579,8 @@ export async function fetchPostComments(postId: string): Promise<any[]> {
           user_id: c.user_id,
           authorName: c.author_name || 'Orthodox Parishioner',
           author_name: c.author_name || 'Orthodox Parishioner',
-          authorAvatar: c.author_avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
-          author_avatar: c.author_avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200',
+          authorAvatar: c.author_avatar || 'https://orthodoxconnect.live/launchericon-512x512.png',
+          author_avatar: c.author_avatar || 'https://orthodoxconnect.live/launchericon-512x512.png',
           content: c.content,
           createdAt: c.created_at || new Date().toISOString(),
           created_at: c.created_at || new Date().toISOString(),

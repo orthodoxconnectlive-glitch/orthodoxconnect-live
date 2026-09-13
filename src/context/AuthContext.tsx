@@ -77,6 +77,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     initAuth();
+
+    // If the server rejects our session token (expired/invalid), bounce to login.
+    const onSessionExpired = () => {
+      setUser(null);
+      setProfile(null);
+      setCurrentUserId(null);
+      setIsAuthModalOpen(true);
+    };
+    window.addEventListener('oc:session-expired', onSessionExpired);
+    return () => window.removeEventListener('oc:session-expired', onSessionExpired);
   }, []);
 
   const signIn = async (email: string, password?: string) => {

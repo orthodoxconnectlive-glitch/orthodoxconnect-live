@@ -27,6 +27,7 @@ import { uploadMediaFile, uploadVideoToBunnyStream, compressImageToDataUrl } fro
 import { isFollowing, toggleFollow } from '../utils/follows';
 import { addNotification } from '../utils/notifications';
 import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../lib/api';
 import { useTheme } from '../context/ThemeContext';
 import { ReshareModal } from '../components/ReshareModal';
 import { ReportContentModal } from '../components/ReportContentModal';
@@ -408,9 +409,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
       };
 
       try {
-        await fetch('/api/posts', {
+        await apiFetch('/api/posts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(postPayload),
         });
       } catch (postErr) {

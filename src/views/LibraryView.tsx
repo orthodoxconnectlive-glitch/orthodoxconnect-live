@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon, Pencil, Trash2 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { apiFetch } from '../lib/api';
 
 interface Book {
   id: string;
@@ -120,12 +121,8 @@ export const LibraryView: React.FC = () => {
     if (!window.confirm(confirmMsg)) return;
 
     try {
-      const res = await fetch(`/api/books/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setBooks((prev) => prev.filter((b) => b.id !== id));
-      } else {
-        alert(language === 'ar' ? 'فشل حذف الكتاب' : 'Failed to delete book');
-      }
+      await apiFetch(`/api/books/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      setBooks((prev) => prev.filter((b) => b.id !== id));
     } catch (err) {
       console.error(err);
       alert('Error deleting book');

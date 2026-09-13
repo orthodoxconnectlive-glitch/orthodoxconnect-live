@@ -4,6 +4,15 @@ import { soundSynth , triggerBrowserNotification } from './ringtone' ;
 
 const API_BASE_URL = typeof window !== 'undefined' ? ( window . location . origin || '' ) : '' ;
 
+// Session token for authenticated API calls. The server verifies identity
+// ONLY from this Bearer token (never from spoofable client headers).
+function authHeaders ( ) : Record < string , string > {
+  try {
+    const t = localStorage . getItem ( 'orthodox_auth_token' ) ;
+    return t ? { 'Authorization' : `Bearer ${ t }` } : { } ;
+  } catch ( e ) { return { } ; }
+}
+
 const DEFAULT_PREFERENCES: NotificationPreferences = {
 
 messages: true , mentions: true , groupInvites: true , eventInvites: true , moderationAlerts: true , emailAlerts: false , } ;
@@ -299,7 +308,7 @@ try {
 
     const queryParam = effectiveUserId ? `?recipient_id=${ encodeURIComponent ( effectiveUserId ) }` : '' ;
 
-    const res = await fetch ( `${ API_BASE_URL }/api/notifications${ queryParam }` ) ;
+    const res = await fetch ( `${ API_BASE_URL }/api/notifications${ queryParam }` , { headers: { ...authHeaders ( ) } } ) ;
 
     if ( res . ok ) {
 
@@ -471,7 +480,7 @@ try {
 
       method: 'POST' ,
 
-      headers: { 'Content-Type': 'application/json' } ,
+      headers: { 'Content-Type': 'application/json' , ...authHeaders ( ) } ,
 
       body: JSON . stringify ( {
 
@@ -579,7 +588,7 @@ try {
 
       method: 'POST' ,
 
-      body: JSON . stringify ( { id } ) ,
+      headers: { ...authHeaders ( ) } ,body: JSON . stringify ( { id } ) ,
 
     } ) ;
 
@@ -607,7 +616,7 @@ try {
 
       method: 'POST' ,
 
-      headers: { 'Content-Type': 'application/json' } ,
+      headers: { 'Content-Type': 'application/json' , ...authHeaders ( ) } ,
 
       body: JSON . stringify ( { all: true , recipient_id: userId } ) ,
 
@@ -637,7 +646,7 @@ try {
 
       method: 'POST' ,
 
-      body: JSON . stringify ( { all: true , type , recipient_id: userId } ) ,
+      headers: { ...authHeaders ( ) } ,body: JSON . stringify ( { all: true , type , recipient_id: userId } ) ,
 
     } ) ;
 
@@ -664,6 +673,8 @@ try {
     await fetch ( `${ API_BASE_URL }/api/notifications/${ encodeURIComponent ( id ) }` , {
 
       method: 'DELETE' ,
+
+      headers: { ...authHeaders ( ) } ,
 
     } ) ;
 

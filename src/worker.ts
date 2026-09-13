@@ -627,32 +627,38 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
   }
 }
 
-export function getAuthIdentity(request: Request) {
-  const authHeader = request.headers.get('Authorization') || request.headers.get('authorization') || '';
-  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : '';
-
-  const email = (
-    request.headers.get('x-user-email') ||
-    request.headers.get('X-User-Email') ||
-    ''
-  ).trim().toLowerCase();
-
-  const role = (
-    request.headers.get('x-user-role') ||
-    request.headers.get('X-User-Role') ||
-    ''
-  ).trim().toLowerCase();
-
-  const id = (
-    request.headers.get('x-user-id') ||
-    request.headers.get('X-User-Id') ||
-    ''
-  ).trim();
-
-  const isSuperAdmin = email === SUPER_ADMIN_EMAIL || role === 'super_admin';
-  const isAdmin = isSuperAdmin || role === 'admin' || role === 'owner';
-
-  return { email, role, id, bearerToken, isSuperAdmin, isAdmin };
+// Verified identity: the ONLY trusted source of "who is calling".
+// Resolves the session token (query ?token= or Authorization: Bearer header)
+// against the D1 sessions table and loads the user's verified id/email/role.
+// Client-supplied x-user-* headers are NEVER trusted: they are trivially
+// spoofable and previously allowed full account impersonation.
+export async function getAuthIdentity(request: Request, env: Env) {
+  const anon = { email: '', role: '', id: '', bearerToken: '', isSuperAdmin: false, isAdmin: false };
+  try {
+    const url = new URL(request.url);
+    let token = (url.searchParams.get('token') || '').trim();
+    if (!token) {
+      const h = request.headers.get('Authorization') || request.headers.get('authorization') || '';
+      if (h.startsWith('Bearer ')) token = h.substring(7).trim();
+    }
+    if (!token || !env || !env.DB) return anon;
+    const now = new Date().toISOString();
+    const sess = await env.DB.prepare(
+      'SELECT user_id FROM sessions WHERE token = ? AND (expires_at IS NULL OR expires_at > ?)'
+    ).bind(token, now).first<{ user_id: string }>();
+    if (!sess || !sess.user_id) return anon;
+    const p = await env.DB.prepare('SELECT id, email, role FROM profiles WHERE id = ?')
+      .bind(sess.user_id)
+      .first<{ id: string; email: string | null; role: string | null }>();
+    if (!p || !p.id) return anon;
+    const email = (p.email || '').trim().toLowerCase();
+    const role = (p.role || '').trim().toLowerCase();
+    const isSuperAdmin = email === SUPER_ADMIN_EMAIL || role === 'super_admin';
+    const isAdmin = isSuperAdmin || role === 'admin' || role === 'owner';
+    return { email, role, id: p.id, bearerToken: token, isSuperAdmin, isAdmin };
+  } catch (e) {
+    return anon;
+  }
 }
 
 function jsonResponse(data: any, status = 200): Response {
@@ -1407,26 +1413,19 @@ export default {
         }
 
         // GET /api/auth/session or /api/auth/me
+        // Identity comes ONLY from a verified session token (query ?token= or
+        // Authorization: Bearer). No valid token -> not authenticated, period.
         if ((authAction === 'session' || authAction === 'me') && request.method === 'GET') {
-          const auth = getAuthIdentity(request);
-          const tokenParam = url.searchParams.get('token') || auth.bearerToken;
-
-          if (!tokenParam && !auth.id) {
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) {
             return jsonResponse({ success: false, authenticated: false, user: null, profile: null });
           }
 
           let profileRow: D1ProfileRow | null = null;
 
           if (env.DB) {
-            if (tokenParam) {
-              const session = await env.DB.prepare('SELECT user_id FROM sessions WHERE token = ?').bind(tokenParam).first<{ user_id: string }>();
-              if (session?.user_id) {
-                profileRow = await env.DB.prepare('SELECT * FROM profiles WHERE id = ?').bind(session.user_id).first<D1ProfileRow>();
-              }
-            }
-            if (!profileRow && auth.id) {
-              profileRow = await env.DB.prepare('SELECT * FROM profiles WHERE id = ?').bind(auth.id).first<D1ProfileRow>();
-            }
+            // auth.id is set ONLY when the session token verified above.
+            profileRow = await env.DB.prepare('SELECT * FROM profiles WHERE id = ?').bind(auth.id).first<D1ProfileRow>();
           }
 
           if (!profileRow) {
@@ -1466,7 +1465,7 @@ export default {
 
         // POST /api/auth/signout
         if (authAction === 'signout' && request.method === 'POST') {
-          const auth = getAuthIdentity(request);
+          const auth = await getAuthIdentity(request, env);
           const body: any = await request.json().catch(() => ({}));
           const token = body.token || auth.bearerToken;
 
@@ -1478,7 +1477,7 @@ export default {
 
         // POST /api/auth/update-password
         if (authAction === 'update-password' && request.method === 'POST') {
-          const auth = getAuthIdentity(request);
+          const auth = await getAuthIdentity(request, env);
           const body: any = await request.json().catch(() => ({}));
           const newPassword = body.password || body.newPassword || '';
 
@@ -1486,9 +1485,13 @@ export default {
             return jsonResponse({ success: false, error: 'Password must be at least 6 characters.' }, 400);
           }
 
-          const userId = body.user_id || auth.id;
-          if (!userId) {
-            return jsonResponse({ success: false, error: 'User ID is required.' }, 400);
+          if (!auth.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+
+          const userId = String(body.user_id || body.userId || auth.id).trim() || auth.id;
+          if (userId !== auth.id && !auth.isAdmin) {
+            return jsonResponse({ success: false, error: 'Forbidden: you can only change your own password.' }, 403);
           }
 
           const newHash = await hashPassword(newPassword);
@@ -1496,6 +1499,12 @@ export default {
             await env.DB.prepare('UPDATE profiles SET password_hash = ?, updated_at = ? WHERE id = ?')
               .bind(newHash, new Date().toISOString(), userId)
               .run();
+            // A password change invalidates every other session for that account.
+            if (auth.bearerToken) {
+              await env.DB.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').bind(userId, auth.bearerToken).run();
+            } else {
+              await env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run();
+            }
           }
 
           return jsonResponse({ success: true, message: 'Password updated successfully.' });
@@ -1607,7 +1616,7 @@ export default {
         }
 
         if (request.method === 'DELETE') {
-          const auth = getAuthIdentity(request);
+          const auth = await getAuthIdentity(request, env);
           if (!auth.isAdmin && auth.id !== profileId) {
             return jsonResponse({ success: false, error: 'Forbidden: Admin access required.' }, 403);
           }
@@ -1642,7 +1651,16 @@ export default {
           const user1 = url.searchParams.get('user1') || url.searchParams.get('sender_id');
           const user2 = url.searchParams.get('user2') || url.searchParams.get('receiver_id');
           const contactId = url.searchParams.get('contact_id');
-          const myId = url.searchParams.get('my_id') || url.searchParams.get('user1') || getAuthIdentity(request).id;
+          const _verifiedAuth = await getAuthIdentity(request, env);
+          if (!_verifiedAuth.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+          // The caller's own id is authoritative; query params can only narrow
+          // to conversations the caller participates in.
+          if (user1 && user2 && user1 !== _verifiedAuth.id && user2 !== _verifiedAuth.id && !_verifiedAuth.isAdmin) {
+            return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
+          }
+          const myId = _verifiedAuth.id;
 
           let messages: any[] = [];
 
@@ -1680,7 +1698,11 @@ export default {
         if (request.method === 'POST') {
           const body: any = await request.json().catch(() => ({}));
           const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `msg_${Date.now()}`);
-          const senderId = body.sender_id || body.senderId;
+          const authMsg = await getAuthIdentity(request, env);
+          if (!authMsg.id) {
+            return jsonResponse({ success: false, error: 'Authentication required to send messages.' }, 401);
+          }
+          const senderId = authMsg.id;
           const receiverId = body.receiver_id || body.receiverId;
           const content = body.content || '';
           const imageUrl = body.image_url || body.imageUrl || null;
@@ -1717,7 +1739,11 @@ export default {
         // marks all messages from partner_id to reader_id as read.
         if (request.method === 'PATCH' && env.DB) {
           const body: any = await request.json().catch(() => ({}));
-          const readerId = String(body.reader_id || body.readerId || '').replace(/^auth-/, '');
+          const authRd = await getAuthIdentity(request, env);
+          if (!authRd.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+          const readerId = authRd.id;
           const partnerId = String(body.partner_id || body.partnerId || '').replace(/^auth-/, '');
           if (!readerId || !partnerId) {
             return jsonResponse({ success: false, error: 'reader_id and partner_id required' }, 400);
@@ -1744,7 +1770,11 @@ export default {
         if (request.method === 'POST') {
           const body: any = await request.json().catch(() => ({}));
           const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `story_${Date.now()}`);
-          const authorId = body.author_id || body.authorId || null;
+          const authStory = await getAuthIdentity(request, env);
+          if (!authStory.id) {
+            return jsonResponse({ success: false, error: 'Authentication required to post stories.' }, 401);
+          }
+          const authorId = authStory.id;
           const authorName = body.author_name || body.authorName || 'Orthodox Parishioner';
           const authorAvatar = body.author_avatar || body.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
           const authorParish = body.author_parish || body.authorParish || 'Orthodox Church';
@@ -1771,7 +1801,7 @@ export default {
       if (url.pathname.startsWith('/api/stories/')) {
         const storyId = decodeURIComponent(url.pathname.replace('/api/stories/', '').trim());
         if (storyId && !storyId.includes('/') && request.method === 'DELETE') {
-          const auth = getAuthIdentity(request);
+          const auth = await getAuthIdentity(request, env);
           let story: any = null;
           if (env.DB) {
             story = await env.DB.prepare('SELECT * FROM stories WHERE id = ?').bind(storyId).first();
@@ -1829,8 +1859,11 @@ export default {
             return jsonResponse({ success: false, error: 'Church name is required' }, 400);
           }
           const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `church_${Date.now()}`);
-          const auth = getAuthIdentity(request);
-          const ownerId = body.owner_id || auth.id || null;
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+          const ownerId = auth.id;
           const row = {
             id,
             name,
@@ -1871,7 +1904,7 @@ export default {
           }
           if (request.method === 'PATCH') {
             const body: any = await request.json().catch(() => ({}));
-            const auth = getAuthIdentity(request);
+            const auth = await getAuthIdentity(request, env);
             let existing: any = null;
             if (env.DB) {
               existing = await env.DB.prepare('SELECT * FROM churches WHERE id = ?').bind(churchId).first();
@@ -1900,7 +1933,7 @@ export default {
             return jsonResponse({ success: true, church: updated });
           }
           if (request.method === 'DELETE') {
-            const auth = getAuthIdentity(request);
+            const auth = await getAuthIdentity(request, env);
             if (!auth.isAdmin) {
               return jsonResponse({ success: false, error: 'Forbidden: Admin access required.' }, 403);
             }
@@ -1984,7 +2017,10 @@ export default {
             return jsonResponse({ success: false, error: 'Title is required' }, 400);
           }
           const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `mkt_${Date.now()}`);
-          const auth = getAuthIdentity(request);
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
           const images = Array.isArray(body.images) ? body.images.slice(0, 6) : [];
           const row = {
             id,
@@ -1998,7 +2034,7 @@ export default {
             phone: body.phone || '',
             church_id: body.church_id || '',
             church_name: body.church_name || '',
-            seller_id: body.seller_id || auth.id || null,
+            seller_id: auth.id,
             seller_name: body.seller_name || '',
             seller_avatar: body.seller_avatar || '',
             status: 'active',
@@ -2050,7 +2086,7 @@ export default {
           }
           if (request.method === 'PATCH') {
             const body: any = await request.json().catch(() => ({}));
-            const auth = getAuthIdentity(request);
+            const auth = await getAuthIdentity(request, env);
             let existing: any = null;
             if (env.DB) {
               existing = await env.DB.prepare('SELECT * FROM marketplace_listings WHERE id = ?').bind(listingId).first();
@@ -2083,7 +2119,7 @@ export default {
             return jsonResponse({ success: true, listing: updated ? parseImages(updated) : updated });
           }
           if (request.method === 'DELETE') {
-            const auth = getAuthIdentity(request);
+            const auth = await getAuthIdentity(request, env);
             let existing: any = null;
             if (env.DB) {
               existing = await env.DB.prepare('SELECT * FROM marketplace_listings WHERE id = ?').bind(listingId).first();
@@ -2130,7 +2166,11 @@ export default {
           const parish = body.parish || 'Orthodox Church';
           const hostName = body.host_name || body.hostName || 'Priest / Host';
           const hostAvatar = body.host_avatar || body.hostAvatar || null;
-          const hostId = body.host_id || body.hostId || null;
+          const authEvt = await getAuthIdentity(request, env);
+          if (!authEvt.id) {
+            return jsonResponse({ success: false, error: 'Authentication required to create events.' }, 401);
+          }
+          const hostId = authEvt.id;
           const imageUrl = body.image_url || body.imageUrl || null;
           const goingCount = body.going_count ?? body.goingCount ?? 1;
           const interestedCount = body.interested_count ?? body.interestedCount ?? 0;
@@ -2180,7 +2220,7 @@ export default {
         }
 
         if (request.method === 'DELETE') {
-          const auth = getAuthIdentity(request);
+          const auth = await getAuthIdentity(request, env);
           let event: any = null;
           if (env.DB) {
             event = await env.DB.prepare('SELECT * FROM events WHERE id = ?').bind(eventId).first();
@@ -2520,7 +2560,7 @@ export default {
             }
 
             if (posts.length > 0) {
-              const auth = getAuthIdentity(request);
+              const auth = await getAuthIdentity(request, env);
               const currentUserId = url.searchParams.get('user_id') || auth.id || '';
               const postIds: string[] = posts.map((p: any) => p.id);
 
@@ -2604,7 +2644,11 @@ export default {
           const videoIdRaw = body.video_id ?? body.videoId ?? body.video ?? null;
           const videoId = extractBunnyVideoGuid(videoIdRaw) || null;
 
-          const authorId = body.author_id ?? body.authorId ?? null;
+          const authPost = await getAuthIdentity(request, env);
+          if (!authPost.id) {
+            return jsonResponse({ success: false, error: 'Authentication required to post.' }, 401);
+          }
+          const authorId = authPost.id;
           const authorName = body.author_name ?? body.authorName ?? 'Orthodox Parishioner';
           const authorParish = body.author_parish ?? body.authorParish ?? 'Orthodox Church';
           const authorAvatar =
@@ -2707,9 +2751,9 @@ export default {
 
         const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').replace(/\/like\/?$/, ''));
         const body: any = await request.json().catch(() => ({}));
-        const auth = getAuthIdentity(request);
+        const auth = await getAuthIdentity(request, env);
 
-        const userId = (body.user_id || body.userId || auth.id || (auth.email ? `user-${auth.email}` : null))?.trim();
+        const userId = (auth.id || '').trim();
         if (!userId) {
           return jsonResponse({ success: false, error: 'Authentication required to bless posts' }, 401);
         }
@@ -2779,7 +2823,7 @@ export default {
         const parts = url.pathname.split('/').filter(Boolean);
         const commentId = decodeURIComponent(parts[parts.length - 1]);
         const postId = parts.length >= 4 && parts[1] === 'posts' ? decodeURIComponent(parts[2]) : null;
-        const auth = getAuthIdentity(request);
+        const auth = await getAuthIdentity(request, env);
 
         if (env.DB) {
           const comm = await env.DB.prepare('SELECT * FROM post_comments WHERE id = ?').bind(commentId).first<any>();
@@ -2820,8 +2864,11 @@ export default {
           const body: any = await request.json().catch(() => ({}));
           const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `comm-${Date.now()}`);
           const content = (body.content || body.text || '').trim();
-          const auth = getAuthIdentity(request);
-          const userId = body.user_id || body.userId || auth.id || null;
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) {
+            return jsonResponse({ success: false, error: 'Authentication required to comment.' }, 401);
+          }
+          const userId = auth.id;
           const authorName = body.author_name || body.authorName || auth.email || 'Orthodox Parishioner';
           const authorAvatar = body.author_avatar || body.authorAvatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200';
           const createdAt = body.created_at || new Date().toISOString();
@@ -2871,7 +2918,7 @@ export default {
         }
 
         if (request.method === 'DELETE') {
-          const auth = getAuthIdentity(request);
+          const auth = await getAuthIdentity(request, env);
           let post: D1PostRow | null = null;
           if (env.DB) {
             post = await env.DB.prepare('SELECT * FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
@@ -3001,7 +3048,7 @@ export default {
         }
 
         if (request.method === 'DELETE') {
-          const auth = getAuthIdentity(request);
+          const auth = await getAuthIdentity(request, env);
           if (!auth.isAdmin) {
             return jsonResponse({ success: false, error: 'Forbidden: Admin access required.' }, 403);
           }
@@ -3016,8 +3063,12 @@ export default {
       if (url.pathname === '/api/notifications/mark-read' || url.pathname === '/api/notifications/mark-read/') {
         if (request.method !== 'POST') return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
         const body: any = await request.json().catch(() => ({}));
+        const authMr = await getAuthIdentity(request, env);
+        if (!authMr.id) {
+          return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+        }
         const id = body.id;
-        const recipientId = body.recipient_id || body.user_id || body.userId;
+        const recipientId = authMr.id;
         const markAll = Boolean(body.all);
         const typeFilter = body.type || null;
 
@@ -3045,8 +3096,15 @@ export default {
 
       if (url.pathname === '/api/notifications' || url.pathname === '/api/notifications/') {
         if (request.method === 'GET') {
-          const auth = getAuthIdentity(request);
-          const recipientId = url.searchParams.get('recipient_id') || url.searchParams.get('user_id') || auth.id;
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+          const requested = url.searchParams.get('recipient_id') || url.searchParams.get('user_id');
+          if (requested && requested !== auth.id && !auth.isAdmin) {
+            return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
+          }
+          const recipientId = requested || auth.id;
           const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10), 1), 100);
 
           let notifications: D1NotificationRow[] = [];
@@ -3066,9 +3124,13 @@ export default {
 
         if (request.method === 'POST') {
           const body: any = await request.json().catch(() => ({}));
+          const authNt = await getAuthIdentity(request, env);
+          if (!authNt.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
           const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `notif-${Date.now()}`);
           const recipientId = body.recipient_id ?? body.userId ?? body.user_id ?? null;
-          const actorId = body.actor_id ?? body.actorId ?? null;
+          const actorId = authNt.id;
           const actorName = body.actor_name ?? body.actorName ?? body.senderName ?? 'Orthodox Parishioner';
           const actorAvatar = body.actor_avatar ?? body.actorAvatar ?? body.senderAvatar ?? null;
           const type = body.type || 'system';
@@ -3119,6 +3181,18 @@ export default {
       if (url.pathname.startsWith('/api/notifications/')) {
         const notifId = decodeURIComponent(url.pathname.replace('/api/notifications/', '').trim());
         if (request.method === 'DELETE' && env.DB) {
+          const authNd = await getAuthIdentity(request, env);
+          if (!authNd.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+          const row: any = await env.DB.prepare('SELECT recipient_id FROM notifications WHERE id = ?').bind(notifId).first();
+          if (!row) {
+            return jsonResponse({ success: false, error: 'Not found.' }, 404);
+          }
+          const rec = row.recipient_id;
+          if (rec !== authNd.id && rec !== 'all' && rec !== null && !authNd.isAdmin) {
+            return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
+          }
           await env.DB.prepare('DELETE FROM notifications WHERE id = ?').bind(notifId).run();
           return jsonResponse({ success: true, id: notifId, message: 'Notification deleted' });
         }
@@ -3300,8 +3374,10 @@ export default {
       // Test push endpoint: send a test notification to all of a user's devices
       if (url.pathname === '/api/push-subscriptions/test' && request.method === 'POST' && env.DB) {
         const body: any = await request.json().catch(() => ({}));
-        const userId = String(body.user_id || body.userId || '');
-        if (!userId) return jsonResponse({ success: false, error: 'user_id required' }, 400);
+        const authPs = await getAuthIdentity(request, env);
+        if (!authPs.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+        const userId = String(body.user_id || body.userId || authPs.id);
+        if (userId !== authPs.id && !authPs.isAdmin) return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
         const { results } = await env.DB.prepare(
           'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?'
         ).bind(userId).all();
@@ -3321,7 +3397,10 @@ export default {
       if (url.pathname === '/api/push-subscriptions' || url.pathname === '/api/push-subscriptions/') {
         if (request.method === 'POST' && env.DB) {
           const body: any = await request.json().catch(() => ({}));
-          const userId = String(body.user_id || body.userId || '');
+          const authPu = await getAuthIdentity(request, env);
+          if (!authPu.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          const userId = String(body.user_id || body.userId || authPu.id);
+          if (userId !== authPu.id && !authPu.isAdmin) return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
           const sub = body.subscription || {};
           const endpoint = String(sub.endpoint || '');
           const p256dh = String((sub.keys && sub.keys.p256dh) || '');
@@ -3336,7 +3415,10 @@ export default {
         }
         if (request.method === 'DELETE' && env.DB) {
           const body: any = await request.json().catch(() => ({}));
-          const userId = String(body.user_id || body.userId || '');
+          const authPd = await getAuthIdentity(request, env);
+          if (!authPd.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          const userId = String(body.user_id || body.userId || authPd.id);
+          if (userId !== authPd.id && !authPd.isAdmin) return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
           const endpoint = String(body.endpoint || '');
           const clearAll = body.clear_all === true;
           if (clearAll && userId) {
@@ -3354,7 +3436,7 @@ export default {
       if (url.pathname.startsWith('/api/users/')) {
         const targetUserId = decodeURIComponent(url.pathname.replace('/api/users/', '').trim());
         if (request.method === 'DELETE') {
-          const auth = getAuthIdentity(request);
+          const auth = await getAuthIdentity(request, env);
           if (!auth.isAdmin) {
             return jsonResponse({ success: false, error: 'Forbidden: Admin access required to delete users.' }, 403);
           }

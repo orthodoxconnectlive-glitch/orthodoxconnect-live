@@ -304,13 +304,15 @@ export function getActiveUserIdentity(overrideProfile?: any): {
   };
 }
 
-export function getAuthHeaders(overrideProfile?: any): Record<string, string> {
-  const identity = getActiveUserIdentity(overrideProfile);
-  return {
-    'x-user-email': identity.email,
-    'x-user-role': identity.role,
-    'x-user-id': identity.userId,
-  };
+export function getAuthHeaders(_overrideProfile?: any): Record<string, string> {
+  // The server verifies identity ONLY from the session token.
+  // x-user-* headers are never trusted (trivially spoofable).
+  try {
+    const t = localStorage.getItem('orthodox_auth_token');
+    return t ? { 'Authorization': `Bearer ${t}` } : {};
+  } catch (e) {
+    return {};
+  }
 }
 
 export async function loadPosts(

@@ -4,6 +4,8 @@
  * even when the app is closed) and registers the subscription with the server.
  */
 
+import { authHeader } from '../lib/api';
+
 // VAPID public key (safe to ship in client code)
 // Rotated 2026-09-12 after the previous key was lost from worker env on redeploy.
 const VAPID_PUBLIC_KEY =
@@ -47,7 +49,7 @@ export async function ensurePushSubscription(userId: string): Promise<void> {
         try {
           await fetch('/api/push-subscriptions', {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeader() },
             body: JSON.stringify({ user_id: userId, clear_all: true }),
           });
         } catch (e) {}
@@ -78,7 +80,7 @@ export async function ensurePushSubscription(userId: string): Promise<void> {
 
     const res = await fetch('/api/push-subscriptions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify({
         user_id: userId,
         subscription: { endpoint, keys: { p256dh, auth } },
@@ -106,7 +108,7 @@ export async function removePushSubscription(userId: string): Promise<void> {
       await sub.unsubscribe();
       await fetch('/api/push-subscriptions', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify({ user_id: userId, endpoint }),
       }).catch(() => {});
     }
@@ -150,13 +152,13 @@ export async function testPushNotification(userId: string): Promise<string> {
     // Clear all old subscriptions for this user first (removes dead endpoints)
     await fetch('/api/push-subscriptions', {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify({ user_id: userId, clear_all: true }),
     }).catch(() => {});
 
     const regRes = await fetch('/api/push-subscriptions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify({ user_id: userId, subscription: { endpoint, keys: { p256dh, auth } } }),
     });
     if (!regRes.ok) return 'Server registration failed';
@@ -164,7 +166,7 @@ export async function testPushNotification(userId: string): Promise<string> {
     // Ask server to send a test push to this device
     const testRes = await fetch('/api/push-subscriptions/test', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify({ user_id: userId }),
     });
     if (!testRes.ok) return 'Registered, but test send failed';

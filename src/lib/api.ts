@@ -25,6 +25,15 @@ export function setAuthToken(token: string | null): void {
   } catch (e) {}
 }
 
+// Authorization header for raw fetch() calls that bypass apiFetch.
+// The server verifies identity ONLY from the session token (never from
+// client-supplied x-user-* headers), so every authenticated request must
+// carry this header.
+export function authHeader(): Record<string, string> {
+  const t = getAuthToken();
+  return t ? { 'Authorization': `Bearer ${t}` } : {};
+}
+
 // In-memory profile set by AuthContext (more reliable than localStorage which can be empty)
 let memoryAuthProfile: { id?: string; email?: string; role?: string } | null = null;
 
@@ -53,7 +62,6 @@ export async function apiFetch<T = any>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getAuthToken();
-  const authProfile = getAuthProfile();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {}),
@@ -62,16 +70,8 @@ export async function apiFetch<T = any>(
   if (token && !headers['Authorization']) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  // Identify the user to the Worker so owner/admin checks work (delete, edit, etc.)
-  if (authProfile?.id && !headers['x-user-id']) {
-    headers['x-user-id'] = authProfile.id;
-  }
-  if (authProfile?.email && !headers['x-user-email']) {
-    headers['x-user-email'] = authProfile.email;
-  }
-  if (authProfile?.role && !headers['x-user-role']) {
-    headers['x-user-role'] = authProfile.role;
-  }
+  // NOTE: x-user-* headers are intentionally NOT sent. The server verifies
+  // identity only from the session token; those headers are spoofable.
 
   const res = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
@@ -79,6 +79,18 @@ export async function apiFetch<T = any>(
   });
 
   if (!res.ok) {
+    // 401 on a non-auth endpoint means the session token is invalid/expired.
+    // Drop local credentials and tell the app to bounce to the login screen.
+    // (Auth endpoints like signin are excluded: a 401 there just means a
+    // wrong password, and the form shows that error itself.)
+    if (res.status === 401 && token && !endpoint.startsWith('/api/auth/')) {
+      try {
+        localStorage.removeItem('orthodox_auth_token');
+        localStorage.removeItem('orthodox_user_profile');
+      } catch (e) {}
+      setMemoryAuthProfile(null);
+      try { window.dispatchEvent(new CustomEvent('oc:session-expired')); } catch (e) {}
+    }
     let errMsg = `API error: ${res.statusText} (${res.status})`;
     try {
       const errJson = await res.json();

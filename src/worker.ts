@@ -3654,25 +3654,6 @@ export default {
         }
       }
 
-      // TEMP one-time migration: placeholder Unsplash avatars -> app logo.
-      if (url.pathname === '/api/admin/migrate-avatars' && request.method === 'POST' && env.DB) {
-        const LOGO = 'https://orthodoxconnect.live/launchericon-512x512.png';
-        const counts: Record<string, number> = {};
-        const targets: Array<[string, string]> = [
-          ['profiles', 'avatar_url'],
-          ['posts', 'author_avatar'],
-          ['post_comments', 'author_avatar'],
-          ['stories', 'author_avatar'],
-        ];
-        for (const [t, c] of targets) {
-          const r = await env.DB.prepare(
-            `UPDATE ${t} SET ${c} = ? WHERE ${c} LIKE '%images.unsplash.com/photo-1535713875002%' OR ${c} LIKE '%images.unsplash.com/photo-1544005313%'`
-          ).bind(LOGO).run();
-          counts[t] = (r as any).meta?.changes ?? 0;
-        }
-        return jsonResponse({ success: true, counts });
-      }
-
       return jsonResponse({ success: false, error: 'Endpoint Not Found' }, 404);
     } catch (err: any) {
       console.error('[Cloudflare Worker Error]:', err);

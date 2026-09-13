@@ -28,6 +28,7 @@ export interface Env {
   DB: D1Database;
   BUNNY_LIBRARY_ID?: string;
   BUNNY_API_KEY?: string;
+  BUNNY_STREAM_API_KEY?: string;
   BUNNY_CDN_HOST?: string;
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
@@ -396,6 +397,32 @@ export async function ensureD1Tables(db?: D1Database) {
       }
     } catch (streamMigErr) {
       console.warn('[ensureD1Tables] live_streams migration notice:', streamMigErr);
+    }
+    try {
+      // Bunny Stream Live columns (true live streaming via Bunny Stream Live API)
+      const requiredBunnyLiveCols: Array<[string, string]> = [
+        ['bunny_stream_id', 'TEXT'],
+        ['bunny_stream_key', 'TEXT'],
+        ['playback_url_hls', 'TEXT'],
+        ['status', "TEXT DEFAULT 'scheduled'"],
+        ['description', 'TEXT'],
+        ['scheduled_start_time', 'TEXT'],
+        ['viewer_count', 'INTEGER DEFAULT 0'],
+        ['started_at', 'TEXT'],
+      ];
+      for (const [colName, colDef] of requiredBunnyLiveCols) {
+        try {
+          await db.exec(`ALTER TABLE live_streams ADD COLUMN ${colName} ${colDef}`);
+        } catch (colErr: any) {
+          const colMsg = String((colErr && colErr.message) || colErr || '');
+          if (!/duplicate column/i.test(colMsg)) {
+            throw colErr;
+          }
+          // Column already exists - nothing to do.
+        }
+      }
+    } catch (bunnyLiveMigErr) {
+      console.warn('[ensureD1Tables] live_streams bunny-live migration notice:', bunnyLiveMigErr);
     }
     try {
       // Stories media columns (media_type: image | video | audio)
@@ -1660,6 +1687,131 @@ export default {
           }
           return jsonResponse({ success: true, message: 'Event deleted successfully.' });
         }
+      }
+
+      // 8a. Bunny Stream Live endpoints (true YouTube-style live streaming)
+      // Requires BUNNY_STREAM_API_KEY env var (same as the video library API key).
+      // Gracefully returns a clear error when the key is missing (e.g. preview not approved yet).
+      const getBunnyLiveKey = (): string | null => {
+        return env.BUNNY_STREAM_API_KEY || env.BUNNY_API_KEY || DEFAULT_BUNNY_API_KEY || null;
+      };
+      const getBunnyLibraryId = (): string => {
+        return env.BUNNY_LIBRARY_ID || DEFAULT_BUNNY_LIBRARY_ID;
+      };
+
+      // POST /api/live-streams/bunny/create — create a Bunny Stream Live stream + D1 record
+      if (url.pathname === '/api/live-streams/bunny/create' || url.pathname === '/api/live-streams/bunny/create/') {
+        if (request.method !== 'POST') return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
+        const apiKey = getBunnyLiveKey();
+        if (!apiKey) {
+          return jsonResponse({ success: false, error: 'BUNNY_NOT_CONFIGURED', message: 'Live streaming is being set up. Please try again later.' }, 503);
+        }
+        const body: any = await request.json().catch(() => ({}));
+        const title = body.title || 'Parish Live Service';
+        const description = body.description || '';
+        const recordVod = body.recordVod !== undefined ? Boolean(body.recordVod) : true;
+        const hostParish = body.host_parish || body.parish || 'Orthodox Church';
+        const priestName = body.priest_name || body.priestName || 'Priest / Host';
+        const libraryId = getBunnyLibraryId();
+
+        let bunnyData: any = null;
+        try {
+          const bunnyRes = await fetch(`https://video.bunnycdn.com/library/${libraryId}/live`, {
+            method: 'POST',
+            headers: {
+              'AccessKey': apiKey,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ title, description, recordVod }),
+          });
+          if (!bunnyRes.ok) {
+            const errText = await bunnyRes.text().catch(() => '');
+            return jsonResponse({ success: false, error: 'BUNNY_CREATE_FAILED', message: `Bunny Stream Live rejected the request (${bunnyRes.status}). Live streaming may not be enabled on this library yet.`, detail: errText.slice(0, 500) }, 502);
+          }
+          bunnyData = await bunnyRes.json();
+        } catch (fetchErr: any) {
+          return jsonResponse({ success: false, error: 'BUNNY_UNREACHABLE', message: 'Could not reach Bunny Stream. Please try again.', detail: String(fetchErr?.message || fetchErr).slice(0, 300) }, 502);
+        }
+
+        const bunnyStreamId = bunnyData.guid || bunnyData.id || null;
+        const streamKey = bunnyData.streamKey || null;
+        const playbackUrlHls = bunnyData.playbackUrlHls || bunnyData.playbackUrl || null;
+        const ingest = (bunnyData.ingestEndpoints && bunnyData.ingestEndpoints.rtmp) || {};
+        const rtmpUrl = ingest.primaryIngestUrl || 'rtmp://global.rtmp.mediadelivery.net/live';
+
+        const id = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `blive_${Date.now()}`);
+        const createdAt = new Date().toISOString();
+        if (env.DB) {
+          await env.DB.prepare(`
+            INSERT INTO live_streams (id, title, host_parish, priest_name, media_url, is_live, viewers_count, created_at,
+              bunny_stream_id, bunny_stream_key, playback_url_hls, status, description, viewer_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(id, title, hostParish, priestName, 'bunny-live', 1, 1, createdAt,
+            bunnyStreamId, streamKey, playbackUrlHls, 'scheduled', description, 0).run();
+        }
+
+        return jsonResponse({
+          success: true,
+          stream: {
+            id, title, host_parish: hostParish, priest_name: priestName,
+            bunny_stream_id: bunnyStreamId, playback_url_hls: playbackUrlHls,
+            rtmp_url: rtmpUrl, stream_key: streamKey, status: 'scheduled', created_at: createdAt,
+          },
+        }, 201);
+      }
+
+      // GET /api/live-streams/live — all currently-live Bunny streams
+      if (url.pathname === '/api/live-streams/live' || url.pathname === '/api/live-streams/live/') {
+        if (request.method !== 'GET') return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
+        let rows: any[] = [];
+        if (env.DB) {
+          try {
+            const { results } = await env.DB.prepare(
+              "SELECT * FROM live_streams WHERE status = 'live' ORDER BY started_at DESC"
+            ).all();
+            rows = results || [];
+          } catch (e: any) {
+            // Fallback if status column doesn't exist yet on this D1 instance
+            console.warn('[live-streams/live] fallback:', e?.message || e);
+          }
+        }
+        return jsonResponse({ success: true, live_streams: rows });
+      }
+
+      // POST /api/live-streams/bunny/:id/start — mark a Bunny stream as live
+      if (url.pathname.startsWith('/api/live-streams/bunny/') && url.pathname.endsWith('/start') && request.method === 'POST') {
+        const parts = url.pathname.split('/').filter(Boolean);
+        const streamId = decodeURIComponent(parts[3] || '');
+        if (!streamId) return jsonResponse({ success: false, error: 'Missing stream id' }, 400);
+        if (!env.DB) return jsonResponse({ success: false, error: 'Database unavailable' }, 500);
+        const now = new Date().toISOString();
+        try {
+          await env.DB.prepare(
+            "UPDATE live_streams SET status = 'live', started_at = ?, is_live = 1 WHERE id = ?"
+          ).bind(now, streamId).run();
+        } catch (e: any) {
+          return jsonResponse({ success: false, error: 'DB_UPDATE_FAILED', detail: String(e?.message || e).slice(0, 300) }, 500);
+        }
+        const row = await env.DB.prepare('SELECT * FROM live_streams WHERE id = ?').bind(streamId).first();
+        return jsonResponse({ success: true, stream: row });
+      }
+
+      // POST /api/live-streams/bunny/:id/end — end a Bunny stream
+      if (url.pathname.startsWith('/api/live-streams/bunny/') && url.pathname.endsWith('/end') && request.method === 'POST') {
+        const parts = url.pathname.split('/').filter(Boolean);
+        const streamId = decodeURIComponent(parts[3] || '');
+        if (!streamId) return jsonResponse({ success: false, error: 'Missing stream id' }, 400);
+        if (!env.DB) return jsonResponse({ success: false, error: 'Database unavailable' }, 500);
+        const now = new Date().toISOString();
+        try {
+          await env.DB.prepare(
+            "UPDATE live_streams SET status = 'ended', ended_at = ?, is_live = 0 WHERE id = ?"
+          ).bind(now, streamId).run();
+        } catch (e: any) {
+          return jsonResponse({ success: false, error: 'DB_UPDATE_FAILED', detail: String(e?.message || e).slice(0, 300) }, 500);
+        }
+        const row = await env.DB.prepare('SELECT * FROM live_streams WHERE id = ?').bind(streamId).first();
+        return jsonResponse({ success: true, stream: row });
       }
 
       // 8b. Live Stream item endpoint (PATCH /api/live-streams/:id)

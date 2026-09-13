@@ -719,6 +719,8 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
   let title = 'OrthodoxConnect';
   let desc = 'Faith · Fellowship · Community';
   let image = DEFAULT_IMG;
+  let imageW = '512';
+  let imageH = '512';
   let bodyHtml = '';
   let appLink = APP_URL + '/';
 
@@ -748,6 +750,7 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
         const postImg = ytId
           ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`
           : safeImgUrl(p.image_url, DEFAULT_IMG);
+        if (ytId) { imageW = '480'; imageH = '360'; }
         title = `${p.author_name || 'Orthodox Parishioner'} on OrthodoxConnect`;
         if (text) {
           desc = text.length > 200 ? text.slice(0, 200) + '…' : text;
@@ -757,6 +760,7 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
           desc = 'A post from the OrthodoxConnect parish feed.';
         }
         image = postImg;
+        if (!ytId && postImg !== DEFAULT_IMG) { imageW = '1200'; imageH = '630'; }
         appLink = APP_URL + '/?post=' + encodeURIComponent(String(p.id));
         const dateStr = p.created_at ? new Date(String(p.created_at)).toLocaleDateString() : '';
         const avatarSrc = safeImgUrl(p.author_avatar, DEFAULT_IMG);
@@ -792,6 +796,9 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
 <meta property="og:title" content="${escHtml(title)}"/>
 <meta property="og:description" content="${escHtml(desc)}"/>
 <meta property="og:image" content="${escHtml(image)}"/>
+<meta property="og:image:width" content="${imageW}"/>
+<meta property="og:image:height" content="${imageH}"/>
+<meta property="og:image:alt" content="${escHtml(title)}"/>
 <meta property="og:url" content="${escHtml(pageUrl)}"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="${escHtml(title)}"/>
@@ -3636,8 +3643,9 @@ export default {
         }
       }
 
-      // Public share pages: /post/:id and /live/:id (OG tags + preview + app CTA)
-      if (request.method === 'GET' && env.DB &&
+      // Public share pages: /post/:id and /live/:id (OG tags + preview + app CTA).
+      // HEAD is served too: several link-preview scrapers probe headers first.
+      if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
           (url.pathname.startsWith('/post/') || url.pathname.startsWith('/live/'))) {
         const isLivePath = url.pathname.startsWith('/live/');
         const shareId = decodeURIComponent(url.pathname.replace(isLivePath ? '/live/' : '/post/', '').split('/')[0].trim());

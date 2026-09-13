@@ -681,6 +681,24 @@ function jsonResponse(data: any, status = 200): Response {
   });
 }
 
+// Extract a YouTube video id from youtu.be / youtube.com URLs, or null.
+function extractYouTubeId(input: any): string | null {
+  if (!input || typeof input !== 'string') return null;
+  const s = input.trim();
+  let m = s.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?[^#]*v=|shorts\/|embed\/|live\/))([A-Za-z0-9_-]{11})/);
+  if (m) return m[1];
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  return null;
+}
+
+// Use an image URL only if it is a real remote URL (never inline data: URIs,
+// which can be hundreds of KB of base64 and break link-preview scrapers).
+function safeImgUrl(input: any, fallback: string): string {
+  const s = String(input || '').trim();
+  if (/^https?:\/\//i.test(s) && s.length < 2000) return s;
+  return fallback;
+}
+
 function escHtml(s: any): string {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;')
@@ -722,25 +740,37 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
       }
     } else {
       const p = await db.prepare(
-        'SELECT id, content, author_name, author_parish, author_avatar, image_url, likes_count, comments_count, created_at FROM posts WHERE id = ?'
+        'SELECT id, content, video_id, author_name, author_parish, author_avatar, image_url, likes_count, comments_count, created_at FROM posts WHERE id = ?'
       ).bind(id).first<any>();
       if (p) {
         const text = String(p.content || '');
+        const ytId = extractYouTubeId(p.video_id);
+        const postImg = ytId
+          ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg`
+          : safeImgUrl(p.image_url, DEFAULT_IMG);
         title = `${p.author_name || 'Orthodox Parishioner'} on OrthodoxConnect`;
-        desc = text.length > 200 ? text.slice(0, 200) + '…' : (text || 'A post from the OrthodoxConnect parish feed.');
-        if (p.image_url) image = String(p.image_url);
+        if (text) {
+          desc = text.length > 200 ? text.slice(0, 200) + '…' : text;
+        } else if (ytId) {
+          desc = '🎬 Shared a video on OrthodoxConnect';
+        } else {
+          desc = 'A post from the OrthodoxConnect parish feed.';
+        }
+        image = postImg;
         appLink = APP_URL + '/?post=' + encodeURIComponent(String(p.id));
         const dateStr = p.created_at ? new Date(String(p.created_at)).toLocaleDateString() : '';
+        const avatarSrc = safeImgUrl(p.author_avatar, DEFAULT_IMG);
         bodyHtml = `
           <div class="author">
-            <img class="avatar" src="${escHtml(p.author_avatar || DEFAULT_IMG)}" alt="" onerror="this.style.display='none'"/>
+            <img class="avatar" src="${escHtml(avatarSrc)}" alt="" onerror="this.style.display='none'"/>
             <div>
               <div class="author-name">${escHtml(p.author_name || 'Orthodox Parishioner')}</div>
               <div class="meta">${escHtml(p.author_parish || 'Orthodox Church')}${dateStr ? ' · ' + escHtml(dateStr) : ''}</div>
             </div>
           </div>
           ${text ? `<p class="content">${escHtml(text)}</p>` : ''}
-          ${p.image_url ? `<img class="media" src="${escHtml(p.image_url)}" alt="Post image" onerror="this.style.display='none'"/>` : ''}
+          ${ytId ? `<a href="${escHtml(appLink)}"><img class="media" src="${escHtml(postImg)}" alt="Video thumbnail"/></a>` : ''}
+          ${!ytId && p.image_url && safeImgUrl(p.image_url, '') ? `<img class="media" src="${escHtml(safeImgUrl(p.image_url, DEFAULT_IMG))}" alt="Post image" onerror="this.style.display='none'"/>` : ''}
           <div class="meta">❤ ${escHtml(String(p.likes_count || 0))} &nbsp; 💬 ${escHtml(String(p.comments_count || 0))}</div>`;
       }
     }

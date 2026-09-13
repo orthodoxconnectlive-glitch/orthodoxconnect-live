@@ -3606,6 +3606,12 @@ export default {
         }
       }
 
+      // TEMP cleanup: delete the orphaned assistant-created security-test post.
+      if (url.pathname === '/api/admin/cleanup-test-post' && request.method === 'POST' && env.DB) {
+        await env.DB.prepare("DELETE FROM posts WHERE id = '8edbf09a-cc7e-4ed5-838a-a3564ed196ef'").run();
+        return jsonResponse({ success: true });
+      }
+
       // Public share pages: /post/:id and /live/:id (OG tags + preview + app CTA)
       if (request.method === 'GET' && env.DB &&
           (url.pathname.startsWith('/post/') || url.pathname.startsWith('/live/'))) {

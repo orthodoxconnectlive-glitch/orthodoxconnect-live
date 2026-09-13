@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Radio, Eye, PlusCircle, Heart, Share2, Flame, CheckCircle, Square, Link2, X, Send, Trash2 } from 'lucide-react';
 import { BunnyPlayer } from '../components/BunnyPlayer';
+import { LiveStreamViewer } from '../components/LiveStreamViewer';
 import { ParishLiveChat } from '../components/ParishLiveChat';
 import { GoLiveModal, StreamData } from '../components/GoLiveModal';
 import { liveStreamsApi } from '../lib/api';
@@ -18,6 +19,10 @@ interface LiveStreamItem {
   videoUrl: string;
   isLive: boolean;
   replayGuid?: string | null;
+  // Bunny Stream Live (true live) fields
+  isBunnyLive?: boolean;
+  playbackUrlHls?: string | null;
+  bunnyStreamId?: string | null;
 }
 
 const INITIAL_STREAMS_EN: LiveStreamItem[] = [
@@ -150,6 +155,9 @@ export const LiveBroadcastView: React.FC = () => {
   const broadcastLocalIdRef = useRef<string | null>(null);
   const broadcastRecordIdRef = useRef<string | null>(null);
   const broadcastTitleRef = useRef<string>('');
+  const broadcastBunnyIdRef = useRef<string | null>(null);
+  // HLS viewer modal state (for watching a Bunny true-live stream)
+  const [viewerStream, setViewerStream] = useState<LiveStreamItem | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isSavingReplay, setIsSavingReplay] = useState(false);
   const [saveProgress, setSaveProgress] = useState(0);
@@ -231,6 +239,37 @@ export const LiveBroadcastView: React.FC = () => {
             return combined;
           });
         }
+
+        // Fetch true-live Bunny streams (status='live') and merge them in
+        try {
+          const bunnyLive = await liveStreamsApi.getLiveBunny();
+          if (bunnyLive && bunnyLive.length > 0) {
+            const bunnyMapped: LiveStreamItem[] = bunnyLive.map((row: any) => ({
+              id: row.id || `bunny-${Date.now()}`,
+              title: row.title || (language === 'ar' ? 'بث مباشر' : 'Live Stream'),
+              parish: row.host_parish || (language === 'ar' ? 'الكنيسة الأرثوذكسية' : 'Orthodox Church'),
+              priestName: row.priest_name || (language === 'ar' ? 'الكاهن الخادم' : 'Priest / Host'),
+              viewers: row.viewer_count || row.viewers_count || 1,
+              videoUrl: 'bunny-live',
+              isLive: true,
+              replayGuid: row.replay_guid || null,
+              isBunnyLive: true,
+              playbackUrlHls: row.playback_url_hls || null,
+              bunnyStreamId: row.bunny_stream_id || null,
+            }));
+            setStreams((prev) => {
+              const combined = [...prev];
+              bunnyMapped.forEach((b) => {
+                if (!combined.some((c) => c.id === b.id)) {
+                  combined.unshift(b);
+                }
+              });
+              return combined;
+            });
+          }
+        } catch (bunnyErr) {
+          console.warn('[LiveBroadcast] bunny live fetch notice:', bunnyErr);
+        }
       } catch (err) {
         console.warn('Live streams query notice:', err);
       }
@@ -264,6 +303,37 @@ export const LiveBroadcastView: React.FC = () => {
   };
 
   const handleStartStream = (data: StreamData, mediaStream?: MediaStream | null) => {
+    // Bunny true-live path: no local recording — the encoder (OBS/Larix) sends
+    // video to Bunny via RTMP; viewers watch via HLS.
+    if (data.isBunnyLive) {
+      const newStreamId = data.recordId || ('bunny-' + Date.now());
+      broadcastLocalIdRef.current = newStreamId;
+      broadcastRecordIdRef.current = data.recordId || null;
+      broadcastTitleRef.current = data.title;
+      broadcastBunnyIdRef.current = data.recordId || null;
+      const newStream: LiveStreamItem = {
+        id: newStreamId,
+        title: data.title,
+        parish: data.host_parish || data.parish || (language === 'ar' ? 'الرعية الأرثوذكسية' : 'Orthodox Parish'),
+        priestName: language === 'ar' ? 'أنت (الكاهن / المستضيف)' : 'You (Priest / Host)',
+        viewers: 1,
+        videoUrl: 'bunny-live',
+        isLive: true,
+        isBunnyLive: true,
+        playbackUrlHls: data.playbackUrlHls || null,
+        bunnyStreamId: data.bunnyStreamId || null,
+      };
+      setIsUserBroadcasting(true);
+      const updated = [newStream, ...streams];
+      setStreams(updated);
+      setActiveStreamId(newStreamId);
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+      showToast(language === 'ar' ? 'أنت الآن في بث مباشر!' : "You're LIVE!");
+      return;
+    }
+
     const newStreamId = 'stream-' + Date.now();
     broadcastLocalIdRef.current = newStreamId;
     broadcastRecordIdRef.current = data.recordId || null;
@@ -384,6 +454,23 @@ export const LiveBroadcastView: React.FC = () => {
     const endedLocalId = broadcastLocalIdRef.current;
     const recordId = broadcastRecordIdRef.current;
     const endedTitle = broadcastTitleRef.current;
+    const bunnyId = broadcastBunnyIdRef.current;
+
+    // Bunny true-live path: end the Bunny stream on the server, no local recording.
+    if (bunnyId) {
+      try {
+        await liveStreamsApi.endBunny(bunnyId);
+      } catch (err) {
+        console.warn('[LiveBroadcast] endBunny failed:', err);
+      }
+      broadcastBunnyIdRef.current = null;
+      broadcastLocalIdRef.current = null;
+      broadcastRecordIdRef.current = null;
+      setIsUserBroadcasting(false);
+      setStreams((prev) => prev.map((s) => (s.id === endedLocalId ? { ...s, isLive: false } : s)));
+      showToast(language === 'ar' ? 'تم إنهاء البث المباشر.' : 'Live broadcast ended.');
+      return;
+    }
 
     // Stop the recorder and collect the recording (if any)
     const rec = recorderRef.current;
@@ -616,17 +703,50 @@ export const LiveBroadcastView: React.FC = () => {
       {/* Theatre View Layout: Bunny Player + Live Chat Sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-4">
-          <BunnyPlayer
-            mediaStream={activeWebcamStream}
-            videoUrl={activeStream.videoUrl}
-            title={activeStream.title}
-            isLive={activeStream.isLive}
-            viewerCount={activeStream.viewers}
-            autoplay={false}
-            muted={true}
-            isUserBroadcasting={isUserBroadcasting}
-            onEndBroadcast={handleEndBroadcast}
-          />
+          {isUserBroadcasting && activeStream.isBunnyLive ? (
+            /* Broadcaster LIVE panel for Bunny true-live streams */
+            <div className="relative aspect-video rounded-2xl bg-stone-950 border border-red-500/40 overflow-hidden flex flex-col items-center justify-center gap-4 p-6 text-center">
+              <span className="px-4 py-1.5 rounded-full bg-red-600 text-white text-sm font-bold tracking-wider uppercase animate-pulse flex items-center gap-2">
+                <Radio className="w-4 h-4" />
+                {language === 'ar' ? 'أنت في بث مباشر' : "You're LIVE"}
+              </span>
+              <h3 className="font-serif font-bold text-lg text-amber-100">{activeStream.title}</h3>
+              <p className="text-xs text-stone-400 max-w-md">
+                {language === 'ar'
+                  ? 'تأكد من أن برنامج البث (OBS / Larix) متصل ويرسل الفيديو. يمكن للمشاهدين الآن متابعة البث المباشر.'
+                  : 'Make sure your encoder (OBS / Larix) is connected and sending video. Viewers can now watch live.'}
+              </p>
+              <div className="flex items-center gap-3">
+                {activeStream.playbackUrlHls && (
+                  <button
+                    onClick={() => setViewerStream(activeStream)}
+                    className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-200 text-xs font-bold border border-amber-900/40 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Eye className="w-4 h-4" />
+                    {language === 'ar' ? 'معاينة البث' : 'Preview Stream'}
+                  </button>
+                )}
+                <button
+                  onClick={handleEndBroadcast}
+                  className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-lg cursor-pointer"
+                >
+                  {language === 'ar' ? 'إنهاء البث' : 'End Stream'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <BunnyPlayer
+              mediaStream={activeWebcamStream}
+              videoUrl={activeStream.videoUrl}
+              title={activeStream.title}
+              isLive={activeStream.isLive}
+              viewerCount={activeStream.viewers}
+              autoplay={false}
+              muted={true}
+              isUserBroadcasting={isUserBroadcasting}
+              onEndBroadcast={handleEndBroadcast}
+            />
+          )}
 
           {/* Info Panel Under Video */}
           <div className="p-5 rounded-2xl bg-stone-950 border border-amber-900/30 shadow-xl space-y-4">
@@ -736,7 +856,14 @@ export const LiveBroadcastView: React.FC = () => {
           {streams.map((s) => (
             <div
               key={s.id}
-              onClick={() => setActiveStreamId(s.id)}
+              onClick={() => {
+                // Bunny true-live streams open the HLS viewer modal
+                if (s.isBunnyLive && s.playbackUrlHls) {
+                  setViewerStream(s);
+                  return;
+                }
+                setActiveStreamId(s.id);
+              }}
               className={`relative group p-4 rounded-2xl border text-left rtl:text-right transition-all cursor-pointer flex flex-col justify-between ${
                 s.id === activeStreamId
                   ? 'bg-amber-950/40 border-amber-500 shadow-xl ring-1 ring-amber-500/40'
@@ -788,6 +915,17 @@ export const LiveBroadcastView: React.FC = () => {
         onClose={() => setIsGoLiveOpen(false)}
         onStartStream={handleStartStream}
       />
+
+      {/* Bunny true-live HLS viewer modal */}
+      {viewerStream && viewerStream.playbackUrlHls && (
+        <LiveStreamViewer
+          playbackUrl={viewerStream.playbackUrlHls}
+          title={viewerStream.title}
+          parish={viewerStream.parish}
+          viewerCount={viewerStream.viewers}
+          onClose={() => setViewerStream(null)}
+        />
+      )}
 
       {/* Share Live Stream Link Modal */}
       {isShareLinkOpen && (

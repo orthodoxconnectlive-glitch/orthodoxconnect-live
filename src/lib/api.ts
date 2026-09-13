@@ -465,6 +465,39 @@ export const liveStreamsApi = {
     });
     return res.stream;
   },
+
+  /* ---------- Bunny Stream Live (true YouTube-style live) ---------- */
+  async createBunny(opts: { title: string; description?: string; recordVod?: boolean; host_parish?: string; priest_name?: string }): Promise<any> {
+    const res = await apiFetch<{ success: boolean; stream?: any; error?: string; message?: string }>('/api/live-streams/bunny/create', {
+      method: 'POST',
+      body: JSON.stringify(opts),
+    });
+    if (!res.success) {
+      const err: any = new Error(res.message || 'Failed to create live stream');
+      err.code = res.error;
+      throw err;
+    }
+    return res.stream;
+  },
+
+  async getLiveBunny(): Promise<any[]> {
+    const res = await apiFetch<{ live_streams: any[] }>('/api/live-streams/live');
+    return res.live_streams || [];
+  },
+
+  async startBunny(id: string): Promise<any> {
+    const res = await apiFetch<{ stream: any }>(`/api/live-streams/bunny/${encodeURIComponent(id)}/start`, {
+      method: 'POST',
+    });
+    return res.stream;
+  },
+
+  async endBunny(id: string): Promise<any> {
+    const res = await apiFetch<{ stream: any }>(`/api/live-streams/bunny/${encodeURIComponent(id)}/end`, {
+      method: 'POST',
+    });
+    return res.stream;
+  },
 };
 
 /* =========================================================

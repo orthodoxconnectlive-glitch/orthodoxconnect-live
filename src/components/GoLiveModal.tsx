@@ -14,6 +14,12 @@ export interface StreamData {
   mediaStream?: MediaStream | null;
   isWebcam?: boolean;
   recordId?: string | null;
+  // Bunny Stream Live (true live) fields
+  isBunnyLive?: boolean;
+  bunnyStreamId?: string | null;
+  playbackUrlHls?: string | null;
+  rtmpUrl?: string | null;
+  streamKey?: string | null;
 }
 
 interface GoLiveModalProps {
@@ -38,6 +44,12 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
   );
   const [mediaUrl, setMediaUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Bunny Stream Live (true live) state
+  const [bunnyStream, setBunnyStream] = useState<any | null>(null);
+  const [bunnyError, setBunnyError] = useState<string | null>(null);
+  const [isStartingBunny, setIsStartingBunny] = useState(false);
+  const [showRtmpDetails, setShowRtmpDetails] = useState(false);
 
   // Camera lens mode ('user' = front / selfie, 'environment' = back / world)
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
@@ -145,6 +157,97 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
 
   if (!isOpen) return null;
 
+  // --- Bunny true-live setup screen (after stream created, before going live) ---
+  if (bunnyStream) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+        <div className="relative w-full max-w-lg bg-stone-950 border border-red-500/40 rounded-2xl p-6 shadow-2xl text-stone-100">
+          <div className="flex items-center gap-3 mb-5 pb-3 border-b border-amber-900/40">
+            <div className="w-10 h-10 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400 animate-pulse">
+              <Radio className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-serif font-bold text-lg text-amber-100">
+                {language === 'ar' ? 'البث المباشر جاهز' : 'Live Stream Ready'}
+              </h3>
+              <p className="text-xs text-stone-400">
+                {language === 'ar'
+                  ? 'صِل برنامج البث ثم اضغط "بدء البث" ليتمكن المشاهدون من المتابعة'
+                  : 'Connect your encoder, then press "Start Broadcasting" so viewers can watch'}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3 text-xs mb-5">
+            <div>
+              <label className="block text-amber-300 font-semibold mb-1">
+                {language === 'ar' ? 'عنوان البث' : 'Stream Title'}
+              </label>
+              <p className="text-amber-100 font-semibold">{bunnyStream.title}</p>
+            </div>
+
+            <div className="rounded-xl bg-stone-900 border border-amber-900/30 p-3 space-y-2">
+              <p className="text-amber-300 font-semibold">
+                {language === 'ar' ? 'إعدادات برنامج البث (OBS / Larix)' : 'Encoder Settings (OBS / Larix)'}
+              </p>
+              <div>
+                <span className="text-stone-400">RTMP URL:</span>
+                <code className="block mt-0.5 p-2 rounded bg-black/50 text-green-300 font-mono text-[11px] break-all select-all">
+                  {bunnyStream.rtmp_url}
+                </code>
+              </div>
+              <div>
+                <span className="text-stone-400">{language === 'ar' ? 'مفتاح البث:' : 'Stream Key:'}</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <code className="flex-1 p-2 rounded bg-black/50 text-green-300 font-mono text-[11px] break-all select-all">
+                    {showRtmpDetails ? bunnyStream.stream_key : '••••••••••••••••'}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => setShowRtmpDetails((v) => !v)}
+                    className="px-2.5 py-2 rounded-lg bg-stone-800 text-amber-300 text-[11px] font-bold border border-amber-500/30 cursor-pointer"
+                  >
+                    {showRtmpDetails
+                      ? (language === 'ar' ? 'إخفاء' : 'Hide')
+                      : (language === 'ar' ? 'إظهار' : 'Show')}
+                  </button>
+                </div>
+              </div>
+              <p className="text-[10px] text-stone-500">
+                {language === 'ar'
+                  ? 'ملاحظة: بث كاميرا المتصفح مباشرة قيد التطوير — استخدم تطبيق بث RTMP على هاتفك في الوقت الحالي.'
+                  : 'Note: direct phone-browser camera ingest is coming soon — use an RTMP streamer app on your phone for now.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={handleCancelBunnySetup}
+              className="px-4 py-2 rounded-xl bg-stone-800 text-stone-300 font-semibold cursor-pointer"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={handleStartBunnyBroadcast}
+              disabled={isStartingBunny}
+              className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold shadow-lg flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Radio className="w-4 h-4" />
+              <span>
+                {isStartingBunny
+                  ? (language === 'ar' ? 'جارٍ البدء...' : 'Starting...')
+                  : (language === 'ar' ? 'بدء البث المباشر' : 'Start Broadcasting')}
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handleToggleFacingMode = () => {
     setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
   };
@@ -171,7 +274,50 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     }
 
     setIsSubmitting(true);
+    setBunnyError(null);
 
+    // STEP 1: Try true live via Bunny Stream Live.
+    // If Bunny isn't configured/approved yet, fall back to the local-recording flow below.
+    let bunny: any = null;
+    try {
+      bunny = await liveStreamsApi.createBunny({
+        title: capturedTitle,
+        description: capturedHostParish,
+        recordVod: true,
+        host_parish: capturedHostParish,
+        priest_name: profile?.full_name || (language === 'ar' ? 'الكاهن / مقدم الخدمة' : 'Priest / Host'),
+      });
+    } catch (err: any) {
+      console.warn('[GoLive] Bunny live unavailable, using local fallback:', err?.code || err?.message);
+      if (err?.code && err.code !== 'BUNNY_NOT_CONFIGURED') {
+        setBunnyError(err?.message || null);
+      }
+      // fall through to local recording flow
+    } finally {
+      setIsSubmitting(false);
+    }
+
+    if (bunny) {
+      // True-live path: show RTMP ingest details so the broadcaster can connect
+      // an encoder (OBS, Larix Broadcaster, etc.).
+      // TODO: WebRTC-to-RTMP bridge so the phone browser camera can ingest directly
+      // without a separate encoder app.
+      setBunnyStream(bunny);
+      setShowRtmpDetails(false);
+      // Dispatch live stream notification to all users
+      addNotification({
+        userId: 'all',
+        type: 'system',
+        title: `🔴 ${capturedHostParish} ${language === 'ar' ? 'في بث مباشر' : 'is LIVE'}`,
+        body: capturedTitle,
+        senderName: profile?.full_name || (language === 'ar' ? 'مسؤول البث' : 'Parish Host'),
+        senderAvatar: profile?.avatar_url,
+        link: 'live',
+      });
+      return; // wait for user to press "Start Broadcasting"
+    }
+
+    // STEP 2 (fallback): local webcam recording flow (existing behavior)
     const isWebcamActive = !capturedMediaUrl && !!mediaStream;
 
     const streamPayload: StreamData = {
@@ -212,8 +358,6 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
       });
     } catch (err: any) {
       console.warn('Cloudflare D1 live_streams insert notice/fallback:', err);
-    } finally {
-      setIsSubmitting(false);
     }
 
     // Pass stream data and active MediaStream to parent view
@@ -224,6 +368,55 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     setHostParish('');
     setMediaUrl('');
     onClose();
+  };
+
+  // Start a Bunny true-live broadcast (marks D1 status='live' so viewers can watch)
+  const handleStartBunnyBroadcast = async () => {
+    if (!bunnyStream) return;
+    setIsStartingBunny(true);
+    try {
+      await liveStreamsApi.startBunny(bunnyStream.id);
+    } catch (err) {
+      console.warn('[GoLive] startBunny failed:', err);
+    } finally {
+      setIsStartingBunny(false);
+    }
+
+    const streamPayload: StreamData = {
+      title: bunnyStream.title,
+      host_parish: bunnyStream.host_parish,
+      media_url: 'bunny-live',
+      parish: bunnyStream.host_parish,
+      videoUrl: 'bunny-live',
+      mediaStream: null,
+      isWebcam: false,
+      recordId: bunnyStream.id,
+      isBunnyLive: true,
+      bunnyStreamId: bunnyStream.bunny_stream_id,
+      playbackUrlHls: bunnyStream.playback_url_hls,
+      rtmpUrl: bunnyStream.rtmp_url,
+      streamKey: bunnyStream.stream_key,
+    };
+
+    onStartStream(streamPayload, null);
+
+    // Reset fields and close modal
+    setTitle('');
+    setHostParish('');
+    setMediaUrl('');
+    setBunnyStream(null);
+    onClose();
+  };
+
+  // Cancel a created-but-not-started Bunny stream
+  const handleCancelBunnySetup = async () => {
+    if (bunnyStream?.id) {
+      try {
+        await liveStreamsApi.endBunny(bunnyStream.id);
+      } catch {}
+    }
+    setBunnyStream(null);
+    setBunnyError(null);
   };
 
   return (

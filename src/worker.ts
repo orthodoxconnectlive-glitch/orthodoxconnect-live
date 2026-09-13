@@ -681,6 +681,131 @@ function jsonResponse(data: any, status = 200): Response {
   });
 }
 
+function escHtml(s: any): string {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Public share page for a post or live stream: /post/:id and /live/:id.
+// Crawlers (WhatsApp, Facebook) read the OG tags; humans see the full post
+// with a CTA that opens it in the app. No login required.
+async function renderSharePage(db: D1Database, isLive: boolean, id: string): Promise<Response> {
+  const APP_URL = 'https://orthodoxconnect.live';
+  const PLAY_URL = 'https://play.google.com/store/apps/details?id=orthodoxconnect.live';
+  const DEFAULT_IMG = APP_URL + '/launchericon-512x512.png';
+
+  let title = 'OrthodoxConnect';
+  let desc = 'Faith · Fellowship · Community';
+  let image = DEFAULT_IMG;
+  let bodyHtml = '';
+  let appLink = APP_URL + '/';
+
+  try {
+    if (isLive) {
+      const s = await db.prepare(
+        'SELECT id, title, host_parish, priest_name, is_live, viewers_count, created_at FROM live_streams WHERE id = ?'
+      ).bind(id).first<any>();
+      if (s) {
+        const live = Number(s.is_live) === 1;
+        title = String(s.title || 'Live broadcast') + ' — OrthodoxConnect';
+        desc = `${s.priest_name || 'Orthodox Church'} · ${s.host_parish || ''}`.trim();
+        appLink = APP_URL + '/?live=' + encodeURIComponent(String(s.id));
+        bodyHtml = `
+          <div class="badge ${live ? 'live' : ''}">${live ? '● LIVE' : 'Broadcast'}</div>
+          <h1>${escHtml(s.title || 'Live broadcast')}</h1>
+          <p class="meta">${escHtml(s.priest_name || '')} · ${escHtml(s.host_parish || 'Orthodox Church')}</p>
+          ${live ? `<p class="meta">🔴 ${escHtml(String(s.viewers_count || 1))} watching now</p>` : ''}`;
+      }
+    } else {
+      const p = await db.prepare(
+        'SELECT id, content, author_name, author_parish, author_avatar, image_url, likes_count, comments_count, created_at FROM posts WHERE id = ?'
+      ).bind(id).first<any>();
+      if (p) {
+        const text = String(p.content || '');
+        title = `${p.author_name || 'Orthodox Parishioner'} on OrthodoxConnect`;
+        desc = text.length > 200 ? text.slice(0, 200) + '…' : (text || 'A post from the OrthodoxConnect parish feed.');
+        if (p.image_url) image = String(p.image_url);
+        appLink = APP_URL + '/?post=' + encodeURIComponent(String(p.id));
+        const dateStr = p.created_at ? new Date(String(p.created_at)).toLocaleDateString() : '';
+        bodyHtml = `
+          <div class="author">
+            <img class="avatar" src="${escHtml(p.author_avatar || DEFAULT_IMG)}" alt="" onerror="this.style.display='none'"/>
+            <div>
+              <div class="author-name">${escHtml(p.author_name || 'Orthodox Parishioner')}</div>
+              <div class="meta">${escHtml(p.author_parish || 'Orthodox Church')}${dateStr ? ' · ' + escHtml(dateStr) : ''}</div>
+            </div>
+          </div>
+          ${text ? `<p class="content">${escHtml(text)}</p>` : ''}
+          ${p.image_url ? `<img class="media" src="${escHtml(p.image_url)}" alt="Post image" onerror="this.style.display='none'"/>` : ''}
+          <div class="meta">❤ ${escHtml(String(p.likes_count || 0))} &nbsp; 💬 ${escHtml(String(p.comments_count || 0))}</div>`;
+      }
+    }
+  } catch (e) {}
+
+  if (!bodyHtml) {
+    bodyHtml = `<h1>OrthodoxConnect</h1><p class="meta">This post is no longer available.</p>`;
+  }
+
+  const pageUrl = APP_URL + (isLive ? '/live/' : '/post/') + encodeURIComponent(id);
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>${escHtml(title)}</title>
+<meta property="og:type" content="article"/>
+<meta property="og:site_name" content="OrthodoxConnect"/>
+<meta property="og:title" content="${escHtml(title)}"/>
+<meta property="og:description" content="${escHtml(desc)}"/>
+<meta property="og:image" content="${escHtml(image)}"/>
+<meta property="og:url" content="${escHtml(pageUrl)}"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="${escHtml(title)}"/>
+<meta name="twitter:description" content="${escHtml(desc)}"/>
+<meta name="twitter:image" content="${escHtml(image)}"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Georgia, 'Times New Roman', serif; background: #f3e9d2; color: #3a2c1a; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .brand img { width: 44px; height: 44px; border-radius: 12px; }
+  .brand span { font-size: 20px; font-weight: bold; color: #7a5c2e; }
+  .card { width: 100%; max-width: 560px; background: #fffdf6; border: 2px solid #c9a227; border-radius: 20px; padding: 22px; box-shadow: 0 8px 30px rgba(122,92,46,.18); }
+  .author { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #c9a227; }
+  .author-name { font-weight: bold; font-size: 16px; }
+  .meta { font-size: 13px; color: #8a6d3b; margin-top: 2px; }
+  h1 { font-size: 22px; margin-bottom: 8px; color: #3a2c1a; }
+  .content { font-size: 16px; line-height: 1.65; white-space: pre-wrap; word-wrap: break-word; margin: 12px 0; }
+  .media { width: 100%; border-radius: 14px; margin-top: 10px; border: 1px solid #e0c987; }
+  .badge { display: inline-block; font-size: 12px; font-weight: bold; letter-spacing: 1px; padding: 5px 12px; border-radius: 20px; background: #7a5c2e; color: #fff; margin-bottom: 10px; }
+  .badge.live { background: #b91c1c; }
+  .cta { width: 100%; max-width: 560px; margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .btn { display: block; text-align: center; text-decoration: none; font-weight: bold; font-size: 17px; padding: 15px; border-radius: 16px; }
+  .btn-primary { background: #7a5c2e; color: #fff; box-shadow: 0 4px 14px rgba(122,92,46,.35); }
+  .btn-secondary { background: transparent; color: #7a5c2e; border: 2px solid #7a5c2e; }
+  .foot { margin-top: 18px; font-size: 12px; color: #8a6d3b; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="brand"><img src="${DEFAULT_IMG}" alt="OrthodoxConnect"/><span>OrthodoxConnect</span></div>
+  <div class="card">${bodyHtml}</div>
+  <div class="cta">
+    <a class="btn btn-primary" href="${escHtml(appLink)}">Open in OrthodoxConnect</a>
+    <a class="btn btn-secondary" href="${PLAY_URL}">Get the App</a>
+  </div>
+  <p class="foot">Faith · Fellowship · Community</p>
+</body>
+</html>`;
+  return new Response(html, {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300' },
+  });
+}
+
 export function extractBunnyVideoGuid(input?: string | null): string | null {
   if (!input || typeof input !== 'string') return null;
   const trimmed = input.trim();
@@ -3478,6 +3603,16 @@ export default {
           }
 
           return jsonResponse({ success: true, id: targetUserId, message: 'User deleted successfully.' });
+        }
+      }
+
+      // Public share pages: /post/:id and /live/:id (OG tags + preview + app CTA)
+      if (request.method === 'GET' && env.DB &&
+          (url.pathname.startsWith('/post/') || url.pathname.startsWith('/live/'))) {
+        const isLivePath = url.pathname.startsWith('/live/');
+        const shareId = decodeURIComponent(url.pathname.replace(isLivePath ? '/live/' : '/post/', '').split('/')[0].trim());
+        if (shareId) {
+          return await renderSharePage(env.DB, isLivePath, shareId);
         }
       }
 

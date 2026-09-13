@@ -87,7 +87,12 @@ const INITIAL_STREAMS_AR: LiveStreamItem[] = [
 
 const LOCAL_STORAGE_KEY = 'orthodox_live_streams_v2';
 
-export const LiveBroadcastView: React.FC = () => {
+interface LiveBroadcastViewProps {
+  focusStreamId?: string | null;
+  onFocusStreamConsumed?: () => void;
+}
+
+export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStreamId, onFocusStreamConsumed }) => {
   const { t, language } = useTheme();
   const { profile, user } = useAuth();
 
@@ -130,6 +135,16 @@ export const LiveBroadcastView: React.FC = () => {
   }, [language]);
 
   const [activeStreamId, setActiveStreamId] = useState<string>(() => streams[0]?.id || 'stream-1');
+
+  // Share-link deep link (?live=<id>): jump to the shared stream once it exists.
+  useEffect(() => {
+    if (!focusStreamId) return;
+    const match = streams.find((s) => s.id === focusStreamId);
+    if (match) {
+      setActiveStreamId(match.id);
+      onFocusStreamConsumed?.();
+    }
+  }, [focusStreamId, streams]);
   const [isGoLiveOpen, setIsGoLiveOpen] = useState(false);
   const [isShareLinkOpen, setIsShareLinkOpen] = useState(false);
 
@@ -590,8 +605,12 @@ export const LiveBroadcastView: React.FC = () => {
   };
 
   const handleShareStream = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
+    const shareUrl = `https://orthodoxconnect.live/live/${encodeURIComponent(activeStreamId)}`;
+    const shareText = language === 'ar' ? 'شاهد البث المباشر على أورثوذكس كونكت' : 'Watch this live broadcast on OrthodoxConnect';
+    if (navigator.share) {
+      navigator.share({ title: 'OrthodoxConnect Live', text: shareText, url: shareUrl }).catch(() => {});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(shareUrl);
       showToast(language === 'ar' ? 'تم نسخ رابط البث المباشر!' : 'Live stream link copied to clipboard!');
     }
   };

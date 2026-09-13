@@ -371,11 +371,6 @@ export const PostCard: React.FC<PostCardProps> = ({
               >
                 {authorName}
               </h4>
-              {authorId?.startsWith('bot-') && (
-                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-(--bg-soft) text-(--tx-mute) border border-(--ln-gold)">
-                  🤖 {language === 'ar' ? 'بوت' : 'BOT'}
-                </span>
-              )}
 
               {currentProfile?.full_name?.toLowerCase() !== authorName.toLowerCase() && (
                 <div className="flex items-center gap-1.5">
@@ -719,7 +714,13 @@ export const PostCard: React.FC<PostCardProps> = ({
         <button
           type="button"
           onClick={() => {
-            navigator.clipboard.writeText(`https://orthodoxconnect.live/post/${post.id}`);
+            const shareUrl = `https://orthodoxconnect.live/post/${post.id}`;
+            const shareText = post.content ? post.content.slice(0, 120) : 'OrthodoxConnect';
+            if (navigator.share) {
+              navigator.share({ title: 'OrthodoxConnect', text: shareText, url: shareUrl }).catch(() => {});
+            } else if (navigator.clipboard) {
+              navigator.clipboard.writeText(shareUrl);
+            }
           }}
           className="p-2 text-(--tx-soft) hover:text-(--tx-head) hover:bg-(--bg-inset) dark:hover:bg-[#282019] rounded-xl transition-colors cursor-pointer"
           title={language === 'ar' ? 'نسخ رابط المنشور' : 'Copy link to post'}

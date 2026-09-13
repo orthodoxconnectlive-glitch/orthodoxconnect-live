@@ -62,6 +62,8 @@ function AppContent() {
   // When a notification targets a specific post, we navigate to the feed and
   // ask FeedView to scroll to + highlight that post, then clear it.
   const [focusPostId, setFocusPostId] = useState<string | null>(null);
+  // Share-link deep link: ?live=<streamId> opens the live view on that stream.
+  const [focusStreamId, setFocusStreamId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -89,6 +91,24 @@ function AppContent() {
     if (readNotifId) {
       markNotificationAsRead(readNotifId).catch(() => {});
       searchParams.delete('readNotif');
+    }
+
+    // Share-link deep links: ?post=<id> opens the feed focused on that post,
+    // ?live=<id> opens the live view on that stream. Consumed once, then the
+    // URL is cleaned so a refresh doesn't re-trigger the jump.
+    const sharedPostId = searchParams.get('post');
+    const sharedLiveId = searchParams.get('live');
+    if (sharedPostId) {
+      setFocusPostId(sharedPostId);
+      setCurrentView('feed');
+      searchParams.delete('post');
+    }
+    if (sharedLiveId) {
+      setFocusStreamId(sharedLiveId);
+      setCurrentView('live');
+      searchParams.delete('live');
+    }
+    if (readNotifId || sharedPostId || sharedLiveId) {
       const cleanUrl = window.location.pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '') + window.location.hash;
       window.history.replaceState(null, '', cleanUrl);
     }
@@ -175,7 +195,12 @@ function AppContent() {
       case 'library':
         return <LibraryView />;
       case 'live':
-        return <LiveBroadcastView />;
+        return (
+          <LiveBroadcastView
+            focusStreamId={focusStreamId}
+            onFocusStreamConsumed={() => setFocusStreamId(null)}
+          />
+        );
       case 'myNetwork':
         return <GroupRoomsView onSelectUser={handleSelectUser} onOpenMessengerWithUser={handleOpenMessengerWithUser} />;
       case 'messages':

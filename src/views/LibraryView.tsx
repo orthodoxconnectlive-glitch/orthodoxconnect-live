@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon, Pencil, Trash2 } from 'lucide-react';
+import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon, Pencil, Trash2, Headphones, Play } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { apiFetch } from '../lib/api';
 
@@ -28,6 +28,7 @@ export const LibraryView: React.FC = () => {
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
+  const [playingBook, setPlayingBook] = useState<Book | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
 
@@ -59,6 +60,7 @@ export const LibraryView: React.FC = () => {
     { id: 'spiritual', ar: 'روحيات وسير قديسين', en: 'Spiritual' },
     { id: 'liturgy', ar: 'طقوس وتسبحة', en: 'Liturgy' },
     { id: 'bible_study', ar: 'دراسات كتابية', en: 'Bible Study' },
+    { id: 'audiobook', ar: 'كتب مسموعة', en: 'Audiobooks' },
   ];
 
   const fetchBooks = () => {
@@ -342,6 +344,8 @@ export const LibraryView: React.FC = () => {
               <div className="h-44 bg-(--bg-soft) dark:bg-[#282019] flex items-center justify-center overflow-hidden border-b border-(--ln-gold)/30">
                 {book.cover_image_url ? (
                   <img src={book.cover_image_url} alt={book.title_ar} className="w-full h-full object-cover" />
+                ) : book.category === 'audiobook' ? (
+                  <Headphones className="w-12 h-12 text-(--ac-gold-tx)" />
                 ) : (
                   <BookOpen className="w-12 h-12 text-(--ac-gold-tx)" />
                 )}
@@ -358,18 +362,73 @@ export const LibraryView: React.FC = () => {
                   </p>
                 </div>
 
-                <a
-                  href={book.file_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-4 w-full py-2 px-3 rounded-xl bg-(--ac-gold) text-white text-xs font-serif font-bold flex items-center justify-center gap-1.5 hover:bg-(--ac-gold-deep) transition-colors shadow-sm"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>{language === 'ar' ? 'قراءة / تحميل' : 'Read / Download'}</span>
-                </a>
+                {book.category === 'audiobook' ? (
+                  <button
+                    type="button"
+                    onClick={() => setPlayingBook(book)}
+                    className="mt-4 w-full py-2 px-3 rounded-xl bg-(--ac-gold) text-white text-xs font-serif font-bold flex items-center justify-center gap-1.5 hover:bg-(--ac-gold-deep) transition-colors shadow-sm cursor-pointer"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    <span>{language === 'ar' ? 'استمع الآن' : 'Listen Now'}</span>
+                  </button>
+                ) : (
+                  <a
+                    href={book.file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-4 w-full py-2 px-3 rounded-xl bg-(--ac-gold) text-white text-xs font-serif font-bold flex items-center justify-center gap-1.5 hover:bg-(--ac-gold-deep) transition-colors shadow-sm"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{language === 'ar' ? 'قراءة / تحميل' : 'Read / Download'}</span>
+                  </a>
+                )}
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Audiobook Player Modal */}
+      {playingBook && playingBook.category === 'audiobook' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setPlayingBook(null)}>
+          <div
+            className="bg-(--bg-soft) dark:bg-[#18120e] border-2 border-(--ln-gold) dark:border-[#8b6b4a] w-full max-w-lg rounded-3xl p-6 shadow-2xl relative text-(--tx-strong) dark:text-[#f5ebd9]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setPlayingBook(null)}
+              className="absolute top-4 left-4 rtl:left-auto rtl:right-4 text-(--tx-mute) hover:text-(--tx-strong) dark:hover:text-white"
+              aria-label={language === 'ar' ? 'إغلاق' : 'Close'}
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-2xl bg-(--ac-gold)/20 border border-(--ln-gold) flex items-center justify-center shrink-0">
+                <Headphones className="w-5 h-5 text-(--ac-gold-tx)" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="font-serif-coptic font-bold text-base leading-snug">{language === 'ar' ? playingBook.title_ar : playingBook.title_en || playingBook.title_ar}</h2>
+                <p className="text-xs text-(--tx-mute) dark:text-[#a89379] font-serif mt-0.5">{language === 'ar' ? playingBook.author_ar : playingBook.author_en || playingBook.author_ar}</p>
+              </div>
+            </div>
+            {playingBook.file_url.includes('soundcloud.com') ? (
+              <iframe
+                title={playingBook.title_ar}
+                width="100%"
+                height="166"
+                scrolling="no"
+                frameBorder="no"
+                allow="autoplay"
+                src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(playingBook.file_url)}&color=%23b08d57&auto_play=true&hide_related=false&show_comments=false&show_user=true&show_reposts=false&show_teaser=false`}
+                className="rounded-2xl overflow-hidden"
+              />
+            ) : (
+              <audio controls autoPlay src={playingBook.file_url} className="w-full rounded-2xl" />
+            )}
+            <p className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif mt-3 text-center">
+              {language === 'ar' ? 'المصدر: مشروع الكنوز القبطية — المكتبة الصوتية' : 'Source: Coptic Treasures Project — Audio Library'}
+            </p>
+          </div>
         </div>
       )}
 

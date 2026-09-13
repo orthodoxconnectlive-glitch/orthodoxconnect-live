@@ -168,15 +168,14 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   const [activeEmoji, setActiveEmoji] = useState('👍');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isMobileChatOpen, setIsMobileChatOpen] = useState<boolean>(() => {
-    try {
-      return !!(initialContactId || localStorage.getItem('orthodox_active_contact_id'));
-    } catch (e) {
-      return !!initialContactId;
-    }
+    // Only auto-open when explicitly passed (e.g. from notification tap).
+    // Do NOT restore from localStorage on refresh - user expects the chats list.
+    return !!initialContactId;
   });
 
   const [activeContact, setActiveContact] = useState<ChatContact | null>(() => {
-    const savedContactId = initialContactId || localStorage.getItem('orthodox_active_contact_id');
+    // Only auto-select when explicitly passed via prop. Refresh shows the chats list.
+    const savedContactId = initialContactId;
     if (savedContactId) {
       return {
         id: savedContactId,

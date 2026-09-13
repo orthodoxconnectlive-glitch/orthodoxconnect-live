@@ -6,7 +6,7 @@ import { Post } from '../types';
 import { loadPostsByAuthor } from '../utils/posts';
 import { BUNNY_LIBRARY_ID } from '../utils/posts';
 import { parseVideoEmbed, extractCleanVideoId } from '../components/PostCard';
-import { getFollowersCount, getFollowingCount, isFollowing, toggleFollow } from '../utils/follows';
+import { getFollowingCount, isFollowing, toggleFollow } from '../utils/follows';
 import { testPushNotification } from '../utils/pushClient';
 
 export interface UserProfileData {
@@ -148,8 +148,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setFollowingState(isNow);
   };
 
-  const followersCount = getFollowersCount(targetName);
-  const followingCount = isSelf ? getFollowingCount() : Math.floor(followersCount * 0.4);
+  const followingCount = getFollowingCount();
 
   return (
     <div className="space-y-6">
@@ -207,14 +206,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   <span className="text-(--ac-bronze-tx) font-serif-coptic text-sm mr-1">{userPosts.length}</span>
                   <span className="text-[10px] text-(--tx-mute) dark:text-[#a89379]">Posts</span>
                 </div>
-                <div>
-                  <span className="text-(--ac-bronze-tx) font-serif-coptic text-sm mr-1">{followersCount}</span>
-                  <span className="text-[10px] text-(--tx-mute) dark:text-[#a89379]">Followers</span>
-                </div>
+                {isSelf && (
                 <div>
                   <span className="text-(--ac-bronze-tx) font-serif-coptic text-sm mr-1">{followingCount}</span>
                   <span className="text-[10px] text-(--tx-mute) dark:text-[#a89379]">Following</span>
                 </div>
+                )}
               </div>
             </div>
           </div>

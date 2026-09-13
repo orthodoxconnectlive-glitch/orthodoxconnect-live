@@ -25,7 +25,7 @@ import { GroupRoom } from '../types';
 import { GroupRoomModal } from '../components/GroupRoomModal';
 import { CreateGroupModal } from '../components/CreateGroupModal';
 import { useTheme } from '../context/ThemeContext';
-import { getFollowedAuthors, toggleFollow, getFollowersCount } from '../utils/follows';
+import { getFollowedAuthors, toggleFollow } from '../utils/follows';
 import { getJoinedGroupIds, toggleGroupJoin, getCustomGroups } from '../utils/groups';
 import { UserProfileData } from './ProfileView';
 
@@ -395,10 +395,7 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-(--ln-gold)/30 flex items-center justify-between gap-2 font-serif text-xs">
-                    <span className="text-[10px] text-(--tx-mute) font-bold uppercase tracking-wider">
-                      {getFollowersCount(member.name)} Followers
-                    </span>
+                  <div className="pt-3 border-t border-(--ln-gold)/30 flex items-center justify-end gap-2 font-serif text-xs">
 
                     <div className="flex items-center gap-2">
                       <button

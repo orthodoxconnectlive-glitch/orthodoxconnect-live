@@ -24,7 +24,13 @@
 
 <script>
 const VAPID_PUBLIC_KEY = 'BDrZbE-xWZdI4bykRXZG1pZRSV1g4_zxXVLzZvBISWGEsLuluW5G0nTNatg8MqBNcsoZLLApuLPk6RHyjJHPQ98';
-const USER_ID = '9e63fd72-f7c1-4748-b463-1137b469c7f5';
+// Get user ID from the app's stored profile (not hardcoded)
+function getUserId() {
+  try {
+    const p = JSON.parse(localStorage.getItem('orthodox_user_profile') || '{}');
+    return p.id || '';
+  } catch (e) { return ''; }
+}
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -42,6 +48,8 @@ async function resetPush() {
   const show = (cls, msg) => { res.className = cls; res.textContent = msg; };
   try {
     show('info', 'Working…');
+    const USER_ID = getUserId();
+    if (!USER_ID) { show('err', '❌ Not logged in. Open the app first, then come back here.'); btn.disabled = false; return; }
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       show('err', '❌ Push not supported in this browser.'); btn.disabled = false; return;
     }

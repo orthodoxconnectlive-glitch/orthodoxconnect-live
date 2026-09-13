@@ -628,12 +628,40 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
   // Jump to a specific post when opened from a notification (like/comment).
   // PostCard renders with id={`post-card-${post.id}`}, so we can scroll to it.
+  // If the post isn't in the loaded feed (older than pagination), fetch it
+  // directly and prepend it so the user always lands on the right post.
   useEffect(() => {
     if (!focusPostId) return;
     if (loading) return;
-    const t = window.setTimeout(() => {
-      const el = document.getElementById(`post-card-${focusPostId}`);
-      if (el) {
+    let cancelled = false;
+    const t = window.setTimeout(async () => {
+      let el = document.getElementById(`post-card-${focusPostId}`);
+      if (!el) {
+        // Post not in loaded feed — fetch it directly
+        try {
+          const res = await fetch(`/api/posts/${encodeURIComponent(focusPostId)}`);
+          const data = await res.json().catch(() => ({}));
+          if (!cancelled && data?.success && data?.post) {
+            // Map the raw row to a Post using the same mapper as loadPosts
+            const { mapRowToPost } = await import('../utils/posts');
+            const mapped = mapRowToPost(data.post);
+            if (mapped) {
+              setPosts((prev) => {
+                if (prev.some((p) => p.id === mapped.id)) return prev;
+                return [mapped, ...prev];
+              });
+              // Wait for React to render, then scroll
+              await new Promise((r) => setTimeout(r, 300));
+              if (!cancelled) {
+                el = document.getElementById(`post-card-${focusPostId}`);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[FeedView] Failed to fetch focused post:', e);
+        }
+      }
+      if (!cancelled && el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         const prevOutline = el.style.outline;
         const prevShadow = el.style.boxShadow;
@@ -645,11 +673,12 @@ export const FeedView: React.FC<FeedViewProps> = ({
           el.style.boxShadow = prevShadow;
         }, 2600);
       }
-      // Consume even when the post isn't in the loaded page (older than
-      // pagination) so we don't retry forever — the feed itself is shown.
-      onFocusPostConsumed?.();
+      if (!cancelled) onFocusPostConsumed?.();
     }, 400);
-    return () => window.clearTimeout(t);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusPostId, loading, posts.length]);
 

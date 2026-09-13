@@ -587,6 +587,8 @@ export async function markAllNotificationsAsRead ( userId?: string ): Promise < 
 
   const existing = getLocalNotifications ( ) ;
 
+  const readIds = getReadNotifIds ( ) ;
+
   existing . forEach ( ( n ) => readIds . add ( n . id ) ) ;
 
   saveReadNotifIds ( readIds ) ;
@@ -614,6 +616,8 @@ try {
 export async function markNotificationsAsReadByType ( type: string , userId?: string ): Promise < void > {
 
   const existing = getLocalNotifications ( ) ;
+
+  const readIds = getReadNotifIds ( ) ;
 
   existing . forEach ( ( n ) => { if ( ( n as any ) . type === type ) readIds . add ( n . id ) ; } ) ;
 

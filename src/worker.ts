@@ -642,11 +642,24 @@ export async function getAuthIdentity(request: Request, env: Env) {
       if (h.startsWith('Bearer ')) token = h.substring(7).trim();
     }
     if (!token || !env || !env.DB) return anon;
-    const now = new Date().toISOString();
     const sess = await env.DB.prepare(
-      'SELECT user_id FROM sessions WHERE token = ? AND (expires_at IS NULL OR expires_at > ?)'
-    ).bind(token, now).first<{ user_id: string }>();
+      'SELECT user_id, expires_at FROM sessions WHERE token = ?'
+    ).bind(token).first<{ user_id: string; expires_at: string | null }>();
     if (!sess || !sess.user_id) return anon;
+    // Long-lived login: sessions last a year and silently renew while the app
+    // is used, so the app "just opens". A token expired up to 30 days ago is
+    // still accepted once (grace) and then renewed.
+    const nowMs = Date.now();
+    const GRACE_MS = 30 * 24 * 3600 * 1000;
+    const expMs = sess.expires_at ? Date.parse(sess.expires_at) : NaN;
+    const stillValid = !sess.expires_at || isNaN(expMs) || expMs > nowMs - GRACE_MS;
+    if (!stillValid) return anon;
+    if (!sess.expires_at || isNaN(expMs) || expMs < nowMs + GRACE_MS) {
+      const newExp = new Date(nowMs + 365 * 24 * 3600 * 1000).toISOString();
+      try {
+        await env.DB.prepare('UPDATE sessions SET expires_at = ? WHERE token = ?').bind(newExp, token).run();
+      } catch (e) {}
+    }
     const p = await env.DB.prepare('SELECT id, email, role FROM profiles WHERE id = ?')
       .bind(sess.user_id)
       .first<{ id: string; email: string | null; role: string | null }>();
@@ -1259,7 +1272,7 @@ export default {
           }
 
           const token = `sess_${userId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-          const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+          const expiresAt = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString();
 
           if (env.DB) {
             await env.DB.prepare('INSERT INTO sessions (id, user_id, token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
@@ -1372,7 +1385,7 @@ export default {
           }
 
           const token = `sess_${profileRow.id}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-          const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
+          const expiresAt = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString();
 
           if (env.DB) {
             await env.DB.prepare('INSERT INTO sessions (id, user_id, token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')

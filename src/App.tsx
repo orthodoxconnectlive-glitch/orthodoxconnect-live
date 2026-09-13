@@ -55,13 +55,7 @@ function AppContent() {
   });
   const [isInviteOpen, setIsInviteOpen] = useState<boolean>(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
-  const [activeMessengerContactId, setActiveMessengerContactId] = useState<string | undefined>(() => {
-    try {
-      return localStorage.getItem('orthodox_active_contact_id') || undefined;
-    } catch (e) {
-      return undefined;
-    }
-  });
+  const [activeMessengerContactId, setActiveMessengerContactId] = useState<string | undefined>(undefined);
   const [viewedUserProfile, setViewedUserProfile] = useState<UserProfileData | null>(null);
   const [selectedChurchId, setSelectedChurchId] = useState<string | null>(null);
   // When a notification targets a specific post, we navigate to the feed and

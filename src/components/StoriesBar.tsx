@@ -325,6 +325,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
       });
 
       let serverOk = true;
+      let serverDetail = '';
       try {
         await storiesApi.create({
           id: created.id,
@@ -338,16 +339,20 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
         } as any);
       } catch (err) {
         console.warn('Stories insert notice:', err);
+        const detail = err instanceof Error && err.message ? err.message : String(err || '');
+        console.warn('Stories insert detail:', detail);
         serverOk = false;
+        serverDetail = detail;
       }
 
       setStories([created, ...stories]);
       if (!serverOk) {
         // Keep the modal open so the failure is visible instead of failing silently.
         setFormError(
-          ar
+          (ar
             ? 'تم حفظ القصة على هذا الجهاز فقط — تعذّر إرسالها للخادم. تحقق من الإنترنت ثم حاول مجدداً.'
-            : 'Story saved on this device only — the server did not accept it. Check your connection, then try again.'
+            : 'Story saved on this device only — the server did not accept it. Check your connection, then try again.') +
+          (serverDetail ? `\n${ar ? 'سبب الرفض:' : 'Server said:'} ${serverDetail}` : '')
         );
         return;
       }

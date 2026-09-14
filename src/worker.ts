@@ -578,6 +578,9 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
           desc = `Daily Synaxarium · ${dateLabel}`
             + (enTitles[0] && enTitles[0] !== mainTitle ? ` · ${enTitles[0]}` : '')
             + (extra > 0 ? ` (+${extra} more)` : '');
+          image = APP_URL + '/synax-share.png';
+          imageW = '2240';
+          imageH = '1120';
           appLink = APP_URL + '/?synax=' + encodeURIComponent(String(id));
           const titleList = (arTitles.length ? arTitles : enTitles)
             .map((t) => `<p class="content">• ${escHtml(t)}</p>`).join('');

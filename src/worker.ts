@@ -3189,28 +3189,35 @@ export default {
 
           let books: any[] = [];
           if (env.DB) {
-            let query = `SELECT b.*,
-              (SELECT COUNT(*) FROM book_likes WHERE book_id = b.id) AS likes_count,
-              (SELECT COUNT(*) FROM book_comments WHERE book_id = b.id) AS comments_count
-              FROM books b WHERE 1=1`;
             const params: any[] = [];
-
+            let where = 'WHERE 1=1';
             if (category && category !== 'all') {
-              query += ' AND b.category = ?';
+              where += ' AND b.category = ?';
               params.push(category);
             }
-
             if (q) {
-              query += ' AND (b.title_ar LIKE ? OR b.title_en LIKE ? OR b.author_ar LIKE ? OR b.author_en LIKE ?)';
+              where += ' AND (b.title_ar LIKE ? OR b.title_en LIKE ? OR b.author_ar LIKE ? OR b.author_en LIKE ?)';
               const pattern = `%${q}%`;
               params.push(pattern, pattern, pattern, pattern);
             }
+            const order = ' ORDER BY datetime(b.created_at) DESC, b.created_at DESC';
 
-            query += ' ORDER BY datetime(b.created_at) DESC, b.created_at DESC';
-
-            const stmt = env.DB.prepare(query).bind(...params);
-            const { results } = await stmt.all<any>();
-            books = results || [];
+            // Prefer the counts query; fall back to the plain query if the
+            // engagement tables do not exist yet (never break the library).
+            try {
+              const query = `SELECT b.*,
+                (SELECT COUNT(*) FROM book_likes WHERE book_id = b.id) AS likes_count,
+                (SELECT COUNT(*) FROM book_comments WHERE book_id = b.id) AS comments_count
+                FROM books b ${where}${order}`;
+              const { results } = await env.DB.prepare(query).bind(...params).all<any>();
+              books = results || [];
+            } catch (countsErr) {
+              const plainWhere = where.replace(/b\./g, '');
+              const plainOrder = order.replace(/b\./g, '');
+              const query = `SELECT * FROM books ${plainWhere}${plainOrder}`;
+              const { results } = await env.DB.prepare(query).bind(...params).all<any>();
+              books = (results || []).map((b: any) => ({ ...b, likes_count: 0, comments_count: 0 }));
+            }
 
             // Mark which books the current user liked (optional auth — endpoint stays public).
             try {

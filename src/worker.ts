@@ -1461,6 +1461,15 @@ export default {
         } catch (e: any) {
           out.create = 'FAILED: ' + String((e && e.message) || e);
         }
+        // Run the EXACT book_likes self-heal statement from the books route
+        try {
+          await env.DB.exec(`CREATE TABLE IF NOT EXISTS book_likes (
+              book_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL,
+              PRIMARY KEY (book_id, user_id))`);
+          out.book_likes_create = 'ok';
+        } catch (e: any) {
+          out.book_likes_create = 'FAILED: ' + String((e && e.message) || e);
+        }
         try {
           const r = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('book_likes','book_comments','churches','_ddl_test')").all();
           out.tables = (r.results || []).map((x: any) => x.name);

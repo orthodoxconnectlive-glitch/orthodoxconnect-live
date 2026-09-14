@@ -1917,6 +1917,25 @@ export default {
         }
       }
 
+      // TEMP DEBUG (remove after use): inspect stories table schema. One-time key gated.
+      if (url.pathname === '/api/debug/stories-schema') {
+        const key = url.searchParams.get('key') || '';
+        if (key !== '48f413cdc5a8fd3cb46b6e8d48a338aa') {
+          return jsonResponse({ success: false, error: 'Not found.' }, 404);
+        }
+        let schema: any = null;
+        let fkList: any[] = [];
+        try {
+          const row = await env.DB.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='stories'").first<{ sql: string }>();
+          schema = row ? row.sql : null;
+        } catch (e: any) { schema = 'ERR ' + String(e && e.message || e); }
+        try {
+          const r = await env.DB.prepare('PRAGMA foreign_key_list(stories)').all();
+          fkList = r.results || [];
+        } catch (e: any) { fkList = [{ err: String(e && e.message || e) }]; }
+        return jsonResponse({ success: true, schema, fkList });
+      }
+
       // 6a. Single Story (/api/stories/:id) — admin/author delete
       if (url.pathname.startsWith('/api/stories/')) {
         const storyId = decodeURIComponent(url.pathname.replace('/api/stories/', '').trim());

@@ -7,13 +7,15 @@ export interface SynaxariumDay {
   ar: string[];
   /** Full English body text for the day */
   text: string;
+  /** Full Arabic body text for the day (when translated) */
+  ar_text?: string;
   coptic: CopticDate;
 }
 
 /** Cache of loaded months: month number (1-13) -> day -> SynaxariumDay (without coptic) */
-const monthCache = new Map<number, Record<string, { en: string[]; ar: string[]; text: string }>>();
+const monthCache = new Map<number, Record<string, { en: string[]; ar: string[]; text: string; ar_text?: string }>>();
 
-async function loadMonth(month: number): Promise<Record<string, { en: string[]; ar: string[]; text: string }>> {
+async function loadMonth(month: number): Promise<Record<string, { en: string[]; ar: string[]; text: string; ar_text?: string }>> {
   const cached = monthCache.get(month);
   if (cached) return cached;
   const mm = String(month).padStart(2, '0');

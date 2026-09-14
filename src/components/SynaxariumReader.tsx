@@ -12,7 +12,7 @@ interface SynaxariumReaderProps {
 /**
  * Full-day Synaxarium reader. Opens on the exact Coptic day passed in —
  * shows the day's titles and the complete text, in the user's language.
- * The body text is English (labeled as such); titles are localized.
+ * Arabic users get the full Arabic body text; English users get English.
  */
 export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, onClose }) => {
   const { language } = useTheme();
@@ -37,18 +37,23 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
   }, [copticDate]);
 
   const titles = day ? (isAr ? day.ar : day.en) : [];
+  // Body text: Arabic body for Arabic users (falls back to English while
+  // a day's translation is still pending), English body otherwise.
+  const bodyText = day ? (isAr && day.ar_text ? day.ar_text : day.text) : '';
+  const showingArBody = isAr && !!day?.ar_text;
   // Body paragraphs: split on blank lines, drop the repeated title head.
   const paragraphs = React.useMemo(() => {
     if (!day) return [];
-    const parts = day.text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    const parts = bodyText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
     // First paragraph is usually the title repeated — drop it if it matches a title.
     if (parts.length > 1) {
       const first = parts[0].replace(/^\d+\.\s*/, '').trim().toLowerCase();
-      const isTitle = day.en.some((t) => t.toLowerCase().includes(first.slice(0, 40)) || first.includes(t.toLowerCase().slice(0, 40)));
+      const refTitles = showingArBody ? day.ar : day.en;
+      const isTitle = refTitles.some((t) => t.toLowerCase().includes(first.slice(0, 40)) || first.includes(t.toLowerCase().slice(0, 40)));
       if (isTitle) return parts.slice(1);
     }
     return parts;
-  }, [day]);
+  }, [day, bodyText, showingArBody]);
 
   const gregorian = new Date().toLocaleDateString(isAr ? 'ar-EG' : 'en-US', {
     weekday: 'long',
@@ -121,12 +126,12 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
                   </div>
                 ))}
               </div>
-              {/* Full text (English source, labeled) */}
+              {/* Full text — Arabic body for Arabic users, English otherwise */}
               <div>
                 <p className="text-[10px] uppercase tracking-wider font-serif font-bold text-(--tx-mute) dark:text-[#a89379] mb-2">
-                  {isAr ? 'النص الكامل (بالإنجليزية)' : 'Full text'}
+                  {isAr ? (showingArBody ? 'النص الكامل' : 'النص الكامل (بالإنجليزية)') : 'Full text'}
                 </p>
-                <div dir="ltr" className="space-y-3">
+                <div dir={showingArBody ? 'rtl' : 'ltr'} className="space-y-3">
                   {paragraphs.map((p, i) => (
                     <p key={i} className="text-sm font-serif leading-relaxed text-(--tx-strong) dark:text-[#f5ebd9]">
                       {p}

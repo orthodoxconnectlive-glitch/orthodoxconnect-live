@@ -173,6 +173,26 @@ export async function ensureD1Tables(db?: D1Database) {
     } catch (storyMigErr) {
       console.warn('[ensureD1Tables] stories migration notice:', storyMigErr);
     }
+    try {
+      // Self-healing: some production databases have a stories table with a
+      // bogus FOREIGN KEY (author_id) REFERENCES users(id). There is no users
+      // table (the app uses profiles), so every story insert fails the FK
+      // check. Rebuild the table without the FK, preserving existing rows.
+      let fkRows: any[] = [];
+      try {
+        const r = await db.prepare('PRAGMA foreign_key_list(stories)').all();
+        fkRows = (r && (r as any).results) || [];
+      } catch (e) { fkRows = []; }
+      const hasBogusFk = fkRows.some((r: any) => r && r.table === 'users');
+      if (hasBogusFk) {
+        await db.exec(`CREATE TABLE stories_fixed (id TEXT PRIMARY KEY, author_id TEXT NOT NULL, author_name TEXT NOT NULL, author_avatar TEXT, author_parish TEXT DEFAULT 'Orthodox Church', image_url TEXT, media_url TEXT NOT NULL, media_type TEXT DEFAULT 'image', caption TEXT DEFAULT '', expires_at TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+        await db.exec(`INSERT INTO stories_fixed (id, author_id, author_name, author_avatar, author_parish, image_url, media_url, media_type, caption, expires_at, created_at) SELECT id, author_id, author_name, author_avatar, author_parish, image_url, media_url, media_type, caption, expires_at, created_at FROM stories`);
+        await db.exec(`DROP TABLE stories`);
+        await db.exec(`ALTER TABLE stories_fixed RENAME TO stories`);
+      }
+    } catch (storyFkFixErr) {
+      console.warn('[ensureD1Tables] stories FK fix notice:', storyFkFixErr);
+    }
     // call_signals newer columns (kept out of the giant batch as standalone
     // statements so one bad statement cannot break the whole batch).
     for (const colSql of [
@@ -1915,25 +1935,6 @@ export default {
             story: { id, author_id: authorId, author_name: authorName, author_avatar: authorAvatar, author_parish: authorParish, image_url: imageUrl, media_type: mediaType, caption, expires_at: expiresAt, created_at: createdAt },
           }, 201);
         }
-      }
-
-      // TEMP DEBUG (remove after use): inspect stories table schema. One-time key gated.
-      if (url.pathname === '/api/debug/stories-schema') {
-        const key = url.searchParams.get('key') || '';
-        if (key !== '48f413cdc5a8fd3cb46b6e8d48a338aa') {
-          return jsonResponse({ success: false, error: 'Not found.' }, 404);
-        }
-        let schema: any = null;
-        let fkList: any[] = [];
-        try {
-          const row = await env.DB.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='stories'").first<{ sql: string }>();
-          schema = row ? row.sql : null;
-        } catch (e: any) { schema = 'ERR ' + String(e && e.message || e); }
-        try {
-          const r = await env.DB.prepare('PRAGMA foreign_key_list(stories)').all();
-          fkList = r.results || [];
-        } catch (e: any) { fkList = [{ err: String(e && e.message || e) }]; }
-        return jsonResponse({ success: true, schema, fkList });
       }
 
       // 6a. Single Story (/api/stories/:id) — admin/author delete

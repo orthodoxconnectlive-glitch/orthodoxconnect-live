@@ -73,10 +73,25 @@ export async function apiFetch<T = any>(
   // NOTE: x-user-* headers are intentionally NOT sent. The server verifies
   // identity only from the session token; those headers are spoofable.
 
-  const res = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  // Never let a request hang forever (a stuck socket would freeze the app on
+  // the loading screen). Abort after 25s so callers always settle.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+  } catch (fetchErr: any) {
+    clearTimeout(timeoutId);
+    if (fetchErr && fetchErr.name === 'AbortError') {
+      throw new Error('Request timed out. Check your connection and try again.');
+    }
+    throw fetchErr;
+  }
+  clearTimeout(timeoutId);
 
   if (!res.ok) {
     // 401 on a non-auth endpoint means the session token is invalid/expired.

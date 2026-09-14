@@ -638,3 +638,49 @@ export function formatCopticDate(cd: CopticDate, lang: 'en' | 'ar' = 'en'): stri
     ? `${cd.day} ${cd.monthAr} ${cd.year}`
     : `${cd.day} ${cd.monthEn} ${cd.year}`;
 }
+
+/** Shift a Coptic date by delta days (Coptic calendar: 12x30 + 6 epagomenal days). */
+export function shiftCopticDay(cd: CopticDate, delta: number): CopticDate {
+  const monthLen = (m: number) => (m === 13 ? 6 : 30);
+  let { year, month, day } = cd;
+  day += delta;
+  while (day < 1) {
+    month -= 1;
+    if (month < 1) { month = 13; year -= 1; }
+    day += monthLen(month);
+  }
+  while (day > monthLen(month)) {
+    day -= monthLen(month);
+    month += 1;
+    if (month > 13) { month = 1; year += 1; }
+  }
+  return {
+    year,
+    month,
+    day,
+    monthEn: COPTIC_MONTHS_EN[month - 1],
+    monthAr: COPTIC_MONTHS_AR[month - 1],
+  };
+}
+
+/** Coptic date -> Gregorian Date (inverse of getCopticDate). */
+export function copticToGregorian(cd: CopticDate): Date {
+  const doy = (cd.month - 1) * 30 + (cd.day - 1);
+  const y0 = cd.year - 1;
+  const cycle = Math.floor(y0 / 4);
+  const yic = y0 % 4;
+  const dse = cycle * 1461 + [0, 365, 730, 1095][yic] + doy;
+  const jdn = dse + 1825030;
+  // JDN -> Gregorian
+  const a = jdn + 32044;
+  const b = Math.floor((4 * a + 3) / 146097);
+  const c = a - Math.floor((146097 * b) / 4);
+  const d = Math.floor((4 * c + 3) / 1461);
+  const e = c - Math.floor((1461 * d) / 4);
+  const m = Math.floor((5 * e + 2) / 153);
+  return new Date(
+    100 * b + d - 4800 + Math.floor(m / 10),
+    m + 3 - 12 * Math.floor(m / 10) - 1,
+    e - Math.floor((153 * m + 2) / 5) + 1
+  );
+}

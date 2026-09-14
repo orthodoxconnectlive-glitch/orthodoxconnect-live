@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { X, BookOpen, Loader2, AlertCircle, Heart, MessageCircle, Share2, Send, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { X, BookOpen, Loader2, AlertCircle, Heart, MessageCircle, Share2, Send, Trash2, ChevronLeft, ChevronRight, List } from 'lucide-react';
 import { getSynaxariumDay, type SynaxariumDay } from '../data/synaxarium';
-import { formatCopticDate, type CopticDate } from '../utils/liturgicalEngine';
+import { formatCopticDate, shiftCopticDay, copticToGregorian, COPTIC_MONTHS_EN, COPTIC_MONTHS_AR, type CopticDate } from '../utils/liturgicalEngine';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -31,9 +31,20 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
   const isAr = language === 'ar';
   const authContext = useAuth() as any;
   const profile = authContext?.profile;
+  // The day being viewed — starts on the day passed in, but the user can flip
+  // to prev/next days or pick any day from the full 366-day listing.
+  const [viewDate, setViewDate] = useState<CopticDate>(copticDate);
+  // 'read' = the day's full text, 'list' = browsable index of all days.
+  const [mode, setMode] = useState<'read' | 'list'>('read');
+  const [listMonth, setListMonth] = useState<number>(copticDate.month);
+  useEffect(() => {
+    setViewDate(copticDate);
+    setMode('read');
+  }, [copticDate.year, copticDate.month, copticDate.day]);
+  const bodyRef = useRef<HTMLDivElement>(null);
   // Engagement key: one per Coptic day ("MM-DD"), shared across languages
   // and years so the whole community likes/comments on the same day entry.
-  const synaxKey = `${String(copticDate.month).padStart(2, '0')}-${String(copticDate.day).padStart(2, '0')}`;
+  const synaxKey = `${String(viewDate.month).padStart(2, '0')}-${String(viewDate.day).padStart(2, '0')}`;
   const [day, setDay] = useState<SynaxariumDay | null>(null);
   const [error, setError] = useState(false);
 
@@ -41,7 +52,8 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
     let cancelled = false;
     setDay(null);
     setError(false);
-    getSynaxariumDay(copticDate)
+    bodyRef.current?.scrollTo({ top: 0 });
+    getSynaxariumDay(viewDate)
       .then((d) => {
         if (!cancelled) setDay(d);
       })
@@ -51,7 +63,7 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
     return () => {
       cancelled = true;
     };
-  }, [copticDate]);
+  }, [viewDate]);
 
   const titles = day ? (isAr ? day.ar : day.en) : [];
   // Body text: Arabic body for Arabic users (falls back to English while
@@ -81,6 +93,32 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
   const [comments, setComments] = useState<SynaxComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [newComment, setNewComment] = useState('');
+
+  // Full 366-day title index for the listing — lazy-loaded as its own chunk
+  // only when the user opens the listing, so the main bundle stays lean.
+  const [titlesIndex, setTitlesIndex] = useState<Record<string, { en: string[]; ar: string[] }> | null>(null);
+  useEffect(() => {
+    if (mode === 'list' && !titlesIndex) {
+      import('../synaxTitles')
+        .then((m) => setTitlesIndex(m.SYNAX_TITLES))
+        .catch(() => {});
+    }
+  }, [mode, titlesIndex]);
+
+  // Day flipping + listing helpers
+  const prevDate = shiftCopticDay(viewDate, -1);
+  const nextDate = shiftCopticDay(viewDate, 1);
+  const shortDayLabel = (d: CopticDate) => formatCopticDate(d, language).split(' ').slice(0, 2).join(' ');
+  const openDay = (month: number, dayNum: number) => {
+    setViewDate({
+      year: viewDate.year,
+      month,
+      day: dayNum,
+      monthEn: COPTIC_MONTHS_EN[month - 1],
+      monthAr: COPTIC_MONTHS_AR[month - 1],
+    });
+    setMode('read');
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -173,7 +211,7 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
 
   const shareDay = async () => {
     const url = `https://orthodoxconnect.live/synax/${synaxKey}`;
-    const dayLabel = formatCopticDate(copticDate, language);
+    const dayLabel = formatCopticDate(viewDate, language);
     const firstTitle = titles[0] || (isAr ? 'السنكسار اليومي' : 'Daily Synaxarium');
     // Hook: title + the story's opening lines, so people tap through to the app.
     const storyHead = paragraphs[0] || '';
@@ -198,7 +236,7 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
     }
   };
 
-  const gregorian = new Date().toLocaleDateString(isAr ? 'ar-EG' : 'en-US', {
+  const gregorian = copticToGregorian(viewDate).toLocaleDateString(isAr ? 'ar-EG' : 'en-US', {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -221,25 +259,134 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
               </span>
               <div>
                 <h2 className="font-serif-coptic font-bold text-lg text-(--tx-strong) dark:text-[#f5ebd9]">
-                  {isAr ? 'السنكسار اليومي' : 'Daily Synaxarium'}
+                  {mode === 'list'
+                    ? (isAr ? 'فهرس السنكسار' : 'Synaxarium Index')
+                    : (isAr ? 'السنكسار اليومي' : 'Daily Synaxarium')}
                 </h2>
                 <p className="text-xs text-(--tx-mute) dark:text-[#a89379] font-serif">
-                  {formatCopticDate(copticDate, language)} • {gregorian}
+                  {formatCopticDate(viewDate, language)} • {gregorian}
                 </p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl bg-(--bg-deep) dark:bg-[#32251a] hover:bg-(--ac-gold) hover:text-white border border-(--ln-gold) text-(--tx-strong) dark:text-[#f5ebd9] transition-colors cursor-pointer"
-              aria-label={isAr ? 'إغلاق' : 'Close'}
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setMode((m) => (m === 'list' ? 'read' : 'list'))}
+                className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+                  mode === 'list'
+                    ? 'bg-(--ac-gold) text-white border-(--ac-gold)'
+                    : 'bg-(--bg-deep) dark:bg-[#32251a] border-(--ln-gold) text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold) hover:text-white'
+                }`}
+                aria-label={isAr ? 'فهرس الأيام' : 'Browse all days'}
+                title={isAr ? 'فهرس الأيام' : 'Browse all days'}
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-xl bg-(--bg-deep) dark:bg-[#32251a] hover:bg-(--ac-gold) hover:text-white border border-(--ln-gold) text-(--tx-strong) dark:text-[#f5ebd9] transition-colors cursor-pointer"
+                aria-label={isAr ? 'إغلاق' : 'Close'}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
+          {mode === 'read' && (
+            <div className="flex items-center justify-between gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => setViewDate((d) => shiftCopticDay(d, -1))}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-serif font-bold border border-(--ln-gold) text-(--tx-mute) dark:text-[#a89379] hover:text-(--ac-gold-tx) hover:border-(--ac-gold) transition-colors cursor-pointer"
+              >
+                {isAr ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+                <span>{shortDayLabel(prevDate)}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('list')}
+                className="px-3 py-1.5 rounded-xl text-[11px] font-serif font-bold border border-(--ln-gold) text-(--tx-mute) dark:text-[#a89379] hover:text-(--ac-gold-tx) hover:border-(--ac-gold) transition-colors cursor-pointer"
+              >
+                {isAr ? 'كل الأيام' : 'All days'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewDate((d) => shiftCopticDay(d, 1))}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-serif font-bold border border-(--ln-gold) text-(--tx-mute) dark:text-[#a89379] hover:text-(--ac-gold-tx) hover:border-(--ac-gold) transition-colors cursor-pointer"
+              >
+                <span>{shortDayLabel(nextDate)}</span>
+                {isAr ? <ChevronLeft className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div ref={bodyRef} className="flex-1 overflow-y-auto px-5 py-4">
+          {mode === 'list' ? (
+            <div className="space-y-4">
+              {/* Month selector */}
+              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                {COPTIC_MONTHS_EN.map((mEn, i) => {
+                  const m = i + 1;
+                  const active = m === listMonth;
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => { setListMonth(m); bodyRef.current?.scrollTo({ top: 0 }); }}
+                      className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-serif font-bold border transition-colors cursor-pointer ${
+                        active
+                          ? 'bg-(--ac-gold) text-white border-(--ac-gold)'
+                          : 'border-(--ln-gold) text-(--tx-mute) dark:text-[#a89379] hover:text-(--ac-gold-tx)'
+                      }`}
+                    >
+                      {isAr ? COPTIC_MONTHS_AR[i] : mEn}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Day rows */}
+              {!titlesIndex ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-(--tx-mute)">
+                  <Loader2 className="w-8 h-8 animate-spin text-(--ac-bronze-tx)" />
+                  <p className="text-sm font-serif">{isAr ? 'جاري تحميل الفهرس...' : 'Loading index...'}</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {Array.from({ length: listMonth === 13 ? 6 : 30 }, (_, i) => i + 1).map((d) => {
+                    const key = `${String(listMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    const t = titlesIndex[key];
+                    const dayTitles = t ? (isAr && t.ar.length ? t.ar : t.en) : [];
+                    const label = dayTitles[0] || (isAr ? 'السنكسار اليومي' : 'Daily Synaxarium');
+                    const extra = dayTitles.length > 1 ? ` (+${dayTitles.length - 1})` : '';
+                    const isCurrent = listMonth === viewDate.month && d === viewDate.day;
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => openDay(listMonth, d)}
+                        className={`w-full text-start flex items-center gap-3 p-3 rounded-2xl border transition-colors cursor-pointer ${
+                          isCurrent
+                            ? 'bg-(--ac-gold)/15 border-(--ac-gold)'
+                            : 'bg-(--bg-soft)/80 dark:bg-[#282019]/80 border-(--ln-gold) hover:border-(--ac-gold)'
+                        }`}
+                      >
+                        <span className="shrink-0 w-16 text-center px-2 py-1 rounded-lg bg-(--bg-deep) dark:bg-[#32251a] border border-(--ln-gold) text-[11px] font-serif font-bold text-(--ac-bronze-tx)">
+                          {d} {isAr ? COPTIC_MONTHS_AR[listMonth - 1] : COPTIC_MONTHS_EN[listMonth - 1]}
+                        </span>
+                        <span className="flex-1 text-xs font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9] leading-relaxed line-clamp-2">
+                          {label}{extra}
+                        </span>
+                        {isAr
+                          ? <ChevronLeft className="w-4 h-4 shrink-0 text-(--tx-mute)" />
+                          : <ChevronRight className="w-4 h-4 shrink-0 text-(--tx-mute)" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+          <>
           {!day && !error && (
             <div className="flex flex-col items-center justify-center py-16 gap-3 text-(--tx-mute)">
               <Loader2 className="w-8 h-8 animate-spin text-(--ac-bronze-tx)" />
@@ -318,6 +465,8 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
                 </div>
               </div>
             </div>
+          )}
+          </>
           )}
         </div>
       </div>

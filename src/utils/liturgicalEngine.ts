@@ -9,7 +9,8 @@
  *  - Today's major commemoration (fixed + movable feasts)
  *  - Rotating daily scripture verse
  *
- * Anchor verified: 1 Thout 1740 AM = 11 September 2023 (Feast of Nayrouz 1740).
+ * Anchor verified: 1 Thout 1740 AM = 11 September 2023 (Feast of Nayrouz 1740),
+ * and 29 Kiahk = 7 January every year in the 1900-2099 range.
  */
 
 export type FastingType = 'strict' | 'normal' | 'fish' | 'fast_free';
@@ -566,4 +567,74 @@ const DAILY_VERSES: Verse[] = [
 export function getDailyVerse(date: Date, lang: 'en' | 'ar' = 'en'): { ref: string; text: string } {
   const v = DAILY_VERSES[dayOfYear(date) % DAILY_VERSES.length];
   return lang === 'ar' ? { ref: v.refAr, text: v.textAr } : { ref: v.refEn, text: v.textEn };
+}
+
+// ---------------------------------------------------------------------------
+// Coptic calendar conversion (Alexandrian calendar)
+// ---------------------------------------------------------------------------
+
+export interface CopticDate {
+  /** Coptic year, e.g. 1742 */
+  year: number;
+  /** 1-13 (13 = Nasie, the Little Month) */
+  month: number;
+  /** 1-30 (1-5/6 for Nasie) */
+  day: number;
+  monthEn: string;
+  monthAr: string;
+}
+
+export const COPTIC_MONTHS_EN = [
+  'Tout', 'Baba', 'Hator', 'Kiahk', 'Toba', 'Amshir',
+  'Baramhat', 'Baramouda', 'Bashans', 'Paona', 'Epep', 'Mesra', 'Nasie',
+];
+
+export const COPTIC_MONTHS_AR = [
+  'توت', 'بابه', 'هاتور', 'كيهك', 'طوبه', 'أمشير',
+  'برمهات', 'برموده', 'بشنس', 'بؤونه', 'أبيب', 'مسرى', 'نسئ',
+];
+
+/**
+ * Gregorian date -> Coptic date, via Julian Day Number.
+ * Calibrated on two anchors: 1 Tout 1740 AM = 11 Sep 2023 and
+ * 29 Kiahk = 7 Jan every year (1900-2099).
+ * Coptic leap years: (year % 4 === 0) get a 6th Nasie day.
+ */
+export function getCopticDate(date: Date): CopticDate {
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  const a = Math.floor((14 - m) / 12);
+  const yy = y + 4800 - a;
+  const mm = m + 12 * a - 3;
+  const jdn = d + Math.floor((153 * mm + 2) / 5) + 365 * yy + Math.floor(yy / 4) - Math.floor(yy / 100) + Math.floor(yy / 400) - 32045;
+
+  const dse = jdn - 1825030; // days since 1 Tout 1 AM (calibrated)
+  const cycle = Math.floor(dse / 1461);
+  const dsc = dse - cycle * 1461;
+  let yic: number, doy: number;
+  // Leap year = 4th year of each cycle (year % 4 === 0): the 6th Nasie day
+  // closes the Coptic year that contains the leap day.
+  if (dsc < 365) { yic = 0; doy = dsc; }
+  else if (dsc < 730) { yic = 1; doy = dsc - 365; }
+  else if (dsc < 1095) { yic = 2; doy = dsc - 730; }
+  else { yic = 3; doy = dsc - 1095; }
+
+  const year = cycle * 4 + yic + 1;
+  const month = Math.floor(doy / 30) + 1;
+  const day = (doy % 30) + 1;
+  return {
+    year,
+    month,
+    day,
+    monthEn: COPTIC_MONTHS_EN[month - 1],
+    monthAr: COPTIC_MONTHS_AR[month - 1],
+  };
+}
+
+/** "14 توت 1742" / "14 Tout 1742" */
+export function formatCopticDate(cd: CopticDate, lang: 'en' | 'ar' = 'en'): string {
+  return lang === 'ar'
+    ? `${cd.day} ${cd.monthAr} ${cd.year}`
+    : `${cd.day} ${cd.monthEn} ${cd.year}`;
 }

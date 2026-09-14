@@ -4,6 +4,7 @@ import {
   getTodayCommemoration,
   getDailyVerse,
 } from '../utils/liturgicalEngine';
+import { getTodaySynaxariumTitles } from './synaxarium';
 
 export type Language = 'en' | 'ar';
 
@@ -17,6 +18,8 @@ export interface LiturgicalDay {
   fastingInfo: string;
   fastingType: string;
   feastLevel: string;
+  /** Today's Synaxarium titles in the requested language (loaded async). */
+  synaxariumTitles?: string[];
 }
 
 function formatLongDate(d: Date, lang: Language): string {
@@ -67,6 +70,22 @@ export function getTodayLiturgicalDay(lang: Language = 'en'): LiturgicalDay {
     fastingType: fasting.type,
     feastLevel: 'daily',
   };
+}
+
+/**
+ * Today's liturgical data PLUS the day's Synaxarium titles (async: fetches
+ * the month's JSON once, then cached).
+ */
+export async function getTodayLiturgicalDayWithSynaxarium(
+  lang: Language = 'en'
+): Promise<LiturgicalDay> {
+  const day = getTodayLiturgicalDay(lang);
+  try {
+    day.synaxariumTitles = await getTodaySynaxariumTitles(lang);
+  } catch {
+    day.synaxariumTitles = [];
+  }
+  return day;
 }
 
 /**

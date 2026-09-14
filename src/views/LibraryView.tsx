@@ -18,6 +18,22 @@ interface Book {
 const CLOUDINARY_CLOUD_NAME = 'z1ihehha';
 const CLOUDINARY_PRESET = 'orthodox_books';
 
+const getYouTubeEmbedUrl = (url: string): string | null => {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, '');
+    if (host === 'youtube.com' || host === 'youtu.be') {
+      const list = u.searchParams.get('list');
+      if (list) return `https://www.youtube.com/embed/videoseries?list=${encodeURIComponent(list)}`;
+      const v = u.searchParams.get('v');
+      if (v) return `https://www.youtube.com/embed/${encodeURIComponent(v)}`;
+      const m = u.pathname.match(/\/(?:embed|shorts|live)\/([A-Za-z0-9_-]{6,})/);
+      if (m) return `https://www.youtube.com/embed/${m[1]}`;
+    }
+  } catch { /* not a URL */ }
+  return null;
+};
+
 export const LibraryView: React.FC = () => {
   const { language } = useTheme();
   const [books, setBooks] = useState<Book[]>([]);
@@ -411,20 +427,38 @@ export const LibraryView: React.FC = () => {
                 <p className="text-xs text-(--tx-mute) dark:text-[#a89379] font-serif mt-0.5">{language === 'ar' ? playingBook.author_ar : playingBook.author_en || playingBook.author_ar}</p>
               </div>
             </div>
-            {playingBook.file_url.includes('soundcloud.com') ? (
-              <iframe
-                title={playingBook.title_ar}
-                width="100%"
-                height="166"
-                scrolling="no"
-                frameBorder="no"
-                allow="autoplay"
-                src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(playingBook.file_url)}&color=%23b08d57&auto_play=true&hide_related=false&show_comments=false&show_user=true&show_reposts=false&show_teaser=false`}
-                className="rounded-2xl overflow-hidden"
-              />
-            ) : (
-              <audio controls autoPlay src={playingBook.file_url} className="w-full rounded-2xl" />
-            )}
+            {(() => {
+              const yt = getYouTubeEmbedUrl(playingBook.file_url);
+              if (yt) {
+                return (
+                  <iframe
+                    title={playingBook.title_ar}
+                    width="100%"
+                    height="220"
+                    src={yt}
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="rounded-2xl overflow-hidden"
+                  />
+                );
+              }
+              if (playingBook.file_url.includes('soundcloud.com')) {
+                return (
+                  <iframe
+                    title={playingBook.title_ar}
+                    width="100%"
+                    height="166"
+                    scrolling="no"
+                    frameBorder="no"
+                    allow="autoplay"
+                    src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(playingBook.file_url)}&color=%23b08d57&auto_play=true&hide_related=false&show_comments=false&show_user=true&show_reposts=false&show_teaser=false`}
+                    className="rounded-2xl overflow-hidden"
+                  />
+                );
+              }
+              return <audio controls autoPlay src={playingBook.file_url} className="w-full rounded-2xl" />;
+            })()}
             <p className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif mt-3 text-center">
               {language === 'ar' ? 'المصدر: مشروع الكنوز القبطية — المكتبة الصوتية' : 'Source: Coptic Treasures Project — Audio Library'}
             </p>

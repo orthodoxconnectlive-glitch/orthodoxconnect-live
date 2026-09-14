@@ -132,6 +132,16 @@ export async function ensureD1Tables(db?: D1Database) {
     } catch (bookCommMigErr) {
       console.warn('[ensureD1Tables] book_comments migration notice:', bookCommMigErr);
     }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS synax_likes ( synax_key TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (synax_key, user_id) )`);
+    } catch (synaxLikeMigErr) {
+      console.warn('[ensureD1Tables] synax_likes migration notice:', synaxLikeMigErr);
+    }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS synax_comments ( id TEXT PRIMARY KEY, synax_key TEXT NOT NULL, user_id TEXT NOT NULL, author_name TEXT, author_avatar TEXT, content TEXT NOT NULL, created_at TEXT NOT NULL )`);
+    } catch (synaxCommMigErr) {
+      console.warn('[ensureD1Tables] synax_comments migration notice:', synaxCommMigErr);
+    }
   try {
     await db.exec(`CREATE TABLE IF NOT EXISTS profiles ( id TEXT PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT, full_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', parish TEXT NOT NULL DEFAULT 'Orthodox Church', bio TEXT DEFAULT 'Orthodox Christian seeking fellowship and spiritual growth.', avatar_url TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', role TEXT NOT NULL DEFAULT 'user', is_banned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS sessions ( id TEXT PRIMARY KEY, user_id TEXT NOT NULL, token TEXT UNIQUE NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS posts ( id TEXT PRIMARY KEY, content TEXT NOT NULL DEFAULT '', video_id TEXT, author_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_parish TEXT DEFAULT 'Orthodox Church', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', image_url TEXT, group_id TEXT, likes_count INTEGER DEFAULT 0, comments_count INTEGER DEFAULT 0, reshares_count INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS post_likes ( post_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, user_avatar TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (post_id, user_id) ); CREATE TABLE IF NOT EXISTS post_comments ( id TEXT PRIMARY KEY, post_id TEXT NOT NULL, user_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS messages ( id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, sender_name TEXT, receiver_id TEXT NOT NULL, content TEXT NOT NULL DEFAULT '', image_url TEXT, video_url TEXT, audio_url TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS stories ( id TEXT PRIMARY KEY, author_id TEXT, author_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', author_parish TEXT DEFAULT 'Orthodox Church', image_url TEXT NOT NULL, media_type TEXT DEFAULT 'image', caption TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS events ( id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', date TEXT NOT NULL, time TEXT DEFAULT '10:00 AM', location_type TEXT DEFAULT 'physical', location_address TEXT, virtual_link TEXT, category TEXT DEFAULT 'liturgy', parish TEXT DEFAULT 'Orthodox Parish', host_name TEXT DEFAULT 'Priest / Host', host_avatar TEXT, host_id TEXT, image_url TEXT, going_count INTEGER DEFAULT 1, interested_count INTEGER DEFAULT 0, rsvps TEXT DEFAULT '[]', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS live_streams ( id TEXT PRIMARY KEY, title TEXT NOT NULL, host_parish TEXT DEFAULT 'Orthodox Church', priest_name TEXT DEFAULT 'Priest / Host', media_url TEXT NOT NULL, is_live INTEGER DEFAULT 1, viewers_count INTEGER DEFAULT 1, ended_at TEXT, replay_guid TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS content_reports ( id TEXT PRIMARY KEY, target_type TEXT NOT NULL, target_id TEXT NOT NULL, target_content_preview TEXT, target_author_name TEXT, target_author_id TEXT, reporter_id TEXT, reporter_name TEXT, reason TEXT DEFAULT 'inappropriate', details TEXT, status TEXT DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS notifications ( id TEXT PRIMARY KEY, recipient_id TEXT, actor_id TEXT, actor_name TEXT DEFAULT 'Orthodox Parishioner', actor_avatar TEXT, type TEXT NOT NULL DEFAULT 'system', title TEXT, body TEXT, post_id TEXT, link TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS call_signals ( id TEXT PRIMARY KEY, call_id TEXT, sig_type TEXT, caller_id TEXT, caller_name TEXT, caller_avatar TEXT, target_user_id TEXT, call_type TEXT, sdp TEXT, candidate TEXT, meta TEXT, created_at INTEGER ); CREATE INDEX IF NOT EXISTS idx_call_signals_target ON call_signals(target_user_id, created_at); CREATE TABLE IF NOT EXISTS group_calls ( id TEXT PRIMARY KEY, room_id TEXT, room_name TEXT, host_id TEXT, host_name TEXT, started_at TEXT ); CREATE INDEX IF NOT EXISTS idx_group_calls_room ON group_calls(room_id, started_at); try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN sdp TEXT').run(); } catch (e) {} try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN candidate TEXT').run(); } catch (e) {} try { await env.DB.prepare('ALTER TABLE call_signals ADD COLUMN meta TEXT').run(); } catch (e) {} CREATE TABLE IF NOT EXISTS push_subscriptions ( user_id TEXT, endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, created_at TEXT DEFAULT (datetime('now')) ); CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id); CREATE TABLE IF NOT EXISTS books ( id TEXT PRIMARY KEY, title_ar TEXT NOT NULL, title_en TEXT, author_ar TEXT NOT NULL, author_en TEXT, category TEXT NOT NULL DEFAULT 'patristics', cover_image_url TEXT, file_url TEXT NOT NULL, description TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) );`);
     // Self-healing migration: older D1 databases were created before newer
@@ -485,9 +495,14 @@ function escHtml(s: any): string {
     .replace(/'/g, '&#39;');
 }
 
-// Public share page for a post, live stream, or book: /post/:id, /live/:id, /book/:id.
-// Crawlers (WhatsApp, Facebook) read the OG tags; humans see the full post
+// Public share page for a post, live stream, book, or synaxarium day:
+// /post/:id, /live/:id, /book/:id, /synax/:MM-DD.
+// Crawlers (WhatsApp, Facebook) read the OG tags; humans see a preview
 // with a CTA that opens it in the app. No login required.
+const COPTIC_MONTHS_EN = [
+  'Tout', 'Baba', 'Hator', 'Kiahk', 'Toba', 'Amshir',
+  'Baramhat', 'Baramouda', 'Bashans', 'Paona', 'Epep', 'Mesra', 'Nasie',
+];
 async function renderSharePage(db: D1Database, kind: string, id: string): Promise<Response> {
   const APP_URL = 'https://orthodoxconnect.live';
   const PLAY_URL = 'https://play.google.com/store/apps/details?id=orthodoxconnect.live';
@@ -543,6 +558,26 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
           ${bDesc ? `<p class="content">${escHtml(bDesc)}</p>` : ''}
           <div class="meta">&#128214; OrthodoxConnect Library</div>`;
       }
+    } else if (kind === 'synax') {
+      // Synaxarium day share: id is "MM-DD" (Coptic month/day).
+      const m = /^(\d{2})-(\d{2})$/.exec(String(id || ''));
+      if (m) {
+        const mo = Number(m[1]), da = Number(m[2]);
+        const valid = mo >= 1 && mo <= 13 && da >= 1 && (mo === 13 ? da <= 6 : da <= 30);
+        if (valid) {
+          found = true;
+          const dateLabel = `${da} ${COPTIC_MONTHS_EN[mo - 1]}`;
+          title = `Daily Synaxarium · ${dateLabel} — OrthodoxConnect`;
+          desc = `The saints, martyrs, and commemorations of ${dateLabel} — full text in English and Arabic.`;
+          appLink = APP_URL + '/?synax=' + encodeURIComponent(String(id));
+          bodyHtml = `
+          <div class="badge">📖 Synaxarium</div>
+          <h1>${escHtml('Daily Synaxarium')}</h1>
+          <p class="meta">${escHtml(dateLabel)} · Coptic calendar</p>
+          <p class="content">${escHtml('The saints, martyrs, and commemorations of this day — full text in English and Arabic.')}</p>
+          <div class="meta">📖 OrthodoxConnect Synaxarium</div>`;
+        }
+      }
     } else {
       const p = await db.prepare(
         'SELECT id, content, video_id, author_name, author_parish, author_avatar, image_url, likes_count, comments_count, created_at FROM posts WHERE id = ?'
@@ -593,7 +628,7 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
     bodyHtml = `<h1>OrthodoxConnect</h1><p class="meta">This post is no longer available.</p>`;
   }
 
-  const pageUrl = APP_URL + (kind === 'live' ? '/live/' : kind === 'book' ? '/book/' : '/post/') + encodeURIComponent(id);
+  const pageUrl = APP_URL + (kind === 'live' ? '/live/' : kind === 'book' ? '/book/' : kind === 'synax' ? '/synax/' : '/post/') + encodeURIComponent(id);
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3154,6 +3189,108 @@ export default {
         }
       }
 
+      // 16d. Synaxarium engagement — likes & comments per Coptic day.
+      // Key format: "MM-DD" (zero-padded Coptic month/day), e.g. "01-04".
+      // One key per day, shared across languages and years, so the whole
+      // community likes and comments on the same day entry.
+      if (url.pathname.startsWith('/api/synaxarium/') && env.DB) {
+        // Self-healing: make sure the synaxarium engagement tables exist.
+        try {
+          await env.DB.exec(`CREATE TABLE IF NOT EXISTS synax_likes ( synax_key TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (synax_key, user_id) )`);
+          await env.DB.exec(`CREATE TABLE IF NOT EXISTS synax_comments ( id TEXT PRIMARY KEY, synax_key TEXT NOT NULL, user_id TEXT NOT NULL, author_name TEXT, author_avatar TEXT, content TEXT NOT NULL, created_at TEXT NOT NULL )`);
+        } catch (e) { /* tables already exist */ }
+
+        const validSynaxKey = (k: string): boolean => {
+          const m = /^(\d{2})-(\d{2})$/.exec(k || '');
+          if (!m) return false;
+          const mo = Number(m[1]), da = Number(m[2]);
+          if (mo < 1 || mo > 13) return false;
+          if (mo === 13) return da >= 1 && da <= 6;
+          return da >= 1 && da <= 30;
+        };
+
+        // GET /api/synaxarium/engagement?key=MM-DD — counts + my like (public).
+        if (url.pathname === '/api/synaxarium/engagement' || url.pathname === '/api/synaxarium/engagement/') {
+          const key = (url.searchParams.get('key') || '').trim();
+          if (!validSynaxKey(key)) return jsonResponse({ success: false, error: 'Invalid synaxarium key.' }, 400);
+          let likesCount = 0, commentsCount = 0, likedByMe = false;
+          try {
+            const l = await env.DB.prepare('SELECT COUNT(*) as c FROM synax_likes WHERE synax_key = ?').bind(key).first<{ c: number }>();
+            const c = await env.DB.prepare('SELECT COUNT(*) as c FROM synax_comments WHERE synax_key = ?').bind(key).first<{ c: number }>();
+            likesCount = l ? Number(l.c) : 0;
+            commentsCount = c ? Number(c.c) : 0;
+          } catch (e) { /* tables missing — report zeros */ }
+          try {
+            const authEng = await getAuthIdentity(request, env);
+            if (authEng.id) {
+              const row = await env.DB.prepare('SELECT 1 FROM synax_likes WHERE synax_key = ? AND user_id = ?').bind(key, authEng.id).first();
+              likedByMe = Boolean(row);
+            }
+          } catch (e) { /* public read still works */ }
+          return jsonResponse({ success: true, synax_key: key, likes_count: likesCount, comments_count: commentsCount, liked_by_me: likedByMe });
+        }
+
+        // POST /api/synaxarium/like — toggle my like (auth required).
+        if ((url.pathname === '/api/synaxarium/like' || url.pathname === '/api/synaxarium/like/') && request.method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const key = String(body.key || '').trim();
+          if (!validSynaxKey(key)) return jsonResponse({ success: false, error: 'Invalid synaxarium key.' }, 400);
+          const authLike = await getAuthIdentity(request, env);
+          if (!authLike.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          const existing = await env.DB.prepare('SELECT 1 FROM synax_likes WHERE synax_key = ? AND user_id = ?').bind(key, authLike.id).first();
+          let liked: boolean;
+          if (existing) {
+            await env.DB.prepare('DELETE FROM synax_likes WHERE synax_key = ? AND user_id = ?').bind(key, authLike.id).run();
+            liked = false;
+          } else {
+            await env.DB.prepare('INSERT INTO synax_likes (synax_key, user_id, created_at) VALUES (?, ?, ?)').bind(key, authLike.id, new Date().toISOString()).run();
+            liked = true;
+          }
+          const cnt = await env.DB.prepare('SELECT COUNT(*) as c FROM synax_likes WHERE synax_key = ?').bind(key).first<{ c: number }>();
+          return jsonResponse({ success: true, liked, likes_count: cnt ? Number(cnt.c) : 0 });
+        }
+
+        // GET/POST /api/synaxarium/comments — list & create (create needs auth).
+        if (url.pathname === '/api/synaxarium/comments' || url.pathname === '/api/synaxarium/comments/') {
+          if (request.method === 'GET') {
+            const key = (url.searchParams.get('key') || '').trim();
+            if (!validSynaxKey(key)) return jsonResponse({ success: false, error: 'Invalid synaxarium key.' }, 400);
+            const { results } = await env.DB.prepare('SELECT * FROM synax_comments WHERE synax_key = ? ORDER BY created_at ASC').bind(key).all();
+            const comments = results || [];
+            return jsonResponse({ success: true, synax_key: key, comments, count: comments.length });
+          }
+          if (request.method === 'POST') {
+            const body: any = await request.json().catch(() => ({}));
+            const key = String(body.key || '').trim();
+            if (!validSynaxKey(key)) return jsonResponse({ success: false, error: 'Invalid synaxarium key.' }, 400);
+            const authComm = await getAuthIdentity(request, env);
+            if (!authComm.id) return jsonResponse({ success: false, error: 'Authentication required to comment.' }, 401);
+            const content = (body.content || body.text || '').trim();
+            if (!content) return jsonResponse({ success: false, error: 'Comment content cannot be empty' }, 400);
+            const id = body.id || `scomm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            const authorName = body.author_name || (authComm as any).email || 'Orthodox Parishioner';
+            const authorAvatar = body.author_avatar || 'https://orthodoxconnect.live/launchericon-512x512.png';
+            const createdAt = new Date().toISOString();
+            await env.DB.prepare('INSERT INTO synax_comments (id, synax_key, user_id, author_name, author_avatar, content, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, key, authComm.id, authorName, authorAvatar, content, createdAt).run();
+            const cnt = await env.DB.prepare('SELECT COUNT(*) as c FROM synax_comments WHERE synax_key = ?').bind(key).first<{ c: number }>();
+            return jsonResponse({ success: true, comment: { id, synax_key: key, user_id: authComm.id, author_name: authorName, author_avatar: authorAvatar, content, created_at: createdAt }, comments_count: cnt ? Number(cnt.c) : 1 }, 201);
+          }
+        }
+
+        // DELETE /api/synaxarium/comments/:commentId — author or admin.
+        if (url.pathname.match(/^\/api\/synaxarium\/comments\/[^/]+\/?$/) && request.method === 'DELETE') {
+          const commentId = decodeURIComponent(url.pathname.replace('/api/synaxarium/comments/', '').replace(/\/?$/, ''));
+          const authDel = await getAuthIdentity(request, env);
+          if (!authDel.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          const comm = await env.DB.prepare('SELECT * FROM synax_comments WHERE id = ?').bind(commentId).first<any>();
+          if (!comm) return jsonResponse({ success: false, error: 'Comment not found' }, 404);
+          if (comm.user_id !== authDel.id && !authDel.isAdmin) return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
+          await env.DB.prepare('DELETE FROM synax_comments WHERE id = ?').bind(commentId).run();
+          const cnt = await env.DB.prepare('SELECT COUNT(*) as c FROM synax_comments WHERE synax_key = ?').bind(comm.synax_key).first<{ c: number }>();
+          return jsonResponse({ success: true, comments_count: cnt ? Number(cnt.c) : 0 });
+        }
+      }
+
       // 17. Notifications (/api/notifications)
       if (url.pathname === '/api/notifications/mark-read' || url.pathname === '/api/notifications/mark-read/') {
         if (request.method !== 'POST') return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
@@ -3589,12 +3726,20 @@ export default {
         return new Response('Not found', { status: 404 });
       }
 
-      // Public share pages: /post/:id, /live/:id, /book/:id (OG tags + preview + app CTA).
+      // Public share pages: /post/:id, /live/:id, /book/:id, /synax/:MM-DD
+      // (OG tags + preview + app CTA).
       // HEAD is served too: several link-preview scrapers probe headers first.
+      // NOTE: /synax/ is matched only for MM-DD keys so it can never swallow
+      // the static /synaxarium/*.json data files.
       if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
-          (url.pathname.startsWith('/post/') || url.pathname.startsWith('/live/') || url.pathname.startsWith('/book/'))) {
-        const kind = url.pathname.startsWith('/live/') ? 'live' : url.pathname.startsWith('/book/') ? 'book' : 'post';
-        const prefix = kind === 'live' ? '/live/' : kind === 'book' ? '/book/' : '/post/';
+          (url.pathname.startsWith('/post/') || url.pathname.startsWith('/live/') || url.pathname.startsWith('/book/') ||
+           /^\/synax\/\d{1,2}-\d{1,2}\/?$/.test(url.pathname))) {
+        let kind: string;
+        let prefix: string;
+        if (url.pathname.startsWith('/live/')) { kind = 'live'; prefix = '/live/'; }
+        else if (url.pathname.startsWith('/book/')) { kind = 'book'; prefix = '/book/'; }
+        else if (url.pathname.startsWith('/synax/')) { kind = 'synax'; prefix = '/synax/'; }
+        else { kind = 'post'; prefix = '/post/'; }
         const shareId = decodeURIComponent(url.pathname.replace(prefix, '').split('/')[0].trim());
         if (shareId) {
           return await renderSharePage(env.DB, kind, shareId);

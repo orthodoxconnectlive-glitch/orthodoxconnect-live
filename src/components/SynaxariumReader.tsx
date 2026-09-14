@@ -1,8 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { X, BookOpen, Loader2, AlertCircle } from 'lucide-react';
+import { X, BookOpen, Loader2, AlertCircle, Heart, MessageCircle, Share2, Send, Trash2 } from 'lucide-react';
 import { getSynaxariumDay, type SynaxariumDay } from '../data/synaxarium';
 import { formatCopticDate, type CopticDate } from '../utils/liturgicalEngine';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../lib/api';
+
+interface SynaxComment {
+  id: string;
+  synax_key: string;
+  user_id: string;
+  author_name?: string;
+  author_avatar?: string;
+  content: string;
+  created_at: string;
+}
 
 interface SynaxariumReaderProps {
   copticDate: CopticDate;
@@ -17,6 +29,11 @@ interface SynaxariumReaderProps {
 export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, onClose }) => {
   const { language } = useTheme();
   const isAr = language === 'ar';
+  const authContext = useAuth() as any;
+  const profile = authContext?.profile;
+  // Engagement key: one per Coptic day ("MM-DD"), shared across languages
+  // and years so the whole community likes/comments on the same day entry.
+  const synaxKey = `${String(copticDate.month).padStart(2, '0')}-${String(copticDate.day).padStart(2, '0')}`;
   const [day, setDay] = useState<SynaxariumDay | null>(null);
   const [error, setError] = useState(false);
 
@@ -54,6 +71,124 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
     }
     return parts;
   }, [day, bodyText, showingArBody]);
+
+  // --- Like / comment / share engagement (per Coptic day) ---
+  const [likesCount, setLikesCount] = useState(0);
+  const [commentsCount, setCommentsCount] = useState(0);
+  const [likedByMe, setLikedByMe] = useState(false);
+  const [engLoading, setEngLoading] = useState(true);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [comments, setComments] = useState<SynaxComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [newComment, setNewComment] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setEngLoading(true);
+    setLikedByMe(false);
+    setLikesCount(0);
+    setCommentsCount(0);
+    apiFetch<{ success: boolean; likes_count: number; comments_count: number; liked_by_me: boolean }>(
+      `/api/synaxarium/engagement?key=${encodeURIComponent(synaxKey)}`
+    )
+      .then((res) => {
+        if (cancelled || !res) return;
+        setLikesCount(res.likes_count || 0);
+        setCommentsCount(res.comments_count || 0);
+        setLikedByMe(Boolean(res.liked_by_me));
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setEngLoading(false); });
+    return () => { cancelled = true; };
+  }, [synaxKey]);
+
+  const toggleLike = async () => {
+    const wasLiked = likedByMe;
+    setLikedByMe(!wasLiked);
+    setLikesCount((c) => Math.max(0, c + (wasLiked ? -1 : 1)));
+    try {
+      const res = await apiFetch<{ success: boolean; liked: boolean; likes_count: number }>(
+        '/api/synaxarium/like', { method: 'POST', body: JSON.stringify({ key: synaxKey }) });
+      if (res && res.success) {
+        setLikedByMe(res.liked);
+        setLikesCount(res.likes_count);
+      }
+    } catch (err) {
+      console.error('Synaxarium like failed:', err);
+      setLikedByMe(wasLiked);
+      setLikesCount((c) => Math.max(0, c + (wasLiked ? 1 : -1)));
+    }
+  };
+
+  const openComments = async () => {
+    setCommentsOpen(true);
+    setComments([]);
+    setNewComment('');
+    setCommentsLoading(true);
+    try {
+      const res = await apiFetch<{ success: boolean; comments: SynaxComment[] }>(
+        `/api/synaxarium/comments?key=${encodeURIComponent(synaxKey)}`);
+      setComments((res && res.comments) || []);
+    } catch (err) {
+      console.error('Error loading synaxarium comments:', err);
+    }
+    setCommentsLoading(false);
+  };
+
+  const submitComment = async () => {
+    if (!newComment.trim()) return;
+    const content = newComment.trim();
+    setNewComment('');
+    try {
+      const res = await apiFetch<{ success: boolean; comment: SynaxComment; comments_count: number }>(
+        '/api/synaxarium/comments',
+        { method: 'POST', body: JSON.stringify({
+            key: synaxKey,
+            content,
+            author_name: profile?.full_name || (isAr ? 'عضو الرعية' : 'Orthodox Parishioner'),
+            author_avatar: profile?.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
+          }) });
+      if (res && res.success && res.comment) {
+        setComments((prev) => [...prev, res.comment]);
+        setCommentsCount(res.comments_count);
+      }
+    } catch (err) {
+      console.error('Error posting synaxarium comment:', err);
+      setNewComment(content);
+    }
+  };
+
+  const deleteComment = async (commentId: string) => {
+    try {
+      const res = await apiFetch<{ success: boolean; comments_count: number }>(
+        `/api/synaxarium/comments/${encodeURIComponent(commentId)}`, { method: 'DELETE' });
+      if (res && res.success) {
+        setComments((prev) => prev.filter((c) => c.id !== commentId));
+        setCommentsCount(res.comments_count);
+      }
+    } catch (err) {
+      console.error('Error deleting synaxarium comment:', err);
+    }
+  };
+
+  const shareDay = async () => {
+    const url = `https://orthodoxconnect.live/synax/${synaxKey}`;
+    const dayLabel = formatCopticDate(copticDate, language);
+    const firstTitle = titles[0] || (isAr ? 'السنكسار اليومي' : 'Daily Synaxarium');
+    const text = `${firstTitle} · ${dayLabel} | OrthodoxConnect`;
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ title: firstTitle, text, url });
+        return;
+      } catch (e) { /* user dismissed */ }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      alert(isAr ? 'تم نسخ رابط السنكسار — شاركه مع أحبائك' : 'Synaxarium link copied — share it with your loved ones');
+    } catch (e) {
+      console.error('Share failed:', e);
+    }
+  };
 
   const gregorian = new Date().toLocaleDateString(isAr ? 'ar-EG' : 'en-US', {
     weekday: 'long',
@@ -126,6 +261,41 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
                   </div>
                 ))}
               </div>
+
+              {/* Like / Comment / Share — one engagement thread per Coptic day */}
+              <div className="flex items-center justify-around py-2 border-y border-(--ln-gold)/40">
+                <button
+                  type="button"
+                  onClick={toggleLike}
+                  disabled={engLoading}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-serif font-bold transition-colors cursor-pointer disabled:opacity-50 ${
+                    likedByMe ? 'text-red-500' : 'text-(--tx-mute) dark:text-[#a89379] hover:text-red-400'
+                  }`}
+                  title={isAr ? 'إعجاب' : 'Like'}
+                >
+                  <Heart className={`w-4 h-4 ${likedByMe ? 'fill-red-500' : ''}`} />
+                  <span>{likesCount}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={openComments}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-serif font-bold text-(--tx-mute) dark:text-[#a89379] hover:text-(--ac-gold-tx) transition-colors cursor-pointer"
+                  title={isAr ? 'تعليق' : 'Comment'}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>{commentsCount}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={shareDay}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-serif font-bold text-(--tx-mute) dark:text-[#a89379] hover:text-(--ac-gold-tx) transition-colors cursor-pointer"
+                  title={isAr ? 'مشاركة' : 'Share'}
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>{isAr ? 'مشاركة' : 'Share'}</span>
+                </button>
+              </div>
+
               {/* Full text — Arabic body for Arabic users, English otherwise */}
               <div>
                 <p className="text-[10px] uppercase tracking-wider font-serif font-bold text-(--tx-mute) dark:text-[#a89379] mb-2">
@@ -143,6 +313,86 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
           )}
         </div>
       </div>
+
+      {/* Synaxarium comments modal */}
+      {commentsOpen && (
+        <div
+          className="absolute inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-sm"
+          onClick={() => setCommentsOpen(false)}
+        >
+          <div
+            dir={isAr ? 'rtl' : 'ltr'}
+            className="bg-(--bg-soft) dark:bg-[#18120e] border-2 border-(--ln-gold) dark:border-[#8b6b4a] w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl relative text-(--tx-strong) dark:text-[#f5ebd9] max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setCommentsOpen(false)}
+              className="absolute top-4 left-4 rtl:left-auto rtl:right-4 text-(--tx-mute) hover:text-(--tx-strong) dark:hover:text-white"
+              aria-label={isAr ? 'إغلاق' : 'Close'}
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="font-serif-coptic font-bold text-base mb-1 text-center px-8 line-clamp-1">
+              {titles[0] || (isAr ? 'السنكسار اليومي' : 'Daily Synaxarium')}
+            </h2>
+            <p className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif text-center mb-3">
+              {isAr ? 'التعليقات' : 'Comments'} ({commentsCount})
+            </p>
+            <div className="flex-1 overflow-y-auto space-y-3 mb-3 min-h-[120px]">
+              {commentsLoading ? (
+                <p className="text-center text-xs text-(--tx-mute) font-serif py-8 animate-pulse">
+                  {isAr ? 'جاري تحميل التعليقات...' : 'Loading comments...'}
+                </p>
+              ) : comments.length === 0 ? (
+                <p className="text-center text-xs text-(--tx-mute) font-serif py-8">
+                  {isAr ? 'لا توجد تعليقات بعد — كن أول من يعلق' : 'No comments yet — be the first to comment'}
+                </p>
+              ) : (
+                comments.map((c) => (
+                  <div key={c.id} className="flex items-start gap-2.5 bg-(--bg-card) dark:bg-[#282019] border border-(--ln-gold)/40 rounded-2xl p-2.5">
+                    <img
+                      src={c.author_avatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
+                      alt=""
+                      className="w-8 h-8 rounded-full object-cover border border-(--ln-gold) shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-bold font-serif">{c.author_name || (isAr ? 'عضو الرعية' : 'Orthodox Parishioner')}</p>
+                      <p className="text-xs font-serif whitespace-pre-wrap break-words">{c.content}</p>
+                    </div>
+                    {(profile?.id === c.user_id || profile?.role === 'admin') && (
+                      <button
+                        onClick={() => deleteComment(c.id)}
+                        className="text-(--tx-mute) hover:text-red-500 transition-colors shrink-0"
+                        title={isAr ? 'حذف' : 'Delete'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex items-center gap-2 border-t border-(--ln-gold)/30 pt-3">
+              <input
+                type="text"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') submitComment(); }}
+                placeholder={isAr ? 'اكتب تعليقاً...' : 'Write a comment...'}
+                className="flex-1 p-2.5 rounded-xl bg-(--bg-card) dark:bg-[#282019] border border-(--ln-gold) outline-none text-xs text-(--tx-strong) dark:text-[#f5ebd9]"
+              />
+              <button
+                onClick={submitComment}
+                disabled={!newComment.trim()}
+                className="p-2.5 rounded-xl bg-(--ac-gold) text-white hover:bg-(--ac-gold-deep) transition-colors disabled:opacity-40 cursor-pointer"
+                aria-label={isAr ? 'إرسال' : 'Send'}
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

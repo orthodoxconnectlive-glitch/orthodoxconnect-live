@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Calendar, BookOpen, Utensils, Share2, Check, Sparkles, ChevronRight } from 'lucide-react';
 import { getTodayLiturgicalDayWithSynaxarium, type LiturgicalDay } from '../data/liturgical';
-import { getCopticDate, formatCopticDate, type CopticDate } from '../utils/liturgicalEngine';
+import { getCopticDate, formatCopticDate, COPTIC_MONTHS_EN, COPTIC_MONTHS_AR, type CopticDate } from '../utils/liturgicalEngine';
 import { SynaxariumReader } from './SynaxariumReader';
 import { useTheme } from '../context/ThemeContext';
 
 interface LiturgicalBannerProps {
   onOpenCalendar?: () => void;
+  /** Share-link deep link: "MM-DD" Coptic key opens the reader on that day. */
+  openSynaxKey?: string | null;
+  onOpenSynaxConsumed?: () => void;
 }
 
-export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalendar }) => {
+export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalendar, openSynaxKey, onOpenSynaxConsumed }) => {
   const { t, language } = useTheme();
   const [copied, setCopied] = useState(false);
   const [todayData, setTodayData] = useState<LiturgicalDay | null>(null);
@@ -24,6 +27,28 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
       cancelled = true;
     };
   }, [language]);
+
+  // Share-link deep link: ?synax=MM-DD opens the reader on that Coptic day.
+  useEffect(() => {
+    if (!openSynaxKey) return;
+    const m = /^(\d{2})-(\d{2})$/.exec(openSynaxKey.trim());
+    if (m) {
+      const month = Number(m[1]);
+      const day = Number(m[2]);
+      const valid = month >= 1 && month <= 13 && day >= 1 && (month === 13 ? day <= 6 : day <= 30);
+      if (valid) {
+        const year = getCopticDate(new Date()).year;
+        setReaderDate({
+          year,
+          month,
+          day,
+          monthEn: COPTIC_MONTHS_EN[month - 1],
+          monthAr: COPTIC_MONTHS_AR[month - 1],
+        });
+      }
+    }
+    onOpenSynaxConsumed && onOpenSynaxConsumed();
+  }, [openSynaxKey]);
 
   const handleShareScripture = () => {
     if (!todayData) return;

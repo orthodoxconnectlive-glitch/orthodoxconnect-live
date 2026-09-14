@@ -66,6 +66,8 @@ function AppContent() {
   const [focusStreamId, setFocusStreamId] = useState<string | null>(null);
   // Share-link deep link: ?book=<bookId> opens the library focused on that book.
   const [focusBookId, setFocusBookId] = useState<string | null>(null);
+  // Share-link deep link: ?synax=<MM-DD> opens the Synaxarium reader on that Coptic day.
+  const [focusSynaxKey, setFocusSynaxKey] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -96,11 +98,13 @@ function AppContent() {
     }
 
     // Share-link deep links: ?post=<id> opens the feed focused on that post,
-    // ?live=<id> opens the live view on that stream. Consumed once, then the
+    // ?live=<id> opens the live view on that stream, ?synax=<MM-DD> opens the
+    // Synaxarium reader on that Coptic day. Consumed once, then the
     // URL is cleaned so a refresh doesn't re-trigger the jump.
     const sharedPostId = searchParams.get('post');
     const sharedLiveId = searchParams.get('live');
     const sharedBookId = searchParams.get('book');
+    const sharedSynaxKey = searchParams.get('synax');
     if (sharedPostId) {
       setFocusPostId(sharedPostId);
       setCurrentView('feed');
@@ -116,7 +120,12 @@ function AppContent() {
       setCurrentView('library');
       searchParams.delete('book');
     }
-    if (readNotifId || sharedPostId || sharedLiveId || sharedBookId) {
+    if (sharedSynaxKey) {
+      setFocusSynaxKey(sharedSynaxKey);
+      setCurrentView('feed');
+      searchParams.delete('synax');
+    }
+    if (readNotifId || sharedPostId || sharedLiveId || sharedBookId || sharedSynaxKey) {
       const cleanUrl = window.location.pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '') + window.location.hash;
       window.history.replaceState(null, '', cleanUrl);
     }
@@ -195,6 +204,8 @@ function AppContent() {
             onOpenCalendar={() => handleNavigate('calendar')}
             focusPostId={focusPostId}
             onFocusPostConsumed={() => setFocusPostId(null)}
+            focusSynaxKey={focusSynaxKey}
+            onFocusSynaxConsumed={() => setFocusSynaxKey(null)}
           />
         );
       case 'videos':

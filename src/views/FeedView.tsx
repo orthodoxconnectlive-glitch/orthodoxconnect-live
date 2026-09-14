@@ -74,6 +74,9 @@ interface FeedViewProps {
   // highlight this post once it is rendered.
   focusPostId?: string | null;
   onFocusPostConsumed?: () => void;
+  /** Share-link deep link: "MM-DD" Coptic key opens the Synaxarium reader. */
+  focusSynaxKey?: string | null;
+  onFocusSynaxConsumed?: () => void;
 }
 
 const PAGE_SIZE = 50;
@@ -84,6 +87,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
   onOpenCalendar,
   focusPostId,
   onFocusPostConsumed,
+  focusSynaxKey,
+  onFocusSynaxConsumed,
 }) => {
   const authContext = useAuth() as any;
   const profile = authContext?.profile;
@@ -718,7 +723,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </div>
       )}
 
-      <LiturgicalBanner onOpenCalendar={onOpenCalendar} />
+      <LiturgicalBanner onOpenCalendar={onOpenCalendar} openSynaxKey={focusSynaxKey} onOpenSynaxConsumed={onFocusSynaxConsumed} />
       <StoriesBar onSelectUser={onSelectUser} />
 
       <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg">

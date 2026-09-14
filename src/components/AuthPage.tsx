@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Mail, Lock, User, Church, Cross, LogIn, AlertCircle, Sparkles, Globe } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -12,8 +12,50 @@ export const AuthPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [parish, setParish] = useState('');
+  const [churchSuggestions, setChurchSuggestions] = useState<Array<{ id: string; name: string; city?: string; country?: string }>>([]);
+  const [showChurchSuggestions, setShowChurchSuggestions] = useState(false);
+  const parishDebounce = useRef<number | null>(null);
+  const parishWrapRef = useRef<HTMLDivElement>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const close = (e: MouseEvent | TouchEvent) => {
+      if (parishWrapRef.current && !parishWrapRef.current.contains(e.target as Node)) {
+        setShowChurchSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('touchstart', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('touchstart', close);
+    };
+  }, []);
+
+  const handleParishChange = (value: string) => {
+    setParish(value);
+    if (parishDebounce.current) window.clearTimeout(parishDebounce.current);
+    const q = value.trim();
+    if (q.length < 2) {
+      setChurchSuggestions([]);
+      setShowChurchSuggestions(false);
+      return;
+    }
+    parishDebounce.current = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/churches?q=${encodeURIComponent(q)}`);
+        const data = await res.json().catch(() => ({}));
+        const list = Array.isArray(data?.churches) ? data.churches : [];
+        setChurchSuggestions(list.slice(0, 6));
+        setShowChurchSuggestions(list.length > 0);
+      } catch {
+        // Church directory unreachable — free text still works fine.
+        setChurchSuggestions([]);
+        setShowChurchSuggestions(false);
+      }
+    }, 350);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,8 +77,8 @@ export const AuthPage: React.FC = () => {
         if (!fullName.trim() || !parish.trim()) {
           setErrorText(
             language === 'ar'
-              ? 'يرجى إدخال اسمك الكامل واسم رعيتك.'
-              : 'Please enter your full name and parish.'
+              ? 'يرجى إدخال الاسم الكامل واسم كنيستك.'
+              : 'Please enter your full name and church name.'
           );
           setLoading(false);
           return;
@@ -160,7 +202,7 @@ export const AuthPage: React.FC = () => {
                 </div>
               </div>
 
-              <div>
+              <div ref={parishWrapRef}>
                 <label className="block text-(--ac-bronze-tx) font-bold uppercase tracking-wider text-[10px] mb-1">
                   {t('parish')}
                 </label>
@@ -170,11 +212,44 @@ export const AuthPage: React.FC = () => {
                     type="text"
                     required
                     value={parish}
-                    onChange={(e) => setParish(e.target.value)}
-                    placeholder={language === 'ar' ? 'مثال: كاتدرائية الثالوث الأقدس' : 'e.g. Holy Trinity Cathedral'}
+                    onChange={(e) => handleParishChange(e.target.value)}
+                    onFocus={() => { if (churchSuggestions.length > 0) setShowChurchSuggestions(true); }}
+                    placeholder={language === 'ar' ? 'مثال: كنيسة السيدة العذراء مريم' : 'e.g. St. Mary Church'}
+                    autoComplete="off"
                     className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--ac-bronze-tx)/60 focus:outline-none focus:border-(--ln-gold) transition-colors"
                   />
+                  {showChurchSuggestions && churchSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 rounded-2xl border border-(--ln-gold)/50 bg-(--bg-card) dark:bg-[#1a140e] shadow-2xl overflow-hidden z-30 max-h-56 overflow-y-auto">
+                      {churchSuggestions.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setParish(c.name);
+                            setShowChurchSuggestions(false);
+                            setChurchSuggestions([]);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-start hover:bg-(--bg-soft) dark:hover:bg-[#282019] transition-colors cursor-pointer"
+                        >
+                          <Church className="w-4 h-4 shrink-0 text-(--ac-gold-tx)" />
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-xs font-bold text-(--tx-strong) dark:text-[#f5ebd9] truncate">{c.name}</span>
+                            {(c.city || c.country) && (
+                              <span className="block text-[10px] text-(--tx-mute) dark:text-[#a89379] truncate">
+                                {[c.city, c.country].filter(Boolean).join('، ')}
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+                <p className="mt-1 text-[10px] text-(--tx-mute) dark:text-[#a89379]">
+                  {language === 'ar'
+                    ? 'ابدأ الكتابة واختر كنيستك من القائمة، أو اكتب اسمها بنفسك.'
+                    : 'Start typing and pick your church from the list, or just type its name.'}
+                </p>
               </div>
             </>
           )}

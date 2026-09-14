@@ -35,8 +35,8 @@ export const AuthModal: React.FC = () => {
       if (!fullName || !parish) {
         setErrorText(
           language === 'ar'
-            ? 'يرجى إدخال الاسم الكامل واسم الرعية.'
-            : 'Please fill in your full name and parish name.'
+            ? 'يرجى إدخال الاسم الكامل واسم كنيستك.'
+            : 'Please fill in your full name and church name.'
         );
         setLoading(false);
         return;

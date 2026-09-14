@@ -64,6 +64,8 @@ function AppContent() {
   const [focusPostId, setFocusPostId] = useState<string | null>(null);
   // Share-link deep link: ?live=<streamId> opens the live view on that stream.
   const [focusStreamId, setFocusStreamId] = useState<string | null>(null);
+  // Share-link deep link: ?book=<bookId> opens the library focused on that book.
+  const [focusBookId, setFocusBookId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -98,6 +100,7 @@ function AppContent() {
     // URL is cleaned so a refresh doesn't re-trigger the jump.
     const sharedPostId = searchParams.get('post');
     const sharedLiveId = searchParams.get('live');
+    const sharedBookId = searchParams.get('book');
     if (sharedPostId) {
       setFocusPostId(sharedPostId);
       setCurrentView('feed');
@@ -108,7 +111,12 @@ function AppContent() {
       setCurrentView('live');
       searchParams.delete('live');
     }
-    if (readNotifId || sharedPostId || sharedLiveId) {
+    if (sharedBookId) {
+      setFocusBookId(sharedBookId);
+      setCurrentView('library');
+      searchParams.delete('book');
+    }
+    if (readNotifId || sharedPostId || sharedLiveId || sharedBookId) {
       const cleanUrl = window.location.pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '') + window.location.hash;
       window.history.replaceState(null, '', cleanUrl);
     }
@@ -193,7 +201,7 @@ function AppContent() {
       case 'reels':
         return <VideosView onSelectUser={handleSelectUser} onOpenMessengerWithUser={handleOpenMessengerWithUser} />;
       case 'library':
-        return <LibraryView />;
+        return <LibraryView focusBookId={focusBookId} onFocusBookConsumed={() => setFocusBookId(null)} />;
       case 'live':
         return (
           <LiveBroadcastView

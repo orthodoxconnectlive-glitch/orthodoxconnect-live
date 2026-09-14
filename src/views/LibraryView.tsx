@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon, Pencil, Trash2, Headphones, Play } from 'lucide-react';
+import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon, Pencil, Trash2, Headphones, Play, Heart, MessageCircle, Share2, Send } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 
 interface Book {
@@ -13,6 +14,19 @@ interface Book {
   description?: string;
   cover_image_url?: string;
   file_url: string;
+  likes_count?: number;
+  comments_count?: number;
+  liked_by_me?: boolean;
+}
+
+interface BookComment {
+  id: string;
+  book_id: string;
+  user_id: string;
+  author_name?: string;
+  author_avatar?: string;
+  content: string;
+  created_at: string;
 }
 
 const CLOUDINARY_CLOUD_NAME = 'z1ihehha';
@@ -34,8 +48,10 @@ const getYouTubeEmbedUrl = (url: string): string | null => {
   return null;
 };
 
-export const LibraryView: React.FC = () => {
+export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookConsumed?: () => void }> = ({ focusBookId, onFocusBookConsumed }) => {
   const { language } = useTheme();
+  const authContext = useAuth() as any;
+  const profile = authContext?.profile;
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
@@ -45,6 +61,11 @@ export const LibraryView: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [playingBook, setPlayingBook] = useState<Book | null>(null);
+  const [commentBook, setCommentBook] = useState<Book | null>(null);
+  const [bookComments, setBookComments] = useState<BookComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [highlightBookId, setHighlightBookId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
 
@@ -146,6 +167,109 @@ export const LibraryView: React.FC = () => {
       alert('Error deleting book');
     }
   };
+
+  // --- Book likes / comments / share ---
+  const toggleLike = async (book: Book) => {
+    setBooks((prev) => prev.map((b) => b.id === book.id ? { ...b, liked_by_me: !b.liked_by_me, likes_count: Math.max(0, (b.likes_count || 0) + (b.liked_by_me ? -1 : 1)) } : b));
+    try {
+      const res = await apiFetch<{ success: boolean; liked: boolean; likes_count: number }>(
+        `/api/books/${encodeURIComponent(book.id)}/like`, { method: 'POST' });
+      if (res && res.success) {
+        setBooks((prev) => prev.map((b) => b.id === book.id ? { ...b, liked_by_me: res.liked, likes_count: res.likes_count } : b));
+      }
+    } catch (err) {
+      console.error('Like failed:', err);
+      fetchBooks();
+    }
+  };
+
+  const openComments = async (book: Book) => {
+    setCommentBook(book);
+    setBookComments([]);
+    setNewComment('');
+    setCommentsLoading(true);
+    try {
+      const res = await apiFetch<{ success: boolean; comments: BookComment[] }>(
+        `/api/books/${encodeURIComponent(book.id)}/comments`);
+      setBookComments((res && res.comments) || []);
+    } catch (err) {
+      console.error('Error loading book comments:', err);
+    }
+    setCommentsLoading(false);
+  };
+
+  const submitComment = async () => {
+    if (!commentBook || !newComment.trim()) return;
+    const content = newComment.trim();
+    setNewComment('');
+    try {
+      const res = await apiFetch<{ success: boolean; comment: BookComment; comments_count: number }>(
+        `/api/books/${encodeURIComponent(commentBook.id)}/comments`,
+        { method: 'POST', body: JSON.stringify({
+            content,
+            author_name: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
+            author_avatar: profile?.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
+          }) });
+      if (res && res.success && res.comment) {
+        setBookComments((prev) => [...prev, res.comment]);
+        setBooks((prev) => prev.map((b) => b.id === commentBook.id ? { ...b, comments_count: res.comments_count } : b));
+        setCommentBook((prev) => prev ? { ...prev, comments_count: res.comments_count } : prev);
+      }
+    } catch (err) {
+      console.error('Error posting book comment:', err);
+      setNewComment(content);
+    }
+  };
+
+  const deleteBookComment = async (commentId: string) => {
+    if (!commentBook) return;
+    try {
+      const res = await apiFetch<{ success: boolean; comments_count: number }>(
+        `/api/books/comments/${encodeURIComponent(commentId)}`, { method: 'DELETE' });
+      if (res && res.success) {
+        setBookComments((prev) => prev.filter((c) => c.id !== commentId));
+        setBooks((prev) => prev.map((b) => b.id === commentBook.id ? { ...b, comments_count: res.comments_count } : b));
+      }
+    } catch (err) {
+      console.error('Error deleting book comment:', err);
+    }
+  };
+
+  const shareBook = async (book: Book) => {
+    const url = `https://orthodoxconnect.live/book/${encodeURIComponent(book.id)}`;
+    const title = language === 'ar' ? book.title_ar : book.title_en || book.title_ar;
+    const author = language === 'ar' ? book.author_ar : book.author_en || book.author_ar;
+    const text = `${title} — ${author} | OrthodoxConnect`;
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ title, text, url });
+        return;
+      } catch (e) { /* user dismissed */ }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      alert(language === 'ar' ? 'تم نسخ رابط الكتاب — شاركه مع أحبائك' : 'Book link copied — share it with your loved ones');
+    } catch (e) {
+      console.error('Share failed:', e);
+    }
+  };
+
+  // Deep link: ?book=<id> focuses a book (opens the player for audiobooks).
+  useEffect(() => {
+    if (!focusBookId || books.length === 0) return;
+    const target = books.find((b) => b.id === focusBookId);
+    if (!target) { onFocusBookConsumed && onFocusBookConsumed(); return; }
+    if (target.category === 'audiobook') {
+      setPlayingBook(target);
+    } else {
+      setHighlightBookId(target.id);
+      setTimeout(() => {
+        try { document.getElementById(`book-card-${target.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+      }, 300);
+      setTimeout(() => setHighlightBookId(null), 4000);
+    }
+    onFocusBookConsumed && onFocusBookConsumed();
+  }, [focusBookId, books]);
 
   const uploadToCloudinary = async (file: File): Promise<string> => {
     const data = new FormData();
@@ -336,7 +460,12 @@ export const LibraryView: React.FC = () => {
           {books.map((book) => (
             <div
               key={book.id}
-              className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between relative group"
+              id={`book-card-${book.id}`}
+              className={`bg-(--bg-card) dark:bg-[#1c1611] border-2 rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between relative group transition-all ${
+                highlightBookId === book.id
+                  ? 'border-amber-400 dark:border-amber-300 ring-4 ring-amber-300/50'
+                  : 'border-(--ln-gold) dark:border-[#8b6b4a]'
+              }`}
             >
               {/* Edit & Delete Action Buttons */}
               <div className="absolute top-2 right-2 rtl:right-auto rtl:left-2 flex items-center gap-1.5 z-10 bg-black/50 backdrop-blur-md p-1 rounded-xl">
@@ -398,6 +527,39 @@ export const LibraryView: React.FC = () => {
                     <span>{language === 'ar' ? 'قراءة / تحميل' : 'Read / Download'}</span>
                   </a>
                 )}
+
+                {/* Like / Comment / Share */}
+                <div className="mt-2 pt-2 border-t border-(--ln-gold)/30 flex items-center justify-around">
+                  <button
+                    type="button"
+                    onClick={() => toggleLike(book)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-serif transition-colors cursor-pointer ${
+                      book.liked_by_me ? 'text-red-500' : 'text-(--tx-mute) dark:text-[#a89379] hover:text-red-400'
+                    }`}
+                    title={language === 'ar' ? 'إعجاب' : 'Like'}
+                  >
+                    <Heart className={`w-4 h-4 ${book.liked_by_me ? 'fill-red-500' : ''}`} />
+                    <span>{book.likes_count || 0}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openComments(book)}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-serif text-(--tx-mute) dark:text-[#a89379] hover:text-(--ac-gold-tx) transition-colors cursor-pointer"
+                    title={language === 'ar' ? 'تعليق' : 'Comment'}
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>{book.comments_count || 0}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => shareBook(book)}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-serif text-(--tx-mute) dark:text-[#a89379] hover:text-(--ac-gold-tx) transition-colors cursor-pointer"
+                    title={language === 'ar' ? 'مشاركة' : 'Share'}
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>{language === 'ar' ? 'مشاركة' : 'Share'}</span>
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -462,6 +624,82 @@ export const LibraryView: React.FC = () => {
             <p className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif mt-3 text-center">
               {language === 'ar' ? 'المصدر: مشروع الكنوز القبطية — المكتبة الصوتية' : 'Source: Coptic Treasures Project — Audio Library'}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Book Comments Modal */}
+      {commentBook && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-sm" onClick={() => setCommentBook(null)}>
+          <div
+            className="bg-(--bg-soft) dark:bg-[#18120e] border-2 border-(--ln-gold) dark:border-[#8b6b4a] w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl relative text-(--tx-strong) dark:text-[#f5ebd9] max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setCommentBook(null)}
+              className="absolute top-4 left-4 rtl:left-auto rtl:right-4 text-(--tx-mute) hover:text-(--tx-strong) dark:hover:text-white"
+              aria-label={language === 'ar' ? 'إغلاق' : 'Close'}
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="font-serif-coptic font-bold text-base mb-1 text-center px-8 line-clamp-1">
+              {language === 'ar' ? commentBook.title_ar : commentBook.title_en || commentBook.title_ar}
+            </h2>
+            <p className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif text-center mb-3">
+              {language === 'ar' ? 'التعليقات' : 'Comments'} ({commentBook.comments_count || bookComments.length})
+            </p>
+            <div className="flex-1 overflow-y-auto space-y-3 mb-3 min-h-[120px]">
+              {commentsLoading ? (
+                <p className="text-center text-xs text-(--tx-mute) font-serif py-8 animate-pulse">
+                  {language === 'ar' ? 'جاري تحميل التعليقات...' : 'Loading comments...'}
+                </p>
+              ) : bookComments.length === 0 ? (
+                <p className="text-center text-xs text-(--tx-mute) font-serif py-8">
+                  {language === 'ar' ? 'لا توجد تعليقات بعد — كن أول من يعلق' : 'No comments yet — be the first to comment'}
+                </p>
+              ) : (
+                bookComments.map((c) => (
+                  <div key={c.id} className="flex items-start gap-2.5 bg-(--bg-card) dark:bg-[#282019] border border-(--ln-gold)/40 rounded-2xl p-2.5">
+                    <img
+                      src={c.author_avatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
+                      alt=""
+                      className="w-8 h-8 rounded-full object-cover border border-(--ln-gold) shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-bold font-serif">{c.author_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner')}</p>
+                      <p className="text-xs font-serif whitespace-pre-wrap break-words">{c.content}</p>
+                    </div>
+                    {(profile?.id === c.user_id || profile?.role === 'admin') && (
+                      <button
+                        onClick={() => deleteBookComment(c.id)}
+                        className="text-(--tx-mute) hover:text-red-500 transition-colors shrink-0"
+                        title={language === 'ar' ? 'حذف' : 'Delete'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex items-center gap-2 border-t border-(--ln-gold)/30 pt-3">
+              <input
+                type="text"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') submitComment(); }}
+                placeholder={language === 'ar' ? 'اكتب تعليقاً...' : 'Write a comment...'}
+                className="flex-1 p-2.5 rounded-xl bg-(--bg-card) dark:bg-[#282019] border border-(--ln-gold) outline-none text-xs text-(--tx-strong) dark:text-[#f5ebd9]"
+              />
+              <button
+                onClick={submitComment}
+                disabled={!newComment.trim()}
+                className="p-2.5 rounded-xl bg-(--ac-gold) text-white hover:bg-(--ac-gold-deep) transition-colors disabled:opacity-40 cursor-pointer"
+                aria-label={language === 'ar' ? 'إرسال' : 'Send'}
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}

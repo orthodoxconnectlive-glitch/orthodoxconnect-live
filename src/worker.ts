@@ -154,6 +154,7 @@ export async function ensureD1Tables(db?: D1Database) {
         ['author_avatar', "TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png'"],
         ['author_parish', "TEXT DEFAULT 'Orthodox Church'"],
         ['image_url', 'TEXT'],
+        ['media_url', 'TEXT'],
         ['media_type', "TEXT DEFAULT 'image'"],
         ['caption', "TEXT DEFAULT ''"],
         ['created_at', "TEXT NOT NULL DEFAULT (datetime('now'))"],
@@ -1879,7 +1880,7 @@ export default {
           if (env.DB) {
             const stmt = env.DB.prepare('SELECT * FROM stories ORDER BY created_at DESC LIMIT 50');
             const { results } = await stmt.all();
-            stories = results || [];
+            stories = (results || []).map((r: any) => ({ ...r, image_url: r.image_url || r.media_url || '' }));
           }
           return jsonResponse({ success: true, stories });
         }
@@ -1902,9 +1903,9 @@ export default {
 
           if (env.DB) {
             await env.DB.prepare(`
-              INSERT INTO stories (id, author_id, author_name, author_avatar, author_parish, image_url, media_type, caption, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(id, authorId, authorName, authorAvatar, authorParish, imageUrl, mediaType, caption, createdAt).run();
+              INSERT INTO stories (id, author_id, author_name, author_avatar, author_parish, image_url, media_url, media_type, caption, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(id, authorId, authorName, authorAvatar, authorParish, imageUrl, imageUrl, mediaType, caption, createdAt).run();
           }
 
           return jsonResponse({

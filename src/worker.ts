@@ -3171,6 +3171,18 @@ export default {
 
       // 16. Books & Library Endpoints (/api/books and /api/books/:id)
       if (url.pathname === '/api/books' || url.pathname === '/api/books/') {
+        if (env.DB) {
+          // Self-healing: make sure the book engagement tables exist. (The
+          // giant ensureD1Tables batch can throw before later migrations run.)
+          try {
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS book_likes (
+              book_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL,
+              PRIMARY KEY (book_id, user_id))`);
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS book_comments (
+              id TEXT PRIMARY KEY, book_id TEXT NOT NULL, user_id TEXT NOT NULL,
+              author_name TEXT, author_avatar TEXT, content TEXT NOT NULL, created_at TEXT NOT NULL)`);
+          } catch (e) { /* tables already exist */ }
+        }
         if (request.method === 'GET') {
           const category = url.searchParams.get('category');
           const q = (url.searchParams.get('q') || '').trim();

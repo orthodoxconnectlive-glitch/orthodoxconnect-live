@@ -1251,6 +1251,25 @@ export default {
               .run();
           }
 
+          // Automatic welcome message: every new member gets a warm welcome
+          // in Messenger from the admin, plus a notification. Best-effort —
+          // it must never break signup.
+          if (env.DB) {
+            try {
+              const adminRow: any = await env.DB.prepare('SELECT id, full_name, avatar_url FROM profiles WHERE LOWER(email) = LOWER(?)').bind(SUPER_ADMIN_EMAIL).first();
+              if (adminRow && adminRow.id && adminRow.id !== userId) {
+                const welcomeId = `msg_welcome_${userId}`;
+                const already = await env.DB.prepare('SELECT id FROM messages WHERE id = ?').bind(welcomeId).first();
+                if (!already) {
+                  const adminName = adminRow.full_name || 'OrthodoxConnect';
+                  const welcomeText = `Welcome to OrthodoxConnect! We're so glad you're here. Take a look around the library and your parish rooms, and feel at home. God bless you!\n\nأهلاً بيك في أورثوذكس كونكت! مبسوطين إنك معانا.`;
+                  await env.DB.prepare('INSERT INTO messages (id, sender_id, sender_name, receiver_id, content, image_url, video_url, audio_url, is_read, created_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, 0, ?)').bind(welcomeId, adminRow.id, adminName, userId, welcomeText, now).run();
+                  await env.DB.prepare('INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(`notif_welcome_${userId}`, userId, adminRow.id, adminName, adminRow.avatar_url || '', 'message', `Message from ${adminName}`, welcomeText.slice(0, 120), null, 'messages', 0, now).run();
+                }
+              }
+            } catch (welcomeErr) { /* never break signup */ }
+          }
+
           const profileObj = {
             id: userId,
             email,

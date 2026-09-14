@@ -444,7 +444,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
               <div className="relative p-0.5 rounded-full bg-gradient-to-tr from-(--ac-gold) via-[#f5ebd9] to-(--ac-bronze-dk) shadow-md transition-transform group-hover:scale-105">
                 <div className="w-15 h-15 rounded-full p-0.5 bg-[#1c1611]">
                   <img
-                    src={story.authorAvatar}
+                    src={mt === 'image' && story.imageUrl ? story.imageUrl : story.authorAvatar}
                     alt={story.authorName}
                     className="w-full h-full rounded-full object-cover border border-(--ln-gold)"
                   />

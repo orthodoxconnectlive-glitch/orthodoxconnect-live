@@ -10,6 +10,7 @@ import {
   getFastingInfo,
   getUpcomingFeastsFrom,
 } from './utils/liturgicalEngine';
+import { SYNAX_TITLES } from './synaxTitles';
 
 export interface D1PreparedStatement {
   bind(...values: any[]): D1PreparedStatement;
@@ -559,22 +560,32 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
           <div class="meta">&#128214; OrthodoxConnect Library</div>`;
       }
     } else if (kind === 'synax') {
-      // Synaxarium day share: id is "MM-DD" (Coptic month/day).
+      // Synaxarium day share: id is "MM-DD" (Coptic month/day). Uses the real
+      // day titles baked in at build time (src/synaxTitles.ts).
       const m = /^(\d{2})-(\d{2})$/.exec(String(id || ''));
       if (m) {
         const mo = Number(m[1]), da = Number(m[2]);
         const valid = mo >= 1 && mo <= 13 && da >= 1 && (mo === 13 ? da <= 6 : da <= 30);
-        if (valid) {
+        const dayTitles = valid ? SYNAX_TITLES[String(id)] : undefined;
+        if (valid && dayTitles) {
           found = true;
           const dateLabel = `${da} ${COPTIC_MONTHS_EN[mo - 1]}`;
-          title = `Daily Synaxarium · ${dateLabel} — OrthodoxConnect`;
-          desc = `The saints, martyrs, and commemorations of ${dateLabel} — full text in English and Arabic.`;
+          const arTitles = dayTitles.ar || [];
+          const enTitles = dayTitles.en || [];
+          const mainTitle = arTitles[0] || enTitles[0] || 'Daily Synaxarium';
+          const extra = Math.max(arTitles.length, enTitles.length) - 1;
+          title = `${mainTitle} — OrthodoxConnect`;
+          desc = `Daily Synaxarium · ${dateLabel}`
+            + (enTitles[0] && enTitles[0] !== mainTitle ? ` · ${enTitles[0]}` : '')
+            + (extra > 0 ? ` (+${extra} more)` : '');
           appLink = APP_URL + '/?synax=' + encodeURIComponent(String(id));
+          const titleList = (arTitles.length ? arTitles : enTitles)
+            .map((t) => `<p class="content">• ${escHtml(t)}</p>`).join('');
           bodyHtml = `
           <div class="badge">📖 Synaxarium</div>
-          <h1>${escHtml('Daily Synaxarium')}</h1>
+          <h1>${escHtml(mainTitle)}</h1>
           <p class="meta">${escHtml(dateLabel)} · Coptic calendar</p>
-          <p class="content">${escHtml('The saints, martyrs, and commemorations of this day — full text in English and Arabic.')}</p>
+          ${titleList}
           <div class="meta">📖 OrthodoxConnect Synaxarium</div>`;
         }
       }

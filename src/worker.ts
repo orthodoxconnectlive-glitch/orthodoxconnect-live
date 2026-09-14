@@ -504,6 +504,19 @@ const COPTIC_MONTHS_EN = [
   'Tout', 'Baba', 'Hator', 'Kiahk', 'Toba', 'Amshir',
   'Baramhat', 'Baramouda', 'Bashans', 'Paona', 'Epep', 'Mesra', 'Nasie',
 ];
+// Cache of the static synaxarium month JSON files, fetched on demand so the
+// public /synax/MM-DD share pages can show the day's full story text.
+const synaxMonthCache: Record<string, any> = {};
+async function getSynaxMonthJson(mm: string): Promise<any | null> {
+  if (synaxMonthCache[mm]) return synaxMonthCache[mm];
+  try {
+    const r = await fetch('https://orthodoxconnect.live/synaxarium/' + mm + '.json');
+    if (!r.ok) return null;
+    const j = await r.json();
+    synaxMonthCache[mm] = j;
+    return j;
+  } catch (e) { return null; }
+}
 async function renderSharePage(db: D1Database, kind: string, id: string): Promise<Response> {
   const APP_URL = 'https://orthodoxconnect.live';
   const PLAY_URL = 'https://play.google.com/store/apps/details?id=orthodoxconnect.live';
@@ -576,6 +589,7 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
           const extra = Math.max(arTitles.length, enTitles.length) - 1;
           title = `${mainTitle} — OrthodoxConnect`;
           const teaser = dayTitles.teaser_ar || dayTitles.teaser_en || '';
+          const rtl = arTitles.length > 0 ? ' dir="rtl" style="text-align:right"' : '';
           desc = teaser
             || (`The saints, martyrs, and commemorations of ${dateLabel} — full text in English and Arabic.`);
           image = APP_URL + '/synax-share.png';
@@ -583,14 +597,36 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
           imageH = '1120';
           appLink = APP_URL + '/?synax=' + encodeURIComponent(String(id));
           const titleList = (arTitles.length ? arTitles : enTitles)
-            .map((t) => `<p class="content">• ${escHtml(t)}</p>`).join('');
+            .map((t) => `<p class="content"${rtl}>• ${escHtml(t)}</p>`).join('');
+          // Full story text: fetch the static month JSON (cached per isolate)
+          // so visitors can read the whole day right on the share page.
+          let storyHtml = '';
+          try {
+            const monthJson = await getSynaxMonthJson(m[1]);
+            const entry = monthJson ? monthJson[String(da)] : null;
+            const fullText = String((entry && (entry.ar_text || entry.text)) || '');
+            if (fullText) {
+              storyHtml = fullText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
+                .map((p) => `<p class="content"${rtl}>${escHtml(p)}</p>`).join('');
+            }
+          } catch (e) {}
+          // Prev / next day navigation (Coptic calendar: 12x30 + 6 epagomenal days).
+          const monthLen = (x: number) => (x === 13 ? 6 : 30);
+          let pMo = mo, pDa = da - 1;
+          if (pDa < 1) { pMo = mo === 1 ? 13 : mo - 1; pDa = monthLen(pMo); }
+          let nMo = mo, nDa = da + 1;
+          if (nDa > monthLen(mo)) { nMo = mo === 13 ? 1 : mo + 1; nDa = 1; }
+          const pad2 = (x: number) => String(x).padStart(2, '0');
+          const navHtml = `<div class="synax-nav">`
+            + `<a href="/synax/${pad2(pMo)}-${pad2(pDa)}">← ${escHtml(pDa + ' ' + COPTIC_MONTHS_EN[pMo - 1])}</a>`
+            + `<a href="/synax/${pad2(nMo)}-${pad2(nDa)}">${escHtml(nDa + ' ' + COPTIC_MONTHS_EN[nMo - 1])} →</a></div>`;
           bodyHtml = `
           <div class="badge">📖 Synaxarium</div>
-          <h1>${escHtml(mainTitle)}</h1>
+          <h1${rtl}>${escHtml(mainTitle)}</h1>
           <p class="meta">${escHtml(dateLabel)} · Coptic calendar</p>
           ${titleList}
-          ${teaser ? `<p class="content">${escHtml(teaser)}</p>
-          <p class="content"><b>${escHtml('Tap below to read the full story in OrthodoxConnect ↓')}</b></p>` : ''}
+          ${storyHtml || (teaser ? `<p class="content"${rtl}>${escHtml(teaser)}</p>` : '')}
+          ${navHtml}
           <div class="meta">📖 OrthodoxConnect Synaxarium</div>`;
         }
       }
@@ -684,6 +720,8 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
   .btn { display: block; text-align: center; text-decoration: none; font-weight: bold; font-size: 17px; padding: 15px; border-radius: 16px; }
   .btn-primary { background: #7a5c2e; color: #fff; box-shadow: 0 4px 14px rgba(122,92,46,.35); }
   .btn-secondary { background: transparent; color: #7a5c2e; border: 2px solid #7a5c2e; }
+  .synax-nav { display: flex; justify-content: space-between; margin-top: 14px; }
+  .synax-nav a { color: #7a5c2e; font-weight: bold; text-decoration: none; font-size: 15px; }
   .foot { margin-top: 18px; font-size: 12px; color: #8a6d3b; text-align: center; }
 </style>
 </head>

@@ -139,6 +139,29 @@ export async function ensureD1Tables(db?: D1Database) {
   } catch (churchTblErr) {
     console.warn('[ensureD1Tables] churches table notice:', churchTblErr);
   }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS book_likes (
+        book_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (book_id, user_id)
+      )`);
+    } catch (bookLikeMigErr) {
+      console.warn('[ensureD1Tables] book_likes migration notice:', bookLikeMigErr);
+    }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS book_comments (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        author_name TEXT,
+        author_avatar TEXT,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`);
+    } catch (bookCommMigErr) {
+      console.warn('[ensureD1Tables] book_comments migration notice:', bookCommMigErr);
+    }
   try {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS profiles (
@@ -453,29 +476,6 @@ export async function ensureD1Tables(db?: D1Database) {
       }
     } catch (storyMigErr) {
       console.warn('[ensureD1Tables] stories migration notice:', storyMigErr);
-    }
-    try {
-      await db.exec(`CREATE TABLE IF NOT EXISTS book_likes (
-        book_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        PRIMARY KEY (book_id, user_id)
-      )`);
-    } catch (bookLikeMigErr) {
-      console.warn('[ensureD1Tables] book_likes migration notice:', bookLikeMigErr);
-    }
-    try {
-      await db.exec(`CREATE TABLE IF NOT EXISTS book_comments (
-        id TEXT PRIMARY KEY,
-        book_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        author_name TEXT,
-        author_avatar TEXT,
-        content TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      )`);
-    } catch (bookCommMigErr) {
-      console.warn('[ensureD1Tables] book_comments migration notice:', bookCommMigErr);
     }
     d1TablesInitialized = true;
   } catch (e) {

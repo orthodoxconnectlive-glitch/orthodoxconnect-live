@@ -473,6 +473,13 @@ export const AdminPanelView: React.FC = () => {
                     const isTargetAdmin = user.role === 'admin' || user.role === 'owner';
                     const canDeleteTarget =
                       !isTargetSuperAdmin && (!isTargetAdmin || isCurrentSuperAdmin);
+                    // NEW badge: joined within the last 7 days, then it goes away on its own.
+                    const isNewMember = (() => {
+                      if (!user.created_at) return false;
+                      const joined = new Date(user.created_at).getTime();
+                      if (isNaN(joined)) return false;
+                      return Date.now() - joined < 7 * 24 * 60 * 60 * 1000;
+                    })();
 
                     return (
                       <tr key={user.id} className="hover:bg-(--bg-inset)/50 transition-colors">
@@ -488,7 +495,14 @@ export const AdminPanelView: React.FC = () => {
                               className="w-8 h-8 rounded-full object-cover border border-(--ln-bright)/40"
                             />
                             <div>
-                              <p className="font-bold text-(--tx-head)">{user.full_name}</p>
+                              <p className="font-bold text-(--tx-head)">
+                                {user.full_name}
+                                {isNewMember && (
+                                  <span className="ml-2 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-green-600 text-white align-middle">
+                                    New
+                                  </span>
+                                )}
+                              </p>
                             </div>
                           </div>
                         </td>

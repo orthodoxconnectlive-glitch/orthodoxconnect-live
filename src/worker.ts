@@ -454,6 +454,29 @@ export async function ensureD1Tables(db?: D1Database) {
     } catch (storyMigErr) {
       console.warn('[ensureD1Tables] stories migration notice:', storyMigErr);
     }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS book_likes (
+        book_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (book_id, user_id)
+      )`);
+    } catch (bookLikeMigErr) {
+      console.warn('[ensureD1Tables] book_likes migration notice:', bookLikeMigErr);
+    }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS book_comments (
+        id TEXT PRIMARY KEY,
+        book_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        author_name TEXT,
+        author_avatar TEXT,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`);
+    } catch (bookCommMigErr) {
+      console.warn('[ensureD1Tables] book_comments migration notice:', bookCommMigErr);
+    }
     d1TablesInitialized = true;
   } catch (e) {
     // Non-fatal if tables already exist
@@ -708,10 +731,10 @@ function escHtml(s: any): string {
     .replace(/'/g, '&#39;');
 }
 
-// Public share page for a post or live stream: /post/:id and /live/:id.
+// Public share page for a post, live stream, or book: /post/:id, /live/:id, /book/:id.
 // Crawlers (WhatsApp, Facebook) read the OG tags; humans see the full post
 // with a CTA that opens it in the app. No login required.
-async function renderSharePage(db: D1Database, isLive: boolean, id: string): Promise<Response> {
+async function renderSharePage(db: D1Database, kind: string, id: string): Promise<Response> {
   const APP_URL = 'https://orthodoxconnect.live';
   const PLAY_URL = 'https://play.google.com/store/apps/details?id=orthodoxconnect.live';
   const DEFAULT_IMG = APP_URL + '/launchericon-512x512.png';
@@ -726,7 +749,7 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
   let found = false;
 
   try {
-    if (isLive) {
+    if (kind === 'live') {
       const s = await db.prepare(
         'SELECT id, title, host_parish, priest_name, is_live, viewers_count, created_at FROM live_streams WHERE id = ?'
       ).bind(id).first<any>();
@@ -741,6 +764,30 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
           <h1>${escHtml(s.title || 'Live broadcast')}</h1>
           <p class="meta">${escHtml(s.priest_name || '')} · ${escHtml(s.host_parish || 'Orthodox Church')}</p>
           ${live ? `<p class="meta">🔴 ${escHtml(String(s.viewers_count || 1))} watching now</p>` : ''}`;
+      }
+    } else if (kind === 'book') {
+      const b = await db.prepare(
+        'SELECT id, title_ar, title_en, author_ar, author_en, category, description, cover_image_url FROM books WHERE id = ?'
+      ).bind(id).first<any>();
+      if (b) {
+        found = true;
+        const bTitle = String(b.title_ar || b.title_en || 'Book');
+        const bAuthor = String(b.author_ar || b.author_en || '');
+        const isAudio = b.category === 'audiobook';
+        const bDesc = String(b.description || '').slice(0, 200);
+        title = `${bTitle} — OrthodoxConnect Library`;
+        desc = bAuthor + (bDesc ? ` · ${bDesc}` : '') || 'A book from the OrthodoxConnect library.';
+        const cover = safeImgUrl(b.cover_image_url, '');
+        image = cover || DEFAULT_IMG;
+        if (cover) { imageW = '1200'; imageH = '630'; }
+        appLink = APP_URL + '/?book=' + encodeURIComponent(String(b.id));
+        bodyHtml = `
+          <div class="badge">${isAudio ? '&#127911; Audiobook' : '&#128214; Book'}</div>
+          <h1>${escHtml(bTitle)}</h1>
+          ${bAuthor ? `<p class="meta">${escHtml(bAuthor)}</p>` : ''}
+          ${cover ? `<img class="media" src="${escHtml(cover)}" alt="Book cover" onerror="this.style.display='none'"/>` : ''}
+          ${bDesc ? `<p class="content">${escHtml(bDesc)}</p>` : ''}
+          <div class="meta">&#128214; OrthodoxConnect Library</div>`;
       }
     } else {
       const p = await db.prepare(
@@ -792,7 +839,7 @@ async function renderSharePage(db: D1Database, isLive: boolean, id: string): Pro
     bodyHtml = `<h1>OrthodoxConnect</h1><p class="meta">This post is no longer available.</p>`;
   }
 
-  const pageUrl = APP_URL + (isLive ? '/live/' : '/post/') + encodeURIComponent(id);
+  const pageUrl = APP_URL + (kind === 'live' ? '/live/' : kind === 'book' ? '/book/' : '/post/') + encodeURIComponent(id);
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3128,27 +3175,40 @@ export default {
           const category = url.searchParams.get('category');
           const q = (url.searchParams.get('q') || '').trim();
 
-          let books: D1BookRow[] = [];
+          let books: any[] = [];
           if (env.DB) {
-            let query = 'SELECT * FROM books WHERE 1=1';
+            let query = `SELECT b.*,
+              (SELECT COUNT(*) FROM book_likes WHERE book_id = b.id) AS likes_count,
+              (SELECT COUNT(*) FROM book_comments WHERE book_id = b.id) AS comments_count
+              FROM books b WHERE 1=1`;
             const params: any[] = [];
 
             if (category && category !== 'all') {
-              query += ' AND category = ?';
+              query += ' AND b.category = ?';
               params.push(category);
             }
 
             if (q) {
-              query += ' AND (title_ar LIKE ? OR title_en LIKE ? OR author_ar LIKE ? OR author_en LIKE ?)';
+              query += ' AND (b.title_ar LIKE ? OR b.title_en LIKE ? OR b.author_ar LIKE ? OR b.author_en LIKE ?)';
               const pattern = `%${q}%`;
               params.push(pattern, pattern, pattern, pattern);
             }
 
-            query += ' ORDER BY datetime(created_at) DESC, created_at DESC';
+            query += ' ORDER BY datetime(b.created_at) DESC, b.created_at DESC';
 
             const stmt = env.DB.prepare(query).bind(...params);
-            const { results } = await stmt.all<D1BookRow>();
+            const { results } = await stmt.all<any>();
             books = results || [];
+
+            // Mark which books the current user liked (optional auth — endpoint stays public).
+            try {
+              const authBooks = await getAuthIdentity(request, env);
+              if (authBooks.id && books.length) {
+                const likedRows = await env.DB.prepare('SELECT book_id FROM book_likes WHERE user_id = ?').bind(authBooks.id).all<{ book_id: string }>();
+                const likedSet = new Set((likedRows.results || []).map((r) => r.book_id));
+                books = books.map((b) => ({ ...b, liked_by_me: likedSet.has(b.id) }));
+              }
+            } catch (e) { /* public read still works */ }
           }
 
           return jsonResponse(books);
@@ -3182,6 +3242,87 @@ export default {
             success: true,
             book: { id, title_ar: titleAr, title_en: titleEn, author_ar: authorAr, author_en: authorEn, category, cover_image_url: coverImageUrl, file_url: fileUrl, description, created_at: createdAt },
           }, 201);
+        }
+      }
+
+      // 16a. Book like toggle (/api/books/:id/like)
+      if (url.pathname.match(/^\/api\/books\/[^/]+\/like\/?$/) && env.DB) {
+        const bookId = decodeURIComponent(url.pathname.replace('/api/books/', '').replace(/\/like\/?$/, ''));
+        if (request.method === 'POST') {
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+          const book = await env.DB.prepare('SELECT id FROM books WHERE id = ?').bind(bookId).first();
+          if (!book) return jsonResponse({ success: false, error: 'Book not found' }, 404);
+          const existing = await env.DB.prepare('SELECT 1 FROM book_likes WHERE book_id = ? AND user_id = ?').bind(bookId, auth.id).first();
+          let liked: boolean;
+          if (existing) {
+            await env.DB.prepare('DELETE FROM book_likes WHERE book_id = ? AND user_id = ?').bind(bookId, auth.id).run();
+            liked = false;
+          } else {
+            await env.DB.prepare('INSERT INTO book_likes (book_id, user_id, created_at) VALUES (?, ?, ?)').bind(bookId, auth.id, new Date().toISOString()).run();
+            liked = true;
+          }
+          const cnt = await env.DB.prepare('SELECT COUNT(*) as c FROM book_likes WHERE book_id = ?').bind(bookId).first<{ c: number }>();
+          return jsonResponse({ success: true, liked, likes_count: cnt ? Number(cnt.c) : 0 });
+        }
+      }
+
+      // 16b. Book comments list & create (/api/books/:id/comments)
+      if (url.pathname.match(/^\/api\/books\/[^/]+\/comments\/?$/) && env.DB) {
+        const bookId = decodeURIComponent(url.pathname.replace('/api/books/', '').replace(/\/comments\/?$/, ''));
+
+        if (request.method === 'GET') {
+          const { results } = await env.DB.prepare('SELECT * FROM book_comments WHERE book_id = ? ORDER BY created_at ASC').bind(bookId).all();
+          const comments = results || [];
+          return jsonResponse({ success: true, book_id: bookId, comments, count: comments.length });
+        }
+
+        if (request.method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) {
+            return jsonResponse({ success: false, error: 'Authentication required to comment.' }, 401);
+          }
+          const content = (body.content || body.text || '').trim();
+          if (!content) {
+            return jsonResponse({ success: false, error: 'Comment content cannot be empty' }, 400);
+          }
+          const book = await env.DB.prepare('SELECT id FROM books WHERE id = ?').bind(bookId).first();
+          if (!book) return jsonResponse({ success: false, error: 'Book not found' }, 404);
+          const id = body.id || `bcomm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          const authorName = body.author_name || auth.email || 'Orthodox Parishioner';
+          const authorAvatar = body.author_avatar || 'https://orthodoxconnect.live/launchericon-512x512.png';
+          const createdAt = new Date().toISOString();
+          await env.DB.prepare(
+            'INSERT INTO book_comments (id, book_id, user_id, author_name, author_avatar, content, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          ).bind(id, bookId, auth.id, authorName, authorAvatar, content, createdAt).run();
+          const cnt = await env.DB.prepare('SELECT COUNT(*) as c FROM book_comments WHERE book_id = ?').bind(bookId).first<{ c: number }>();
+          return jsonResponse({
+            success: true,
+            comment: { id, book_id: bookId, user_id: auth.id, author_name: authorName, author_avatar: authorAvatar, content, created_at: createdAt },
+            comments_count: cnt ? Number(cnt.c) : 1,
+          }, 201);
+        }
+      }
+
+      // 16c. Delete a book comment (/api/books/comments/:commentId) — author or admin.
+      if (url.pathname.match(/^\/api\/books\/comments\/[^/]+\/?$/) && env.DB) {
+        const commentId = decodeURIComponent(url.pathname.replace('/api/books/comments/', '').replace(/\/?$/, ''));
+        if (request.method === 'DELETE') {
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+          const comm = await env.DB.prepare('SELECT * FROM book_comments WHERE id = ?').bind(commentId).first<any>();
+          if (!comm) return jsonResponse({ success: false, error: 'Comment not found' }, 404);
+          if (comm.user_id !== auth.id && !auth.isAdmin) {
+            return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
+          }
+          await env.DB.prepare('DELETE FROM book_comments WHERE id = ?').bind(commentId).run();
+          const cnt = await env.DB.prepare('SELECT COUNT(*) as c FROM book_comments WHERE book_id = ?').bind(comm.book_id).first<{ c: number }>();
+          return jsonResponse({ success: true, comments_count: cnt ? Number(cnt.c) : 0 });
         }
       }
 
@@ -3237,6 +3378,8 @@ export default {
           }
           if (env.DB) {
             await env.DB.prepare('DELETE FROM books WHERE id = ?').bind(bookId).run();
+            await env.DB.prepare('DELETE FROM book_likes WHERE book_id = ?').bind(bookId).run();
+            await env.DB.prepare('DELETE FROM book_comments WHERE book_id = ?').bind(bookId).run();
           }
           return jsonResponse({ success: true, id: bookId, message: 'Book deleted successfully.' });
         }
@@ -3677,14 +3820,15 @@ export default {
         return new Response('Not found', { status: 404 });
       }
 
-      // Public share pages: /post/:id and /live/:id (OG tags + preview + app CTA).
+      // Public share pages: /post/:id, /live/:id, /book/:id (OG tags + preview + app CTA).
       // HEAD is served too: several link-preview scrapers probe headers first.
       if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
-          (url.pathname.startsWith('/post/') || url.pathname.startsWith('/live/'))) {
-        const isLivePath = url.pathname.startsWith('/live/');
-        const shareId = decodeURIComponent(url.pathname.replace(isLivePath ? '/live/' : '/post/', '').split('/')[0].trim());
+          (url.pathname.startsWith('/post/') || url.pathname.startsWith('/live/') || url.pathname.startsWith('/book/'))) {
+        const kind = url.pathname.startsWith('/live/') ? 'live' : url.pathname.startsWith('/book/') ? 'book' : 'post';
+        const prefix = kind === 'live' ? '/live/' : kind === 'book' ? '/book/' : '/post/';
+        const shareId = decodeURIComponent(url.pathname.replace(prefix, '').split('/')[0].trim());
         if (shareId) {
-          return await renderSharePage(env.DB, isLivePath, shareId);
+          return await renderSharePage(env.DB, kind, shareId);
         }
       }
 

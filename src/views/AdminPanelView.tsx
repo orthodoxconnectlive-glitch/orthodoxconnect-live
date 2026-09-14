@@ -28,7 +28,11 @@ import {
 } from '../utils/moderation';
 import { deletePost, deleteUserApi } from '../utils/posts';
 
-export const AdminPanelView: React.FC = () => {
+interface AdminPanelViewProps {
+  onSelectUser?: (user: { id?: string; name: string; avatar?: string; parish?: string; role?: string }) => void;
+}
+
+export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) => {
   const { profile } = useAuth();
   const { t } = useTheme();
 
@@ -496,7 +500,25 @@ export const AdminPanelView: React.FC = () => {
                             />
                             <div>
                               <p className="font-bold text-(--tx-head)">
-                                {user.full_name}
+                                {onSelectUser ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onSelectUser({
+                                        id: user.id,
+                                        name: user.full_name,
+                                        avatar: user.avatar_url || undefined,
+                                        parish: user.parish || undefined,
+                                        role: user.role || undefined,
+                                      })
+                                    }
+                                    className="hover:underline hover:text-(--ac-gold-tx) transition-colors cursor-pointer text-start"
+                                  >
+                                    {user.full_name}
+                                  </button>
+                                ) : (
+                                  user.full_name
+                                )}
                                 {isNewMember && (
                                   <span className="ml-2 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-green-600 text-white align-middle">
                                     New

@@ -231,7 +231,7 @@ function AppContent() {
           />
         );
       case 'admin':
-        return <AdminPanelView />;
+        return <AdminPanelView onSelectUser={handleSelectUser} />;
       case 'calendar':
         return <CalendarView />;
       case 'churches':

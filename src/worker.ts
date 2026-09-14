@@ -1452,6 +1452,28 @@ export default {
         });
       }
 
+      // TEMP DEBUG: DDL diagnostic (remove after diagnosis)
+      if (url.pathname === '/api/debug-ddl') {
+        const out: any = {};
+        try {
+          await env.DB.exec('CREATE TABLE IF NOT EXISTS _ddl_test (id TEXT PRIMARY KEY)');
+          out.create = 'ok';
+        } catch (e: any) {
+          out.create = 'FAILED: ' + String((e && e.message) || e);
+        }
+        try {
+          const r = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('book_likes','book_comments','churches','_ddl_test')").all();
+          out.tables = (r.results || []).map((x: any) => x.name);
+        } catch (e: any) {
+          out.tables = 'FAILED: ' + String((e && e.message) || e);
+        }
+        try {
+          await env.DB.exec('DROP TABLE IF EXISTS _ddl_test');
+          out.cleanup = 'ok';
+        } catch (e: any) { out.cleanup = String((e && e.message) || e); }
+        return jsonResponse(out);
+      }
+
       // 3. Edge Authentication Endpoints (/api/auth/*)
       if (url.pathname.startsWith('/api/auth/')) {
         const authAction = url.pathname.replace('/api/auth/', '').replace(/\/$/, '');

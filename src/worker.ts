@@ -575,9 +575,9 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
           const mainTitle = arTitles[0] || enTitles[0] || 'Daily Synaxarium';
           const extra = Math.max(arTitles.length, enTitles.length) - 1;
           title = `${mainTitle} — OrthodoxConnect`;
-          desc = `Daily Synaxarium · ${dateLabel}`
-            + (enTitles[0] && enTitles[0] !== mainTitle ? ` · ${enTitles[0]}` : '')
-            + (extra > 0 ? ` (+${extra} more)` : '');
+          const teaser = dayTitles.teaser_ar || dayTitles.teaser_en || '';
+          desc = teaser
+            || (`The saints, martyrs, and commemorations of ${dateLabel} — full text in English and Arabic.`);
           image = APP_URL + '/synax-share.png';
           imageW = '2240';
           imageH = '1120';
@@ -589,6 +589,8 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
           <h1>${escHtml(mainTitle)}</h1>
           <p class="meta">${escHtml(dateLabel)} · Coptic calendar</p>
           ${titleList}
+          ${teaser ? `<p class="content">${escHtml(teaser)}</p>
+          <p class="content"><b>${escHtml('Tap below to read the full story in OrthodoxConnect ↓')}</b></p>` : ''}
           <div class="meta">📖 OrthodoxConnect Synaxarium</div>`;
         }
       }

@@ -175,7 +175,15 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
     const url = `https://orthodoxconnect.live/synax/${synaxKey}`;
     const dayLabel = formatCopticDate(copticDate, language);
     const firstTitle = titles[0] || (isAr ? 'السنكسار اليومي' : 'Daily Synaxarium');
-    const text = `${firstTitle} · ${dayLabel} | OrthodoxConnect`;
+    // Hook: title + the story's opening lines, so people tap through to the app.
+    const storyHead = paragraphs[0] || '';
+    let teaser = storyHead;
+    if (teaser.length > 160) {
+      const cut = teaser.slice(0, 160);
+      const sp = cut.lastIndexOf(' ');
+      teaser = (sp > 40 ? cut.slice(0, sp) : cut) + '…';
+    }
+    const text = teaser ? `${firstTitle}\n${teaser}` : `${firstTitle} · ${dayLabel} | OrthodoxConnect`;
     if (typeof navigator !== 'undefined' && (navigator as any).share) {
       try {
         await (navigator as any).share({ title: firstTitle, text, url });

@@ -157,6 +157,7 @@ export async function ensureD1Tables(db?: D1Database) {
         ['media_url', 'TEXT'],
         ['media_type', "TEXT DEFAULT 'image'"],
         ['caption', "TEXT DEFAULT ''"],
+        ['expires_at', 'TEXT'],
         ['created_at', "TEXT NOT NULL DEFAULT (datetime('now'))"],
       ];
       for (const [colName, colDef] of requiredStoryCols) {
@@ -1900,17 +1901,18 @@ export default {
           const mediaType = body.media_type || body.mediaType || 'image';
           const caption = body.caption || '';
           const createdAt = body.created_at || new Date().toISOString();
+          const expiresAt = body.expires_at || new Date(Date.parse(createdAt) + 24 * 3600 * 1000).toISOString();
 
           if (env.DB) {
             await env.DB.prepare(`
-              INSERT INTO stories (id, author_id, author_name, author_avatar, author_parish, image_url, media_url, media_type, caption, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(id, authorId, authorName, authorAvatar, authorParish, imageUrl, imageUrl, mediaType, caption, createdAt).run();
+              INSERT INTO stories (id, author_id, author_name, author_avatar, author_parish, image_url, media_url, media_type, caption, expires_at, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(id, authorId, authorName, authorAvatar, authorParish, imageUrl, imageUrl, mediaType, caption, expiresAt, createdAt).run();
           }
 
           return jsonResponse({
             success: true,
-            story: { id, author_id: authorId, author_name: authorName, author_avatar: authorAvatar, author_parish: authorParish, image_url: imageUrl, media_type: mediaType, caption, created_at: createdAt },
+            story: { id, author_id: authorId, author_name: authorName, author_avatar: authorAvatar, author_parish: authorParish, image_url: imageUrl, media_type: mediaType, caption, expires_at: expiresAt, created_at: createdAt },
           }, 201);
         }
       }

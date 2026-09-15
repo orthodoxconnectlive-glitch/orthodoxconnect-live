@@ -1,24 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Rss,
-  Film,
   Radio,
   Flame,
-  Users,
   MessageSquare,
-  Calendar as CalendarIcon,
+  Bell,
   User,
   ShieldAlert,
   QrCode,
   Sparkles,
-  Bell,
   Sun,
   Moon,
   Globe,
   Utensils,
   BookOpen,
-  Church,
-  Store,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -78,18 +72,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     count?: number;
   }
 
+  // Desktop sidebar holds only what ISN'T in the top icon strip / header,
+  // so no button ever appears twice.
   const navItems: NavItem[] = [
-    { id: 'feed', label: t('feed'), icon: Rss, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30' },
-    { id: 'videos', label: t('videos'), icon: Film, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/30' },
-    { id: 'library', label: language === 'ar' ? 'المكتبة المسيحية' : 'Book Library', icon: BookOpen, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'live', label: t('goLive'), icon: Radio, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isLive: true },
     { id: 'candle', label: language === 'ar' ? 'أضئ شمعة' : 'Light a Candle', icon: Flame, color: 'text-amber-600 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30', isCandle: true },
-    { id: 'myNetwork', label: t('myNetwork'), icon: Users, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30' },
     { id: 'messages', label: t('messages'), icon: MessageSquare, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', count: activeUnreadMsgs },
     { id: 'notifications', label: t('notifications'), icon: Bell, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', count: activeUnreadNotifs },
-    { id: 'calendar', label: t('calendar'), icon: CalendarIcon, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-100 dark:bg-indigo-900/30' },
-    { id: 'churches', label: language === 'ar' ? 'الكنائس' : 'Churches', icon: Church, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
-    { id: 'marketplace', label: language === 'ar' ? 'السوق' : 'Marketplace', icon: Store, color: 'text-teal-700 dark:text-teal-300', bg: 'bg-teal-100 dark:bg-teal-900/30' },
     { id: 'profile', label: t('profile'), icon: User, color: 'text-stone-700 dark:text-amber-200', bg: 'bg-stone-200 dark:bg-stone-800' },
   ];
 
@@ -308,15 +297,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             — {todayData.scriptureRef}
           </span>
         </div>
-
-        {/* Calendar Button */}
-        <button
-          onClick={() => onNavigate('calendar')}
-          className="w-full py-2.5 rounded-xl bg-(--ac-bronze) hover:bg-(--ac-bronze-dk) text-white font-serif font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
-        >
-          <CalendarIcon className="w-3.5 h-3.5" />
-          <span>{t('calendar')}</span>
-        </button>
       </div>
     </aside>
   );

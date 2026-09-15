@@ -1352,6 +1352,12 @@ export default {
         });
       }
 
+      // Public VAPID key (safe to expose — clients need it to subscribe).
+      if (url.pathname === '/api/push/vapid-public-key' && request.method === 'GET') {
+        const { publicKey } = await getVapidKeys(env);
+        return jsonResponse({ success: Boolean(publicKey), publicKey: publicKey || null });
+      }
+
       // Short invite codes: GET /api/invite-code (auth) -> { success, code }.
       // Each user gets one permanent 6-char code; the pretty link is
       // https://orthodoxconnect.live/join/ABC123 (redirects to /invite?ref=<userId>).
@@ -3770,9 +3776,10 @@ export default {
         const userId = String(body.user_id || body.userId || authPs.id);
         if (userId !== authPs.id && !authPs.isAdmin) return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
         const { results } = await env.DB.prepare(
-          'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?'
+          'SELECT endpoint, p256dh, auth, created_at FROM push_subscriptions WHERE user_id = ?'
         ).bind(userId).all();
         let sent = 0;
+        const details: Array<{ endpoint_tail: string; created_at: string; accepted: boolean }> = [];
         for (const s of (results || []) as any[]) {
           const ok = await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, {
             title: 'OrthodoxConnect ✓',
@@ -3782,8 +3789,9 @@ export default {
             data: { url: '/' },
           });
           if (ok) sent++;
+          details.push({ endpoint_tail: String(s.endpoint || '').slice(-16), created_at: String(s.created_at || ''), accepted: ok });
         }
-        return jsonResponse({ success: true, subscriptions: (results || []).length, sent });
+        return jsonResponse({ success: true, subscriptions: (results || []).length, sent, details });
       }
       if (url.pathname === '/api/push-subscriptions' || url.pathname === '/api/push-subscriptions/') {
         if (request.method === 'POST' && env.DB) {

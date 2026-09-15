@@ -99,7 +99,13 @@ async function resetPush() {
       body: JSON.stringify({ user_id: USER_ID }),
     });
     if (testRes.ok) {
-      show('ok', '✅ Done! Your phone is registered. You should have received a test notification. Now close this page and test a real call.');
+      const tj = await testRes.json().catch(() => ({}));
+      const n = Number(tj.subscriptions || 0), s = Number(tj.sent || 0);
+      if (s > 0) {
+        show('ok', '✅ Done! Test push accepted for ' + s + ' of ' + n + ' registration(s). You should have received a test notification. Now close this page and test a real call.');
+      } else {
+        show('err', '❌ Test push was NOT accepted (' + s + ' of ' + n + ' sent). Your phone is registered but the push server rejected it — take a screenshot of this and send it.');
+      }
     } else {
       show('ok', '✅ Registered! (Test send skipped.) Now close this page and test a real call.');
     }

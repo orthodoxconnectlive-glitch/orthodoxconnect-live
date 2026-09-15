@@ -2740,6 +2740,14 @@ export default {
                 p.likes_count = likesCount.has(key) ? likesCount.get(key) : (Number(p.likes_count) || 0);
                 p.comments_count = commentsCount.has(key) ? commentsCount.get(key) : (Number(p.comments_count) || 0);
                 p.likers = likersMap.get(key) || [];
+                // Slim the JSON: serve inline base64 photos/avatars as separate
+                // cacheable image URLs instead of megabytes of data-URIs.
+                if (/^data:image\//i.test(String(p.image_url || ''))) {
+                  p.image_url = APP_URL + '/post-image/' + encodeURIComponent(key);
+                }
+                if (/^data:image\//i.test(String(p.author_avatar || ''))) {
+                  p.author_avatar = APP_URL + '/post-avatar/' + encodeURIComponent(key);
+                }
               }
             }
           }
@@ -3035,6 +3043,12 @@ export default {
             post = await env.DB.prepare('SELECT * FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
           }
           if (!post) return jsonResponse({ success: false, error: 'Post not found' }, 404);
+          if (/^data:image\//i.test(String((post as any).image_url || ''))) {
+            (post as any).image_url = APP_URL + '/post-image/' + encodeURIComponent(String((post as any).id));
+          }
+          if (/^data:image\//i.test(String((post as any).author_avatar || ''))) {
+            (post as any).author_avatar = APP_URL + '/post-avatar/' + encodeURIComponent(String((post as any).id));
+          }
           return jsonResponse({ success: true, post });
         }
 
@@ -3822,6 +3836,31 @@ export default {
                 'Content-Length': String(bytes.length),
               };
               return new Response(request.method === 'HEAD' ? null : bytes, { status: 200, headers: imgHeaders });
+            }
+          } catch (e) {}
+        }
+        return new Response('Not found', { status: 404 });
+      }
+
+      // Public post avatar: /post-avatar/:id — decodes the inline base64 data-URI
+      // avatars stored on posts so list responses can stay tiny. No login required.
+      if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
+          url.pathname.startsWith('/post-avatar/')) {
+        const avId = decodeURIComponent(url.pathname.replace('/post-avatar/', '').split('/')[0].trim());
+        if (avId) {
+          try {
+            const row = await env.DB.prepare('SELECT author_avatar FROM posts WHERE id = ?').bind(avId).first<any>();
+            const m = /^data:(image\/[a-zA-Z0-9+.-]+);base64,([A-Za-z0-9+/=\s]+)$/.exec(String(row?.author_avatar || ''));
+            if (m) {
+              const bin = atob(m[2].replace(/\s+/g, ''));
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              const avHeaders: Record<string, string> = {
+                'Content-Type': m[1],
+                'Cache-Control': 'public, max-age=31536000, immutable',
+                'Content-Length': String(bytes.length),
+              };
+              return new Response(request.method === 'HEAD' ? null : bytes, { status: 200, headers: avHeaders });
             }
           } catch (e) {}
         }

@@ -299,6 +299,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onNavigateToNotifications={(link, postId) => onNavigate(link || 'notifications', postId)}
               />
             </div>
+
+            {/* Candle — light a candle, say a prayer */}
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('oc:open-candle'))}
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm shrink-0 bg-(--bg-card) dark:bg-[#1c1611] hover:bg-(--ac-gold) text-base"
+              title={language === 'ar' ? 'أضئ شمعة' : 'Light a candle'}
+            >
+              🕯
+            </button>
           </div>
         </div>
 

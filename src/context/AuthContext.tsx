@@ -117,6 +117,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(res.profile);
         setCurrentUserId(res.profile.id);
         localStorage.setItem('orthodox_user_profile', JSON.stringify(res.profile));
+        // Welcome ritual: the app will show the candle modal once.
+        try { localStorage.setItem('oc_welcome_candle', '1'); } catch {}
       }
       return { error: null };
     } catch (err: any) {

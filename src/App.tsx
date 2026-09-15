@@ -12,6 +12,7 @@ import { NotificationPrompt } from './components/NotificationPrompt';
 import { ActiveChatsPanel } from './components/ActiveChatsPanel';
 import { LiturgicalBanner } from './components/LiturgicalBanner';
 import { InviteModal } from './components/InviteModal';
+import CandleModal from './components/CandleModal';
 import { EditProfileModal } from './components/EditProfileModal';
 import { AuthModal } from './components/AuthModal';
 import { AuthPage } from './components/AuthPage';
@@ -56,6 +57,26 @@ function AppContent() {
   });
   const [isInviteOpen, setIsInviteOpen] = useState<boolean>(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
+  const [candleOpen, setCandleOpen] = useState<boolean>(false);
+  const [candleMode, setCandleMode] = useState<'welcome' | 'pray'>('pray');
+
+  // Candle: opened from the 🕯 button (oc:open-candle event), or once as a
+  // welcome ritual right after a new user signs up.
+  useEffect(() => {
+    const openCandle = () => {
+      setCandleMode('pray');
+      setCandleOpen(true);
+    };
+    window.addEventListener('oc:open-candle', openCandle);
+    try {
+      if (localStorage.getItem('oc_welcome_candle') === '1') {
+        localStorage.removeItem('oc_welcome_candle');
+        setCandleMode('welcome');
+        setCandleOpen(true);
+      }
+    } catch {}
+    return () => window.removeEventListener('oc:open-candle', openCandle);
+  }, []);
   const [activeMessengerContactId, setActiveMessengerContactId] = useState<string | undefined>(undefined);
   const [viewedUserProfile, setViewedUserProfile] = useState<UserProfileData | null>(null);
   const [selectedChurchId, setSelectedChurchId] = useState<string | null>(null);
@@ -314,6 +335,7 @@ function AppContent() {
       />
       <InviteModal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
       <EditProfileModal isOpen={isEditProfileOpen} onClose={() => setIsEditProfileOpen(false)} />
+      <CandleModal isOpen={candleOpen} onClose={() => setCandleOpen(false)} mode={candleMode} />
       <AuthModal />
     </div>
   );

@@ -306,7 +306,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => onNavigate(tab.id)}
-                  className={`relative h-full px-4 sm:px-5 flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                  className={`relative h-full px-2 sm:px-5 flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                     isActive
                       ? 'text-(--ac-bronze-tx) dark:text-(--ac-bright-tx) font-bold'
                       : 'text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong)'

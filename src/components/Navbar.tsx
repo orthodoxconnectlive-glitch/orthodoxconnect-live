@@ -134,6 +134,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'videos', label: t('videos'), icon: Film, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/30' },
     { id: 'library', label: language === 'ar' ? 'المكتبة المسيحية' : 'Book Library', icon: BookOpen, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'live', label: t('goLive'), icon: Radio, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isLive: true },
+    { id: 'candle', label: language === 'ar' ? 'أضئ شمعة' : 'Light a Candle', emoji: '🕯', color: 'text-amber-600 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30', isCandle: true },
     { id: 'myNetwork', label: t('myNetwork'), icon: Users, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30' },
     { id: 'messages', label: t('messages'), icon: MessageSquare, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', count: unreadMessageCount },
     { id: 'notifications', label: t('notifications'), icon: Bell, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', count: unreadCount },
@@ -226,44 +227,27 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Mobile Search Toggle */}
             <button
               onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-              className={`lg:hidden w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0 ${
+              className={`lg:hidden w-11 h-11 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0 ${
                 isMobileSearchOpen
                   ? 'bg-(--ac-gold) text-white'
                   : 'bg-(--bg-card) dark:bg-[#1c1611] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold) hover:text-white'
               }`}
               title="Search"
             >
-              <Search className="w-4 h-4" />
-            </button>
-
-            {/* Live Broadcast Button */}
-            <button
-              onClick={() => onNavigate('live')}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm shrink-0 ${
-                currentView === 'live'
-                  ? 'bg-(--ac-gold) text-white'
-                  : 'bg-(--bg-card) dark:bg-[#1c1611] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold) hover:text-white'
-              }`}
-              title={t('goLive')}
-            >
-              <Radio className="w-4 h-4 text-red-600 dark:text-red-400" />
-              <span className="absolute top-0 right-0 flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-2 ring-(--bg-soft) dark:ring-[#120e0b]"></span>
-              </span>
+              <Search className="w-6 h-6" />
             </button>
 
             {/* Messages Button */}
             <button
               onClick={() => onNavigate('messages')}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm shrink-0 ${
+              className={`w-11 h-11 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm shrink-0 ${
                 currentView === 'messages'
                   ? 'bg-(--ac-gold) text-white'
                   : 'bg-(--bg-card) dark:bg-[#1c1611] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold) hover:text-white'
               }`}
               title={t('messages')}
             >
-              <MessageSquare className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+              <MessageSquare className="w-6 h-6 text-emerald-700 dark:text-emerald-400" />
               {unreadMessageCount > 0 && (
                 <span className="absolute -top-1 -right-1 px-1 min-w-[16px] h-4 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center shadow-sm ring-2 ring-(--bg-soft) dark:ring-[#120e0b]">
                   {unreadMessageCount}
@@ -275,14 +259,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="relative shrink-0">
               <button
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
+                className={`w-11 h-11 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm ${
                   isNotifOpen || currentView === 'notifications'
                     ? 'bg-(--ac-gold) text-white'
                     : 'bg-(--bg-card) dark:bg-[#1c1611] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold) hover:text-white'
                 }`}
                 title={t('notifications')}
               >
-                <Bell className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                <Bell className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-600 text-white text-[9px] font-bold flex items-center justify-center shadow-md animate-pulse ring-2 ring-(--bg-soft) dark:ring-[#120e0b]">
                     {unreadCount}
@@ -299,15 +283,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onNavigateToNotifications={(link, postId) => onNavigate(link || 'notifications', postId)}
               />
             </div>
-
-            {/* Candle — light a candle, say a prayer */}
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('oc:open-candle'))}
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-(--ln-gold) dark:border-[#8b6b4a] flex items-center justify-center transition-all cursor-pointer relative shadow-sm shrink-0 bg-(--bg-card) dark:bg-[#1c1611] hover:bg-(--ac-gold) text-base"
-              title={language === 'ar' ? 'أضئ شمعة' : 'Light a candle'}
-            >
-              🕯
-            </button>
           </div>
         </div>
 
@@ -472,7 +447,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       key={item.id}
                       onClick={() => {
-                        onNavigate(item.id);
+                        if (item.isCandle) {
+                          window.dispatchEvent(new CustomEvent('oc:open-candle'));
+                        } else {
+                          onNavigate(item.id);
+                        }
                         setIsDrawerOpen(false);
                       }}
                       className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl font-serif text-xs uppercase tracking-wider transition-all cursor-pointer ${
@@ -483,7 +462,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     >
                       <div className="flex items-center gap-3">
                         <div className={`p-1.5 rounded-xl ${isActive ? 'bg-white/20 text-white' : `${item.bg} ${item.color}`}`}>
-                          <Icon className="w-4 h-4" />
+                          {item.emoji ? (
+                            <span className="text-lg leading-none">{item.emoji}</span>
+                          ) : (
+                            <Icon className="w-4 h-4" />
+                          )}
                         </div>
                         <span className="font-semibold">{item.label}</span>
                       </div>

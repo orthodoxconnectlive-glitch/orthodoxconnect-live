@@ -134,6 +134,16 @@ export async function ensureD1Tables(db?: D1Database) {
       console.warn('[ensureD1Tables] book_comments migration notice:', bookCommMigErr);
     }
     try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS referral_codes ( code TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
+    } catch (refCodeMigErr) {
+      console.warn('[ensureD1Tables] referral_codes migration notice:', refCodeMigErr);
+    }
+    try {
+      await db.exec(`CREATE INDEX IF NOT EXISTS idx_referral_codes_user ON referral_codes ( user_id )`);
+    } catch (refCodeIdxErr) {
+      console.warn('[ensureD1Tables] referral_codes index notice:', refCodeIdxErr);
+    }
+    try {
       await db.exec(`CREATE TABLE IF NOT EXISTS synax_likes ( synax_key TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (synax_key, user_id) )`);
     } catch (synaxLikeMigErr) {
       console.warn('[ensureD1Tables] synax_likes migration notice:', synaxLikeMigErr);
@@ -1340,6 +1350,36 @@ export default {
           d1_connected: Boolean(env.DB),
           timestamp: new Date().toISOString(),
         });
+      }
+
+      // Short invite codes: GET /api/invite-code (auth) -> { success, code }.
+      // Each user gets one permanent 6-char code; the pretty link is
+      // https://orthodoxconnect.live/join/ABC123 (redirects to /invite?ref=<userId>).
+      if (url.pathname === '/api/invite-code' && request.method === 'GET') {
+        const auth = await getAuthIdentity(request, env);
+        if (!auth.id) {
+          return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+        }
+        if (!env.DB) {
+          return jsonResponse({ success: false, error: 'Database unavailable' }, 500);
+        }
+        let row = await env.DB.prepare('SELECT code FROM referral_codes WHERE user_id = ?').bind(auth.id).first<{ code: string }>();
+        if (!row) {
+          const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+          let code = '';
+          for (let attempt = 0; attempt < 12 && !code; attempt++) {
+            const candidate = Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+            try {
+              await env.DB.prepare('INSERT INTO referral_codes (code, user_id) VALUES (?, ?)').bind(candidate, auth.id).run();
+              code = candidate;
+            } catch (e) { /* collision: try again */ }
+          }
+          if (!code) {
+            return jsonResponse({ success: false, error: 'Could not generate code' }, 500);
+          }
+          row = { code };
+        }
+        return jsonResponse({ success: true, code: row.code });
       }
 
       // 3. Edge Authentication Endpoints (/api/auth/*)
@@ -3868,6 +3908,19 @@ export default {
           } catch (e) {}
         }
         return new Response('Not found', { status: 404 });
+      }
+
+      // Short invite links: /join/ABC123 -> 302 to /invite?ref=<userId>.
+      // (Old /invite?ref=<uuid> links keep working via App.tsx.)
+      if (request.method === 'GET' && url.pathname.startsWith('/join/') && env.DB) {
+        const code = decodeURIComponent(url.pathname.replace('/join/', '').split('/')[0] || '').toUpperCase().trim();
+        if (code) {
+          const row = await env.DB.prepare('SELECT user_id FROM referral_codes WHERE code = ?').bind(code).first<{ user_id: string }>();
+          if (row && row.user_id) {
+            return Response.redirect(`${url.origin}/invite?ref=${encodeURIComponent(row.user_id)}`, 302);
+          }
+        }
+        return Response.redirect(`${url.origin}/invite`, 302);
       }
 
       // Public share pages: /post/:id, /live/:id, /book/:id, /synax/:MM-DD

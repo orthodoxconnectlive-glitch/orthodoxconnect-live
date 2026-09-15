@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { X, Copy, Check, Share2, MessageCircle, QrCode } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { authHeader } from '../lib/api';
 
 interface InviteModalProps {
   isOpen: boolean;
@@ -13,11 +14,29 @@ export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => 
   const { profile } = useAuth();
   const { t, language } = useTheme();
   const [copied, setCopied] = useState(false);
+  const [shortCode, setShortCode] = useState<string | null>(null);
+
+  // Fetch the user's permanent short invite code; fall back to the raw
+  // user-id link if the endpoint is unavailable.
+  useEffect(() => {
+    if (!isOpen || !profile?.id) return;
+    let cancelled = false;
+    setShortCode(null);
+    fetch('/api/invite-code', { headers: authHeader() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d && d.success && d.code) setShortCode(String(d.code));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOpen, profile?.id]);
 
   if (!isOpen) return null;
 
   const userId = profile?.id || 'guest-101';
-  const referralUrl = `https://orthodoxconnect.live/invite?ref=${userId}`;
+  const referralUrl = shortCode
+    ? `https://orthodoxconnect.live/join/${shortCode}`
+    : `https://orthodoxconnect.live/invite?ref=${userId}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(referralUrl);

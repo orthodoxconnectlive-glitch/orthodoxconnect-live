@@ -151,10 +151,19 @@ export async function testPushNotification(userId: string): Promise<string> {
       return 'Push not supported in this browser';
     }
     const reg = await navigator.serviceWorker.ready;
-    // Drop any stale subscription so we get a fresh endpoint
-    const oldSub = await reg.pushManager.getSubscription();
-    if (oldSub) {
-      try { await oldSub.unsubscribe(); } catch (e) {}
+    // Drop any stale subscription so we get a fresh endpoint. Verify the
+    // browser really dropped it — a stuck old registration makes the push
+    // service answer 410 (unsubscribed/expired) forever.
+    const oldSub0 = await reg.pushManager.getSubscription().catch(() => null);
+    const oldEndpoint = oldSub0 ? ((oldSub0.toJSON() as any).endpoint || '') : '';
+    if (oldSub0) {
+      try { await oldSub0.unsubscribe(); } catch (e) {}
+      for (let i = 0; i < 10; i++) {
+        const cur = await reg.pushManager.getSubscription().catch(() => null);
+        if (!cur) break;
+        try { await cur.unsubscribe(); } catch (e) {}
+        await new Promise(r => setTimeout(r, 300));
+      }
     }
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
@@ -170,6 +179,9 @@ export async function testPushNotification(userId: string): Promise<string> {
     const p256dh = (subJson.keys && (subJson.keys as any).p256dh) || '';
     const auth = (subJson.keys && (subJson.keys as any).auth) || '';
     if (!endpoint || !p256dh || !auth) return 'Failed to create subscription';
+    if (oldEndpoint && endpoint === oldEndpoint) {
+      return 'Browser kept the old push registration — fully close the browser app and try again';
+    }
 
     // Clear all old subscriptions for this user first (removes dead endpoints)
     await fetch('/api/push-subscriptions', {
@@ -199,7 +211,8 @@ export async function testPushNotification(userId: string): Promise<string> {
     if (s > 0) return 'ok';
     const det = (tj.details && tj.details[0]) || {};
     const fcm = det.fcm_status != null ? ` (push service said: ${det.fcm_status}${det.fcm_body ? ' ' + String(det.fcm_body).slice(0, 120) : ''})` : '';
-    return `Registered, but push server accepted ${s} of ${n}${fcm} — screenshot this and send it`;
+    const tail = det.endpoint_tail ? ` [reg …${det.endpoint_tail}]` : '';
+    return `Registered, but push server accepted ${s} of ${n}${fcm}${tail} — screenshot this and send it`;
   } catch (e) {
     console.warn('[push] test failed:', e);
     return 'Error: ' + ((e as any)?.message || 'unknown');

@@ -6,11 +6,29 @@
 
 import { authHeader } from '../lib/api';
 
-// VAPID public key (safe to ship in client code)
-// Rotated 2026-09-12 after the previous key was lost from worker env on redeploy.
-const VAPID_PUBLIC_KEY =
+// VAPID public key fallback (safe to ship in client code).
+// The server is the source of truth: it only ever signs with a
+// cryptographically valid pair (self-heals if none exists), served at
+// /api/push/vapid-public-key. Clients fetch it and resubscribe when it changes.
+const HARDCODED_VAPID_KEY =
   'BDrZbE-xWZdI4bykRXZG1pZRSV1g4_zxXVLzZvBISWGEsLuluW5G0nTNatg8MqBNcsoZLLApuLPk6RHyjJHPQ98';
 const VAPID_KEY_STORAGE = 'oc-vapid-key-used';
+const VAPID_KEY_SERVER_CACHE = 'oc-vapid-key-server';
+
+async function getVapidPublicKey(): Promise<string> {
+  const cached = (() => { try { return localStorage.getItem(VAPID_KEY_SERVER_CACHE) || ''; } catch (e) { return ''; } })();
+  try {
+    const res = await fetch('/api/push/vapid-public-key');
+    if (res.ok) {
+      const j: any = await res.json().catch(() => ({}));
+      if (j && j.publicKey) {
+        try { localStorage.setItem(VAPID_KEY_SERVER_CACHE, j.publicKey); } catch (e) {}
+        return j.publicKey;
+      }
+    }
+  } catch (e) {}
+  return cached || HARDCODED_VAPID_KEY;
+}
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -39,9 +57,12 @@ export async function ensurePushSubscription(userId: string): Promise<void> {
     const reg = await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
 
+    // The server's current VAPID key (fetched live; hardcoded fallback).
+    const VAPID_PUBLIC_KEY = await getVapidPublicKey();
+
     // Key rotation: if we have no record of which VAPID key this subscription was
     // made with, or it differs from the current key, the subscription is useless —
-    // drop it and subscribe fresh. (Keys were rotated 2026-09-12.)
+    // drop it and subscribe fresh.
     try {
       const usedKey = localStorage.getItem(VAPID_KEY_STORAGE);
       if (sub && usedKey !== VAPID_PUBLIC_KEY) {
@@ -139,6 +160,7 @@ export async function testPushNotification(userId: string): Promise<string> {
     if (permission !== 'granted') {
       return 'Notification permission denied — enable it in browser settings';
     }
+    const VAPID_PUBLIC_KEY = await getVapidPublicKey();
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),

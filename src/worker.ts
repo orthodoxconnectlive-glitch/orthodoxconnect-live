@@ -424,20 +424,60 @@ async function encryptPushPayload(p256dhB64: string, authB64: string, plaintext:
   return concatBytes(salt, rs, new Uint8Array([asPublic.length]), asPublic, ciphertext);
 }
 
+async function vapidPairValid(pub: string, priv: string): Promise<boolean> {
+  try {
+    const pubRaw = b64uDecode(pub);
+    if (pubRaw.length !== 65 || pubRaw[0] !== 0x04 || !priv) return false;
+    const x = b64uEncode(pubRaw.slice(1, 33));
+    const y = b64uEncode(pubRaw.slice(33, 65));
+    const privKey = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x, y, d: priv } as any, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+    const msg = new TextEncoder().encode('vapid-pair-check');
+    const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, privKey, msg);
+    const pubKey = await crypto.subtle.importKey('jwk', { kty: 'EC', crv: 'P-256', x, y } as any, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    return await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pubKey, sig, msg);
+  } catch (e) { return false; }
+}
+
 async function getVapidKeys(env: Env): Promise<{ publicKey: string; privateKey: string; subject: string }> {
-  let vapidPublic = (env.VAPID_PUBLIC_KEY || '').trim();
-  let vapidPrivate = (env.VAPID_PRIVATE_KEY || '').trim();
   const subject = (env.VAPID_SUBJECT || 'mailto:admin@orthodoxconnect.live').trim();
-  // Fall back to D1-stored keys (survives redeploys that wipe env secrets)
-  if ((!vapidPublic || !vapidPrivate) && env.DB) {
+  const envPub = (env.VAPID_PUBLIC_KEY || '').trim();
+  const envPriv = (env.VAPID_PRIVATE_KEY || '').trim();
+  let d1Pub = '';
+  let d1Priv = '';
+  if (env.DB) {
     try {
       const pubRow: any = await env.DB.prepare("SELECT value FROM app_settings WHERE key = 'vapid_public'").first();
       const privRow: any = await env.DB.prepare("SELECT value FROM app_settings WHERE key = 'vapid_private'").first();
-      if (pubRow?.value) vapidPublic = String(pubRow.value).trim();
-      if (privRow?.value) vapidPrivate = String(privRow.value).trim();
+      if (pubRow?.value) d1Pub = String(pubRow.value).trim();
+      if (privRow?.value) d1Priv = String(privRow.value).trim();
     } catch (e) {}
   }
-  return { publicKey: vapidPublic, privateKey: vapidPrivate, subject };
+  // A mixed public/private pair makes FCM answer 403 to every push, so only a
+  // cryptographically valid pair is ever used. Env first, then D1.
+  const candidates = [{ pub: envPub, priv: envPriv }, { pub: d1Pub, priv: d1Priv }];
+  for (const c of candidates) {
+    if (c.pub && c.priv && await vapidPairValid(c.pub, c.priv)) {
+      return { publicKey: c.pub, privateKey: c.priv, subject };
+    }
+  }
+  // Self-heal: no valid pair anywhere — generate a fresh one, store it in D1,
+  // and use it. Clients fetch the current public key from
+  // /api/push/vapid-public-key and resubscribe when it changes.
+  try {
+    const kp: any = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const pubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey));
+    const privJwk: any = await crypto.subtle.exportKey('jwk', kp.privateKey);
+    const pub = b64uEncode(pubRaw);
+    const priv = String(privJwk.d || '');
+    if (pub && priv && env.DB) {
+      try { await env.DB.prepare('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)').run(); } catch (e) {}
+      const now = new Date().toISOString();
+      await env.DB.prepare("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES ('vapid_public', ?, ?)").bind(pub, now).run();
+      await env.DB.prepare("INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES ('vapid_private', ?, ?)").bind(priv, now).run();
+    }
+    if (pub && priv) return { publicKey: pub, privateKey: priv, subject };
+  } catch (e) { console.warn('[push] vapid self-heal failed:', (e as any)?.message || e); }
+  return { publicKey: envPub || d1Pub, privateKey: envPriv || d1Priv, subject };
 }
 
 async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; auth: string }, payload: any): Promise<boolean> {

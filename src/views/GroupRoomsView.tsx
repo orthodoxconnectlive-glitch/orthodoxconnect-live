@@ -174,8 +174,17 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
   };
 
   const handleToggleFollow = (name: string) => {
-    toggleFollow(name);
-    refreshData();
+    if (!name) return;
+    const isNowFollowing = toggleFollow(name);
+    // Optimistic UI update: don't rely on re-reading localStorage (which can
+    // throw or be unavailable in some webviews, making the button appear dead).
+    setFollowedNames((prev) => {
+      const lower = name.toLowerCase();
+      if (isNowFollowing) {
+        return prev.some((n) => n.toLowerCase() === lower) ? prev : [...prev, name];
+      }
+      return prev.filter((n) => n.toLowerCase() !== lower);
+    });
   };
 
   const handleToggleGroupJoin = (groupId: string) => {

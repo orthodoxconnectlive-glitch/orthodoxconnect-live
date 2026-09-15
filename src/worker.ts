@@ -2721,10 +2721,13 @@ export default {
                     const key = String(r.post_id);
                     const arr = likersMap.get(key) || [];
                     if (arr.length < 15) {
+                      const rawLikerAv = String(r.user_avatar || '');
                       arr.push({
                         userId: r.user_id,
                         userName: r.user_name || 'Orthodox Member',
-                        userAvatar: r.user_avatar,
+                        // Never ship megabytes of base64 avatars in the feed;
+                        // the app falls back to the launcher icon when empty.
+                        userAvatar: /^data:image\//i.test(rawLikerAv) ? '' : r.user_avatar,
                       });
                       likersMap.set(key, arr);
                     }

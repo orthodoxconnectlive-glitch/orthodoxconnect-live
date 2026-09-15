@@ -2743,10 +2743,10 @@ export default {
                 // Slim the JSON: serve inline base64 photos/avatars as separate
                 // cacheable image URLs instead of megabytes of data-URIs.
                 if (/^data:image\//i.test(String(p.image_url || ''))) {
-                  p.image_url = APP_URL + '/post-image/' + encodeURIComponent(key);
+                  p.image_url = 'https://orthodoxconnect.live/post-image/' + encodeURIComponent(key);
                 }
                 if (/^data:image\//i.test(String(p.author_avatar || ''))) {
-                  p.author_avatar = APP_URL + '/post-avatar/' + encodeURIComponent(key);
+                  p.author_avatar = 'https://orthodoxconnect.live/post-avatar/' + encodeURIComponent(key);
                 }
               }
             }
@@ -3044,10 +3044,10 @@ export default {
           }
           if (!post) return jsonResponse({ success: false, error: 'Post not found' }, 404);
           if (/^data:image\//i.test(String((post as any).image_url || ''))) {
-            (post as any).image_url = APP_URL + '/post-image/' + encodeURIComponent(String((post as any).id));
+            (post as any).image_url = 'https://orthodoxconnect.live/post-image/' + encodeURIComponent(String((post as any).id));
           }
           if (/^data:image\//i.test(String((post as any).author_avatar || ''))) {
-            (post as any).author_avatar = APP_URL + '/post-avatar/' + encodeURIComponent(String((post as any).id));
+            (post as any).author_avatar = 'https://orthodoxconnect.live/post-avatar/' + encodeURIComponent(String((post as any).id));
           }
           return jsonResponse({ success: true, post });
         }

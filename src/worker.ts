@@ -1396,8 +1396,9 @@ export default {
 
       // Public VAPID key (safe to expose — clients need it to subscribe).
       if (url.pathname === '/api/push/vapid-public-key' && request.method === 'GET') {
-        const { publicKey } = await getVapidKeys(env);
-        return jsonResponse({ success: Boolean(publicKey), publicKey: publicKey || null });
+        const { publicKey, privateKey } = await getVapidKeys(env);
+        const pairValid = publicKey && privateKey ? await vapidPairValid(publicKey, privateKey) : false;
+        return jsonResponse({ success: Boolean(publicKey), publicKey: publicKey || null, pairValid, v: 2 });
       }
 
       // Short invite codes: GET /api/invite-code (auth) -> { success, code }.

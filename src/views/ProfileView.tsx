@@ -306,7 +306,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
           {/* Action Buttons */}
           {isSelf ? (
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <button
                 onClick={onOpenEditProfile}
                 className="px-4 py-2.5 rounded-2xl bg-(--ac-bronze) hover:bg-(--ac-bronze-dk) text-white font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all cursor-pointer"

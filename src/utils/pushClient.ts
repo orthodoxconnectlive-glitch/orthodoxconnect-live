@@ -211,7 +211,7 @@ export async function testPushNotification(userId: string): Promise<string> {
     if (s > 0) return 'ok';
     const det = (tj.details && tj.details[0]) || {};
     const fcm = det.fcm_status != null ? ` (push service said: ${det.fcm_status}${det.fcm_body ? ' ' + String(det.fcm_body).slice(0, 120) : ''})` : '';
-    const tail = det.endpoint_tail ? ` [reg …${det.endpoint_tail}]` : '';
+    const tail = det.endpoint_tail ? ` [reg …${det.endpoint_tail}${det.endpoint_host ? ' @ ' + det.endpoint_host : ''}]` : '';
     return `Registered, but push server accepted ${s} of ${n}${fcm}${tail} — screenshot this and send it`;
   } catch (e) {
     console.warn('[push] test failed:', e);

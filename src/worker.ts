@@ -400,7 +400,7 @@ async function createVapidAuthHeader(endpoint: string, subject: string, vapidPub
   return 'vapid t=' + headerB64 + '.' + payloadB64 + '.' + b64uEncode(sig) + ', k=' + vapidPublic;
 }
 
-async function encryptPushPayload(p256dhB64: string, authB64: string, plaintext: Uint8Array): Promise<Uint8Array> {
+async function encryptPushPayload(p256dhB64: string, authB64: string, plaintext: Uint8Array): Promise<{ body: Uint8Array; saltB64: string; dhB64: string }> {
   const uaPublic = b64uDecode(p256dhB64);
   const authSecret = b64uDecode(authB64);
   const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -422,7 +422,8 @@ async function encryptPushPayload(p256dhB64: string, authB64: string, plaintext:
   const rs = new Uint8Array([0, 0, 0x10, 0x00]);
   // RFC 8188 header: salt(16) || rs(4) || idlen(1)=65 || keyid(65B ephemeral key) || ciphertext.
   // (A stray extra byte here once made every push undecryptable — browsers dropped them silently.)
-  return concatBytes(salt, rs, new Uint8Array([asPublic.length]), asPublic, ciphertext);
+  const body = concatBytes(salt, rs, new Uint8Array([asPublic.length]), asPublic, ciphertext);
+  return { body, saltB64: b64uEncode(salt), dhB64: b64uEncode(asPublic) };
 }
 
 async function vapidPairValid(pub: string, priv: string): Promise<boolean> {
@@ -489,18 +490,30 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
       (globalThis as any).__lastPushStatus = 'no-vapid-keys';
       return false;
     }
-    const body = await encryptPushPayload(sub.p256dh, sub.auth, new TextEncoder().encode(JSON.stringify(payload)));
+    const enc = await encryptPushPayload(sub.p256dh, sub.auth, new TextEncoder().encode(JSON.stringify(payload)));
     const authHeader = await createVapidAuthHeader(sub.endpoint, subject, vapidPublic, vapidPrivate);
-    const res = await fetch(sub.endpoint, {
-      method: 'POST',
-      headers: {
-        'TTL': '120',
-        'Content-Type': 'application/octet-stream',
-        'Content-Encoding': 'aes128gcm',
-        'Authorization': authHeader,
-      },
-      body: body as any,
-    });
+    // Bound the push-service fetch: a hung FCM must not hang the worker (or the caller's connection).
+    const pushCtrl = new AbortController();
+    const pushTimer = setTimeout(() => pushCtrl.abort(), 15000);
+    let res: Response;
+    try {
+      res = await fetch(sub.endpoint, {
+        method: 'POST',
+        headers: {
+          'TTL': '120',
+          'Content-Type': 'application/octet-stream',
+          // RFC 8291 aes128gcm: the browser needs the salt + ephemeral key as headers to decrypt.
+          'Content-Encoding': 'aes128gcm',
+          'Encryption': 'salt=' + enc.saltB64,
+          'Crypto-Key': 'dh=' + enc.dhB64,
+          'Authorization': authHeader,
+        },
+        body: enc.body as any,
+        signal: pushCtrl.signal,
+      });
+    } finally {
+      clearTimeout(pushTimer);
+    }
     (globalThis as any).__lastPushStatus = res.status;
     try { (globalThis as any).__lastPushBody = (await res.text()).slice(0, 300); } catch (e) { (globalThis as any).__lastPushBody = ''; }
     if (!res.ok && (res.status === 400 || res.status === 404 || res.status === 410)) {
@@ -3836,7 +3849,7 @@ export default {
             data: { url: '/' },
           });
           if (ok) sent++;
-          details.push({ endpoint_tail: String(s.endpoint || '').slice(-16), created_at: String(s.created_at || ''), accepted: ok, fcm_status: (globalThis as any).__lastPushStatus ?? null, fcm_body: (globalThis as any).__lastPushBody || '' });
+          details.push({ endpoint_tail: String(s.endpoint || '').slice(-16), endpoint_host: String(s.endpoint || '').split('/')[2] || '', created_at: String(s.created_at || ''), accepted: ok, fcm_status: (globalThis as any).__lastPushStatus ?? null, fcm_body: (globalThis as any).__lastPushBody || '' });
         }
         return jsonResponse({ success: true, subscriptions: (results || []).length, sent, details });
       }

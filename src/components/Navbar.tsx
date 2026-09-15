@@ -159,18 +159,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-2 shrink min-w-0">
             <button
               onClick={() => setIsDrawerOpen(true)}
-              className="lg:hidden p-2 rounded-xl bg-(--bg-deep)/80 dark:bg-[#282019] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold)/20 transition-all cursor-pointer shrink-0"
+              className="lg:hidden w-11 h-11 rounded-full bg-(--bg-deep)/80 dark:bg-[#282019] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold)/20 transition-all cursor-pointer shrink-0 flex items-center justify-center"
               title="Open Navigation Menu"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-6 h-6" />
             </button>
 
             <button
               onClick={() => onNavigate('feed')}
               className="flex items-center gap-2 cursor-pointer group min-w-0 text-left rtl:text-right"
             >
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-(--ac-gold) dark:bg-(--ac-bright) p-0.5 shadow-md flex items-center justify-center shrink-0">
-                <div className="w-full h-full bg-(--chip-dark) dark:bg-[#120e0b] rounded-[10px] flex items-center justify-center text-(--ac-gold-tx) font-bold text-sm sm:text-base">
+              <div className="w-11 h-11 rounded-full bg-(--ac-gold) dark:bg-(--ac-bright) p-0.5 shadow-md flex items-center justify-center shrink-0">
+                <div className="w-full h-full bg-(--chip-dark) dark:bg-[#120e0b] rounded-full flex items-center justify-center text-(--ac-gold-tx) font-bold text-base">
                   ☨
                 </div>
               </div>
@@ -210,10 +210,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Language Switcher */}
             <button
               onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-              className="h-8 sm:h-9 px-2.5 rounded-full bg-(--bg-card) dark:bg-[#1c1611] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold) hover:text-white transition-all flex items-center gap-1 text-xs font-bold font-serif shadow-sm cursor-pointer shrink-0"
+              className="h-11 px-3.5 rounded-full bg-(--bg-card) dark:bg-[#1c1611] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] hover:bg-(--ac-gold) hover:text-white transition-all flex items-center gap-1.5 text-sm font-bold font-serif shadow-sm cursor-pointer shrink-0"
               title={language === 'en' ? 'التحويل إلى اللغة العربية' : 'Switch to English'}
             >
-              <Globe className="w-3.5 h-3.5 text-(--ac-bronze-tx) dark:text-(--ac-bright-tx)" />
+              <Globe className="w-4 h-4 text-(--ac-bronze-tx) dark:text-(--ac-bright-tx)" />
               <span>{language === 'en' ? 'عربي' : 'EN'}</span>
             </button>
 

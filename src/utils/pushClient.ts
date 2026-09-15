@@ -175,7 +175,9 @@ export async function testPushNotification(userId: string): Promise<string> {
     const n = Number(tj.subscriptions || 0);
     const s = Number(tj.sent || 0);
     if (s > 0) return 'ok';
-    return `Registered, but push server accepted ${s} of ${n} — screenshot this and send it`;
+    const det = (tj.details && tj.details[0]) || {};
+    const fcm = det.fcm_status != null ? ` (push service said: ${det.fcm_status})` : '';
+    return `Registered, but push server accepted ${s} of ${n}${fcm} — screenshot this and send it`;
   } catch (e) {
     console.warn('[push] test failed:', e);
     return 'Error: ' + ((e as any)?.message || 'unknown');

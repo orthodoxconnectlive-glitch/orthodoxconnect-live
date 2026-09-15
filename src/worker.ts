@@ -3783,6 +3783,7 @@ export default {
         let sent = 0;
         const details: Array<{ endpoint_tail: string; created_at: string; accepted: boolean }> = [];
         for (const s of (results || []) as any[]) {
+          (globalThis as any).__lastPushStatus = null;
           const ok = await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, {
             title: 'OrthodoxConnect ✓',
             body: 'Push notifications are working on this device!',
@@ -3791,7 +3792,7 @@ export default {
             data: { url: '/' },
           });
           if (ok) sent++;
-          details.push({ endpoint_tail: String(s.endpoint || '').slice(-16), created_at: String(s.created_at || ''), accepted: ok });
+          details.push({ endpoint_tail: String(s.endpoint || '').slice(-16), created_at: String(s.created_at || ''), accepted: ok, fcm_status: (globalThis as any).__lastPushStatus ?? null });
         }
         return jsonResponse({ success: true, subscriptions: (results || []).length, sent, details });
       }

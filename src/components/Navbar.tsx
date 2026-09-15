@@ -165,24 +165,37 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Menu className="w-6 h-6" />
             </button>
 
-            <button
-              onClick={() => onNavigate('feed')}
-              className="flex items-center gap-2 cursor-pointer group min-w-0 text-left rtl:text-right"
-            >
-              <div className="w-11 h-11 rounded-full bg-(--ac-gold) dark:bg-(--ac-bright) p-0.5 shadow-md flex items-center justify-center shrink-0">
-                <div className="w-full h-full bg-(--chip-dark) dark:bg-[#120e0b] rounded-full flex items-center justify-center text-(--ac-gold-tx) font-bold text-base">
-                  ☨
-                </div>
-              </div>
-              <div className="min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              {/* User avatar -> profile */}
+              <button
+                onClick={() => onNavigate('profile')}
+                className="w-11 h-11 rounded-full bg-(--ac-gold) dark:bg-(--ac-bright) p-0.5 shadow-md flex items-center justify-center shrink-0 cursor-pointer"
+                title={t('profile')}
+              >
+                {profile?.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt={profile.full_name || 'Profile'}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-(--chip-dark) dark:bg-[#120e0b] rounded-full flex items-center justify-center text-(--ac-gold-tx) font-bold text-base">
+                    ☨
+                  </div>
+                )}
+              </button>
+              <button
+                onClick={() => onNavigate('feed')}
+                className="min-w-0 text-left rtl:text-right cursor-pointer"
+              >
                 <h1 className="font-serif-coptic font-bold text-xs sm:lg text-(--tx-strong) dark:text-[#f5ebd9] tracking-tight leading-none truncate">
                   {t('appName')}
                 </h1>
                 <p className="text-[7px] sm:text-[9px] text-(--tx-mute) dark:text-[#a89379] tracking-[0.15em] sm:tracking-[0.2em] uppercase font-serif mt-0.5 font-semibold truncate">
                   {language === 'ar' ? 'إيمان · شركة مقدسة' : 'FAITH · FELLOWSHIP'}
                 </p>
-              </div>
-            </button>
+              </button>
+            </div>
           </div>
 
           {/* Desktop Search Bar */}

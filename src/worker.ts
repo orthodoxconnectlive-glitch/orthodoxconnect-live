@@ -153,6 +153,13 @@ export async function ensureD1Tables(db?: D1Database) {
     } catch (synaxCommMigErr) {
       console.warn('[ensureD1Tables] synax_comments migration notice:', synaxCommMigErr);
     }
+    // Push receipt tracking: the service worker pings back when a push actually
+    // arrives on the device. Lets us distinguish "FCM accepted" from "phone showed it".
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS push_receipts ( push_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, sent_at TEXT NOT NULL DEFAULT (datetime('now')), received_at TEXT )`);
+    } catch (pushReceiptMigErr) {
+      console.warn('[ensureD1Tables] push_receipts migration notice:', pushReceiptMigErr);
+    }
     // Stories columns: older D1 databases were created before newer columns
     // existed, and CREATE TABLE IF NOT EXISTS never alters an existing table.
     // Must run BEFORE the giant batch below (which throws and skips everything
@@ -3837,21 +3844,42 @@ export default {
           'SELECT endpoint, p256dh, auth, created_at FROM push_subscriptions WHERE user_id = ?'
         ).bind(userId).all();
         let sent = 0;
-        const details: Array<{ endpoint_tail: string; created_at: string; accepted: boolean }> = [];
+        const details: Array<{ endpoint_tail: string; endpoint_host: string; created_at: string; accepted: boolean }> = [];
         for (const s of (results || []) as any[]) {
           (globalThis as any).__lastPushStatus = null;
           (globalThis as any).__lastPushBody = '';
+          // Unique id per send so the device can ping back receipt ("it arrived").
+          const pushId = 'tp-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+          try { await env.DB.prepare('INSERT INTO push_receipts (push_id, user_id) VALUES (?, ?)').bind(pushId, userId).run(); } catch (e) {}
           const ok = await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, {
             title: 'OrthodoxConnect ✓',
             body: 'Push notifications are working on this device!',
             icon: 'https://orthodoxconnect.live/launchericon-512x512.png',
             badge: 'https://orthodoxconnect.live/launchericon-512x512.png',
-            data: { url: '/' },
+            data: { url: '/', pushId },
           });
           if (ok) sent++;
           details.push({ endpoint_tail: String(s.endpoint || '').slice(-16), endpoint_host: String(s.endpoint || '').split('/')[2] || '', created_at: String(s.created_at || ''), accepted: ok, fcm_status: (globalThis as any).__lastPushStatus ?? null, fcm_body: (globalThis as any).__lastPushBody || '' });
         }
-        return jsonResponse({ success: true, subscriptions: (results || []).length, sent, details });
+        const lastPushId = details.length ? (await env.DB.prepare('SELECT push_id FROM push_receipts WHERE user_id = ? ORDER BY sent_at DESC LIMIT 1').bind(userId).first() as any)?.push_id || null : null;
+        return jsonResponse({ success: true, subscriptions: (results || []).length, sent, details, push_id: lastPushId });
+      }
+      // Device pingback: the service worker calls this when a push actually arrives
+      // on the phone. No auth — the push_id is unguessable and write-only receipt.
+      if (url.pathname === '/api/push-received' && env.DB) {
+        if (request.method === 'POST') {
+          const b: any = await request.json().catch(() => ({}));
+          const pid = String(b.push_id || b.pushId || '');
+          if (pid) {
+            try { await env.DB.prepare("UPDATE push_receipts SET received_at = datetime('now') WHERE push_id = ?").bind(pid).run(); } catch (e) {}
+          }
+          return jsonResponse({ success: true });
+        }
+        if (request.method === 'GET') {
+          const pid = String(url.searchParams.get('push_id') || '');
+          const row: any = pid ? await env.DB.prepare('SELECT push_id, sent_at, received_at FROM push_receipts WHERE push_id = ?').bind(pid).first().catch(() => null) : null;
+          return jsonResponse({ success: true, receipt: row || null });
+        }
       }
       if (url.pathname === '/api/push-subscriptions' || url.pathname === '/api/push-subscriptions/') {
         if (request.method === 'POST' && env.DB) {

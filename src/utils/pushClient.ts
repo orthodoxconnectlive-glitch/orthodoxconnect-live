@@ -208,11 +208,25 @@ export async function testPushNotification(userId: string): Promise<string> {
     const tj = await testRes.json().catch(() => ({} as any));
     const n = Number(tj.subscriptions || 0);
     const s = Number(tj.sent || 0);
-    if (s > 0) return 'ok';
+    // Receipt check: did the phone's service worker confirm the push arrived?
+    // Wait a few seconds for FCM delivery + the pingback, then ask the server.
+    let deviceConfirmed: boolean | null = null;
+    const pushId = tj.push_id as string | undefined;
+    if (pushId) {
+      await new Promise(r => setTimeout(r, 8000));
+      try {
+        const rr = await fetch('/api/push-received?push_id=' + encodeURIComponent(pushId)).then(r => r.json()).catch(() => null);
+        deviceConfirmed = !!(rr && rr.receipt && rr.receipt.received_at);
+      } catch (e) { deviceConfirmed = null; }
+    }
+    const receiptTxt = deviceConfirmed === true ? ' — phone confirmed it arrived ✓'
+      : deviceConfirmed === false ? ' — phone did NOT confirm arrival (push lost between Google and the phone)'
+      : '';
+    if (s > 0) return `ok (${s} of ${n} accepted by push service${receiptTxt})`;
     const det = (tj.details && tj.details[0]) || {};
     const fcm = det.fcm_status != null ? ` (push service said: ${det.fcm_status}${det.fcm_body ? ' ' + String(det.fcm_body).slice(0, 120) : ''})` : '';
     const tail = det.endpoint_tail ? ` [reg …${det.endpoint_tail}${det.endpoint_host ? ' @ ' + det.endpoint_host : ''}]` : '';
-    return `Registered, but push server accepted ${s} of ${n}${fcm}${tail} — screenshot this and send it`;
+    return `Registered, but push server accepted ${s} of ${n}${fcm}${tail}${receiptTxt} — screenshot this and send it`;
   } catch (e) {
     console.warn('[push] test failed:', e);
     return 'Error: ' + ((e as any)?.message || 'unknown');

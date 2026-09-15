@@ -328,7 +328,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   const uid = (profile as any)?.id || '';
                   const res = await testPushNotification(uid);
                   setPushTesting(false);
-                  setPushTestMsg(res === 'ok' ? '✅ Call notifications reset — test push sent!' : '⚠️ ' + res);
+                  setPushTestMsg(res.startsWith('ok') ? '✅ Call notifications reset — test push sent! ' + res.slice(2).trim() : '⚠️ ' + res);
                 }}
                 disabled={pushTesting}
                 className="px-4 py-2.5 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] text-(--tx-strong) dark:text-[#f5ebd9] border border-(--ln-gold) font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all cursor-pointer disabled:opacity-50"

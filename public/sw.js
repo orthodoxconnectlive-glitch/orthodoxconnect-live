@@ -29,6 +29,17 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  // Pingback: tell the server this push actually arrived on the device.
+  // This is how we distinguish "FCM accepted" from "the phone showed it".
+  const pushId = data && data.data && data.data.pushId;
+  const receiptPing = pushId
+    ? fetch('/api/push-received', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ push_id: pushId }),
+      }).catch(() => {})
+    : Promise.resolve();
+
   const options = {
     body: data.body,
     icon: data.icon,
@@ -44,7 +55,12 @@ self.addEventListener('push', (event) => {
     ],
   };
 
-  event.waitUntil(self.registration.showNotification(data.title, options));
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(data.title, options),
+      receiptPing,
+    ])
+  );
 });
 
 // Handle notification click: Focus active client window or open app

@@ -396,7 +396,8 @@ async function createVapidAuthHeader(endpoint: string, subject: string, vapidPub
   };
   const key = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
   const sig = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, enc.encode(headerB64 + '.' + payloadB64)));
-  return 'WebPush ' + headerB64 + '.' + payloadB64 + '.' + b64uEncode(sig);
+  // RFC 8292 format: the push service needs the public key (k=) to verify the JWT.
+  return 'vapid t=' + headerB64 + '.' + payloadB64 + '.' + b64uEncode(sig) + ', k=' + vapidPublic;
 }
 
 async function encryptPushPayload(p256dhB64: string, authB64: string, plaintext: Uint8Array): Promise<Uint8Array> {

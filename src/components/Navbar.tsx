@@ -129,18 +129,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'marketplace', icon: Store, label: language === 'ar' ? 'السوق' : 'Marketplace' },
   ];
 
+  // Sidebar only holds what ISN'T already on the main bars (tab row + top
+  // icon row), so no button ever appears twice.
   const drawerMenuItems = [
-    { id: 'feed', label: t('feed'), icon: Rss, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30' },
-    { id: 'videos', label: t('videos'), icon: Film, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/30' },
-    { id: 'library', label: language === 'ar' ? 'المكتبة المسيحية' : 'Book Library', icon: BookOpen, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'live', label: t('goLive'), icon: Radio, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isLive: true },
     { id: 'candle', label: language === 'ar' ? 'أضئ شمعة' : 'Light a Candle', emoji: '🕯', color: 'text-amber-600 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30', isCandle: true },
-    { id: 'myNetwork', label: t('myNetwork'), icon: Users, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30' },
-    { id: 'messages', label: t('messages'), icon: MessageSquare, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', count: unreadMessageCount },
-    { id: 'notifications', label: t('notifications'), icon: Bell, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', count: unreadCount },
-    { id: 'calendar', label: t('calendar'), icon: Calendar, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-100 dark:bg-indigo-900/30' },
-    { id: 'churches', label: language === 'ar' ? 'الكنائس' : 'Churches', icon: Church, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
-    { id: 'marketplace', label: language === 'ar' ? 'السوق' : 'Marketplace', icon: Store, color: 'text-teal-700 dark:text-teal-300', bg: 'bg-teal-100 dark:bg-teal-900/30' },
     { id: 'profile', label: t('profile'), icon: UserIcon, color: 'text-stone-700 dark:text-amber-200', bg: 'bg-stone-200 dark:bg-stone-800' },
   ];
 

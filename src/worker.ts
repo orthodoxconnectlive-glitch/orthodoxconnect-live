@@ -501,6 +501,7 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
       body: body as any,
     });
     (globalThis as any).__lastPushStatus = res.status;
+    try { (globalThis as any).__lastPushBody = (await res.text()).slice(0, 300); } catch (e) { (globalThis as any).__lastPushBody = ''; }
     if (!res.ok && (res.status === 400 || res.status === 404 || res.status === 410)) {
       // 400 = bad request (e.g. subscription created with a different VAPID key);
       // 404/410 = subscription gone. All are dead — remove so they can't linger.
@@ -3825,6 +3826,7 @@ export default {
         const details: Array<{ endpoint_tail: string; created_at: string; accepted: boolean }> = [];
         for (const s of (results || []) as any[]) {
           (globalThis as any).__lastPushStatus = null;
+          (globalThis as any).__lastPushBody = '';
           const ok = await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, {
             title: 'OrthodoxConnect ✓',
             body: 'Push notifications are working on this device!',
@@ -3833,7 +3835,7 @@ export default {
             data: { url: '/' },
           });
           if (ok) sent++;
-          details.push({ endpoint_tail: String(s.endpoint || '').slice(-16), created_at: String(s.created_at || ''), accepted: ok, fcm_status: (globalThis as any).__lastPushStatus ?? null });
+          details.push({ endpoint_tail: String(s.endpoint || '').slice(-16), created_at: String(s.created_at || ''), accepted: ok, fcm_status: (globalThis as any).__lastPushStatus ?? null, fcm_body: (globalThis as any).__lastPushBody || '' });
         }
         return jsonResponse({ success: true, subscriptions: (results || []).length, sent, details });
       }

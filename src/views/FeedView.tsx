@@ -105,6 +105,23 @@ export const FeedView: React.FC<FeedViewProps> = ({
     return a;
   };
 
+  // Fresh posts (last 6 hours) stay pinned at the top newest-first so users
+  // immediately see what they and others just shared; only older posts shuffle.
+  const FRESH_POST_MS = 6 * 3600 * 1000;
+  const postTime = (p: Post): number => {
+    const raw = p.created_at || p.createdAt || '';
+    const t = raw ? Date.parse(raw) : NaN;
+    return isNaN(t) ? 0 : t;
+  };
+  const orderFeed = (arr: Post[]): Post[] => {
+    const now = Date.now();
+    const fresh = arr
+      .filter((p) => now - postTime(p) < FRESH_POST_MS)
+      .sort((a, b) => postTime(b) - postTime(a));
+    const older = arr.filter((p) => now - postTime(p) >= FRESH_POST_MS);
+    return [...fresh, ...shufflePosts(older)];
+  };
+
   const syncPostMetadata = (rawPosts: Post[]): Post[] => {
     return rawPosts.map((p) => {
       const baseCount = typeof p.likesCount === 'number' ? p.likesCount : (p.likes_count || 0);
@@ -200,7 +217,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       }
 
       const activePosts = fetchedPosts && fetchedPosts.length > 0 ? fetchedPosts : getLocalSavedPosts();
-      const synced = shufflePosts(syncPostMetadata(activePosts));
+      const synced = orderFeed(syncPostMetadata(activePosts));
 
       setPosts(synced);
       setPage(1);

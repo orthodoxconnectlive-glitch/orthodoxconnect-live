@@ -170,7 +170,12 @@ export async function testPushNotification(userId: string): Promise<string> {
       body: JSON.stringify({ user_id: userId }),
     });
     if (!testRes.ok) return 'Registered, but test send failed';
-    return 'ok';
+    // Don't claim success on HTTP 200 alone — report how many pushes FCM accepted.
+    const tj = await testRes.json().catch(() => ({} as any));
+    const n = Number(tj.subscriptions || 0);
+    const s = Number(tj.sent || 0);
+    if (s > 0) return 'ok';
+    return `Registered, but push server accepted ${s} of ${n} — screenshot this and send it`;
   } catch (e) {
     console.warn('[push] test failed:', e);
     return 'Error: ' + ((e as any)?.message || 'unknown');

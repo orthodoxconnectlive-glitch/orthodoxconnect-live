@@ -419,7 +419,9 @@ async function encryptPushPayload(p256dhB64: string, authB64: string, plaintext:
   const aesKey = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt']);
   const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, aesKey, padded));
   const rs = new Uint8Array([0, 0, 0x10, 0x00]);
-  return concatBytes(salt, rs, new Uint8Array([1]), new Uint8Array([asPublic.length]), asPublic, ciphertext);
+  // RFC 8188 header: salt(16) || rs(4) || idlen(1)=65 || keyid(65B ephemeral key) || ciphertext.
+  // (A stray extra byte here once made every push undecryptable — browsers dropped them silently.)
+  return concatBytes(salt, rs, new Uint8Array([asPublic.length]), asPublic, ciphertext);
 }
 
 async function getVapidKeys(env: Env): Promise<{ publicKey: string; privateKey: string; subject: string }> {

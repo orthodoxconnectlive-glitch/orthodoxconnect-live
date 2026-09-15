@@ -298,7 +298,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Sub-Navigation Tabs */}
         <div className="border-t border-(--ln-gold)/40 bg-[#f3e3be]/90 dark:bg-[#18120e]/90 px-4">
-          <div className="max-w-2xl mx-auto flex items-center justify-around h-11">
+          <div className="max-w-2xl mx-auto flex items-center justify-around h-13">
             {subTabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = currentView === tab.id;
@@ -306,32 +306,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   key={tab.id}
                   onClick={() => onNavigate(tab.id)}
-                  className={`relative h-full px-3 sm:px-4 flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                  className={`relative h-full px-4 sm:px-5 flex items-center justify-center gap-1.5 cursor-pointer transition-all ${
                     isActive
                       ? 'text-(--ac-bronze-tx) dark:text-(--ac-bright-tx) font-bold'
                       : 'text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong)'
                   }`}
                   title={tab.label}
                 >
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-6 h-6 sm:w-7 sm:h-7" />
                   {isActive && (
                     <span className="absolute bottom-0 inset-x-0 h-1 bg-(--ac-bronze) dark:bg-(--ac-bright) rounded-t-md shadow-sm" />
                   )}
                 </button>
               );
             })}
-
-            <button
-              onClick={() => onNavigate('myNetwork')}
-              className={`relative h-full px-3 flex items-center justify-center text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) ${
-                currentView === 'myNetwork' ? 'text-(--ac-bronze-tx)' : ''
-              }`}
-              title={language === 'ar' ? 'غرف الرعايا القبطية' : 'Coptic Parish Rooms'}
-            >
-              <div className="w-6 h-6 rounded-full bg-(--chip-dark) text-(--ac-gold-tx) flex items-center justify-center font-bold text-xs shadow-sm">
-                ☨
-              </div>
-            </button>
           </div>
         </div>
       </header>

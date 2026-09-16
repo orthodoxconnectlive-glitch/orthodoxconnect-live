@@ -116,127 +116,199 @@ export interface D1BookRow {
 let d1TablesInitialized = false;
 export async function ensureD1Tables(db?: D1Database) {
   if (!db || d1TablesInitialized) return;
-  // Mark initialized FIRST so a cold isolate runs migrations exactly once and
-  // never retries on the next request (all DDL below is idempotent; production
-  // tables already exist, so a partial failure is non-fatal).
-  d1TablesInitialized = true;
-
-  // Helper: run idempotent DDL, ignoring "already exists" / "duplicate" errors.
-  const execQuiet = async (sql: string) => {
-    try { await db.exec(sql); } catch (e) { /* idempotent: ignore */ }
-  };
-  // Helper: add columns to a table, skipping ones that already exist.
-  const addColumns = async (table: string, cols: Array<[string, string]>) => {
-    for (const [colName, colDef] of cols) {
+  // Standalone churches table creation — runs before the legacy giant batch,
+  // which is non-fatal and may throw (its catch would otherwise skip this).
+  try {
+    await db.exec(`CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) );`);
+  } catch (churchTblErr) {
+    console.warn('[ensureD1Tables] churches table notice:', churchTblErr);
+  }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS book_likes ( book_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (book_id, user_id) )`);
+    } catch (bookLikeMigErr) {
+      console.warn('[ensureD1Tables] book_likes migration notice:', bookLikeMigErr);
+    }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS book_comments ( id TEXT PRIMARY KEY, book_id TEXT NOT NULL, user_id TEXT NOT NULL, author_name TEXT, author_avatar TEXT, content TEXT NOT NULL, created_at TEXT NOT NULL )`);
+    } catch (bookCommMigErr) {
+      console.warn('[ensureD1Tables] book_comments migration notice:', bookCommMigErr);
+    }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS referral_codes ( code TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
+    } catch (refCodeMigErr) {
+      console.warn('[ensureD1Tables] referral_codes migration notice:', refCodeMigErr);
+    }
+    try {
+      await db.exec(`CREATE INDEX IF NOT EXISTS idx_referral_codes_user ON referral_codes ( user_id )`);
+    } catch (refCodeIdxErr) {
+      console.warn('[ensureD1Tables] referral_codes index notice:', refCodeIdxErr);
+    }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS synax_likes ( synax_key TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (synax_key, user_id) )`);
+    } catch (synaxLikeMigErr) {
+      console.warn('[ensureD1Tables] synax_likes migration notice:', synaxLikeMigErr);
+    }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS synax_comments ( id TEXT PRIMARY KEY, synax_key TEXT NOT NULL, user_id TEXT NOT NULL, author_name TEXT, author_avatar TEXT, content TEXT NOT NULL, created_at TEXT NOT NULL )`);
+    } catch (synaxCommMigErr) {
+      console.warn('[ensureD1Tables] synax_comments migration notice:', synaxCommMigErr);
+    }
+    // Push receipt tracking: the service worker pings back when a push actually
+    // arrives on the device. Lets us distinguish "FCM accepted" from "phone showed it".
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS push_receipts ( push_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, sent_at TEXT NOT NULL DEFAULT (datetime('now')), received_at TEXT )`);
+    } catch (pushReceiptMigErr) {
+      console.warn('[ensureD1Tables] push_receipts migration notice:', pushReceiptMigErr);
+    }
+    // Stories columns: older D1 databases were created before newer columns
+    // existed, and CREATE TABLE IF NOT EXISTS never alters an existing table.
+    // Must run BEFORE the giant batch below (which throws and skips everything
+    // after it if its SQL is invalid).
+    try {
+      const requiredStoryCols: Array<[string, string]> = [
+        ['author_id', 'TEXT'],
+        ['author_name', "TEXT NOT NULL DEFAULT 'Orthodox Parishioner'"],
+        ['author_avatar', "TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png'"],
+        ['author_parish', "TEXT DEFAULT 'Orthodox Church'"],
+        ['image_url', 'TEXT'],
+        ['media_url', 'TEXT'],
+        ['media_type', "TEXT DEFAULT 'image'"],
+        ['caption', "TEXT DEFAULT ''"],
+        ['expires_at', 'TEXT'],
+        ['created_at', "TEXT NOT NULL DEFAULT (datetime('now'))"],
+      ];
+      for (const [colName, colDef] of requiredStoryCols) {
+        try {
+          await db.exec(`ALTER TABLE stories ADD COLUMN ${colName} ${colDef}`);
+        } catch (colErr: any) {
+          const colMsg = String((colErr && colErr.message) || colErr || '');
+          if (!/duplicate column/i.test(colMsg) && !/no such table/i.test(colMsg)) {
+            throw colErr;
+          }
+        }
+      }
+    } catch (storyMigErr) {
+      console.warn('[ensureD1Tables] stories migration notice:', storyMigErr);
+    }
+    try {
+      // Self-healing: some production databases have a stories table with a
+      // bogus FOREIGN KEY (author_id) REFERENCES users(id). There is no users
+      // table (the app uses profiles), so every story insert fails the FK
+      // check. Rebuild the table without the FK, preserving existing rows.
+      let fkRows: any[] = [];
       try {
-        await db.exec(`ALTER TABLE ${table} ADD COLUMN ${colName} ${colDef}`);
-      } catch (colErr: any) {
-        const colMsg = String((colErr && colErr.message) || colErr || '');
-        if (!/duplicate column/i.test(colMsg) && !/no such table/i.test(colMsg)) {
-          console.warn('[ensureD1Tables] addColumn notice:', table, colName, colMsg);
+        const r = await db.prepare('PRAGMA foreign_key_list(stories)').all();
+        fkRows = (r && (r as any).results) || [];
+      } catch (e) { fkRows = []; }
+      const hasBogusFk = fkRows.some((r: any) => r && r.table === 'users');
+      if (hasBogusFk) {
+        await db.exec(`CREATE TABLE stories_fixed (id TEXT PRIMARY KEY, author_id TEXT NOT NULL, author_name TEXT NOT NULL, author_avatar TEXT, author_parish TEXT DEFAULT 'Orthodox Church', image_url TEXT, media_url TEXT NOT NULL, media_type TEXT DEFAULT 'image', caption TEXT DEFAULT '', expires_at TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+        await db.exec(`INSERT INTO stories_fixed (id, author_id, author_name, author_avatar, author_parish, image_url, media_url, media_type, caption, expires_at, created_at) SELECT id, author_id, author_name, author_avatar, author_parish, image_url, media_url, media_type, caption, expires_at, created_at FROM stories`);
+        await db.exec(`DROP TABLE stories`);
+        await db.exec(`ALTER TABLE stories_fixed RENAME TO stories`);
+      }
+    } catch (storyFkFixErr) {
+      console.warn('[ensureD1Tables] stories FK fix notice:', storyFkFixErr);
+    }
+    // call_signals newer columns (kept out of the giant batch as standalone
+    // statements so one bad statement cannot break the whole batch).
+    for (const colSql of [
+      'ALTER TABLE call_signals ADD COLUMN sdp TEXT',
+      'ALTER TABLE call_signals ADD COLUMN candidate TEXT',
+      'ALTER TABLE call_signals ADD COLUMN meta TEXT',
+    ]) {
+      try {
+        await db.exec(colSql);
+      } catch (sigColErr: any) {
+        const m = String((sigColErr && sigColErr.message) || sigColErr || '');
+        if (!/duplicate column/i.test(m) && !/no such table/i.test(m)) {
+          console.warn('[ensureD1Tables] call_signals column notice:', m);
         }
       }
     }
-  };
-
-  // All CREATE TABLE / CREATE INDEX statements (single-line per D1 rule),
-  // run in PARALLEL so cold starts don't pay ~40 sequential round-trips.
-  const creates: string[] = [
-    `CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`,
-    `CREATE TABLE IF NOT EXISTS book_likes ( book_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (book_id, user_id) )`,
-    `CREATE TABLE IF NOT EXISTS book_comments ( id TEXT PRIMARY KEY, book_id TEXT NOT NULL, user_id TEXT NOT NULL, author_name TEXT, author_avatar TEXT, content TEXT NOT NULL, created_at TEXT NOT NULL )`,
-    `CREATE TABLE IF NOT EXISTS referral_codes ( code TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`,
-    `CREATE INDEX IF NOT EXISTS idx_referral_codes_user ON referral_codes ( user_id )`,
-    `CREATE TABLE IF NOT EXISTS synax_likes ( synax_key TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (synax_key, user_id) )`,
-    `CREATE TABLE IF NOT EXISTS synax_comments ( id TEXT PRIMARY KEY, synax_key TEXT NOT NULL, user_id TEXT NOT NULL, author_name TEXT, author_avatar TEXT, content TEXT NOT NULL, created_at TEXT NOT NULL )`,
-    `CREATE TABLE IF NOT EXISTS push_receipts ( push_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, sent_at TEXT NOT NULL DEFAULT (datetime('now')), received_at TEXT )`,
-    `CREATE TABLE IF NOT EXISTS profiles ( id TEXT PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT, full_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', parish TEXT NOT NULL DEFAULT 'Orthodox Church', bio TEXT DEFAULT 'Orthodox Christian seeking fellowship and spiritual growth.', avatar_url TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', role TEXT NOT NULL DEFAULT 'user', is_banned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')) )`,
-    `CREATE TABLE IF NOT EXISTS sessions ( id TEXT PRIMARY KEY, user_id TEXT NOT NULL, token TEXT UNIQUE NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`,
-    `CREATE TABLE IF NOT EXISTS posts ( id TEXT PRIMARY KEY, content TEXT NOT NULL DEFAULT '', video_id TEXT, author_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_parish TEXT DEFAULT 'Orthodox Church', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', image_url TEXT, group_id TEXT, likes_count INTEGER DEFAULT 0, comments_count INTEGER DEFAULT 0, reshares_count INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`,
-    `CREATE TABLE IF NOT EXISTS post_likes ( post_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, user_avatar TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (post_id, user_id) )`,
-    `CREATE TABLE IF NOT EXISTS post_comments ( id TEXT PRIMARY KEY, post_id TEXT NOT NULL, user_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', content TEXT NOT NULL, created_at TEXT NOT NULL )`,
-    `CREATE TABLE IF NOT EXISTS messages ( id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, sender_name TEXT, receiver_id TEXT NOT NULL, content TEXT NOT NULL DEFAULT '', image_url TEXT, video_url TEXT, audio_url TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`,
-    `CREATE TABLE IF NOT EXISTS stories ( id TEXT PRIMARY KEY, author_id TEXT, author_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', author_parish TEXT DEFAULT 'Orthodox Church', image_url TEXT NOT NULL, media_type TEXT DEFAULT 'image', caption TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) )`,
-    `CREATE TABLE IF NOT EXISTS events ( id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', date TEXT NOT NULL, time TEXT DEFAULT '10:00 AM', location_type TEXT DEFAULT 'physical', location_address TEXT, virtual_link TEXT, category TEXT DEFAULT 'liturgy', parish TEXT DEFAULT 'Orthodox Parish', host_name TEXT DEFAULT 'Priest / Host', host_avatar TEXT, host_id TEXT, image_url TEXT, going_count INTEGER DEFAULT 1, interested_count INTEGER DEFAULT 0, rsvps TEXT DEFAULT '[]', created_at TEXT NOT NULL DEFAULT (datetime('now')) )`,
-    `CREATE TABLE IF NOT EXISTS live_streams ( id TEXT PRIMARY KEY, title TEXT NOT NULL, host_parish TEXT DEFAULT 'Orthodox Church', priest_name TEXT DEFAULT 'Priest / Host', media_url TEXT NOT NULL, is_live INTEGER DEFAULT 1, viewers_count INTEGER DEFAULT 1, ended_at TEXT, replay_guid TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`,
-    `CREATE TABLE IF NOT EXISTS content_reports ( id TEXT PRIMARY KEY, target_type TEXT NOT NULL, target_id TEXT NOT NULL, target_content_preview TEXT, target_author_name TEXT, target_author_id TEXT, reporter_id TEXT, reporter_name TEXT, reason TEXT DEFAULT 'inappropriate', details TEXT, status TEXT DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')) )`,
-    `CREATE TABLE IF NOT EXISTS notifications ( id TEXT PRIMARY KEY, recipient_id TEXT, actor_id TEXT, actor_name TEXT DEFAULT 'Orthodox Parishioner', actor_avatar TEXT, type TEXT NOT NULL DEFAULT 'system', title TEXT, body TEXT, post_id TEXT, link TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`,
-    `CREATE TABLE IF NOT EXISTS call_signals ( id TEXT PRIMARY KEY, call_id TEXT, sig_type TEXT, caller_id TEXT, caller_name TEXT, caller_avatar TEXT, target_user_id TEXT, call_type TEXT, sdp TEXT, candidate TEXT, meta TEXT, created_at INTEGER )`,
-    `CREATE INDEX IF NOT EXISTS idx_call_signals_target ON call_signals(target_user_id, created_at)`,
-    `CREATE TABLE IF NOT EXISTS group_calls ( id TEXT PRIMARY KEY, room_id TEXT, room_name TEXT, host_id TEXT, host_name TEXT, started_at TEXT )`,
-    `CREATE INDEX IF NOT EXISTS idx_group_calls_room ON group_calls(room_id, started_at)`,
-    `CREATE TABLE IF NOT EXISTS push_subscriptions ( user_id TEXT, endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, created_at TEXT DEFAULT (datetime('now')) )`,
-    `CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id)`,
-    `CREATE TABLE IF NOT EXISTS books ( id TEXT PRIMARY KEY, title_ar TEXT NOT NULL, title_en TEXT, author_ar TEXT NOT NULL, author_en TEXT, category TEXT NOT NULL DEFAULT 'patristics', cover_image_url TEXT, file_url TEXT NOT NULL, description TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`,
-  ];
-  await Promise.allSettled(creates.map(execQuiet));
-
-  // Column migrations: sequential per table (avoid SQLite write locks on the
-  // same table), but the four tables migrate in parallel.
-  await Promise.allSettled([
-    addColumns('stories', [
-      ['author_id', 'TEXT'],
-      ['author_name', "TEXT NOT NULL DEFAULT 'Orthodox Parishioner'"],
-      ['author_avatar', "TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png'"],
-      ['author_parish', "TEXT DEFAULT 'Orthodox Church'"],
-      ['image_url', 'TEXT'],
-      ['media_url', 'TEXT'],
-      ['media_type', "TEXT DEFAULT 'image'"],
-      ['caption', "TEXT DEFAULT ''"],
-      ['expires_at', 'TEXT'],
-      ['created_at', "TEXT NOT NULL DEFAULT (datetime('now'))"],
-    ]),
-    addColumns('call_signals', [
-      ['sdp', 'TEXT'],
-      ['candidate', 'TEXT'],
-      ['meta', 'TEXT'],
-    ]),
-    addColumns('notifications', [
-      ['recipient_id', 'TEXT'],
-      ['actor_id', 'TEXT'],
-      ['actor_name', "TEXT DEFAULT 'Orthodox Parishioner'"],
-      ['actor_avatar', 'TEXT'],
-      ['type', "TEXT NOT NULL DEFAULT 'system'"],
-      ['title', 'TEXT'],
-      ['body', 'TEXT'],
-      ['post_id', 'TEXT'],
-      ['link', 'TEXT'],
-      ['is_read', 'INTEGER DEFAULT 0'],
-      ['created_at', "TEXT NOT NULL DEFAULT (datetime('now'))"],
-    ]),
-    addColumns('live_streams', [
-      ['ended_at', 'TEXT'],
-      ['replay_guid', 'TEXT'],
-      ['bunny_stream_id', 'TEXT'],
-      ['bunny_stream_key', 'TEXT'],
-      ['playback_url_hls', 'TEXT'],
-      ['status', "TEXT DEFAULT 'scheduled'"],
-      ['description', 'TEXT'],
-      ['scheduled_start_time', 'TEXT'],
-      ['viewer_count', 'INTEGER DEFAULT 0'],
-      ['started_at', 'TEXT'],
-    ]),
-  ]);
-
-  // Self-healing: some production databases have a stories table with a bogus
-  // FOREIGN KEY (author_id) REFERENCES users(id). There is no users table (the
-  // app uses profiles), so every story insert fails the FK check. Rebuild the
-  // table without the FK, preserving existing rows.
   try {
-    let fkRows: any[] = [];
+    await db.exec(`CREATE TABLE IF NOT EXISTS profiles ( id TEXT PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT, full_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', parish TEXT NOT NULL DEFAULT 'Orthodox Church', bio TEXT DEFAULT 'Orthodox Christian seeking fellowship and spiritual growth.', avatar_url TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', role TEXT NOT NULL DEFAULT 'user', is_banned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS sessions ( id TEXT PRIMARY KEY, user_id TEXT NOT NULL, token TEXT UNIQUE NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS posts ( id TEXT PRIMARY KEY, content TEXT NOT NULL DEFAULT '', video_id TEXT, author_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_parish TEXT DEFAULT 'Orthodox Church', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', image_url TEXT, group_id TEXT, likes_count INTEGER DEFAULT 0, comments_count INTEGER DEFAULT 0, reshares_count INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS post_likes ( post_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, user_avatar TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (post_id, user_id) ); CREATE TABLE IF NOT EXISTS post_comments ( id TEXT PRIMARY KEY, post_id TEXT NOT NULL, user_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS messages ( id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, sender_name TEXT, receiver_id TEXT NOT NULL, content TEXT NOT NULL DEFAULT '', image_url TEXT, video_url TEXT, audio_url TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS stories ( id TEXT PRIMARY KEY, author_id TEXT, author_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', author_parish TEXT DEFAULT 'Orthodox Church', image_url TEXT NOT NULL, media_type TEXT DEFAULT 'image', caption TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS events ( id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', date TEXT NOT NULL, time TEXT DEFAULT '10:00 AM', location_type TEXT DEFAULT 'physical', location_address TEXT, virtual_link TEXT, category TEXT DEFAULT 'liturgy', parish TEXT DEFAULT 'Orthodox Parish', host_name TEXT DEFAULT 'Priest / Host', host_avatar TEXT, host_id TEXT, image_url TEXT, going_count INTEGER DEFAULT 1, interested_count INTEGER DEFAULT 0, rsvps TEXT DEFAULT '[]', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS live_streams ( id TEXT PRIMARY KEY, title TEXT NOT NULL, host_parish TEXT DEFAULT 'Orthodox Church', priest_name TEXT DEFAULT 'Priest / Host', media_url TEXT NOT NULL, is_live INTEGER DEFAULT 1, viewers_count INTEGER DEFAULT 1, ended_at TEXT, replay_guid TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS content_reports ( id TEXT PRIMARY KEY, target_type TEXT NOT NULL, target_id TEXT NOT NULL, target_content_preview TEXT, target_author_name TEXT, target_author_id TEXT, reporter_id TEXT, reporter_name TEXT, reason TEXT DEFAULT 'inappropriate', details TEXT, status TEXT DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS notifications ( id TEXT PRIMARY KEY, recipient_id TEXT, actor_id TEXT, actor_name TEXT DEFAULT 'Orthodox Parishioner', actor_avatar TEXT, type TEXT NOT NULL DEFAULT 'system', title TEXT, body TEXT, post_id TEXT, link TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS call_signals ( id TEXT PRIMARY KEY, call_id TEXT, sig_type TEXT, caller_id TEXT, caller_name TEXT, caller_avatar TEXT, target_user_id TEXT, call_type TEXT, sdp TEXT, candidate TEXT, meta TEXT, created_at INTEGER ); CREATE INDEX IF NOT EXISTS idx_call_signals_target ON call_signals(target_user_id, created_at); CREATE TABLE IF NOT EXISTS group_calls ( id TEXT PRIMARY KEY, room_id TEXT, room_name TEXT, host_id TEXT, host_name TEXT, started_at TEXT ); CREATE INDEX IF NOT EXISTS idx_group_calls_room ON group_calls(room_id, started_at); CREATE TABLE IF NOT EXISTS push_subscriptions ( user_id TEXT, endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, created_at TEXT DEFAULT (datetime('now')) ); CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id); CREATE TABLE IF NOT EXISTS books ( id TEXT PRIMARY KEY, title_ar TEXT NOT NULL, title_en TEXT, author_ar TEXT NOT NULL, author_en TEXT, category TEXT NOT NULL DEFAULT 'patristics', cover_image_url TEXT, file_url TEXT NOT NULL, description TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) );`);
+    // Self-healing migration: older D1 databases were created before newer
+    // columns existed, and CREATE TABLE IF NOT EXISTS never alters an
+    // existing table. Add any missing notifications columns automatically.
+    // (No PRAGMA check: just attempt ADD COLUMN and ignore "duplicate column".)
     try {
-      const r = await db.prepare('PRAGMA foreign_key_list(stories)').all();
-      fkRows = (r && (r as any).results) || [];
-    } catch (e) { fkRows = []; }
-    const hasBogusFk = fkRows.some((r: any) => r && r.table === 'users');
-    if (hasBogusFk) {
-      await db.exec(`CREATE TABLE stories_fixed (id TEXT PRIMARY KEY, author_id TEXT NOT NULL, author_name TEXT NOT NULL, author_avatar TEXT, author_parish TEXT DEFAULT 'Orthodox Church', image_url TEXT, media_url TEXT NOT NULL, media_type TEXT DEFAULT 'image', caption TEXT DEFAULT '', expires_at TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
-      await db.exec(`INSERT INTO stories_fixed (id, author_id, author_name, author_avatar, author_parish, image_url, media_url, media_type, caption, expires_at, created_at) SELECT id, author_id, author_name, author_avatar, author_parish, image_url, media_url, media_type, caption, expires_at, created_at FROM stories`);
-      await db.exec(`DROP TABLE stories`);
-      await db.exec(`ALTER TABLE stories_fixed RENAME TO stories`);
+      const requiredNotifCols: Array<[string, string]> = [
+        ['recipient_id', 'TEXT'],
+        ['actor_id', 'TEXT'],
+        ['actor_name', "TEXT DEFAULT 'Orthodox Parishioner'"],
+        ['actor_avatar', 'TEXT'],
+        ['type', "TEXT NOT NULL DEFAULT 'system'"],
+        ['title', 'TEXT'],
+        ['body', 'TEXT'],
+        ['post_id', 'TEXT'],
+        ['link', 'TEXT'],
+        ['is_read', 'INTEGER DEFAULT 0'],
+        ['created_at', "TEXT NOT NULL DEFAULT (datetime('now'))"],
+      ];
+      for (const [colName, colDef] of requiredNotifCols) {
+        try {
+          await db.exec(`ALTER TABLE notifications ADD COLUMN ${colName} ${colDef}`);
+        } catch (colErr: any) {
+          const colMsg = String((colErr && colErr.message) || colErr || '');
+          if (!/duplicate column/i.test(colMsg)) {
+            throw colErr;
+          }
+          // Column already exists - nothing to do.
+        }
+      }
+    } catch (notifMigErr) {
+      console.warn('[ensureD1Tables] notifications migration notice:', notifMigErr);
     }
-  } catch (storyFkFixErr) {
-    console.warn('[ensureD1Tables] stories FK fix notice:', storyFkFixErr);
+    try {
+      // Live stream replay columns (ended_at, replay_guid)
+      const requiredStreamCols: Array<[string, string]> = [
+        ['ended_at', 'TEXT'],
+        ['replay_guid', 'TEXT'],
+      ];
+      for (const [colName, colDef] of requiredStreamCols) {
+        try {
+          await db.exec(`ALTER TABLE live_streams ADD COLUMN ${colName} ${colDef}`);
+        } catch (colErr: any) {
+          const colMsg = String((colErr && colErr.message) || colErr || '');
+          if (!/duplicate column/i.test(colMsg)) {
+            throw colErr;
+          }
+          // Column already exists - nothing to do.
+        }
+      }
+    } catch (streamMigErr) {
+      console.warn('[ensureD1Tables] live_streams migration notice:', streamMigErr);
+    }
+    try {
+      // Bunny Stream Live columns (true live streaming via Bunny Stream Live API)
+      const requiredBunnyLiveCols: Array<[string, string]> = [
+        ['bunny_stream_id', 'TEXT'],
+        ['bunny_stream_key', 'TEXT'],
+        ['playback_url_hls', 'TEXT'],
+        ['status', "TEXT DEFAULT 'scheduled'"],
+        ['description', 'TEXT'],
+        ['scheduled_start_time', 'TEXT'],
+        ['viewer_count', 'INTEGER DEFAULT 0'],
+        ['started_at', 'TEXT'],
+      ];
+      for (const [colName, colDef] of requiredBunnyLiveCols) {
+        try {
+          await db.exec(`ALTER TABLE live_streams ADD COLUMN ${colName} ${colDef}`);
+        } catch (colErr: any) {
+          const colMsg = String((colErr && colErr.message) || colErr || '');
+          if (!/duplicate column/i.test(colMsg)) {
+            throw colErr;
+          }
+          // Column already exists - nothing to do.
+        }
+      }
+    } catch (bunnyLiveMigErr) {
+      console.warn('[ensureD1Tables] live_streams bunny-live migration notice:', bunnyLiveMigErr);
+    }
+    d1TablesInitialized = true;
+  } catch (e) {
+    // Non-fatal if tables already exist
   }
 }
 
@@ -1940,7 +2012,23 @@ export default {
           if (env.DB) {
             const stmt = env.DB.prepare('SELECT * FROM stories ORDER BY created_at DESC LIMIT 50');
             const { results } = await stmt.all();
-            stories = (results || []).map((r: any) => ({ ...r, image_url: r.image_url || r.media_url || '' }));
+            stories = (results || []).map((r: any) => {
+              const s: any = { ...r, image_url: r.image_url || r.media_url || '' };
+              // Slim the JSON: serve inline base64 story media/avatars as separate
+              // cacheable image URLs instead of megabytes of data-URIs (same
+              // pattern as the posts list). The story viewer lazy-loads them.
+              const sid = encodeURIComponent(String(r.id));
+              if (/^data:image\//i.test(String(s.image_url || ''))) {
+                s.image_url = 'https://orthodoxconnect.live/story-image/' + sid;
+              }
+              if (/^data:image\//i.test(String(s.media_url || ''))) {
+                s.media_url = 'https://orthodoxconnect.live/story-image/' + sid;
+              }
+              if (/^data:image\//i.test(String(s.author_avatar || ''))) {
+                s.author_avatar = 'https://orthodoxconnect.live/story-avatar/' + sid;
+              }
+              return s;
+            });
           }
           return jsonResponse({ success: true, stories });
         }
@@ -3917,6 +4005,58 @@ export default {
         if (avId) {
           try {
             const row = await env.DB.prepare('SELECT author_avatar FROM posts WHERE id = ?').bind(avId).first<any>();
+            const m = /^data:(image\/[a-zA-Z0-9+.-]+);base64,([A-Za-z0-9+/=\s]+)$/.exec(String(row?.author_avatar || ''));
+            if (m) {
+              const bin = atob(m[2].replace(/\s+/g, ''));
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              const avHeaders: Record<string, string> = {
+                'Content-Type': m[1],
+                'Cache-Control': 'public, max-age=31536000, immutable',
+                'Content-Length': String(bytes.length),
+              };
+              return new Response(request.method === 'HEAD' ? null : bytes, { status: 200, headers: avHeaders });
+            }
+          } catch (e) {}
+        }
+        return new Response('Not found', { status: 404 });
+      }
+
+      // Public story image: /story-image/:id — decodes the inline base64 data-URI
+      // media stored on stories so the stories list response stays tiny.
+      // No login required.
+      if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
+          url.pathname.startsWith('/story-image/')) {
+        const imgId = decodeURIComponent(url.pathname.replace('/story-image/', '').split('/')[0].trim());
+        if (imgId) {
+          try {
+            const row = await env.DB.prepare('SELECT image_url, media_url FROM stories WHERE id = ?').bind(imgId).first<any>();
+            const m = /^data:(image\/[a-zA-Z0-9+.-]+);base64,([A-Za-z0-9+/=\s]+)$/.exec(String(row?.image_url || row?.media_url || ''));
+            if (m) {
+              const bin = atob(m[2].replace(/\s+/g, ''));
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              const imgHeaders: Record<string, string> = {
+                'Content-Type': m[1],
+                'Cache-Control': 'public, max-age=31536000, immutable',
+                'Content-Length': String(bytes.length),
+              };
+              return new Response(request.method === 'HEAD' ? null : bytes, { status: 200, headers: imgHeaders });
+            }
+          } catch (e) {}
+        }
+        return new Response('Not found', { status: 404 });
+      }
+
+      // Public story avatar: /story-avatar/:id — decodes the inline base64 data-URI
+      // avatars stored on stories so the stories list response stays tiny.
+      // No login required.
+      if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
+          url.pathname.startsWith('/story-avatar/')) {
+        const avId = decodeURIComponent(url.pathname.replace('/story-avatar/', '').split('/')[0].trim());
+        if (avId) {
+          try {
+            const row = await env.DB.prepare('SELECT author_avatar FROM stories WHERE id = ?').bind(avId).first<any>();
             const m = /^data:(image\/[a-zA-Z0-9+.-]+);base64,([A-Za-z0-9+/=\s]+)$/.exec(String(row?.author_avatar || ''));
             if (m) {
               const bin = atob(m[2].replace(/\s+/g, ''));

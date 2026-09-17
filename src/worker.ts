@@ -603,21 +603,42 @@ function hashStr(s: string): string {
 // Translate one chunk of text. Primary: Cloudflare Workers AI m2m100
 // (official, no key). Backup: Google's free endpoint. Returns the
 // translated text and the detected source language.
+// Collapse degenerate repetition loops (same sentence 3+ times in a row)
+// that small translation models sometimes produce on long inputs.
+function collapseRepeats(s: string): string {
+  const parts = s.split(/(?<=[.!?؟…])\s+/);
+  const out: string[] = [];
+  for (const p of parts) {
+    const t = p.trim();
+    if (!t) continue;
+    const n = out.length;
+    if (n >= 2 && out[n - 1] === t && out[n - 2] === t) continue;
+    out.push(t);
+  }
+  return out.join(' ');
+}
+
 async function translateChunk(chunk: string, target: string, env: any): Promise<{ text: string; src: string | null }> {
   const arabicChars = (chunk.match(/[\u0600-\u06FF]/g) || []).length;
   const looksArabic = chunk.length > 0 && arabicChars > chunk.length * 0.3;
-  // NOTE: m2m100 on Workers AI expects short codes ("ar", "en") — full
-  // names like "arabic" are rejected.
-  const sourceLang = looksArabic ? 'ar' : 'en';
-  const targetLang = target === 'ar' ? 'ar' : 'en';
+  const srcName = looksArabic ? 'Arabic' : 'English';
+  const tgtName = target === 'ar' ? 'Arabic' : 'English';
   try {
     if (env && env.AI) {
-      const out: any = await env.AI.run('@cf/meta/m2m100-1.2b', {
-        text: chunk,
-        source_lang: sourceLang,
-        target_lang: targetLang,
+      const out: any = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a professional ' + srcName + '-to-' + tgtName + ' translator. ' +
+              'Output ONLY the translation — no explanations, no preamble, no quotation marks around it. ' +
+              'Translate faithfully and naturally; do not repeat sentences.',
+          },
+          { role: 'user', content: chunk },
+        ],
       });
-      const t = String((out && (out.translated_text || out.response)) || '').trim();
+      let t = String((out && out.response) || '').trim();
+      t = collapseRepeats(t);
       if (t) return { text: t, src: looksArabic ? 'ar' : 'en' };
     }
   } catch (e) {
@@ -1493,7 +1514,7 @@ export default {
         if (text.length > 8000) {
           return jsonResponse({ success: false, error: 'Text too long' }, 400);
         }
-        const cacheKey = 'tr2:' + target + ':' + hashStr(text);
+        const cacheKey = 'tr3:' + target + ':' + hashStr(text);
         const cached = translateCache.get(cacheKey);
         if (cached) {
           return jsonResponse({ success: true, translatedText: cached.text, detectedSource: cached.src, cached: true });

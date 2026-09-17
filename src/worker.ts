@@ -600,7 +600,7 @@ function hashStr(s: string): string {
   return (h >>> 0).toString(36);
 }
 
-// Translate one chunk of text. Primary: Cloudflare Workers AI m2m100
+// Translate one chunk of text. Primary: Cloudflare Workers AI (Llama 3.1 8B instruct)
 // (official, no key). Backup: Google's free endpoint. Returns the
 // translated text and the detected source language.
 // Collapse degenerate repetition loops (same sentence 3+ times in a row)
@@ -1520,7 +1520,7 @@ export default {
           return jsonResponse({ success: true, translatedText: cached.text, detectedSource: cached.src, cached: true });
         }
         try {
-          // Split into small sentence packs: m2m100 degenerates (repeats one
+          // Split into small sentence packs: translation models can degenerate (repeat one
           // sentence) when fed long inputs, so each model call gets a ~500-char
           // pack built from whole sentences. Paragraph boundaries are recorded
           // and restored after translation.

@@ -98,6 +98,108 @@ export function extractCleanVideoId(raw?: string): string | null {
   return null;
 }
 
+
+// Renders a post as a shareable picture card (1080x1350 PNG). Apps like
+// Threads strip shared text but always show an attached image, so the verse
+// travels inside the picture and can't be dropped.
+async function buildPostShareImage(post: Post): Promise<Blob | null> {
+  try {
+    const W = 1080, H = 1350;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#f7efdb');
+    bg.addColorStop(1, '#e8d3a4');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = '#c9a227';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(28, 28, W - 56, H - 56);
+    ctx.lineWidth = 3;
+    ctx.strokeRect(54, 54, W - 108, H - 108);
+
+    const cx = W / 2;
+    let y = 158;
+    ctx.textBaseline = 'alphabetic';
+
+    ctx.fillStyle = '#7a5c2e';
+    ctx.font = 'bold 54px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('\u271D OrthodoxConnect', cx, y);
+    y += 42;
+    ctx.strokeStyle = '#c9a227';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(150, y);
+    ctx.lineTo(W - 150, y);
+    ctx.stroke();
+    y += 88;
+
+    const p: any = post as any;
+    const authorName = String(p.authorName || p.author_name || 'OrthodoxConnect').slice(0, 60);
+    ctx.fillStyle = '#3a2c1a';
+    ctx.font = 'bold 46px Georgia, serif';
+    ctx.fillText(authorName, cx, y);
+    y += 96;
+
+    const raw = String(p.content || '').trim() || 'A post from OrthodoxConnect.';
+    const maxW = W - 220;
+    const isRtl = (s: string) => /[\u0600-\u06FF]/.test(s);
+    const wrap = (text: string, font: string): string[] => {
+      ctx.font = font;
+      const lines: string[] = [];
+      for (const para of text.split('\n')) {
+        if (!para.trim()) { lines.push(''); continue; }
+        const words = para.split(/\s+/);
+        let line = '';
+        for (const w of words) {
+          const t = line ? line + ' ' + w : w;
+          if (line && ctx.measureText(t).width > maxW) { lines.push(line); line = w; }
+          else { line = t; }
+        }
+        if (line) lines.push(line);
+      }
+      return lines;
+    };
+
+    let fontSize = 46;
+    let lines: string[] = [];
+    while (fontSize >= 28) {
+      lines = wrap(raw, fontSize + 'px Georgia, serif');
+      if (lines.length <= 20) break;
+      fontSize -= 4;
+    }
+    lines = lines.slice(0, 20);
+
+    const lineH = fontSize * 1.55;
+    ctx.fillStyle = '#3a2c1a';
+    for (const line of lines) {
+      if (!line) { y += lineH * 0.55; continue; }
+      ctx.direction = isRtl(line) ? 'rtl' : 'ltr';
+      ctx.textAlign = 'center';
+      ctx.fillText(line, cx, y);
+      y += lineH;
+    }
+    ctx.direction = 'ltr';
+
+    ctx.fillStyle = '#7a5c2e';
+    ctx.textAlign = 'center';
+    ctx.font = '36px Georgia, serif';
+    ctx.fillText('orthodoxconnect.live', cx, H - 148);
+    ctx.font = '30px Georgia, serif';
+    ctx.fillText('Faith \u00B7 Fellowship \u00B7 Community', cx, H - 96);
+
+    return await new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), 'image/png'));
+  } catch {
+    return null;
+  }
+}
+
 export const PostCard: React.FC<PostCardProps> = ({
   post,
   currentProfile,
@@ -713,15 +815,23 @@ export const PostCard: React.FC<PostCardProps> = ({
 
         <button
           type="button"
-          onClick={() => {
+          onClick={async () => {
             const shareUrl = `https://orthodoxconnect.live/post/${post.id}`;
-            const shareText = post.content ? post.content.slice(0, 280) : 'OrthodoxConnect';
-            // Put the URL inline in the text: some apps (Threads, X) drop the
-            // separate url field, but keep text with an inline link unfurled.
+            const shareText = post.content ? String(post.content).slice(0, 280) : 'OrthodoxConnect';
             const fullShareText = `${shareText}\n\n${shareUrl}`;
             if (navigator.share) {
-              // Text-only (URL inline): Threads/Facebook often drop the text
-              // when a separate url field is present; inline links still unfurl.
+              // Share the verse as a picture card: Threads strips shared text
+              // but always shows an attached image, so the words can't be lost.
+              try {
+                const img = await buildPostShareImage(post);
+                if (img) {
+                  const file = new File([img], 'orthodoxconnect-post.png', { type: 'image/png' });
+                  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file], title: 'OrthodoxConnect', text: fullShareText });
+                    return;
+                  }
+                }
+              } catch { /* fall through to text share */ }
               navigator.share({ title: 'OrthodoxConnect', text: fullShareText }).catch(() => {});
             } else if (navigator.clipboard) {
               navigator.clipboard.writeText(fullShareText);

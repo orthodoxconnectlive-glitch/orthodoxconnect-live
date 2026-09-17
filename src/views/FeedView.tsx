@@ -173,6 +173,30 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const [showVideoUrlInput, setShowVideoUrlInput] = useState(false);
   const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
   const [videoFileName, setVideoFileName] = useState('');
+  const [resolvingShareLink, setResolvingShareLink] = useState(false);
+  const resolvedShareLinkRef = useRef<string>('');
+
+  // Facebook /share/ and fb.watch links redirect to the canonical video URL.
+  // Resolve once at paste time so the preview and the saved post use a
+  // format Facebook's embed accepts.
+  useEffect(() => {
+    const link = videoUrl.trim();
+    if (!link || resolvingShareLink) return;
+    if (!/(facebook\.com\/share\/|fb\.watch\/)/i.test(link)) return;
+    if (resolvedShareLinkRef.current === link) return;
+    resolvedShareLinkRef.current = link;
+    setResolvingShareLink(true);
+    apiFetch<{ success?: boolean; resolvedUrl?: string }>(
+      `/api/resolve-url?url=${encodeURIComponent(link)}`
+    )
+      .then((d) => {
+        if (d && d.success && d.resolvedUrl && d.resolvedUrl !== link) {
+          setVideoUrl(d.resolvedUrl);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setResolvingShareLink(false));
+  }, [videoUrl]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatusText, setSubmitStatusText] = useState<string>('');
   const [uploadProgress, setUploadProgress] = useState<number>(0);
@@ -384,6 +408,17 @@ export const FeedView: React.FC<FeedViewProps> = ({
       if (match && parseVideoEmbed(match[0])) {
         detectedVideoLink = match[0];
       }
+    }
+
+    // A Facebook /share/ or fb.watch link pasted into the text also needs
+    // resolving to its canonical URL before saving.
+    if (detectedVideoLink && /(facebook\.com\/share\/|fb\.watch\/)/i.test(detectedVideoLink)) {
+      try {
+        const r = await apiFetch<{ success?: boolean; resolvedUrl?: string }>(
+          `/api/resolve-url?url=${encodeURIComponent(detectedVideoLink)}`
+        );
+        if (r && r.success && r.resolvedUrl) detectedVideoLink = r.resolvedUrl;
+      } catch {}
     }
 
     if (!newPostText.trim() && !imageUrl && !detectedVideoLink && !selectedVideoFile) return;

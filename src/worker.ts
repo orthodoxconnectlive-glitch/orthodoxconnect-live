@@ -1416,6 +1416,40 @@ export default {
         });
       }
 
+      // Resolve shortened/redirect video links (e.g. facebook.com/share/…, fb.watch)
+      // to their canonical URL so embeds use a format the provider accepts.
+      // Restricted to Facebook hosts so this can't be used as an open proxy.
+      if (url.pathname === '/api/resolve-url' && request.method === 'GET') {
+        const target = (url.searchParams.get('url') || '').trim();
+        let parsed: URL | null = null;
+        try {
+          parsed = new URL(target);
+        } catch {
+          parsed = null;
+        }
+        const allowed =
+          parsed !== null &&
+          /^https?:$/.test(parsed.protocol) &&
+          /(^|\.)(facebook\.com|fb\.watch)$/i.test(parsed.hostname);
+        if (!allowed) {
+          return jsonResponse({ success: false, error: 'URL not allowed' }, 400);
+        }
+        try {
+          const resp = await fetch(target, {
+            redirect: 'follow',
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+            },
+          });
+          const finalUrl = new URL(resp.url);
+          finalUrl.search = '';
+          return jsonResponse({ success: true, resolvedUrl: finalUrl.toString() });
+        } catch (e: any) {
+          return jsonResponse({ success: false, error: 'Could not resolve URL' }, 502);
+        }
+      }
+
       // Public VAPID key (safe to expose — clients need it to subscribe).
       if (url.pathname === '/api/push/vapid-public-key' && request.method === 'GET') {
         const { publicKey, privateKey } = await getVapidKeys(env);

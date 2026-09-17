@@ -606,8 +606,10 @@ function hashStr(s: string): string {
 async function translateChunk(chunk: string, target: string, env: any): Promise<{ text: string; src: string | null }> {
   const arabicChars = (chunk.match(/[\u0600-\u06FF]/g) || []).length;
   const looksArabic = chunk.length > 0 && arabicChars > chunk.length * 0.3;
-  const sourceLang = looksArabic ? 'arabic' : 'english';
-  const targetLang = target === 'ar' ? 'arabic' : 'english';
+  // NOTE: m2m100 on Workers AI expects short codes ("ar", "en") — full
+  // names like "arabic" are rejected.
+  const sourceLang = looksArabic ? 'ar' : 'en';
+  const targetLang = target === 'ar' ? 'ar' : 'en';
   try {
     if (env && env.AI) {
       const out: any = await env.AI.run('@cf/meta/m2m100-1.2b', {

@@ -14,5 +14,9 @@ database_name = "orthodoxconnect"
 database_id = "cc2a30b0-43f6-4485-a2d7-8ca4e8e8a4fe"
 migrations_dir = "migrations"
 
+# Workers AI binding (powers the feed's Translate button via m2m100).
+[ai]
+binding = "AI"
+
 [triggers]
 crons = ["0 12 * * *"]

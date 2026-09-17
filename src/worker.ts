@@ -38,6 +38,7 @@ export interface ScheduledEvent {
 
 export interface Env {
   DB: D1Database;
+  AI?: { run(model: string, input: any): Promise<any> };
   BUNNY_LIBRARY_ID?: string;
   BUNNY_API_KEY?: string;
   BUNNY_STREAM_API_KEY?: string;
@@ -588,6 +589,50 @@ function jsonResponse(data: any, status = 200): Response {
     status,
     headers: CORS_HEADERS,
   });
+}
+
+// --- Post translation cache (per Worker isolate) ---
+const translateCache = new Map<string, { text: string; src: string | null }>();
+
+function hashStr(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
+// Translate one chunk of text. Primary: Cloudflare Workers AI m2m100
+// (official, no key). Backup: Google's free endpoint. Returns the
+// translated text and the detected source language.
+async function translateChunk(chunk: string, target: string, env: any): Promise<{ text: string; src: string | null }> {
+  const arabicChars = (chunk.match(/[\u0600-\u06FF]/g) || []).length;
+  const looksArabic = chunk.length > 0 && arabicChars > chunk.length * 0.3;
+  const sourceLang = looksArabic ? 'arabic' : 'english';
+  const targetLang = target === 'ar' ? 'arabic' : 'english';
+  try {
+    if (env && env.AI) {
+      const out: any = await env.AI.run('@cf/meta/m2m100-1.2b', {
+        text: chunk,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+      });
+      const t = String((out && (out.translated_text || out.response)) || '').trim();
+      if (t) return { text: t, src: looksArabic ? 'ar' : 'en' };
+    }
+  } catch (e) {
+    /* fall through to backup */
+  }
+  const upstream =
+    'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=' +
+    encodeURIComponent(target) +
+    '&dt=t&q=' +
+    encodeURIComponent(chunk);
+  const resp = await fetch(upstream, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+  if (!resp.ok) throw new Error('translate upstream ' + resp.status);
+  const data: any = await resp.json();
+  const sentences = Array.isArray(data) && Array.isArray(data[0]) ? data[0] : [];
+  const text = sentences.map((s: any) => (s && typeof s[0] === 'string' ? s[0] : '')).join('');
+  const src = typeof data[2] === 'string' ? data[2] : null;
+  return { text, src };
 }
 
 // Extract a YouTube video id from youtu.be / youtube.com URLs, or null.
@@ -1421,6 +1466,69 @@ export default {
         const { publicKey, privateKey } = await getVapidKeys(env);
         const pairValid = publicKey && privateKey ? await vapidPairValid(publicKey, privateKey) : false;
         return jsonResponse({ success: Boolean(publicKey), publicKey: publicKey || null, pairValid, v: 2 });
+      }
+
+      // Post translation: POST /api/translate { text, target: 'en'|'ar' }
+      // -> { success, translatedText, detectedSource }. Authenticated (session
+      // token) so it can't be used as an anonymous translation proxy. Long
+      // posts are chunked per paragraph; results are cached per isolate.
+      if ((url.pathname === '/api/translate' || url.pathname === '/api/translate/') && request.method === 'POST') {
+        const auth = await getAuthIdentity(request, env);
+        if (!auth.id) {
+          return jsonResponse({ success: false, error: 'Unauthorized' }, 401);
+        }
+        let body: any = {};
+        try {
+          body = await request.json();
+        } catch (e) {
+          /* fall through to validation */
+        }
+        const text = typeof body.text === 'string' ? body.text.trim() : '';
+        const target = body.target === 'ar' ? 'ar' : 'en';
+        if (!text) {
+          return jsonResponse({ success: false, error: 'Missing text' }, 400);
+        }
+        if (text.length > 8000) {
+          return jsonResponse({ success: false, error: 'Text too long' }, 400);
+        }
+        const cacheKey = 'tr:' + target + ':' + hashStr(text);
+        const cached = translateCache.get(cacheKey);
+        if (cached) {
+          return jsonResponse({ success: true, translatedText: cached.text, detectedSource: cached.src, cached: true });
+        }
+        try {
+          const chunks: string[] = [];
+          const paragraphs = text.split(/\n\s*\n/);
+          let current = '';
+          for (const p of paragraphs) {
+            const candidate = current ? current + '\n\n' + p : p;
+            if (candidate.length > 1500 && current) {
+              chunks.push(current);
+              current = p;
+            } else {
+              current = candidate;
+            }
+          }
+          if (current) chunks.push(current);
+
+          const translatedChunks: string[] = [];
+          let detectedSource: string | null = null;
+          for (const chunk of chunks) {
+            const r = await translateChunk(chunk, target, env);
+            translatedChunks.push(r.text);
+            if (!detectedSource && r.src) detectedSource = r.src;
+          }
+          const translatedText = translatedChunks.join('\n\n').trim();
+          if (!translatedText) throw new Error('empty translation');
+          if (translateCache.size > 500) {
+            const firstKey = translateCache.keys().next().value;
+            if (firstKey) translateCache.delete(firstKey);
+          }
+          translateCache.set(cacheKey, { text: translatedText, src: detectedSource });
+          return jsonResponse({ success: true, translatedText, detectedSource });
+        } catch (e) {
+          return jsonResponse({ success: false, error: 'Translation failed' }, 502);
+        }
       }
 
       // Short invite codes: GET /api/invite-code (auth) -> { success, code }.

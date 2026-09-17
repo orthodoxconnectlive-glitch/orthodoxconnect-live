@@ -15,8 +15,10 @@ import {
   Sparkles,
   Volume2,
   Square,
+  Languages,
 } from 'lucide-react';
 import { Post, UserProfile, PostComment } from '../types';
+import { apiFetch } from '../lib/api';
 import { TimeAgo } from './TimeAgo';
 import { BroadcastCard } from './BroadcastCard';
 import { AudioPlayer } from './AudioPlayer';
@@ -233,6 +235,9 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [isLoadingLikers, setIsLoadingLikers] = useState<boolean>(false);
   const [isVideoLoaded, setIsVideoLoaded] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+  const [translatedText, setTranslatedText] = useState<string | null>(null);
+  const [isTranslating, setIsTranslating] = useState<boolean>(false);
+  const [translateFailed, setTranslateFailed] = useState<boolean>(false);
 
   // Sync state from D1 snake_case or standard camelCase
   const rawPost = post as any;
@@ -243,6 +248,44 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [likers, setLikers] = useState<any[]>(post.likers || []);
 
   const postContent = (post.content ?? post.text ?? '').trim();
+
+  // Detect the post's script so the Translate button only appears when the
+  // post is written in the "other" language (Arabic post + English app, or
+  // English post + Arabic app).
+  const postArabicChars = (postContent.match(/[\u0600-\u06FF]/g) || []).length;
+  const postLooksArabic = postContent.length > 0 && postArabicChars > postContent.length * 0.3;
+  const needsTranslation =
+    postContent.length > 20 &&
+    ((language === 'en' && postLooksArabic) || (language === 'ar' && !postLooksArabic));
+
+  // Translate the post into the app's current language (via /api/translate).
+  // Tapping again toggles back to the original text.
+  const handleTranslate = async () => {
+    if (isTranslating) return;
+    if (translatedText) {
+      setTranslatedText(null);
+      return;
+    }
+    setIsTranslating(true);
+    setTranslateFailed(false);
+    try {
+      const res = await apiFetch<{ success: boolean; translatedText?: string }>('/api/translate', {
+        method: 'POST',
+        body: JSON.stringify({ text: postContent, target: language === 'ar' ? 'ar' : 'en' }),
+      });
+      if (res && res.success && res.translatedText) {
+        setTranslatedText(res.translatedText);
+      } else {
+        setTranslateFailed(true);
+      }
+    } catch (e) {
+      setTranslateFailed(true);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  // What the Listen button reads aloud: the translation when shown, else the original.
 
   // Cancel Speech on Component Unmount
   useEffect(() => {
@@ -289,12 +332,14 @@ export const PostCard: React.FC<PostCardProps> = ({
 
     if (!postContent) return;
 
+    // Read aloud whatever is currently displayed (translation if shown).
+    const textToSpeak = translatedText || postContent;
     window.speechSynthesis.cancel();
-    const chunks = postContent.match(/[^.!?،؛\n]+[.!?،؛\n]?/g) || [postContent];
+    const chunks = textToSpeak.match(/[^.!?،؛\n]+[.!?،؛\n]?/g) || [textToSpeak];
     const voices = window.speechSynthesis.getVoices();
     // Detect content language: if mostly Arabic script, use Arabic voice; otherwise American English
-    const arabicChars = (postContent.match(/[\u0600-\u06FF]/g) || []).length;
-    const isArabic = arabicChars > postContent.length * 0.3;
+    const arabicChars = (textToSpeak.match(/[\u0600-\u06FF]/g) || []).length;
+    const isArabic = arabicChars > textToSpeak.length * 0.3;
     let voice: SpeechSynthesisVoice | undefined;
     let lang: string;
     if (isArabic) {
@@ -566,6 +611,31 @@ export const PostCard: React.FC<PostCardProps> = ({
             </button>
           )}
 
+          {needsTranslation && (
+            <button
+              type="button"
+              onClick={handleTranslate}
+              disabled={isTranslating}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-serif font-bold transition-all cursor-pointer shadow-xs border ${
+                translatedText
+                  ? 'bg-(--ac-bronze) text-white border-[#8a6d35]'
+                  : 'bg-(--chip-light) text-(--tx-strong) border-(--ln-gold) hover:bg-(--ac-gold) hover:text-white'
+              } ${isTranslating ? 'opacity-70' : ''}`}
+              title={language === 'ar' ? 'ترجمة المنشور' : 'Translate post'}
+            >
+              <Languages className="w-3.5 h-3.5" />
+              <span>
+                {isTranslating
+                  ? (language === 'ar' ? 'جارٍ الترجمة…' : 'Translating…')
+                  : translatedText
+                    ? (language === 'ar' ? 'الأصل' : 'Original')
+                    : translateFailed
+                      ? (language === 'ar' ? 'حاول مجددًا' : 'Retry')
+                      : (language === 'ar' ? 'ترجم' : 'Translate')}
+              </span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => onOpenReport('post', post.id, authorName, postContent || 'Post Media Content')}
@@ -590,9 +660,17 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Content Text */}
       {postContent && (
-        <p className="text-xs sm:text-sm text-(--tx-strong) dark:text-[#f5ebd9] font-serif leading-relaxed mb-3.5 whitespace-pre-wrap">
-          {postContent}
-        </p>
+        <>
+          <p className="text-xs sm:text-sm text-(--tx-strong) dark:text-[#f5ebd9] font-serif leading-relaxed mb-1 whitespace-pre-wrap">
+            {translatedText || postContent}
+          </p>
+          {translatedText && (
+            <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif italic mb-3">
+              {language === 'ar' ? 'مُترجم تلقائيًا من الإنجليزية' : 'Auto-translated from Arabic'}
+            </p>
+          )}
+          {!translatedText && <div className="mb-2.5" />}
+        </>
       )}
 
       {/* Video Media */}

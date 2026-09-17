@@ -1493,25 +1493,55 @@ export default {
         if (text.length > 8000) {
           return jsonResponse({ success: false, error: 'Text too long' }, 400);
         }
-        const cacheKey = 'tr:' + target + ':' + hashStr(text);
+        const cacheKey = 'tr2:' + target + ':' + hashStr(text);
         const cached = translateCache.get(cacheKey);
         if (cached) {
           return jsonResponse({ success: true, translatedText: cached.text, detectedSource: cached.src, cached: true });
         }
         try {
+          // Split into small sentence packs: m2m100 degenerates (repeats one
+          // sentence) when fed long inputs, so each model call gets a ~500-char
+          // pack built from whole sentences. Paragraph boundaries are recorded
+          // and restored after translation.
           const chunks: string[] = [];
-          const paragraphs = text.split(/\n\s*\n/);
-          let current = '';
-          for (const p of paragraphs) {
-            const candidate = current ? current + '\n\n' + p : p;
-            if (candidate.length > 1500 && current) {
-              chunks.push(current);
-              current = p;
-            } else {
-              current = candidate;
+          const paraEnds: number[] = [];
+          for (const para of text.split(/\n\s*\n/)) {
+            const sentences = para.match(/[^.!?؟…\n]+[.!?؟…\n]*/g) || [para];
+            let cur = '';
+            const flush = () => {
+              if (cur) {
+                chunks.push(cur);
+                cur = '';
+              }
+            };
+            for (const s of sentences) {
+              let piece = s.trim();
+              if (!piece) continue;
+              // Hard-split any single overlong sentence into 500-char slices.
+              while (piece.length > 500) {
+                const slice = piece.slice(0, 500);
+                const cand = cur ? cur + ' ' + slice : slice;
+                if (cand.length > 500 && cur) {
+                  flush();
+                  cur = slice;
+                } else {
+                  cur = cand;
+                }
+                piece = piece.slice(500).trim();
+              }
+              if (!piece) continue;
+              const cand = cur ? cur + ' ' + piece : piece;
+              if (cand.length > 500 && cur) {
+                flush();
+                cur = piece;
+              } else {
+                cur = cand;
+              }
             }
+            flush();
+            paraEnds.push(chunks.length);
           }
-          if (current) chunks.push(current);
+          if (!chunks.length) throw new Error('nothing to translate');
 
           const translatedChunks: string[] = [];
           let detectedSource: string | null = null;
@@ -1520,7 +1550,16 @@ export default {
             translatedChunks.push(r.text);
             if (!detectedSource && r.src) detectedSource = r.src;
           }
-          const translatedText = translatedChunks.join('\n\n').trim();
+          // Reassemble: packs within a paragraph join with spaces, paragraphs
+          // join with blank lines.
+          const paragraphs: string[] = [];
+          let start = 0;
+          for (const end of paraEnds) {
+            const parts = translatedChunks.slice(start, end).filter((p) => p.trim());
+            if (parts.length) paragraphs.push(parts.join(' '));
+            start = end;
+          }
+          const translatedText = paragraphs.join('\n\n').trim();
           if (!translatedText) throw new Error('empty translation');
           if (translateCache.size > 500) {
             const firstKey = translateCache.keys().next().value;

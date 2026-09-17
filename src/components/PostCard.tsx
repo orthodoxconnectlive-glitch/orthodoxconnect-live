@@ -720,7 +720,9 @@ export const PostCard: React.FC<PostCardProps> = ({
             // separate url field, but keep text with an inline link unfurled.
             const fullShareText = `${shareText}\n\n${shareUrl}`;
             if (navigator.share) {
-              navigator.share({ title: 'OrthodoxConnect', text: fullShareText, url: shareUrl }).catch(() => {});
+              // Text-only (URL inline): Threads/Facebook often drop the text
+              // when a separate url field is present; inline links still unfurl.
+              navigator.share({ title: 'OrthodoxConnect', text: fullShareText }).catch(() => {});
             } else if (navigator.clipboard) {
               navigator.clipboard.writeText(fullShareText);
             }

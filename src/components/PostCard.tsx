@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Heart,
   MessageCircle,
@@ -15,7 +15,6 @@ import {
   Sparkles,
   Volume2,
   Square,
-  Languages,
 } from 'lucide-react';
 import { Post, UserProfile, PostComment } from '../types';
 import { apiFetch } from '../lib/api';
@@ -238,6 +237,9 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [translateFailed, setTranslateFailed] = useState<boolean>(false);
+  const [viewOriginal, setViewOriginal] = useState<boolean>(false);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const autoTranslateStarted = useRef<boolean>(false);
 
   // Sync state from D1 snake_case or standard camelCase
   const rawPost = post as any;
@@ -249,29 +251,31 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   const postContent = (post.content ?? post.text ?? '').trim();
 
-  // Detect the post's script so the Translate button only appears when the
-  // post is written in the "other" language (Arabic post + English app, or
-  // English post + Arabic app).
+  // Detect the post's script so posts written in the "other" language are
+  // automatically shown translated (Arabic post + English app, or English
+  // post + Arabic app). No button — it just happens when the post is viewed.
   const postArabicChars = (postContent.match(/[\u0600-\u06FF]/g) || []).length;
   const postLooksArabic = postContent.length > 0 && postArabicChars > postContent.length * 0.3;
+  const postHasLetters = /[\u0600-\u06FFA-Za-z]/.test(postContent);
   const needsTranslation =
-    postContent.length > 20 &&
+    postHasLetters &&
     ((language === 'en' && postLooksArabic) || (language === 'ar' && !postLooksArabic));
 
-  // Translate the post into the app's current language (via /api/translate).
-  // Tapping again toggles back to the original text.
-  const handleTranslate = async () => {
-    if (isTranslating) return;
-    if (translatedText) {
-      setTranslatedText(null);
-      return;
-    }
+  // Whatever is currently displayed: the translation when available (unless
+  // the user asked for the original), else the original post text.
+  const displayedText = translatedText && !viewOriginal ? translatedText : postContent;
+
+  // Automatically translate the post into the app's language the first time
+  // the card scrolls into view (via /api/translate; the server caches each
+  // post's translation in D1 so it is only ever translated once).
+  const doTranslate = useCallback(async () => {
+    if (!needsTranslation || translatedText || isTranslating) return;
     setIsTranslating(true);
     setTranslateFailed(false);
     try {
       const res = await apiFetch<{ success: boolean; translatedText?: string }>('/api/translate', {
         method: 'POST',
-        body: JSON.stringify({ text: postContent, target: language === 'ar' ? 'ar' : 'en' }),
+        body: JSON.stringify({ text: postContent, target: language === 'ar' ? 'ar' : 'en', post_id: post.id }),
       });
       if (res && res.success && res.translatedText) {
         setTranslatedText(res.translatedText);
@@ -283,7 +287,41 @@ export const PostCard: React.FC<PostCardProps> = ({
     } finally {
       setIsTranslating(false);
     }
-  };
+  }, [needsTranslation, translatedText, isTranslating, language, postContent, post.id]);
+
+  // Reset translation state when the app language or the post changes.
+  useEffect(() => {
+    setTranslatedText(null);
+    setViewOriginal(false);
+    setTranslateFailed(false);
+    autoTranslateStarted.current = false;
+  }, [language, post.id]);
+
+  // Fire the automatic translation once the card becomes visible.
+  useEffect(() => {
+    if (!needsTranslation || autoTranslateStarted.current) return;
+    const el = cardRef.current;
+    if (!el) return;
+    const start = () => {
+      autoTranslateStarted.current = true;
+      doTranslate();
+    };
+    if (typeof IntersectionObserver === 'undefined') {
+      start();
+      return;
+    }
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          obs.disconnect();
+          start();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [needsTranslation, doTranslate]);
 
   // What the Listen button reads aloud: the translation when shown, else the original.
 
@@ -333,7 +371,7 @@ export const PostCard: React.FC<PostCardProps> = ({
     if (!postContent) return;
 
     // Read aloud whatever is currently displayed (translation if shown).
-    const textToSpeak = translatedText || postContent;
+    const textToSpeak = displayedText;
     window.speechSynthesis.cancel();
     const chunks = textToSpeak.match(/[^.!?،؛\n]+[.!?،؛\n]?/g) || [textToSpeak];
     const voices = window.speechSynthesis.getVoices();
@@ -478,6 +516,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   return (
     <div
       id={`post-card-${post.id}`}
+      ref={cardRef}
       className="p-4 sm:p-5 rounded-2xl bg-[#fffdfa] dark:bg-[#1f1914] border border-(--ln-gold)/40 shadow-md hover:shadow-lg transition-all duration-300 relative overflow-hidden"
     >
       {/* Reshare Header Banner */}
@@ -611,7 +650,7 @@ export const PostCard: React.FC<PostCardProps> = ({
             </button>
           )}
 
-          {/* Translate lives below the post text (fits better than the crowded header). */}
+          {/* (Translation is automatic now — no header button needed.) */}
 
           <button
             type="button"
@@ -639,39 +678,51 @@ export const PostCard: React.FC<PostCardProps> = ({
       {postContent && (
         <div className="mb-3.5">
           <p className="text-xs sm:text-sm text-(--tx-strong) dark:text-[#f5ebd9] font-serif leading-relaxed whitespace-pre-wrap">
-            {translatedText || postContent}
+            {displayedText}
           </p>
           {needsTranslation && (
             <div className="mt-1.5">
-              {translatedText ? (
+              {translatedText && !viewOriginal ? (
                 <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif italic">
                   {language === 'ar' ? 'مُترجم تلقائيًا من الإنجليزية' : 'Auto-translated from Arabic'}
                   {' · '}
                   <button
                     type="button"
-                    onClick={handleTranslate}
+                    onClick={() => setViewOriginal(true)}
                     className="underline font-bold not-italic cursor-pointer"
                   >
                     {language === 'ar' ? 'عرض الأصل' : 'Show original'}
                   </button>
                 </p>
-              ) : (
+              ) : translatedText && viewOriginal ? (
+                <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif italic">
+                  {language === 'ar' ? 'عرض النص الأصلي' : 'Showing original'}
+                  {' · '}
+                  <button
+                    type="button"
+                    onClick={() => setViewOriginal(false)}
+                    className="underline font-bold not-italic cursor-pointer"
+                  >
+                    {language === 'ar' ? 'عرض الترجمة' : 'Show translation'}
+                  </button>
+                </p>
+              ) : isTranslating ? (
+                <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif italic">
+                  {language === 'ar' ? 'جارٍ الترجمة…' : 'Translating…'}
+                </p>
+              ) : translateFailed ? (
                 <button
                   type="button"
-                  onClick={handleTranslate}
-                  disabled={isTranslating}
-                  className="flex items-center gap-1.5 text-[11px] font-serif font-bold text-(--ac-gold-tx) hover:underline cursor-pointer disabled:opacity-70"
+                  onClick={() => {
+                    autoTranslateStarted.current = false;
+                    setTranslateFailed(false);
+                    doTranslate();
+                  }}
+                  className="text-[11px] font-serif font-bold text-(--ac-gold-tx) hover:underline cursor-pointer"
                 >
-                  <Languages className="w-3.5 h-3.5" />
-                  <span>
-                    {isTranslating
-                      ? (language === 'ar' ? 'جارٍ الترجمة…' : 'Translating…')
-                      : translateFailed
-                        ? (language === 'ar' ? 'فشلت الترجمة — حاول مجددًا' : "Translation failed — tap to retry")
-                        : (language === 'ar' ? 'ترجم هذا المنشور' : 'Translate this post')}
-                  </span>
+                  {language === 'ar' ? 'فشلت الترجمة — حاول مجددًا' : 'Translation failed — tap to retry'}
                 </button>
-              )}
+              ) : null}
             </div>
           )}
         </div>

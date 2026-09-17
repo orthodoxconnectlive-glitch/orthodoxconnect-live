@@ -161,6 +161,14 @@ export async function ensureD1Tables(db?: D1Database) {
     } catch (pushReceiptMigErr) {
       console.warn('[ensureD1Tables] push_receipts migration notice:', pushReceiptMigErr);
     }
+    // Durable per-post translations: each post is translated once (on creation
+    // in the background, or on first view) and stored here, so every reader
+    // gets it instantly without re-calling the AI.
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS post_translations ( post_id TEXT NOT NULL, lang TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (post_id, lang) )`);
+    } catch (postTransMigErr) {
+      console.warn('[ensureD1Tables] post_translations migration notice:', postTransMigErr);
+    }
     // Stories columns: older D1 databases were created before newer columns
     // existed, and CREATE TABLE IF NOT EXISTS never alters an existing table.
     // Must run BEFORE the giant batch below (which throws and skips everything
@@ -656,6 +664,105 @@ async function translateChunk(chunk: string, target: string, env: any): Promise<
   const text = sentences.map((s: any) => (s && typeof s[0] === 'string' ? s[0] : '')).join('');
   const src = typeof data[2] === 'string' ? data[2] : null;
   return { text, src };
+}
+
+// Translate a full post text: splits into small sentence packs (translation
+// models can degenerate — repeat one sentence — when fed long inputs), then
+// reassembles with paragraph breaks restored.
+async function translateTextFull(text: string, target: 'ar' | 'en', env: any): Promise<{ text: string; src: string | null }> {
+  const chunks: string[] = [];
+  const paraEnds: number[] = [];
+  for (const para of text.split(/\n\s*\n/)) {
+    const sentences = para.match(/[^.!?؟…\n]+[.!?؟…\n]*/g) || [para];
+    let cur = '';
+    const flush = () => {
+      if (cur) {
+        chunks.push(cur);
+        cur = '';
+      }
+    };
+    for (const s of sentences) {
+      let piece = s.trim();
+      if (!piece) continue;
+      // Hard-split any single overlong sentence into 500-char slices.
+      while (piece.length > 500) {
+        const slice = piece.slice(0, 500);
+        const cand = cur ? cur + ' ' + slice : slice;
+        if (cand.length > 500 && cur) {
+          flush();
+          cur = slice;
+        } else {
+          cur = cand;
+        }
+        piece = piece.slice(500).trim();
+      }
+      if (!piece) continue;
+      const cand = cur ? cur + ' ' + piece : piece;
+      if (cand.length > 500 && cur) {
+        flush();
+        cur = piece;
+      } else {
+        cur = cand;
+      }
+    }
+    flush();
+    paraEnds.push(chunks.length);
+  }
+  if (!chunks.length) throw new Error('nothing to translate');
+
+  const translatedChunks: string[] = [];
+  let detectedSource: string | null = null;
+  for (const chunk of chunks) {
+    const r = await translateChunk(chunk, target, env);
+    translatedChunks.push(r.text);
+    if (!detectedSource && r.src) detectedSource = r.src;
+  }
+  // Reassemble: packs within a paragraph join with spaces, paragraphs
+  // join with blank lines.
+  const paragraphs: string[] = [];
+  let start = 0;
+  for (const end of paraEnds) {
+    const parts = translatedChunks.slice(start, end).filter((p) => p.trim());
+    if (parts.length) paragraphs.push(parts.join(' '));
+    start = end;
+  }
+  const translatedText = paragraphs.join('\n\n').trim();
+  if (!translatedText) throw new Error('empty translation');
+  return { text: translatedText, src: detectedSource };
+}
+
+// Detect a text's dominant language: 'ar', 'en', or null (mixed/unknown).
+function detectDominantLang(text: string): 'ar' | 'en' | null {
+  const t = (text || '').trim();
+  if (t.length < 3) return null;
+  const arabicChars = (t.match(/[\u0600-\u06FF]/g) || []).length;
+  if (arabicChars > t.length * 0.3) return 'ar';
+  if (/[A-Za-z]/.test(t)) return 'en';
+  return null;
+}
+
+// Background job: translate a new post into the other language once and
+// store it in post_translations, so every reader gets it instantly.
+async function pretranslatePost(postId: string, content: string, env: any): Promise<void> {
+  try {
+    if (!postId || !env || !env.DB) return;
+    const text = (content || '').trim();
+    const src = detectDominantLang(text);
+    if (!src) return;
+    const target = src === 'ar' ? 'en' : 'ar';
+    const existing = await env.DB.prepare(
+      'SELECT post_id FROM post_translations WHERE post_id = ? AND lang = ?'
+    ).bind(postId, target).first();
+    if (existing) return;
+    const { text: translated } = await translateTextFull(text, target, env);
+    if (translated && translated.trim()) {
+      await env.DB.prepare(
+        'INSERT OR REPLACE INTO post_translations (post_id, lang, content) VALUES (?, ?, ?)'
+      ).bind(postId, target, translated).run();
+    }
+  } catch (e) {
+    console.warn('[pretranslatePost] notice:', e);
+  }
 }
 
 // Extract a YouTube video id from youtu.be / youtube.com URLs, or null.
@@ -1491,10 +1598,11 @@ export default {
         return jsonResponse({ success: Boolean(publicKey), publicKey: publicKey || null, pairValid, v: 2 });
       }
 
-      // Post translation: POST /api/translate { text, target: 'en'|'ar' }
+      // Post translation: POST /api/translate { text, target: 'en'|'ar', post_id? }
       // -> { success, translatedText, detectedSource }. Authenticated (session
       // token) so it can't be used as an anonymous translation proxy. Long
-      // posts are chunked per paragraph; results are cached per isolate.
+      // posts are chunked per sentence pack; results are cached per isolate and
+      // durably per post in post_translations (each post translated once).
       if ((url.pathname === '/api/translate' || url.pathname === '/api/translate/') && request.method === 'POST') {
         const auth = await getAuthIdentity(request, env);
         if (!auth.id) {
@@ -1508,6 +1616,7 @@ export default {
         }
         const text = typeof body.text === 'string' ? body.text.trim() : '';
         const target = body.target === 'ar' ? 'ar' : 'en';
+        const postId = typeof body.post_id === 'string' && body.post_id ? body.post_id : (typeof body.postId === 'string' && body.postId ? body.postId : '');
         if (!text) {
           return jsonResponse({ success: false, error: 'Missing text' }, 400);
         }
@@ -1519,74 +1628,37 @@ export default {
         if (cached) {
           return jsonResponse({ success: true, translatedText: cached.text, detectedSource: cached.src, cached: true });
         }
-        try {
-          // Split into small sentence packs: translation models can degenerate (repeat one
-          // sentence) when fed long inputs, so each model call gets a ~500-char
-          // pack built from whole sentences. Paragraph boundaries are recorded
-          // and restored after translation.
-          const chunks: string[] = [];
-          const paraEnds: number[] = [];
-          for (const para of text.split(/\n\s*\n/)) {
-            const sentences = para.match(/[^.!?؟…\n]+[.!?؟…\n]*/g) || [para];
-            let cur = '';
-            const flush = () => {
-              if (cur) {
-                chunks.push(cur);
-                cur = '';
-              }
-            };
-            for (const s of sentences) {
-              let piece = s.trim();
-              if (!piece) continue;
-              // Hard-split any single overlong sentence into 500-char slices.
-              while (piece.length > 500) {
-                const slice = piece.slice(0, 500);
-                const cand = cur ? cur + ' ' + slice : slice;
-                if (cand.length > 500 && cur) {
-                  flush();
-                  cur = slice;
-                } else {
-                  cur = cand;
-                }
-                piece = piece.slice(500).trim();
-              }
-              if (!piece) continue;
-              const cand = cur ? cur + ' ' + piece : piece;
-              if (cand.length > 500 && cur) {
-                flush();
-                cur = piece;
-              } else {
-                cur = cand;
-              }
+        // Durable per-post cache: the first reader pays for the translation,
+        // everyone after gets it instantly from D1.
+        if (postId && env.DB) {
+          try {
+            const row = await env.DB.prepare(
+              'SELECT content FROM post_translations WHERE post_id = ? AND lang = ?'
+            ).bind(postId, target).first<{ content: string }>();
+            if (row && row.content) {
+              translateCache.set(cacheKey, { text: row.content, src: null });
+              return jsonResponse({ success: true, translatedText: row.content, detectedSource: null, cached: true });
             }
-            flush();
-            paraEnds.push(chunks.length);
+          } catch (e) {
+            /* fall through to live translation */
           }
-          if (!chunks.length) throw new Error('nothing to translate');
-
-          const translatedChunks: string[] = [];
-          let detectedSource: string | null = null;
-          for (const chunk of chunks) {
-            const r = await translateChunk(chunk, target, env);
-            translatedChunks.push(r.text);
-            if (!detectedSource && r.src) detectedSource = r.src;
-          }
-          // Reassemble: packs within a paragraph join with spaces, paragraphs
-          // join with blank lines.
-          const paragraphs: string[] = [];
-          let start = 0;
-          for (const end of paraEnds) {
-            const parts = translatedChunks.slice(start, end).filter((p) => p.trim());
-            if (parts.length) paragraphs.push(parts.join(' '));
-            start = end;
-          }
-          const translatedText = paragraphs.join('\n\n').trim();
-          if (!translatedText) throw new Error('empty translation');
+        }
+        try {
+          const { text: translatedText, src: detectedSource } = await translateTextFull(text, target, env);
           if (translateCache.size > 500) {
             const firstKey = translateCache.keys().next().value;
             if (firstKey) translateCache.delete(firstKey);
           }
           translateCache.set(cacheKey, { text: translatedText, src: detectedSource });
+          if (postId && env.DB) {
+            try {
+              await env.DB.prepare(
+                'INSERT OR REPLACE INTO post_translations (post_id, lang, content) VALUES (?, ?, ?)'
+              ).bind(postId, target, translatedText).run();
+            } catch (e) {
+              /* cache write is best-effort */
+            }
+          }
           return jsonResponse({ success: true, translatedText, detectedSource });
         } catch (e) {
           return jsonResponse({ success: false, error: 'Translation failed' }, 502);
@@ -3146,6 +3218,14 @@ export default {
                 createdAt ?? new Date().toISOString()
               )
               .run();
+          }
+
+          // Translate the new post into the other language in the background
+          // and store it, so readers in either language see it instantly.
+          try {
+            ctx.waitUntil(pretranslatePost(id, content, env));
+          } catch (e) {
+            /* background translation is best-effort */
           }
 
           return jsonResponse({

@@ -36,7 +36,7 @@ import { PostCard } from '../components/PostCard';
 import { LiturgicalBanner } from '../components/LiturgicalBanner';
 import { UserProfileData } from './ProfileView';
 
-export function parseVideoEmbed(url?: string | null): { type: 'youtube' | 'vimeo' | 'direct'; embedUrl: string } | null {
+export function parseVideoEmbed(url?: string | null): { type: 'youtube' | 'vimeo' | 'facebook' | 'direct'; embedUrl: string } | null {
   if (!url) return null;
   const cleanUrl = url.trim();
 
@@ -53,6 +53,15 @@ export function parseVideoEmbed(url?: string | null): { type: 'youtube' | 'vimeo
     return {
       type: 'vimeo',
       embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}`,
+    };
+  }
+
+  // Facebook shared videos (facebook.com/share/…, fb.watch, /videos/, /reel/, /watch)
+  // embed via Facebook's video plugin — a raw <video> tag can never play these.
+  if (/(?:facebook\.com|fb\.watch)\//i.test(cleanUrl)) {
+    return {
+      type: 'facebook',
+      embedUrl: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(cleanUrl)}&show_text=false`,
     };
   }
 
@@ -836,7 +845,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
           {videoUrl && (
             <div className="relative rounded-2xl overflow-hidden border-2 border-(--ln-gold) bg-(--chip-dark)/10 p-1">
               <div className="relative aspect-video rounded-xl bg-black overflow-hidden flex items-center justify-center">
-                {parsedPreviewEmbed?.type === 'youtube' || parsedPreviewEmbed?.type === 'vimeo' ? (
+                {parsedPreviewEmbed?.type === 'youtube' || parsedPreviewEmbed?.type === 'vimeo' || parsedPreviewEmbed?.type === 'facebook' ? (
                   <iframe
                     src={parsedPreviewEmbed.embedUrl}
                     title="Video Preview"

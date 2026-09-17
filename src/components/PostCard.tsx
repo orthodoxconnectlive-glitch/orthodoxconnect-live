@@ -41,7 +41,7 @@ interface PostCardProps {
   onDeleteComment?: (postId: string, commentId: string) => void;
 }
 
-export function parseVideoEmbed(raw?: string | null): { type: 'youtube' | 'vimeo' | 'direct'; embedUrl: string } | null {
+export function parseVideoEmbed(raw?: string | null): { type: 'youtube' | 'vimeo' | 'facebook' | 'direct'; embedUrl: string } | null {
   if (!raw || typeof raw !== 'string') return null;
   const cleanUrl = raw.trim();
 
@@ -58,6 +58,15 @@ export function parseVideoEmbed(raw?: string | null): { type: 'youtube' | 'vimeo
     return {
       type: 'vimeo',
       embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}`,
+    };
+  }
+
+  // Facebook shared videos (facebook.com/share/…, fb.watch, /videos/, /reel/, /watch)
+  // embed via Facebook's video plugin — a raw <video> tag can never play these.
+  if (/(?:facebook\.com|fb\.watch)\//i.test(cleanUrl)) {
+    return {
+      type: 'facebook',
+      embedUrl: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(cleanUrl)}&show_text=false`,
     };
   }
 
@@ -589,7 +598,7 @@ export const PostCard: React.FC<PostCardProps> = ({
       {/* Video Media */}
       {parsedEmbed ? (
         <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-(--ln-gold)/40 mb-3.5">
-          {parsedEmbed.type === 'youtube' || parsedEmbed.type === 'vimeo' ? (
+          {parsedEmbed.type === 'youtube' || parsedEmbed.type === 'vimeo' || parsedEmbed.type === 'facebook' ? (
             <iframe
               src={parsedEmbed.embedUrl}
               title="Video"

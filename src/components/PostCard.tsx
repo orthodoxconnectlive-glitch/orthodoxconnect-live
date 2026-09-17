@@ -611,30 +611,7 @@ export const PostCard: React.FC<PostCardProps> = ({
             </button>
           )}
 
-          {needsTranslation && (
-            <button
-              type="button"
-              onClick={handleTranslate}
-              disabled={isTranslating}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-serif font-bold transition-all cursor-pointer shadow-xs border ${
-                translatedText
-                  ? 'bg-(--ac-bronze) text-white border-[#8a6d35]'
-                  : 'bg-(--chip-light) text-(--tx-strong) border-(--ln-gold) hover:bg-(--ac-gold) hover:text-white'
-              } ${isTranslating ? 'opacity-70' : ''}`}
-              title={language === 'ar' ? 'ترجمة المنشور' : 'Translate post'}
-            >
-              <Languages className="w-3.5 h-3.5" />
-              <span>
-                {isTranslating
-                  ? (language === 'ar' ? 'جارٍ الترجمة…' : 'Translating…')
-                  : translatedText
-                    ? (language === 'ar' ? 'الأصل' : 'Original')
-                    : translateFailed
-                      ? (language === 'ar' ? 'حاول مجددًا' : 'Retry')
-                      : (language === 'ar' ? 'ترجم' : 'Translate')}
-              </span>
-            </button>
-          )}
+          {/* Translate lives below the post text (fits better than the crowded header). */}
 
           <button
             type="button"
@@ -660,17 +637,44 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Content Text */}
       {postContent && (
-        <>
-          <p className="text-xs sm:text-sm text-(--tx-strong) dark:text-[#f5ebd9] font-serif leading-relaxed mb-1 whitespace-pre-wrap">
+        <div className="mb-3.5">
+          <p className="text-xs sm:text-sm text-(--tx-strong) dark:text-[#f5ebd9] font-serif leading-relaxed whitespace-pre-wrap">
             {translatedText || postContent}
           </p>
-          {translatedText && (
-            <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif italic mb-3">
-              {language === 'ar' ? 'مُترجم تلقائيًا من الإنجليزية' : 'Auto-translated from Arabic'}
-            </p>
+          {needsTranslation && (
+            <div className="mt-1.5">
+              {translatedText ? (
+                <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif italic">
+                  {language === 'ar' ? 'مُترجم تلقائيًا من الإنجليزية' : 'Auto-translated from Arabic'}
+                  {' · '}
+                  <button
+                    type="button"
+                    onClick={handleTranslate}
+                    className="underline font-bold not-italic cursor-pointer"
+                  >
+                    {language === 'ar' ? 'عرض الأصل' : 'Show original'}
+                  </button>
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleTranslate}
+                  disabled={isTranslating}
+                  className="flex items-center gap-1.5 text-[11px] font-serif font-bold text-(--ac-gold-tx) hover:underline cursor-pointer disabled:opacity-70"
+                >
+                  <Languages className="w-3.5 h-3.5" />
+                  <span>
+                    {isTranslating
+                      ? (language === 'ar' ? 'جارٍ الترجمة…' : 'Translating…')
+                      : translateFailed
+                        ? (language === 'ar' ? 'فشلت الترجمة — حاول مجددًا' : "Translation failed — tap to retry")
+                        : (language === 'ar' ? 'ترجم هذا المنشور' : 'Translate this post')}
+                  </span>
+                </button>
+              )}
+            </div>
           )}
-          {!translatedText && <div className="mb-2.5" />}
-        </>
+        </div>
       )}
 
       {/* Video Media */}

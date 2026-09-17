@@ -289,6 +289,8 @@ function AppContent() {
         onOpenEditProfile={() => setIsEditProfileOpen(true)}
         onNavigate={handleNavigate}
         currentView={currentView}
+        onSelectUser={handleSelectUser}
+        onOpenChurch={handleOpenChurch}
       />
 
       {/* Notification enable prompt */}

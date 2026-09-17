@@ -28,6 +28,9 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { NotificationItem } from '../types';
 import { NotificationDropdown } from './NotificationDropdown';
+import { GlobalSearchBox } from './GlobalSearch';
+import type { SearchProfile } from './GlobalSearch';
+import type { UserProfileData } from '../views/ProfileView';
 import { loadNotifications, markNotificationAsRead, markAllNotificationsAsRead, markNotificationIdsAsRead } from '../utils/notifications';
 import { getTodayLiturgicalDay } from '../data/liturgical';
 
@@ -36,6 +39,8 @@ interface NavbarProps {
   onOpenEditProfile: () => void;
   onNavigate: (view: string, postId?: string) => void;
   currentView: string;
+  onSelectUser?: (user: UserProfileData) => void;
+  onOpenChurch?: (churchId: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -43,11 +48,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenEditProfile,
   onNavigate,
   currentView,
+  onSelectUser,
+  onOpenChurch,
 }) => {
   const { profile, signOut, openAuthModal } = useAuth();
   const { theme, setTheme, language, setLanguage, t } = useTheme();
 
-  const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -151,6 +157,17 @@ export const Navbar: React.FC<NavbarProps> = ({
     } as any);
   }
 
+  const handlePickPerson = (p: SearchProfile) => {
+    onSelectUser?.({
+      id: p.id,
+      name: p.full_name,
+      avatar: p.avatar_url,
+      parish: p.parish,
+      role: p.role,
+      bio: p.bio,
+    });
+  };
+
   return (
     <>
       <header className="sticky top-0 z-40 bg-(--bg-soft) dark:bg-[#120e0b] border-b-2 border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] shadow-md">
@@ -200,16 +217,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Desktop Search Bar */}
           <div className="hidden lg:flex items-center flex-1 max-w-xs mx-4">
-            <div className="relative w-full">
-              <Search className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-(--tx-mute) dark:text-[#a89379]" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t('searchParish')}
-                className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-1.5 text-[11px] font-serif uppercase tracking-wider rounded-full bg-(--bg-card) dark:bg-[#1c1611] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute)/60 focus:outline-none focus:border-(--ln-bronze)"
-              />
-            </div>
+            <GlobalSearchBox
+              panelPosition="absolute"
+              onSelectPerson={handlePickPerson}
+              onSelectPost={(p) => onNavigate('feed', p.id)}
+              onSelectChurch={(c) => onOpenChurch?.(c.id)}
+            />
           </div>
 
           {/* Right Action Buttons */}
@@ -295,17 +308,15 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Mobile Search Dropdown Panel */}
         {isMobileSearchOpen && (
           <div className="lg:hidden px-4 py-2 bg-(--bg-card) dark:bg-[#1c1611] border-t border-(--ln-gold)/40">
-            <div className="relative w-full">
-              <Search className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-(--tx-mute) dark:text-[#a89379]" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t('searchParish')}
-                autoFocus
-                className="w-full pl-10 rtl:pl-4 rtl:pr-10 pr-4 py-2 text-xs font-serif uppercase tracking-wider rounded-full bg-(--bg-page) dark:bg-[#282019] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute)/60 focus:outline-none focus:border-(--ln-bronze)"
-              />
-            </div>
+            <GlobalSearchBox
+              autoFocus
+              panelPosition="static"
+              inputClassName="w-full pl-10 rtl:pl-4 rtl:pr-10 pr-4 py-2 text-xs font-serif uppercase tracking-wider rounded-full bg-(--bg-page) dark:bg-[#282019] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute)/60 focus:outline-none focus:border-(--ln-bronze)"
+              onSelectPerson={handlePickPerson}
+              onSelectPost={(p) => onNavigate('feed', p.id)}
+              onSelectChurch={(c) => onOpenChurch?.(c.id)}
+              onNavigateAway={() => setIsMobileSearchOpen(false)}
+            />
           </div>
         )}
 

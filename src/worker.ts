@@ -1444,7 +1444,7 @@ export default {
           });
           const finalUrl = new URL(resp.url);
           finalUrl.search = '';
-          return jsonResponse({ success: true, resolvedUrl: finalUrl.toString() });
+          return jsonResponse({ success: true, resolvedUrl: finalUrl.toString(), _debug: { status: resp.status, rawUrl: resp.url } });
         } catch (e: any) {
           return jsonResponse({ success: false, error: 'Could not resolve URL' }, 502);
         }

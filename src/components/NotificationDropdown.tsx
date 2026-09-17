@@ -3,6 +3,7 @@ import { Bell, CheckCheck, MessageSquare, AtSign, Calendar, Users, ShieldAlert, 
 import { NotificationItem } from '../types';
 import { TimeAgo } from './TimeAgo';
 import { useTheme } from '../context/ThemeContext';
+import { localizeNotification } from '../utils/notificationText';
 
 interface NotificationDropdownProps {
   notifications: NotificationItem[];
@@ -150,7 +151,12 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
               {language === 'ar' ? 'لا توجد إشعارات حالياً.' : 'No notifications yet.'}
             </div>
           ) : (
-            notifications.slice(0, 10).map((notif) => (
+            notifications.slice(0, 10).map((notif) => {
+              const { title: notifTitle, body: notifBody } = localizeNotification(
+                notif,
+                language === 'ar' ? 'ar' : 'en'
+              );
+              return (
               <div
                 key={notif.id}
                 onClick={() => handleItemClick(notif)}
@@ -173,9 +179,9 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-(--tx-strong) dark:text-[#f5ebd9] truncate">{notif.title}</p>
+                  <p className="text-xs font-bold text-(--tx-strong) dark:text-[#f5ebd9] truncate">{notifTitle}</p>
                   <p className="text-[11px] text-[#554029] dark:text-[#d3c2a9] leading-snug line-clamp-2 mt-0.5">
-                    {notif.body}
+                    {notifBody}
                   </p>
                   <TimeAgo date={notif.createdAt} className="text-[9px] text-(--tx-mute) dark:text-[#a89379] block mt-1 uppercase font-bold" />
                 </div>
@@ -184,7 +190,8 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                   <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 mt-1.5" />
                 )}
               </div>
-            ))
+              );
+            })
           )}
         </div>
 

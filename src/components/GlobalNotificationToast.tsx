@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Heart, MessageSquare, AtSign, Calendar, Users, X, ChevronRight } from 'lucide-react';
 import { NotificationItem } from '../types';
+import { useTheme } from '../context/ThemeContext';
+import { localizeNotification } from '../utils/notificationText';
 
 interface GlobalNotificationToastProps {
   onNavigate?: (view: string) => void;
@@ -12,6 +14,7 @@ export const GlobalNotificationToast: React.FC<GlobalNotificationToastProps> = (
   onOpenMessengerWithUser,
 }) => {
   const [activeToast, setActiveToast] = useState<NotificationItem | null>(null);
+  const { language } = useTheme();
 
   useEffect(() => {
     const handleNewNotif = (e: any) => {
@@ -37,6 +40,11 @@ export const GlobalNotificationToast: React.FC<GlobalNotificationToastProps> = (
   }, [activeToast?.id]);
 
   if (!activeToast) return null;
+
+  const { title: toastTitle, body: toastBody } = localizeNotification(
+    activeToast,
+    language === 'ar' ? 'ar' : 'en'
+  );
 
   const handleClick = () => {
     if (activeToast.type === 'message' && onOpenMessengerWithUser) {
@@ -98,13 +106,13 @@ export const GlobalNotificationToast: React.FC<GlobalNotificationToastProps> = (
         <div className="flex-1 min-w-0 pr-1">
           <div className="flex items-center justify-between gap-1">
             <h4 className="font-serif font-bold text-xs text-(--ac-gold-tx) truncate">
-              {activeToast.title}
+              {toastTitle}
             </h4>
             <span className="text-[10px] text-(--chip-light)/60 shrink-0 font-serif">Just now</span>
           </div>
 
           <p className="text-xs text-[#f5ebd9] line-clamp-2 mt-0.5 font-serif">
-            {activeToast.body}
+            {toastBody}
           </p>
 
           <div className="flex items-center gap-1 mt-1.5 text-[10px] text-(--ac-gold-tx) font-bold font-serif group-hover:underline">

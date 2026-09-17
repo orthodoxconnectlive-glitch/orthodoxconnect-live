@@ -5,6 +5,7 @@ import { loadNotifications, markNotificationAsRead, markAllNotificationsAsRead, 
 import { TimeAgo } from '../components/TimeAgo';
 import { UserProfileData } from './ProfileView';
 import { useTheme } from '../context/ThemeContext';
+import { localizeNotification } from '../utils/notificationText';
 
 interface NotificationsViewProps {
   onNavigate?: (view: string, postId?: string) => void;
@@ -255,7 +256,12 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
             {language === 'ar' ? 'لا توجد إشعارات في هذا القسم.' : 'No notifications in this category.'}
           </div>
         ) : (
-          filteredNotifs.map((notif) => (
+          filteredNotifs.map((notif) => {
+            const { title: notifTitle, body: notifBody } = localizeNotification(
+              notif,
+              language === 'ar' ? 'ar' : 'en'
+            );
+            return (
             <div
               key={notif.id}
               className={`p-4 rounded-2xl border shadow-md flex items-start justify-between gap-4 transition-all ${
@@ -288,14 +294,14 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                 <div>
                   <div className="flex items-center gap-2">
                     <h4 className="font-serif font-bold text-sm text-(--tx-head) dark:text-[#f5ebd9]">
-                      {notif.title}
+                      {notifTitle}
                     </h4>
                     {!notif.isRead && (
                       <span className="w-2 h-2 rounded-full bg-red-500" />
                     )}
                   </div>
                   <p className="text-xs text-(--tx-faint) dark:text-[#d3c2a9] mt-0.5 leading-relaxed">
-                    {notif.body}
+                    {notifBody}
                   </p>
                   <TimeAgo date={notif.createdAt} className="text-[10px] text-(--tx-soft) dark:text-[#a89379] block mt-1.5 font-bold uppercase" />
                 </div>
@@ -331,7 +337,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                 </button>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

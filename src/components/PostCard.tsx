@@ -715,11 +715,14 @@ export const PostCard: React.FC<PostCardProps> = ({
           type="button"
           onClick={() => {
             const shareUrl = `https://orthodoxconnect.live/post/${post.id}`;
-            const shareText = post.content ? post.content.slice(0, 120) : 'OrthodoxConnect';
+            const shareText = post.content ? post.content.slice(0, 280) : 'OrthodoxConnect';
+            // Put the URL inline in the text: some apps (Threads, X) drop the
+            // separate url field, but keep text with an inline link unfurled.
+            const fullShareText = `${shareText}\n\n${shareUrl}`;
             if (navigator.share) {
-              navigator.share({ title: 'OrthodoxConnect', text: shareText, url: shareUrl }).catch(() => {});
+              navigator.share({ title: 'OrthodoxConnect', text: fullShareText, url: shareUrl }).catch(() => {});
             } else if (navigator.clipboard) {
-              navigator.clipboard.writeText(shareUrl);
+              navigator.clipboard.writeText(fullShareText);
             }
           }}
           className="p-2 text-(--tx-soft) hover:text-(--tx-head) hover:bg-(--bg-inset) dark:hover:bg-[#282019] rounded-xl transition-colors cursor-pointer"

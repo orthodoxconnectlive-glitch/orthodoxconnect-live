@@ -251,15 +251,12 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   const postContent = (post.content ?? post.text ?? '').trim();
 
-  // Detect the post's script so posts written in the "other" language are
-  // automatically shown translated (Arabic post + English app, or English
-  // post + Arabic app). No button — it just happens when the post is viewed.
-  const postArabicChars = (postContent.match(/[\u0600-\u06FF]/g) || []).length;
-  const postLooksArabic = postContent.length > 0 && postArabicChars > postContent.length * 0.3;
-  const postHasLetters = /[\u0600-\u06FFA-Za-z]/.test(postContent);
-  const needsTranslation =
-    postHasLetters &&
-    ((language === 'en' && postLooksArabic) || (language === 'ar' && !postLooksArabic));
+  // Auto-translate is OFF (disabled 2026-09-17 per Hany: "Never mind" — the
+  // translator wasn't reliable enough, and a half-working feature is worse
+  // than none). Posts always show in their original language. The server
+  // pieces (/api/translate, post_translations) stay in place, inert, so this
+  // can be revisited later with a better approach.
+  const needsTranslation = false;
 
   // Whatever is currently displayed: the translation when available (unless
   // the user asked for the original), else the original post text.

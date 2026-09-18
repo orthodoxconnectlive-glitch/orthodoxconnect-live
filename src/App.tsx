@@ -84,7 +84,12 @@ function AppContent() {
   // profile view shows a loader (never the signed-in user's own profile —
   // viewedUser=null means "own profile") while the viewed profile loads.
   const [restoringUserId, setRestoringUserId] = useState<string | null>(() => {
-    try { return new URLSearchParams(window.location.search).get('user'); } catch { return null; }
+    // The ?user= param is primary; localStorage is the backup for phones
+    // that drop the query string on reload/app restart.
+    try {
+      return new URLSearchParams(window.location.search).get('user')
+        || localStorage.getItem('orthodox_viewed_user_id');
+    } catch { return null; }
   });
   const [selectedChurchId, setSelectedChurchId] = useState<string | null>(null);
   // When a notification targets a specific post, we navigate to the feed and
@@ -195,8 +200,13 @@ function AppContent() {
     try {
       const sp = new URLSearchParams(window.location.search);
       const viewedId = currentView === 'profile' ? ((viewedUserProfile as any)?.id || restoringUserId) : null;
-      if (viewedId) sp.set('user', String(viewedId));
-      else sp.delete('user');
+      if (viewedId) {
+        sp.set('user', String(viewedId));
+        try { localStorage.setItem('orthodox_viewed_user_id', String(viewedId)); } catch {}
+      } else {
+        sp.delete('user');
+        try { localStorage.removeItem('orthodox_viewed_user_id'); } catch {}
+      }
       const qs = sp.toString();
       window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash);
     } catch {}

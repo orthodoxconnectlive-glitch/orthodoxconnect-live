@@ -1,3 +1,5 @@
+import { authHeader } from '../lib/api';
+
 // Follow store.
 //
 // Follows are keyed by the user's stable id when available (display names can
@@ -81,7 +83,9 @@ function toggleInternal(
     updated = [...all, { id: id || undefined, name: name || '' }];
     following = true;
   }
-  return { following, persisted: writeStored(updated) };
+  const persisted = writeStored(updated);
+  queueServerSync();
+  return { following, persisted };
 }
 
 function isFollowingInternal(id?: string | null, name?: string): boolean {
@@ -126,4 +130,80 @@ export function getFollowersCount(authorNameOrId: string): number {
 
 export function getFollowingCount(): number {
   return readStored().length;
+}
+
+// ---- server-backed persistence (D1) ----
+// Every local toggle is mirrored to the server (debounced) so follows
+// survive refresh even on devices where localStorage writes fail. On
+// startup the server list is pulled and unioned with the local list.
+
+// Server key: stable user id when known, otherwise a synthetic name key.
+export function serverFollowKey(id?: string | null, name?: string): string | null {
+  if (id && String(id).trim()) return String(id).trim();
+  const n = (name || '').trim().toLowerCase();
+  return n ? `name:${n}` : null;
+}
+
+async function pushFollowsToServer(): Promise<boolean> {
+  try {
+    const recs = readStored();
+    const follows = recs
+      .map((e) => ({ following_id: serverFollowKey(e.id, e.name), following_name: e.name }))
+      .filter((x) => x.following_id);
+    const res = await fetch('/api/follows', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ follows }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+let serverSyncTimer: ReturnType<typeof setTimeout> | null = null;
+export function queueServerSync(): void {
+  if (serverSyncTimer) clearTimeout(serverSyncTimer);
+  serverSyncTimer = setTimeout(() => {
+    serverSyncTimer = null;
+    void pushFollowsToServer();
+  }, 800);
+}
+
+const syncedUserIds = new Set<string>();
+export async function syncFollowsFromServer(userId?: string | null): Promise<void> {
+  const uid = (userId || '').trim();
+  if (!uid || syncedUserIds.has(uid)) return;
+  try {
+    const res = await fetch('/api/follows', { headers: { ...authHeader() } });
+    if (!res.ok) return;
+    const data = await res.json().catch(() => ({}));
+    const rows = Array.isArray(data.follows) ? data.follows : [];
+    const local = readStored();
+    const merged = [...local];
+    for (const r of rows) {
+      const fid = String(r.following_id || '');
+      const sid = fid.startsWith('name:') ? undefined : fid;
+      const sname = String(r.following_name || '');
+      if (!sname) continue;
+      if (!merged.some((e) => matches(e, sid, sname))) {
+        merged.push({ id: sid, name: sname });
+      }
+    }
+    writeStored(merged);
+    syncedUserIds.add(uid);
+    void pushFollowsToServer();
+  } catch {
+    /* offline or logged out: keep local, retry on next call */
+  }
+}
+
+// Honest async toggle for ProfileView: local update + confirmed server save.
+export async function toggleFollowUserServer(
+  id?: string | null,
+  name?: string
+): Promise<{ following: boolean; saved: boolean }> {
+  const local = toggleInternal(id, name);
+  const serverOk = await pushFollowsToServer();
+  return { following: local.following, saved: local.persisted || serverOk };
 }

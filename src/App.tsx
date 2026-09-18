@@ -18,6 +18,7 @@ import { AuthModal } from './components/AuthModal';
 import { AuthPage } from './components/AuthPage';
 // NEW: notification auto-refresh (adjust path if your service lives elsewhere)
 import { loadNotifications, markNotificationAsRead } from './utils/notifications';
+import { syncFollowsFromServer } from './utils/follows';
 
 import { FeedView } from './views/FeedView';
 // Route-based code splitting: every non-default view loads on demand,
@@ -345,6 +346,12 @@ function AppContent() {
 
 function AppRoot() {
   const { user, loading } = useAuth();
+
+  // Pull server-backed follows once per login so follows survive refresh
+  // even on devices where localStorage writes fail.
+  useEffect(() => {
+    if (user?.id) void syncFollowsFromServer(user.id);
+  }, [user?.id]);
 
   if (loading) {
     return (

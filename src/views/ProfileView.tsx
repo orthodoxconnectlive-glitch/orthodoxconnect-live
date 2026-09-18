@@ -8,7 +8,7 @@ import { PostCard } from '../components/PostCard';
 import { ReshareModal } from '../components/ReshareModal';
 import { ReportContentModal } from '../components/ReportContentModal';
 import { addNotification } from '../utils/notifications';
-import { getFollowingCount, isFollowingUser, toggleFollowUser } from '../utils/follows';
+import { getFollowingCount, isFollowingUser, toggleFollowUserServer } from '../utils/follows';
 import { testPushNotification } from '../utils/pushClient';
 
 export interface UserProfileData {
@@ -100,13 +100,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     if (followToastTimer.current) window.clearTimeout(followToastTimer.current);
     followToastTimer.current = window.setTimeout(() => setFollowToast(null), 2600);
   };
-  const handleToggleFollowUser = () => {
-    const res = toggleFollowUser(viewedUser?.id, targetName);
+  const handleToggleFollowUser = async () => {
+    const res = await toggleFollowUserServer(viewedUser?.id, targetName);
     setFollowingState(res.following);
     if (res.following) {
-      showFollowToast(res.persisted ? `Following ${targetName} ✓` : `Followed, but couldn't save ✗`);
+      showFollowToast(res.saved ? `Following ${targetName} ✓` : `Followed, but couldn't save ✗`);
     } else {
-      showFollowToast(res.persisted ? `Unfollowed ${targetName}` : `Unfollowed, but couldn't save ✗`);
+      showFollowToast(res.saved ? `Unfollowed ${targetName}` : `Unfollowed, but couldn't save ✗`);
     }
   };
 

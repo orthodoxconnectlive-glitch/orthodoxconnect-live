@@ -124,6 +124,19 @@ export async function ensureD1Tables(db?: D1Database) {
   } catch (churchTblErr) {
     console.warn('[ensureD1Tables] churches table notice:', churchTblErr);
   }
+  // Standalone follows table creation — server-backed follow persistence so
+  // follows survive on devices where localStorage writes fail. Runs before
+  // the legacy giant batch, whose catch would otherwise skip this.
+  try {
+    await db.exec(`CREATE TABLE IF NOT EXISTS follows ( follower_id TEXT NOT NULL, following_id TEXT NOT NULL, following_name TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (follower_id, following_id) );`);
+  } catch (followsTblErr) {
+    console.warn('[ensureD1Tables] follows table notice:', followsTblErr);
+  }
+  try {
+    await db.exec(`CREATE INDEX IF NOT EXISTS idx_follows_following ON follows ( following_id )`);
+  } catch (followsIdxErr) {
+    console.warn('[ensureD1Tables] follows index notice:', followsIdxErr);
+  }
     try {
       await db.exec(`CREATE TABLE IF NOT EXISTS book_likes ( book_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (book_id, user_id) )`);
     } catch (bookLikeMigErr) {
@@ -3785,6 +3798,50 @@ export default {
           const cnt = await env.DB.prepare('SELECT COUNT(*) as c FROM synax_comments WHERE synax_key = ?').bind(comm.synax_key).first<{ c: number }>();
           return jsonResponse({ success: true, comments_count: cnt ? Number(cnt.c) : 0 });
         }
+      }
+
+      // 16d. Follows (/api/follows) — server-backed follow persistence.
+      // GET returns my follow list. POST replaces my whole follow list
+      // (full-list sync from the client; last writer wins).
+      if ((url.pathname === '/api/follows' || url.pathname === '/api/follows/') && env.DB) {
+        const authF = await getAuthIdentity(request, env);
+        if (!authF.id) {
+          return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+        }
+        if (request.method === 'GET') {
+          const { results } = await env.DB.prepare(
+            'SELECT following_id, following_name, created_at FROM follows WHERE follower_id = ? ORDER BY created_at DESC'
+          ).bind(authF.id).all<{ following_id: string; following_name: string; created_at: string }>();
+          return jsonResponse({ success: true, follows: results || [] });
+        }
+        if (request.method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const list = Array.isArray(body.follows) ? body.follows : [];
+          await env.DB.prepare('DELETE FROM follows WHERE follower_id = ?').bind(authF.id).run();
+          const now = new Date().toISOString();
+          let count = 0;
+          for (const f of list.slice(0, 5000)) {
+            const fid = String(f.following_id || f.id || '').trim().slice(0, 160);
+            if (!fid || fid === authF.id) continue;
+            const fname = String(f.following_name || f.name || '').slice(0, 120);
+            try {
+              await env.DB.prepare(
+                'INSERT OR REPLACE INTO follows (follower_id, following_id, following_name, created_at) VALUES (?, ?, ?, ?)'
+              ).bind(authF.id, fid, fname, now).run();
+              count++;
+            } catch (e) { /* skip bad rows */ }
+          }
+          return jsonResponse({ success: true, count });
+        }
+        return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
+      }
+      // Public follower / following counts for a profile.
+      if (url.pathname === '/api/follows/counts' && env.DB) {
+        const targetId = (url.searchParams.get('user_id') || '').trim().slice(0, 160);
+        if (!targetId) return jsonResponse({ success: false, error: 'user_id required' }, 400);
+        const fr = await env.DB.prepare('SELECT COUNT(*) as c FROM follows WHERE following_id = ?').bind(targetId).first<{ c: number }>();
+        const fg = await env.DB.prepare('SELECT COUNT(*) as c FROM follows WHERE follower_id = ?').bind(targetId).first<{ c: number }>();
+        return jsonResponse({ success: true, followers: fr ? Number(fr.c) : 0, following: fg ? Number(fg.c) : 0 });
       }
 
       // 17. Notifications (/api/notifications)

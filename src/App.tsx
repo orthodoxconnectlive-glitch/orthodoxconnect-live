@@ -91,16 +91,6 @@ function AppContent() {
   // Share-link deep link: ?synax=<MM-DD> opens the Synaxarium reader on that Coptic day.
   const [focusSynaxKey, setFocusSynaxKey] = useState<string | null>(null);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('orthodox_active_tab', currentView);
-    } catch (e) {
-      console.warn('LocalStorage active tab save error:', e);
-    }
-
-    // Update dynamic canonical link tag, title, and social meta
-    updateSEOForView(currentView);
-  }, [currentView]);
 
   // Check URL params for referral invite link /invite?ref=xyz
   useEffect(() => {
@@ -117,6 +107,23 @@ function AppContent() {
     if (readNotifId) {
       markNotificationAsRead(readNotifId).catch(() => {});
       searchParams.delete('readNotif');
+    }
+
+    // Profile deep link: ?user=<id> reopens that user's profile (e.g. after
+    // a refresh). Unlike the share links below, this param is intentionally
+    // kept in the URL so every refresh restores the same profile.
+    const sharedUserId = searchParams.get('user');
+    if (sharedUserId) {
+      void (async () => {
+        try {
+          const r = await fetch(`/api/profiles/${encodeURIComponent(sharedUserId)}`);
+          const d = await r.json().catch(() => ({} as any));
+          if (d && d.success && d.profile) {
+            setViewedUserProfile(d.profile as UserProfileData);
+            setCurrentView('profile');
+          }
+        } catch {}
+      })();
     }
 
     // Share-link deep links: ?post=<id> opens the feed focused on that post,
@@ -152,6 +159,31 @@ function AppContent() {
       window.history.replaceState(null, '', cleanUrl);
     }
   }, []);
+
+  // Persist the active tab and keep the ?user=<id> profile deep link in sync
+  // with what's on screen: the param is present only while viewing another
+  // user's profile, so a refresh reopens that same profile instead of
+  // dropping back to the saved tab. Declared after the deep-link effect so
+  // the initial ?user= restore is read before this clears anything.
+  useEffect(() => {
+    try {
+      localStorage.setItem('orthodox_active_tab', currentView);
+    } catch (e) {
+      console.warn('LocalStorage active tab save error:', e);
+    }
+
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const viewedId = currentView === 'profile' ? (viewedUserProfile as any)?.id : null;
+      if (viewedId) sp.set('user', String(viewedId));
+      else sp.delete('user');
+      const qs = sp.toString();
+      window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash);
+    } catch {}
+
+    // Update dynamic canonical link tag, title, and social meta
+    updateSEOForView(currentView);
+  }, [currentView, viewedUserProfile]);
 
   // NEW: auto-refresh notifications so likes/comments from other users appear
   // without a manual page refresh. Polls the D1-backed /api/notifications

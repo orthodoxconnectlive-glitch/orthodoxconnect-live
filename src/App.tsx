@@ -138,7 +138,18 @@ function AppContent() {
           const r = await fetch(`/api/profiles/${encodeURIComponent(restoreId)}`);
           const d = await r.json().catch(() => ({} as any));
           if (d && d.success && d.profile) {
-            setViewedUserProfile(d.profile as UserProfileData);
+            const p = d.profile;
+            // Normalize the API shape (full_name/avatar_url) to UserProfileData
+            // (name/avatar): ProfileView treats a missing `name` as "own
+            // profile", which mixed the signed-in account into the restored page.
+            setViewedUserProfile({
+              id: p.id,
+              name: p.full_name || p.name || '',
+              avatar: p.avatar_url || p.avatar || '',
+              parish: p.parish || '',
+              role: p.role || 'user',
+              bio: p.bio || '',
+            } as UserProfileData);
             setCurrentView('profile');
           } else {
             fallBackToSavedTab();

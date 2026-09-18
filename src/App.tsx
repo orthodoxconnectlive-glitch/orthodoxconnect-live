@@ -80,6 +80,12 @@ function AppContent() {
   }, []);
   const [activeMessengerContactId, setActiveMessengerContactId] = useState<string | undefined>(undefined);
   const [viewedUserProfile, setViewedUserProfile] = useState<UserProfileData | null>(null);
+  // ?user=<id> restore: captured synchronously on first render so the
+  // profile view shows a loader (never the signed-in user's own profile —
+  // viewedUser=null means "own profile") while the viewed profile loads.
+  const [restoringUserId, setRestoringUserId] = useState<string | null>(() => {
+    try { return new URLSearchParams(window.location.search).get('user'); } catch { return null; }
+  });
   const [selectedChurchId, setSelectedChurchId] = useState<string | null>(null);
   // When a notification targets a specific post, we navigate to the feed and
   // ask FeedView to scroll to + highlight that post, then clear it.
@@ -112,17 +118,31 @@ function AppContent() {
     // Profile deep link: ?user=<id> reopens that user's profile (e.g. after
     // a refresh). Unlike the share links below, this param is intentionally
     // kept in the URL so every refresh restores the same profile.
-    const sharedUserId = searchParams.get('user');
-    if (sharedUserId) {
+    // restoringUserId (captured at mount) drives a loader until the fetch
+    // lands, so the signed-in user's own profile never flashes in between.
+    if (restoringUserId) {
+      const restoreId = restoringUserId;
+      const fallBackToSavedTab = () => {
+        try {
+          const saved = localStorage.getItem('orthodox_active_tab');
+          setCurrentView(saved && saved !== 'profile' ? saved : 'feed');
+        } catch { setCurrentView('feed'); }
+      };
       void (async () => {
         try {
-          const r = await fetch(`/api/profiles/${encodeURIComponent(sharedUserId)}`);
+          const r = await fetch(`/api/profiles/${encodeURIComponent(restoreId)}`);
           const d = await r.json().catch(() => ({} as any));
           if (d && d.success && d.profile) {
             setViewedUserProfile(d.profile as UserProfileData);
             setCurrentView('profile');
+          } else {
+            fallBackToSavedTab();
           }
-        } catch {}
+        } catch {
+          fallBackToSavedTab();
+        } finally {
+          setRestoringUserId(null);
+        }
       })();
     }
 
@@ -174,7 +194,7 @@ function AppContent() {
 
     try {
       const sp = new URLSearchParams(window.location.search);
-      const viewedId = currentView === 'profile' ? (viewedUserProfile as any)?.id : null;
+      const viewedId = currentView === 'profile' ? ((viewedUserProfile as any)?.id || restoringUserId) : null;
       if (viewedId) sp.set('user', String(viewedId));
       else sp.delete('user');
       const qs = sp.toString();
@@ -183,7 +203,7 @@ function AppContent() {
 
     // Update dynamic canonical link tag, title, and social meta
     updateSEOForView(currentView);
-  }, [currentView, viewedUserProfile]);
+  }, [currentView, viewedUserProfile, restoringUserId]);
 
   // NEW: auto-refresh notifications so likes/comments from other users appear
   // without a manual page refresh. Polls the D1-backed /api/notifications
@@ -287,6 +307,11 @@ function AppContent() {
           />
         );
       case 'profile':
+        // While a ?user=<id> restore is in flight, show a loader — never the
+        // signed-in user's own profile (viewedUser=null means "own profile").
+        if (restoringUserId && !viewedUserProfile) {
+          return <ViewLoadingFallback />;
+        }
         return (
           <ProfileView
             onOpenEditProfile={() => setIsEditProfileOpen(true)}

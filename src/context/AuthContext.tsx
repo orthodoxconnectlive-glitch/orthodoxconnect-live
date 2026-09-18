@@ -33,46 +33,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [profile]);
 
   useEffect(() => {
+    let cancelled = false;
     async function initAuth() {
+      // 1. Restore from the local cache first so the app opens instantly,
+      // even on a slow connection. The session is re-validated below.
+      let restoredFromCache = false;
       try {
-        // 1. Try local cache first for instant render
         const cached = localStorage.getItem('orthodox_user_profile');
         if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (parsed && parsed.id) {
-              setProfile(parsed);
-              setUser({
-                id: parsed.id,
-                email: parsed.email,
-                user_metadata: {
-                  full_name: parsed.full_name,
-                  parish: parsed.parish,
-                  avatar_url: parsed.avatar_url,
-                  role: parsed.role,
-                },
-              });
-              setCurrentUserId(parsed.id);
-            }
-          } catch (e) {}
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.id) {
+            setProfile(parsed);
+            setUser({
+              id: parsed.id,
+              email: parsed.email,
+              user_metadata: {
+                full_name: parsed.full_name,
+                parish: parsed.parish,
+                avatar_url: parsed.avatar_url,
+                role: parsed.role,
+              },
+            });
+            setCurrentUserId(parsed.id);
+            restoredFromCache = true;
+            // Drop the loading screen NOW — don't make the user stare at it
+            // while the server check travels over a slow network.
+            setLoading(false);
+          }
         }
+      } catch (e) {}
 
-        // 2. Validate session with Edge Cloudflare Worker
-        const { user: serverUser, profile: serverProfile } = await authApi.getSession();
-        if (serverUser && serverProfile) {
-          setUser(serverUser);
-          setProfile(serverProfile);
-          setCurrentUserId(serverProfile.id);
-          localStorage.setItem('orthodox_user_profile', JSON.stringify(serverProfile));
-        } else if (!cached) {
-          setUser(null);
-          setProfile(null);
-          setCurrentUserId(null);
+      try {
+        // 2. Validate the session with the Edge Cloudflare Worker, but never
+        // let a slow network trap the app on the loading screen: race the
+        // check against a short timeout. getSession() already swallows errors
+        // into nulls, so a timeout looks exactly like an unreachable server.
+        const timedOut = Symbol('timeout');
+        const session: any = await Promise.race([
+          authApi.getSession(),
+          new Promise((resolve) => setTimeout(() => resolve(timedOut), 8000)),
+        ]);
+        if (cancelled) return;
+        if (session !== timedOut) {
+          const { user: serverUser, profile: serverProfile } = session;
+          if (serverUser && serverProfile) {
+            setUser(serverUser);
+            setProfile(serverProfile);
+            setCurrentUserId(serverProfile.id);
+            try { localStorage.setItem('orthodox_user_profile', JSON.stringify(serverProfile)); } catch (e) {}
+          } else if (!restoredFromCache) {
+            // No usable local session and the server gave us nothing:
+            // show the login screen.
+            setUser(null);
+            setProfile(null);
+            setCurrentUserId(null);
+          }
+          // If we restored from cache but the server check failed or timed
+          // out, keep the cached session: a real 401 on any later request
+          // fires 'oc:session-expired' and bounces to login by itself.
         }
       } catch (err) {
         console.warn('[AuthContext] Session init note:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -86,7 +109,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsAuthModalOpen(true);
     };
     window.addEventListener('oc:session-expired', onSessionExpired);
-    return () => window.removeEventListener('oc:session-expired', onSessionExpired);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('oc:session-expired', onSessionExpired);
+    };
   }, []);
 
   const signIn = async (email: string, password?: string) => {

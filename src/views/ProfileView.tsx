@@ -8,7 +8,7 @@ import { PostCard } from '../components/PostCard';
 import { ReshareModal } from '../components/ReshareModal';
 import { ReportContentModal } from '../components/ReportContentModal';
 import { addNotification } from '../utils/notifications';
-import { getFollowingCount, isFollowing, toggleFollow } from '../utils/follows';
+import { getFollowingCount, isFollowingUser, toggleFollowUser } from '../utils/follows';
 import { testPushNotification } from '../utils/pushClient';
 
 export interface UserProfileData {
@@ -78,7 +78,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     if (isSelf && authLoading) return;
     fetchUserPosts();
     if (!isSelf) {
-      setFollowingState(isFollowing(targetName));
+      setFollowingState(isFollowingUser(viewedUser?.id, targetName));
     }
   }, [targetName, isSelf, authLoading, profile?.id, viewedUser?.id]);
 
@@ -93,9 +93,21 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     setLoading(false);
   };
 
+  const [followToast, setFollowToast] = useState<string | null>(null);
+  const followToastTimer = React.useRef<number | null>(null);
+  const showFollowToast = (msg: string) => {
+    setFollowToast(msg);
+    if (followToastTimer.current) window.clearTimeout(followToastTimer.current);
+    followToastTimer.current = window.setTimeout(() => setFollowToast(null), 2600);
+  };
   const handleToggleFollowUser = () => {
-    const isNow = toggleFollow(targetName);
-    setFollowingState(isNow);
+    const res = toggleFollowUser(viewedUser?.id, targetName);
+    setFollowingState(res.following);
+    if (res.following) {
+      showFollowToast(res.persisted ? `Following ${targetName} ✓` : `Followed, but couldn't save ✗`);
+    } else {
+      showFollowToast(res.persisted ? `Unfollowed ${targetName}` : `Unfollowed, but couldn't save ✗`);
+    }
   };
 
   // Like / comment / delete on this profile's posts — same behavior as the feed.
@@ -426,6 +438,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           ))
         )}
       </div>
+
+      {followToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[100] px-4 py-2.5 rounded-2xl bg-[#2a2018] text-[#f5ebd9] border border-(--ln-gold) shadow-xl text-sm font-serif font-bold whitespace-nowrap">
+          {followToast}
+        </div>
+      )}
 
       <ReshareModal
         post={reshareTargetPost}

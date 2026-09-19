@@ -46,6 +46,7 @@ export interface Env {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
+  GEMINI_API_KEY?: string;
 }
 
 export interface D1PostRow {
@@ -1602,6 +1603,54 @@ export default {
           d1_connected: Boolean(env.DB),
           timestamp: new Date().toISOString(),
         });
+      }
+
+      // V-Kid AI Storybook: POST /api/vkid/generate-story
+      // Public endpoint used by the V-Kid app's AI Storybook & Quest Generator.
+      // The Gemini key stays server-side in env.GEMINI_API_KEY (never shipped to clients).
+      // The theme is whitelisted so the endpoint cannot be abused as an open proxy.
+      if (url.pathname === '/api/vkid/generate-story' && req.method === 'POST') {
+        const ALLOWED_THEMES = ['Outer Space', 'Jungle Safari', 'Magical Kingdom', 'Ocean Explorers', 'Dino Adventure'];
+        let body: any = {};
+        try { body = await req.json(); } catch (e) { /* fall through to validation */ }
+        const childName = typeof body.childName === 'string' ? body.childName.trim().slice(0, 40) : '';
+        const theme = typeof body.theme === 'string' ? body.theme.trim() : '';
+        const ageGroup = typeof body.ageGroup === 'string' ? body.ageGroup.trim().slice(0, 20) : '';
+        if (!childName || !ALLOWED_THEMES.includes(theme)) {
+          return json({ success: false, error: 'bad_request' }, 400);
+        }
+        const apiKey = (env as any).GEMINI_API_KEY;
+        if (!apiKey) {
+          return json({ success: false, error: 'not_configured' }, 503);
+        }
+        const prompt =
+          'Create a short, engaging, child-friendly 3-paragraph story for a child named ' + childName +
+          ' (age group ' + (ageGroup || '2-13') + ') themed around "' + theme + '". ' +
+          'The hero of the story is ' + childName + '. Keep the language simple and warm.\n' +
+          'Return ONLY a JSON object with:\n' +
+          '- title: story title\n' +
+          '- story: the story text (3 short paragraphs)\n' +
+          '- puzzle: an object with question (a fun mini math or word question embedded in the story), ' +
+          'options (array of 3 short strings), answer (exactly one of the options).';
+        try {
+          const gres = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { responseMimeType: 'application/json' },
+            }),
+          });
+          if (!gres.ok) return json({ success: false, error: 'ai_failed' }, 502);
+          const gdata: any = await gres.json();
+          const aiText = (gdata && gdata.candidates && gdata.candidates[0] && gdata.candidates[0].content && gdata.candidates[0].content.parts && gdata.candidates[0].content.parts[0] && gdata.candidates[0].content.parts[0].text) || '{}';
+          let parsed: any = {};
+          try { parsed = JSON.parse(aiText); } catch (e) { /* fall through to validation */ }
+          if (!parsed.title || !parsed.story) return json({ success: false, error: 'ai_failed' }, 502);
+          return json({ success: true, title: String(parsed.title), story: String(parsed.story), puzzle: parsed.puzzle || null });
+        } catch (e) {
+          return json({ success: false, error: 'ai_failed' }, 502);
+        }
       }
 
       // Public VAPID key (safe to expose — clients need it to subscribe).

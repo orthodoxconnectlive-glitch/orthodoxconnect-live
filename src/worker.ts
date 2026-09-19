@@ -1609,10 +1609,10 @@ export default {
       // Public endpoint used by the V-Kid app's AI Storybook & Quest Generator.
       // The Gemini key stays server-side in env.GEMINI_API_KEY (never shipped to clients).
       // The theme is whitelisted so the endpoint cannot be abused as an open proxy.
-      if (url.pathname === '/api/vkid/generate-story' && req.method === 'POST') {
+      if (url.pathname === '/api/vkid/generate-story' && request.method === 'POST') {
         const ALLOWED_THEMES = ['Outer Space', 'Jungle Safari', 'Magical Kingdom', 'Ocean Explorers', 'Dino Adventure'];
         let body: any = {};
-        try { body = await req.json(); } catch (e) { /* fall through to validation */ }
+        try { body = await request.json(); } catch (e) { /* fall through to validation */ }
         const childName = typeof body.childName === 'string' ? body.childName.trim().slice(0, 40) : '';
         const theme = typeof body.theme === 'string' ? body.theme.trim() : '';
         const ageGroup = typeof body.ageGroup === 'string' ? body.ageGroup.trim().slice(0, 20) : '';

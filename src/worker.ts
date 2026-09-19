@@ -1617,11 +1617,11 @@ export default {
         const theme = typeof body.theme === 'string' ? body.theme.trim() : '';
         const ageGroup = typeof body.ageGroup === 'string' ? body.ageGroup.trim().slice(0, 20) : '';
         if (!childName || !ALLOWED_THEMES.includes(theme)) {
-          return json({ success: false, error: 'bad_request' }, 400);
+          return jsonResponse({ success: false, error: 'bad_request' }, 400);
         }
         const apiKey = (env as any).GEMINI_API_KEY;
         if (!apiKey) {
-          return json({ success: false, error: 'not_configured' }, 503);
+          return jsonResponse({ success: false, error: 'not_configured' }, 503);
         }
         const prompt =
           'Create a short, engaging, child-friendly 3-paragraph story for a child named ' + childName +
@@ -1641,15 +1641,15 @@ export default {
               generationConfig: { responseMimeType: 'application/json' },
             }),
           });
-          if (!gres.ok) return json({ success: false, error: 'ai_failed' }, 502);
+          if (!gres.ok) return jsonResponse({ success: false, error: 'ai_failed' }, 502);
           const gdata: any = await gres.json();
           const aiText = (gdata && gdata.candidates && gdata.candidates[0] && gdata.candidates[0].content && gdata.candidates[0].content.parts && gdata.candidates[0].content.parts[0] && gdata.candidates[0].content.parts[0].text) || '{}';
           let parsed: any = {};
           try { parsed = JSON.parse(aiText); } catch (e) { /* fall through to validation */ }
-          if (!parsed.title || !parsed.story) return json({ success: false, error: 'ai_failed' }, 502);
-          return json({ success: true, title: String(parsed.title), story: String(parsed.story), puzzle: parsed.puzzle || null });
+          if (!parsed.title || !parsed.story) return jsonResponse({ success: false, error: 'ai_failed' }, 502);
+          return jsonResponse({ success: true, title: String(parsed.title), story: String(parsed.story), puzzle: parsed.puzzle || null });
         } catch (e) {
-          return json({ success: false, error: 'ai_failed' }, 502);
+          return jsonResponse({ success: false, error: 'ai_failed' }, 502);
         }
       }
 

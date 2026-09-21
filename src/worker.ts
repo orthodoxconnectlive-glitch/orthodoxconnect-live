@@ -2204,6 +2204,14 @@ export default {
         }
 
         if (request.method === 'PUT' || request.method === 'PATCH') {
+          const authProfile = await getAuthIdentity(request, env);
+          if (!authProfile.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+          // Users may edit their own profile; only admins may touch anyone else's.
+          if (authProfile.id !== profileId && !authProfile.isAdmin) {
+            return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
+          }
           const body: any = await request.json().catch(() => ({}));
           const now = new Date().toISOString();
 
@@ -2215,8 +2223,12 @@ export default {
             if (body.parish !== undefined) { updates.push('parish = ?'); params.push(body.parish); }
             if (body.bio !== undefined) { updates.push('bio = ?'); params.push(body.bio); }
             if (body.avatar_url !== undefined) { updates.push('avatar_url = ?'); params.push(body.avatar_url); }
-            if (body.role !== undefined) { updates.push('role = ?'); params.push(body.role); }
-            if (body.is_banned !== undefined) { updates.push('is_banned = ?'); params.push(body.is_banned ? 1 : 0); }
+            // Privileged fields: admin-only. A non-admin can never grant
+            // themselves (or anyone) an admin role or ban another user.
+            if (authProfile.isAdmin) {
+              if (body.role !== undefined) { updates.push('role = ?'); params.push(body.role); }
+              if (body.is_banned !== undefined) { updates.push('is_banned = ?'); params.push(body.is_banned ? 1 : 0); }
+            }
 
             params.push(profileId);
             await env.DB.prepare(`UPDATE profiles SET ${updates.join(', ')} WHERE id = ?`).bind(...params).run();

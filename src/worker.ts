@@ -4571,7 +4571,7 @@ export default {
     try {
       if (!env.DB) return;
       await ensureD1TablesOnce(env.DB);
-      if (event.cron === '*/10 * * * *') {
+      if (event.cron === '*/3 * * * *') {
         // Frequent check: flip YouTube live streams to "ended" once YouTube says the broadcast is over.
         await checkYouTubeLiveStatus(env.DB);
       } else {

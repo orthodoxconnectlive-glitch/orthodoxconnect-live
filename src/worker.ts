@@ -118,6 +118,20 @@ export interface D1BookRow {
 let d1TablesInitialized = false;
 export async function ensureD1Tables(db?: D1Database) {
   if (!db || d1TablesInitialized) return;
+  // Speed (2026-09-20, pass 2): the ~35 sequential ALTER TABLE migrations
+  // below each cost a full D1 round trip on EVERY cold Worker isolate, adding
+  // 2-4s to API calls on wake-up. Fast path: one cheap probe for the newest
+  // migration marker column (bunny_stream_id is added by the LAST migration
+  // block). If it exists, the full migration pass already completed on this
+  // database, so every table and column exists — skip all DDL and mark
+  // initialized. (1 round trip instead of ~40.)
+  try {
+    await db.prepare(`SELECT bunny_stream_id FROM live_streams LIMIT 0`).all();
+    d1TablesInitialized = true;
+    return;
+  } catch (probeErr) {
+    // Schema not fully migrated yet (or fresh DB) — fall through to slow path.
+  }
   // Speed (2026-09-20): all idempotent CREATE TABLE / CREATE INDEX statements
   // go out in ONE D1 batch = one round trip, instead of ~12 sequential exec()
   // calls. Each D1 round trip costs 100-400ms and isolates recycle often on a
@@ -157,7 +171,15 @@ export async function ensureD1Tables(db?: D1Database) {
         ['expires_at', 'TEXT'],
         ['created_at', "TEXT NOT NULL DEFAULT (datetime('now'))"],
       ];
+      // Speed (2026-09-20): one PRAGMA round trip instead of up to 10 failing
+      // ALTERs — only add columns that are actually missing.
+      let existingStoryCols = new Set<string>();
+      try {
+        const ti: any = await db.prepare(`PRAGMA table_info(stories)`).all();
+        existingStoryCols = new Set(((ti && ti.results) || []).map((r: any) => r.name));
+      } catch (e) { /* table missing: created by the batch below; ALTERs will no-op */ }
       for (const [colName, colDef] of requiredStoryCols) {
+        if (existingStoryCols.has(colName)) continue;
         try {
           await db.exec(`ALTER TABLE stories ADD COLUMN ${colName} ${colDef}`);
         } catch (colErr: any) {
@@ -192,11 +214,19 @@ export async function ensureD1Tables(db?: D1Database) {
     }
     // call_signals newer columns (kept out of the giant batch as standalone
     // statements so one bad statement cannot break the whole batch).
+    // Speed (2026-09-20): PRAGMA-gated — skip ALTERs for columns that exist.
+    let existingSignalCols = new Set<string>();
+    try {
+      const ti: any = await db.prepare(`PRAGMA table_info(call_signals)`).all();
+      existingSignalCols = new Set(((ti && ti.results) || []).map((r: any) => r.name));
+    } catch (e) { /* table missing: created by the batch below */ }
     for (const colSql of [
       'ALTER TABLE call_signals ADD COLUMN sdp TEXT',
       'ALTER TABLE call_signals ADD COLUMN candidate TEXT',
       'ALTER TABLE call_signals ADD COLUMN meta TEXT',
     ]) {
+      const colName = colSql.split(' ')[5];
+      if (existingSignalCols.has(colName)) continue;
       try {
         await db.exec(colSql);
       } catch (sigColErr: any) {
@@ -226,7 +256,15 @@ export async function ensureD1Tables(db?: D1Database) {
         ['is_read', 'INTEGER DEFAULT 0'],
         ['created_at', "TEXT NOT NULL DEFAULT (datetime('now'))"],
       ];
+      // Speed (2026-09-20): one PRAGMA round trip instead of up to 11 failing
+      // ALTERs — only add columns that are actually missing.
+      let existingNotifCols = new Set<string>();
+      try {
+        const ti: any = await db.prepare(`PRAGMA table_info(notifications)`).all();
+        existingNotifCols = new Set(((ti && ti.results) || []).map((r: any) => r.name));
+      } catch (e) { /* table missing: created by the batch above; ALTERs will no-op */ }
       for (const [colName, colDef] of requiredNotifCols) {
+        if (existingNotifCols.has(colName)) continue;
         try {
           await db.exec(`ALTER TABLE notifications ADD COLUMN ${colName} ${colDef}`);
         } catch (colErr: any) {
@@ -240,6 +278,13 @@ export async function ensureD1Tables(db?: D1Database) {
     } catch (notifMigErr) {
       console.warn('[ensureD1Tables] notifications migration notice:', notifMigErr);
     }
+    // Speed (2026-09-20): one shared PRAGMA for both live_streams migration
+    // blocks below — only ALTER columns that are actually missing.
+    let existingStreamCols = new Set<string>();
+    try {
+      const ti: any = await db.prepare(`PRAGMA table_info(live_streams)`).all();
+      existingStreamCols = new Set(((ti && ti.results) || []).map((r: any) => r.name));
+    } catch (e) { /* table missing: created by the batch above; ALTERs will no-op */ }
     try {
       // Live stream replay columns (ended_at, replay_guid)
       const requiredStreamCols: Array<[string, string]> = [
@@ -247,6 +292,7 @@ export async function ensureD1Tables(db?: D1Database) {
         ['replay_guid', 'TEXT'],
       ];
       for (const [colName, colDef] of requiredStreamCols) {
+        if (existingStreamCols.has(colName)) continue;
         try {
           await db.exec(`ALTER TABLE live_streams ADD COLUMN ${colName} ${colDef}`);
         } catch (colErr: any) {
@@ -273,6 +319,7 @@ export async function ensureD1Tables(db?: D1Database) {
         ['started_at', 'TEXT'],
       ];
       for (const [colName, colDef] of requiredBunnyLiveCols) {
+        if (existingStreamCols.has(colName)) continue;
         try {
           await db.exec(`ALTER TABLE live_streams ADD COLUMN ${colName} ${colDef}`);
         } catch (colErr: any) {

@@ -39,6 +39,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
   const [schedTime, setSchedTime] = useState('');
   const [schedNotes, setSchedNotes] = useState('');
   const [schedSaving, setSchedSaving] = useState(false);
+  const [schedError, setSchedError] = useState('');
 
   // church events (visible to all, added by owner/admin)
   const [churchEvents, setChurchEvents] = useState<any[]>([]);
@@ -50,6 +51,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
   const [evtDesc, setEvtDesc] = useState('');
   const [evtLocation, setEvtLocation] = useState('');
   const [evtSaving, setEvtSaving] = useState(false);
+  const [evtError, setEvtError] = useState('');
 
   // edit form
   const [name, setName] = useState('');
@@ -108,6 +110,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
     e.preventDefault();
     if (!schedTitle.trim() || schedSaving) return;
     setSchedSaving(true);
+    setSchedError('');
     try {
       const item = await churchesApi.addScheduleItem(churchId, {
         day_of_week: schedDay,
@@ -127,6 +130,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
       setShowSchedForm(false);
     } catch (err) {
       console.warn('Add schedule item failed:', err);
+      setSchedError((err as Error)?.message || (ar ? 'فشل الحفظ. حاول مرة أخرى.' : 'Save failed. Please try again.'));
     } finally {
       setSchedSaving(false);
     }
@@ -146,6 +150,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
     e.preventDefault();
     if (!evtTitle.trim() || !evtDate || evtSaving) return;
     setEvtSaving(true);
+    setEvtError('');
     try {
       const created: any = await eventsApi.create({
         title: evtTitle.trim(),
@@ -167,6 +172,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
       setShowEventForm(false);
     } catch (err) {
       console.warn('Add church event failed:', err);
+      setEvtError((err as Error)?.message || (ar ? 'فشل الحفظ. حاول مرة أخرى.' : 'Save failed. Please try again.'));
     } finally {
       setEvtSaving(false);
     }
@@ -424,6 +430,11 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
             </div>
             <input value={schedTitle} onChange={(e) => setSchedTitle(e.target.value)} placeholder={ar ? 'العنوان (مثال: القداس الإلهي) *' : 'Title (e.g. Divine Liturgy) *'} className={inputClsLight} />
             <input value={schedNotes} onChange={(e) => setSchedNotes(e.target.value)} placeholder={ar ? 'ملاحظات (اختياري)' : 'Notes (optional)'} className={inputClsLight} />
+            {schedError && (
+              <p className="text-xs font-serif text-red-600 dark:text-red-400 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
+                {schedError}
+              </p>
+            )}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setShowSchedForm(false)} className="px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider text-[#a89379] hover:text-[#f5ebd9] cursor-pointer">
                 {ar ? 'إلغاء' : 'Cancel'}
@@ -644,6 +655,11 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
                 <label className="block text-(--ac-gold-tx) font-bold uppercase tracking-wider mb-1">{ar ? 'الوصف' : 'Description'}</label>
                 <textarea rows={3} value={evtDesc} onChange={(e) => setEvtDesc(e.target.value)} className={inputCls} />
               </div>
+              {evtError && (
+                <p className="text-xs font-serif text-red-600 dark:text-red-400 bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
+                  {evtError}
+                </p>
+              )}
               <div className="pt-1 flex justify-end gap-2">
                 <button type="button" onClick={() => setShowEventForm(false)} className="px-5 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider text-[#a89379] hover:text-[#f5ebd9] cursor-pointer">
                   {ar ? 'إلغاء' : 'Cancel'}

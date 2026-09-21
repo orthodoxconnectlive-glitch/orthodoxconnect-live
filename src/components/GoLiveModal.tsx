@@ -33,8 +33,17 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
   onClose,
   onStartStream,
 }) => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { t, language } = useTheme();
+
+  // Admin permission check — mirrors LiveBroadcastView (admins only may create
+  // Bunny Stream live sessions, which cost money per stream). Everyone else
+  // streams via their own YouTube channel at no cost to the app.
+  const isAdmin = Boolean(
+    (profile as any)?.is_admin ||
+      (profile as any)?.role === 'admin' ||
+      user?.email === 'hsyz9625@gmail.com'
+  );
 
   const [title, setTitle] = useState(
     language === 'ar' ? 'القداس الإلهي والعظة الروحية' : 'Divine Liturgy & Homily'
@@ -122,6 +131,8 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       isStreamTransferredRef.current = false;
+      // Non-admins only get the YouTube path (Bunny costs money per stream).
+      if (!isAdmin) setDestination('youtube');
       initWebcam(facingMode);
     } else {
       // Clean up camera stream if modal closed without starting broadcast
@@ -354,6 +365,9 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
 
   const handleGoLiveNow = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) e.preventDefault();
+
+    // Bunny true-live costs money per stream — admin only. Everyone else uses YouTube.
+    if (!isAdmin) return;
 
     const capturedTitle = title.trim();
     const capturedHostParish =
@@ -627,7 +641,9 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
           )}
         </div>
 
-        {/* Stream destination picker */}
+        {/* Stream destination picker (admin only — everyone else uses YouTube) */}
+        {isAdmin && (
+        <>
         <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-stone-900 border border-amber-900/30 mb-2">
           {(['bunny', 'youtube'] as const).map((d) => (
             <button
@@ -651,8 +667,10 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
                 ? 'بث حقيقي عبر Bunny Stream (يتطلب موافقة Bunny).'
                 : 'True live via Bunny Stream (requires Bunny approval).')}
         </p>
+        </>
+        )}
 
-        {destination === 'youtube' ? (
+        {destination === 'youtube' || !isAdmin ? (
         <form onSubmit={handleGoLiveYoutube} className="space-y-4 text-xs">
           <div>
             <label className="block text-amber-300 font-semibold mb-1">

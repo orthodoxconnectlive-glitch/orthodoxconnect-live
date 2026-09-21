@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Radio, Eye, PlusCircle, Heart, Share2, Flame, CheckCircle, Square, Link2, X, Send, Trash2 } from 'lucide-react';
+import { Radio, Eye, PlusCircle, Heart, Share2, Flame, CheckCircle, Square, Link2, X, Send, Trash2, Pencil } from 'lucide-react';
 import { BunnyPlayer } from '../components/BunnyPlayer';
 import { LiveStreamViewer } from '../components/LiveStreamViewer';
 import { ParishLiveChat } from '../components/ParishLiveChat';
@@ -465,6 +465,43 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
     showToast(language === 'ar' ? 'تم حذف البث بنجاح.' : 'Broadcast deleted successfully.');
   };
 
+  // Admin edit stream handler (fix title / church name)
+  const handleEditStream = async (e: React.MouseEvent, stream: LiveStreamItem) => {
+    e.stopPropagation();
+
+    const newTitle = window.prompt(
+      language === 'ar' ? 'عنوان البث المباشر' : 'Broadcast title',
+      stream.title
+    );
+    if (newTitle === null) return;
+    const newParish = window.prompt(
+      language === 'ar' ? 'اسم الكنيسة' : 'Church name',
+      stream.parish
+    );
+    if (newParish === null) return;
+
+    try {
+      await liveStreamsApi.update(stream.id, {
+        title: newTitle.trim(),
+        host_parish: newParish.trim(),
+      });
+    } catch (err) {
+      console.warn('Edit stream API call notice:', err);
+    }
+
+    const updated = streams.map((s) =>
+      s.id === stream.id
+        ? { ...s, title: newTitle.trim() || s.title, parish: newParish.trim() || s.parish }
+        : s
+    );
+    setStreams(updated);
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+
+    showToast(language === 'ar' ? 'تم حفظ التعديلات.' : 'Stream updated.');
+  };
+
   const handleEndBroadcast = async () => {
     const endedLocalId = broadcastLocalIdRef.current;
     const recordId = broadcastRecordIdRef.current;
@@ -792,6 +829,16 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
                 {/* Admin Delete for Currently Playing Stream */}
                 {isAdmin && (
                   <button
+                    onClick={(e) => handleEditStream(e, activeStream)}
+                    className="p-1.5 rounded-lg bg-stone-900/80 border border-amber-500/60 text-amber-300 hover:bg-amber-600 hover:text-white transition-colors cursor-pointer"
+                    title={language === 'ar' ? 'تعديل البث الحالي' : 'Edit Current Stream'}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+                {/* Admin Delete for Currently Playing Stream */}
+                {isAdmin && (
+                  <button
                     onClick={(e) => handleDeleteStream(e, activeStream.id)}
                     className="p-1.5 rounded-lg bg-red-950/80 border border-red-500/60 text-red-400 hover:bg-red-600 hover:text-white transition-colors cursor-pointer"
                     title={language === 'ar' ? 'حذف البث الحالي' : 'Delete Current Stream'}
@@ -900,6 +947,17 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
                       <Eye className="w-3.5 h-3.5" /> {s.viewers}
                     </span>
 
+                    {/* Admin Delete Action Button for each card */}
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleEditStream(e, s)}
+                        className="p-1.5 rounded-lg bg-amber-600/20 text-amber-300 hover:bg-amber-600 hover:text-white border border-amber-500/40 transition-all cursor-pointer z-20"
+                        title={language === 'ar' ? 'تعديل البث' : 'Edit Stream'}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {/* Admin Delete Action Button for each card */}
                     {isAdmin && (
                       <button

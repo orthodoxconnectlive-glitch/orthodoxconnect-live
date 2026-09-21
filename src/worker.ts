@@ -2965,6 +2965,7 @@ export default {
         if (body.replay_guid !== undefined) { updates.push('replay_guid = ?'); vals.push(body.replay_guid); }
         if (body.viewers_count !== undefined) { updates.push('viewers_count = ?'); vals.push(body.viewers_count); }
         if (body.title !== undefined) { updates.push('title = ?'); vals.push(body.title); }
+        if (body.host_parish !== undefined) { updates.push('host_parish = ?'); vals.push(body.host_parish); }
         if (updates.length > 0) {
           vals.push(streamId);
           await env.DB.prepare(`UPDATE live_streams SET ${updates.join(', ')} WHERE id = ?`).bind(...vals).run();

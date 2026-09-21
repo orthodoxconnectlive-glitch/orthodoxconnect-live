@@ -118,71 +118,28 @@ export interface D1BookRow {
 let d1TablesInitialized = false;
 export async function ensureD1Tables(db?: D1Database) {
   if (!db || d1TablesInitialized) return;
-  // Standalone churches table creation — runs before the legacy giant batch,
-  // which is non-fatal and may throw (its catch would otherwise skip this).
+  // Speed (2026-09-20): all idempotent CREATE TABLE / CREATE INDEX statements
+  // go out in ONE D1 batch = one round trip, instead of ~12 sequential exec()
+  // calls. Each D1 round trip costs 100-400ms and isolates recycle often on a
+  // quiet site, so the sequential version added 2-5s to API calls on wake-up.
   try {
-    await db.exec(`CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) );`);
-  } catch (churchTblErr) {
-    console.warn('[ensureD1Tables] churches table notice:', churchTblErr);
+    await db.batch([
+      db.prepare(`CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS follows ( follower_id TEXT NOT NULL, following_id TEXT NOT NULL, following_name TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (follower_id, following_id) )`),
+      db.prepare(`CREATE INDEX IF NOT EXISTS idx_follows_following ON follows ( following_id )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS book_likes ( book_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (book_id, user_id) )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS book_comments ( id TEXT PRIMARY KEY, book_id TEXT NOT NULL, user_id TEXT NOT NULL, author_name TEXT, author_avatar TEXT, content TEXT NOT NULL, created_at TEXT NOT NULL )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS referral_codes ( code TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`),
+      db.prepare(`CREATE INDEX IF NOT EXISTS idx_referral_codes_user ON referral_codes ( user_id )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS synax_likes ( synax_key TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (synax_key, user_id) )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS synax_comments ( id TEXT PRIMARY KEY, synax_key TEXT NOT NULL, user_id TEXT NOT NULL, author_name TEXT, author_avatar TEXT, content TEXT NOT NULL, created_at TEXT NOT NULL )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS push_receipts ( push_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, sent_at TEXT NOT NULL DEFAULT (datetime('now')), received_at TEXT )`),
+      db.prepare(`CREATE TABLE IF NOT EXISTS post_translations ( post_id TEXT NOT NULL, lang TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (post_id, lang) )`),
+      db.prepare(`CREATE INDEX IF NOT EXISTS idx_events_date ON events ( date )`),
+    ]);
+  } catch (schemaBatchErr) {
+    console.warn('[ensureD1Tables] schema batch notice:', schemaBatchErr);
   }
-  // Standalone follows table creation — server-backed follow persistence so
-  // follows survive on devices where localStorage writes fail. Runs before
-  // the legacy giant batch, whose catch would otherwise skip this.
-  try {
-    await db.exec(`CREATE TABLE IF NOT EXISTS follows ( follower_id TEXT NOT NULL, following_id TEXT NOT NULL, following_name TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (follower_id, following_id) );`);
-  } catch (followsTblErr) {
-    console.warn('[ensureD1Tables] follows table notice:', followsTblErr);
-  }
-  try {
-    await db.exec(`CREATE INDEX IF NOT EXISTS idx_follows_following ON follows ( following_id )`);
-  } catch (followsIdxErr) {
-    console.warn('[ensureD1Tables] follows index notice:', followsIdxErr);
-  }
-    try {
-      await db.exec(`CREATE TABLE IF NOT EXISTS book_likes ( book_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (book_id, user_id) )`);
-    } catch (bookLikeMigErr) {
-      console.warn('[ensureD1Tables] book_likes migration notice:', bookLikeMigErr);
-    }
-    try {
-      await db.exec(`CREATE TABLE IF NOT EXISTS book_comments ( id TEXT PRIMARY KEY, book_id TEXT NOT NULL, user_id TEXT NOT NULL, author_name TEXT, author_avatar TEXT, content TEXT NOT NULL, created_at TEXT NOT NULL )`);
-    } catch (bookCommMigErr) {
-      console.warn('[ensureD1Tables] book_comments migration notice:', bookCommMigErr);
-    }
-    try {
-      await db.exec(`CREATE TABLE IF NOT EXISTS referral_codes ( code TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
-    } catch (refCodeMigErr) {
-      console.warn('[ensureD1Tables] referral_codes migration notice:', refCodeMigErr);
-    }
-    try {
-      await db.exec(`CREATE INDEX IF NOT EXISTS idx_referral_codes_user ON referral_codes ( user_id )`);
-    } catch (refCodeIdxErr) {
-      console.warn('[ensureD1Tables] referral_codes index notice:', refCodeIdxErr);
-    }
-    try {
-      await db.exec(`CREATE TABLE IF NOT EXISTS synax_likes ( synax_key TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (synax_key, user_id) )`);
-    } catch (synaxLikeMigErr) {
-      console.warn('[ensureD1Tables] synax_likes migration notice:', synaxLikeMigErr);
-    }
-    try {
-      await db.exec(`CREATE TABLE IF NOT EXISTS synax_comments ( id TEXT PRIMARY KEY, synax_key TEXT NOT NULL, user_id TEXT NOT NULL, author_name TEXT, author_avatar TEXT, content TEXT NOT NULL, created_at TEXT NOT NULL )`);
-    } catch (synaxCommMigErr) {
-      console.warn('[ensureD1Tables] synax_comments migration notice:', synaxCommMigErr);
-    }
-    // Push receipt tracking: the service worker pings back when a push actually
-    // arrives on the device. Lets us distinguish "FCM accepted" from "phone showed it".
-    try {
-      await db.exec(`CREATE TABLE IF NOT EXISTS push_receipts ( push_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, sent_at TEXT NOT NULL DEFAULT (datetime('now')), received_at TEXT )`);
-    } catch (pushReceiptMigErr) {
-      console.warn('[ensureD1Tables] push_receipts migration notice:', pushReceiptMigErr);
-    }
-    // Durable per-post translations: each post is translated once (on creation
-    // in the background, or on first view) and stored here, so every reader
-    // gets it instantly without re-calling the AI.
-    try {
-      await db.exec(`CREATE TABLE IF NOT EXISTS post_translations ( post_id TEXT NOT NULL, lang TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (post_id, lang) )`);
-    } catch (postTransMigErr) {
-      console.warn('[ensureD1Tables] post_translations migration notice:', postTransMigErr);
-    }
     // Stories columns: older D1 databases were created before newer columns
     // existed, and CREATE TABLE IF NOT EXISTS never alters an existing table.
     // Must run BEFORE the giant batch below (which throws and skips everything

@@ -51,6 +51,10 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
   const [isStartingBunny, setIsStartingBunny] = useState(false);
   const [showRtmpDetails, setShowRtmpDetails] = useState(false);
 
+  // Stream destination: Bunny true-live or YouTube Live (via encoder app)
+  const [destination, setDestination] = useState<'bunny' | 'youtube'>('bunny');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+
   // Camera lens mode ('user' = front / selfie, 'environment' = back / world)
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
 
@@ -260,6 +264,94 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     onClose();
   };
 
+  // Extract an 11-char YouTube video ID from a watch / youtu.be / live / embed URL or a bare ID.
+  const extractYoutubeVideoId = (input: string): string | null => {
+    const s = (input || '').trim();
+    if (!s) return null;
+    const m = s.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|live\/|shorts\/|v\/))([A-Za-z0-9_-]{11})/);
+    if (m) return m[1];
+    if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+    return null;
+  };
+
+  // YouTube Live path (Hany 2026-09-21): the host streams to YouTube from an
+  // encoder app (Larix/OBS) using a stream key from YouTube Studio. The app
+  // never touches the Google account — the host pastes the watch link, the
+  // app embeds it, and viewers watch inside the app (BunnyPlayer already
+  // renders YouTube embeds).
+  const handleGoLiveYoutube = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) e.preventDefault();
+
+    const capturedTitle = title.trim();
+    const capturedHostParish =
+      hostParish.trim() || profile?.parish || (language === 'ar' ? 'رعية أرثوذكسية' : 'Orthodox Parish');
+
+    if (!capturedTitle) {
+      alert(language === 'ar' ? 'يرجى إدخال عنوان للبث المباشر.' : 'Please enter a broadcast title.');
+      return;
+    }
+
+    const ytId = extractYoutubeVideoId(youtubeUrl);
+    if (!ytId) {
+      alert(
+        language === 'ar'
+          ? 'يرجى لصق رابط يوتيوب صحيح (مثال: youtube.com/watch?v=...).'
+          : 'Please paste a valid YouTube link (e.g. youtube.com/watch?v=...).'
+      );
+      return;
+    }
+    const watchUrl = `https://www.youtube.com/watch?v=${ytId}`;
+
+    setIsSubmitting(true);
+    try {
+      const created = await liveStreamsApi.create({
+        title: capturedTitle,
+        host_parish: capturedHostParish,
+        priest_name: profile?.full_name || (language === 'ar' ? 'الكاهن / مقدم الخدمة' : 'Priest / Host'),
+        media_url: watchUrl,
+        is_live: true,
+        created_at: new Date().toISOString(),
+      });
+
+      const streamPayload: StreamData = {
+        title: capturedTitle,
+        host_parish: capturedHostParish,
+        media_url: watchUrl,
+        parish: capturedHostParish,
+        videoUrl: watchUrl,
+        mediaStream: null,
+        isWebcam: false,
+        recordId: (created as any)?.id || null,
+      };
+
+      // Dispatch live stream notification to all users
+      addNotification({
+        userId: 'all',
+        type: 'system',
+        title: `🔴 ${capturedHostParish} ${language === 'ar' ? 'في بث مباشر' : 'is LIVE'}`,
+        body: capturedTitle,
+        senderName: profile?.full_name || (language === 'ar' ? 'مسؤول البث' : 'Parish Host'),
+        senderAvatar: profile?.avatar_url,
+        link: 'live',
+      });
+
+      // No local recording — the encoder sends video to YouTube; YouTube keeps the replay.
+      onStartStream(streamPayload, null);
+
+      // Reset fields and close modal
+      setTitle('');
+      setHostParish('');
+      setMediaUrl('');
+      setYoutubeUrl('');
+      onClose();
+    } catch (err) {
+      console.warn('[GoLive] YouTube live create failed:', err);
+      alert(language === 'ar' ? 'تعذر بدء البث. حاول مرة أخرى.' : 'Could not start the broadcast. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleGoLiveNow = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) e.preventDefault();
 
@@ -439,8 +531,8 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
             </h3>
             <p className="text-xs text-stone-400">
               {language === 'ar'
-                ? 'بث القداس الإلهي أو العظات عبر كاميرا الجهاز أو Bunny Stream'
-                : 'Broadcast Divine Liturgy or Homilies via Web Camera or Bunny Stream'}
+                ? 'بث القداس الإلهي أو العظات عبر كاميرا الجهاز أو Bunny Stream أو يوتيوب'
+                : 'Broadcast Divine Liturgy or Homilies via Web Camera, Bunny Stream, or YouTube'}
             </p>
           </div>
         </div>
@@ -535,6 +627,139 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
           )}
         </div>
 
+        {/* Stream destination picker */}
+        <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-stone-900 border border-amber-900/30 mb-2">
+          {(['bunny', 'youtube'] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDestination(d)}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                destination === d ? 'bg-red-600 text-white shadow' : 'text-stone-400 hover:text-amber-200'
+              }`}
+            >
+              {d === 'bunny' ? 'Bunny Stream' : 'YouTube'}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-stone-500 mb-3">
+          {destination === 'youtube'
+            ? (language === 'ar'
+                ? 'ستبث إلى يوتيوب عبر تطبيق Larix، وسيشاهد المتابعون البث داخل التطبيق.'
+                : 'You’ll stream to YouTube via the Larix app; viewers watch inside the app.')
+            : (language === 'ar'
+                ? 'بث حقيقي عبر Bunny Stream (يتطلب موافقة Bunny).'
+                : 'True live via Bunny Stream (requires Bunny approval).')}
+        </p>
+
+        {destination === 'youtube' ? (
+        <form onSubmit={handleGoLiveYoutube} className="space-y-4 text-xs">
+          <div>
+            <label className="block text-amber-300 font-semibold mb-1">
+              {language === 'ar' ? 'عنوان البث المباشر' : 'Broadcast Title'}
+            </label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={language === 'ar' ? 'مثال: القداس الإلهي للقديس يوحنا ذهبي الفم' : 'e.g. Divine Liturgy of St. John Chrysostom'}
+              className="w-full p-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-amber-300 font-semibold mb-1">
+              {language === 'ar' ? 'الكنيسة / الدير المستضيف' : 'Host Parish / Monastery'}
+            </label>
+            <input
+              type="text"
+              required
+              value={hostParish}
+              onChange={(e) => setHostParish(e.target.value)}
+              placeholder={language === 'ar' ? 'مثال: كاتدرائية القديس جاورجيوس' : 'e.g. St. George Cathedral'}
+              className="w-full p-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
+            />
+          </div>
+
+          <div className="rounded-xl bg-stone-900 border border-red-500/30 p-3 space-y-2">
+            <p className="text-red-300 font-bold">
+              {language === 'ar' ? 'خطوات البث عبر يوتيوب:' : 'YouTube streaming steps:'}
+            </p>
+            <ol className="list-decimal list-inside space-y-1.5 text-stone-300 text-[11px]">
+              <li>
+                {language === 'ar' ? (
+                  <>في <span className="font-mono text-amber-200">studio.youtube.com</span> ← إنشاء ← بث مباشر، وانسخ <b>مفتاح البث</b> (Stream key)</>
+                ) : (
+                  <>In <span className="font-mono text-amber-200">studio.youtube.com</span> → Create → Go live, and copy your <b>Stream key</b></>
+                )}
+              </li>
+              <li>
+                {language === 'ar' ? (
+                  <>في تطبيق <b>Larix Broadcaster</b>: أضف اتصالاً جديداً والصق الرابط أدناه ومفتاح البث</>
+                ) : (
+                  <>In the <b>Larix Broadcaster</b> app: add a new connection and paste the URL below plus your stream key</>
+                )}
+              </li>
+              <li>
+                {language === 'ar'
+                  ? 'ابدأ البث في Larix، ثم اضغط «Go Live» في YouTube Studio'
+                  : 'Start streaming in Larix, then press “Go Live” in YouTube Studio'}
+              </li>
+              <li>
+                {language === 'ar'
+                  ? 'الصق رابط المشاهدة أدناه واضغط «بدء البث المباشر» ليظهر البث داخل التطبيق'
+                  : 'Paste the watch link below and press “Start Broadcasting” so it appears inside the app'}
+              </li>
+            </ol>
+            <div>
+              <span className="text-stone-400">RTMP URL:</span>
+              <code className="block mt-0.5 p-2 rounded bg-black/50 text-green-300 font-mono text-[11px] break-all select-all">
+                rtmp://a.rtmp.youtube.com/live2
+              </code>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-amber-300 font-semibold mb-1">
+              {language === 'ar' ? 'رابط مشاهدة يوتيوب' : 'YouTube watch link'}
+            </label>
+            <input
+              type="text"
+              value={youtubeUrl}
+              onChange={(e) => setYoutubeUrl(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              className="w-full p-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500 font-mono text-[11px]"
+            />
+          </div>
+
+          <div className="pt-3 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="px-4 py-2 rounded-xl bg-stone-800 text-stone-300 font-semibold cursor-pointer"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold shadow-lg flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Radio className="w-4 h-4" />
+              <span>
+                {isSubmitting
+                  ? language === 'ar'
+                    ? 'جارٍ بدء البث...'
+                    : 'Starting Live...'
+                  : language === 'ar'
+                  ? 'ابدء البث المباشر'
+                  : 'Start Broadcasting'}
+              </span>
+            </button>
+          </div>
+        </form>
+        ) : (
         <form onSubmit={handleGoLiveNow} className="space-y-4 text-xs">
           <div>
             <label className="block text-amber-300 font-semibold mb-1">
@@ -612,6 +837,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

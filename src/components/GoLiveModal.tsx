@@ -527,7 +527,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-lg bg-stone-950 border border-amber-600/40 rounded-2xl p-6 shadow-2xl text-stone-100 text-left rtl:text-right">
+      <div className="relative w-full max-w-lg max-h-[92dvh] overflow-y-auto bg-stone-950 border border-amber-600/40 rounded-2xl p-6 shadow-2xl text-stone-100 text-left rtl:text-right">
         <button
           onClick={handleClose}
           className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-1.5 rounded-full text-stone-400 hover:text-amber-300 hover:bg-stone-900 transition-colors cursor-pointer z-10"

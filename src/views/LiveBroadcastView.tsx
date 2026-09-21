@@ -448,9 +448,12 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
 
     try {
       await liveStreamsApi.delete(streamId);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Delete stream failed:', err);
-      showToast(language === 'ar' ? 'تعذر حذف البث. حاول مرة أخرى.' : 'Could not delete the broadcast. Try again.');
+      // Show the real server reason (e.g. "Forbidden: admin only.") so a failed
+      // delete can be diagnosed from a screenshot instead of guessing.
+      const detail = err && err.message ? `: ${err.message}` : '';
+      showToast(language === 'ar' ? `تعذر حذف البث${detail}. حاول مرة أخرى.` : `Could not delete the broadcast${detail}. Try again.`);
       return;
     }
 

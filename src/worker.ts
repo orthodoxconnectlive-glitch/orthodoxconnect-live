@@ -2288,6 +2288,39 @@ export default {
             `).bind(id, senderId, senderName, receiverId, content, imageUrl, videoUrl, audioUrl, createdAt).run();
           }
 
+          // Chat push (Hany 2026-09-21): a chat message used to be saved but never
+          // pushed, so the receiver's phone stayed silent with the app closed.
+          // Wake their subscribed devices with a "new message" notification.
+          if (env.DB && receiverId) {
+            try {
+              // Match subscriptions on both raw and auth--stripped user ID formats
+              const strippedReceiver = String(receiverId).replace(/^auth-/, '');
+              const { results } = await env.DB.prepare(
+                'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ? OR user_id = ?'
+              ).bind(receiverId, strippedReceiver).all();
+              const subs = results || [];
+              if (subs.length > 0) {
+                const preview = content
+                  ? String(content).slice(0, 120)
+                  : imageUrl ? '📷 Sent a photo' : videoUrl ? '🎬 Sent a video' : audioUrl ? '🎤 Sent a voice message' : 'Sent you a message';
+                const pushPayload = {
+                  type: 'message',
+                  title: `💬 ${senderName || 'New message'}`,
+                  body: preview,
+                  icon: 'https://orthodoxconnect.live/launchericon-512x512.png',
+                  data: { url: '/', notifType: 'message', senderId },
+                };
+                const seen = new Set<string>();
+                for (const s of subs as any[]) {
+                  if (s && s.endpoint && s.p256dh && s.auth && !seen.has(s.endpoint)) {
+                    seen.add(s.endpoint);
+                    await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
+                  }
+                }
+              }
+            } catch (e) { console.warn('[push] chat message push failed:', (e as any)?.message || e); }
+          }
+
           return jsonResponse({
             success: true,
             message: { id, sender_id: senderId, sender_name: senderName, receiver_id: receiverId, content, image_url: imageUrl, video_url: videoUrl, audio_url: audioUrl, created_at: createdAt },

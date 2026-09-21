@@ -1656,6 +1656,7 @@ export default {
         return jsonResponse({
           status: 'ok',
           service: 'orthodoxconnect-cloudflare-d1',
+          worker_commit: 'dae09ce',
           d1_connected: Boolean(env.DB),
           timestamp: new Date().toISOString(),
         });

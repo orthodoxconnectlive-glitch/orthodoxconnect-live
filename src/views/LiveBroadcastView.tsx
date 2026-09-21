@@ -248,11 +248,21 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
 
           setStreams((prev) => {
             const combined = [...mapped];
+            const nowTs = Date.now();
             prev.forEach((p) => {
-              if (!combined.some((c) => c.id === p.id)) {
-                combined.push(p);
-              }
+              if (combined.some((c) => c.id === p.id)) return;
+              // Server is the source of truth. Keep a local-only entry only if
+              // it was created on this device within the last day and never
+              // synced (id like "stream-<ts>" / "bunny-<ts>"). Anything older
+              // that the server doesn't know is a ghost: drop it so it can't
+              // haunt the list or 404 when deleted.
+              const m = String(p.id || '').match(/^(stream|bunny)-(\d+)$/);
+              const ageMs = m ? nowTs - parseInt(m[2], 10) : Infinity;
+              if (m && ageMs < 24 * 3600 * 1000) combined.push(p);
             });
+            try {
+              localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(combined));
+            } catch (e) {}
             return combined;
           });
         }
@@ -450,9 +460,21 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
       await liveStreamsApi.delete(streamId);
     } catch (err: any) {
       console.warn('Delete stream failed:', err);
+      const errMsg = String((err && err.message) || '');
+      if (/not found/i.test(errMsg)) {
+        // The server has no such row: this card is a stale local ghost.
+        // It's already gone everywhere — just clear it from this device.
+        const updated = streams.filter((s) => s.id !== streamId);
+        setStreams(updated);
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+        } catch (e) {}
+        showToast(language === 'ar' ? 'تم حذف البث.' : 'Broadcast deleted.');
+        return;
+      }
       // Show the real server reason (e.g. "Forbidden: admin only.") so a failed
       // delete can be diagnosed from a screenshot instead of guessing.
-      const detail = err && err.message ? `: ${err.message}` : '';
+      const detail = errMsg ? `: ${errMsg}` : '';
       showToast(language === 'ar' ? `تعذر حذف البث${detail}. حاول مرة أخرى.` : `Could not delete the broadcast${detail}. Try again.`);
       return;
     }

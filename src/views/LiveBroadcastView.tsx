@@ -447,11 +447,11 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
     if (!confirmed) return;
 
     try {
-      if (typeof (liveStreamsApi as any).delete === 'function') {
-        await (liveStreamsApi as any).delete(streamId);
-      }
+      await liveStreamsApi.delete(streamId);
     } catch (err) {
-      console.warn('Delete stream API call notice:', err);
+      console.warn('Delete stream failed:', err);
+      showToast(language === 'ar' ? 'تعذر حذف البث. حاول مرة أخرى.' : 'Could not delete the broadcast. Try again.');
+      return;
     }
 
     const updated = streams.filter((s) => s.id !== streamId);

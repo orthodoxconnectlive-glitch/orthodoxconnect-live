@@ -1585,6 +1585,8 @@ async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
 // broadcast actually ended. YouTube embeds `"isLiveNow":false` in
 // liveBroadcastDetails once a broadcast is over. Fail-safe: if the marker is
 // missing (page layout changed, bot check, fetch failed) we change nothing.
+// Streams are checked in small parallel batches so a single cron run finishes
+// the whole sweep instead of dying halfway through a long sequential loop.
 async function checkYouTubeLiveStatus(db: D1Database): Promise<void> {
   try {
     const { results } = await db
@@ -1592,33 +1594,44 @@ async function checkYouTubeLiveStatus(db: D1Database): Promise<void> {
         `SELECT id, media_url FROM live_streams WHERE is_live = 1 AND (media_url LIKE '%youtube%' OR media_url LIKE '%youtu.be%')`
       )
       .all();
-    const rows = (results || []) as any[];
-    for (const row of rows) {
-      const videoId = extractYouTubeId(row.media_url);
-      if (!videoId) continue;
-      try {
-        const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
-            // Skip YouTube's EU consent interstitial so we get the real video page.
-            Cookie: 'CONSENT=YES+1',
-          },
-          signal: AbortSignal.timeout(12000),
-        });
-        if (!resp.ok) continue;
-        const html = await resp.text();
-        if (html.includes('"isLiveNow":false')) {
-          const now = new Date().toISOString();
-          await db
-            .prepare(`UPDATE live_streams SET is_live = 0, ended_at = ?, status = 'ended' WHERE id = ?`)
-            .bind(now, row.id)
-            .run();
-          console.log('[yt-live-check] marked ended: ' + row.id);
-        }
-      } catch (e) {
-        console.warn('[yt-live-check] check failed for ' + row.id, e);
+    const rows = ((results || []) as any[]).filter((r) => extractYouTubeId(r.media_url));
+    const endedIds: string[] = [];
+    for (let i = 0; i < rows.length; i += 4) {
+      const batch = rows.slice(i, i + 4);
+      await Promise.all(
+        batch.map(async (row) => {
+          const videoId = extractYouTubeId(row.media_url);
+          if (!videoId) return;
+          try {
+            const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+              headers: {
+                'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+                // Skip YouTube's EU consent interstitial so we get the real video page.
+                Cookie: 'CONSENT=YES+1',
+              },
+              signal: AbortSignal.timeout(12000),
+            });
+            if (!resp.ok) return;
+            const html = await resp.text();
+            if (html.includes('"isLiveNow":false')) {
+              endedIds.push(row.id);
+            }
+          } catch (e) {
+            console.warn('[yt-live-check] check failed for ' + row.id);
+          }
+        })
+      );
+    }
+    if (endedIds.length > 0) {
+      const now = new Date().toISOString();
+      for (const id of endedIds) {
+        await db
+          .prepare(`UPDATE live_streams SET is_live = 0, ended_at = ?, status = 'ended' WHERE id = ?`)
+          .bind(now, id)
+          .run();
+        console.log('[yt-live-check] marked ended: ' + id);
       }
     }
   } catch (err) {

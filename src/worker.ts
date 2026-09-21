@@ -2047,6 +2047,9 @@ export default {
             bio: profileRow.bio || '',
             avatar_url: profileRow.avatar_url,
             role: profileRow.role,
+            // Server-computed admin flag (SUPER_ADMIN_EMAIL / admin roles) so the
+            // app never has to guess admin status from a hardcoded email.
+            is_admin: auth.isAdmin,
             created_at: profileRow.created_at,
           };
 

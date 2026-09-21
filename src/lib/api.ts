@@ -392,6 +392,25 @@ export const churchesApi = {
       method: 'DELETE',
     });
   },
+
+  async getSchedule(churchId: string): Promise<any[]> {
+    const res = await apiFetch<{ schedule: any[] }>(`/api/churches/${encodeURIComponent(churchId)}/schedule`);
+    return res.schedule || [];
+  },
+
+  async addScheduleItem(churchId: string, item: { day_of_week: number; title: string; time?: string; notes?: string }): Promise<any> {
+    const res = await apiFetch<{ item: any }>(`/api/churches/${encodeURIComponent(churchId)}/schedule`, {
+      method: 'POST',
+      body: JSON.stringify(item),
+    });
+    return res.item;
+  },
+
+  async deleteScheduleItem(churchId: string, itemId: string): Promise<void> {
+    await apiFetch(`/api/churches/${encodeURIComponent(churchId)}/schedule/${encodeURIComponent(itemId)}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 /* =========================================================
@@ -442,6 +461,11 @@ export const marketplaceApi = {
 export const eventsApi = {
   async getAll(): Promise<EventItem[]> {
     const res = await apiFetch<{ events: EventItem[] }>('/api/events');
+    return res.events || [];
+  },
+
+  async getByChurch(churchId: string): Promise<EventItem[]> {
+    const res = await apiFetch<{ events: EventItem[] }>(`/api/events?church_id=${encodeURIComponent(churchId)}`);
     return res.events || [];
   },
 

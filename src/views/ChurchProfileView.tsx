@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Church as ChurchIcon, ArrowLeft, MapPin, User, Phone, Globe, Clock, Pencil, Loader2, Check, X, Upload, Trash2 } from 'lucide-react';
-import { churchesApi } from '../lib/api';
+import { Church as ChurchIcon, ArrowLeft, MapPin, User, Phone, Globe, Clock, Pencil, Loader2, Check, X, Upload, Trash2, Plus, CalendarDays } from 'lucide-react';
+import { churchesApi, eventsApi } from '../lib/api';
 import { Church } from '../types';
 import { compressImageToDataUrl } from '../utils/storage';
 import { useAuth } from '../context/AuthContext';
@@ -28,6 +28,27 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // weekly schedule (visible to all, managed by owner/admin)
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
+  const [showSchedForm, setShowSchedForm] = useState(false);
+  const [schedDay, setSchedDay] = useState(0);
+  const [schedTitle, setSchedTitle] = useState('');
+  const [schedTime, setSchedTime] = useState('');
+  const [schedNotes, setSchedNotes] = useState('');
+  const [schedSaving, setSchedSaving] = useState(false);
+
+  // church events (visible to all, added by owner/admin)
+  const [churchEvents, setChurchEvents] = useState<any[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [evtTitle, setEvtTitle] = useState('');
+  const [evtDate, setEvtDate] = useState('');
+  const [evtTime, setEvtTime] = useState('');
+  const [evtDesc, setEvtDesc] = useState('');
+  const [evtLocation, setEvtLocation] = useState('');
+  const [evtSaving, setEvtSaving] = useState(false);
+
   // edit form
   const [name, setName] = useState('');
   const [avatar, setAvatar] = useState('');
@@ -53,12 +74,101 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
       } finally {
         setLoading(false);
       }
+      try {
+        const sched = await churchesApi.getSchedule(churchId);
+        setSchedule(Array.isArray(sched) ? sched : []);
+      } catch (e) {
+        console.warn('Church schedule load notice:', e);
+      } finally {
+        setScheduleLoading(false);
+      }
+      try {
+        const evts = await eventsApi.getByChurch(churchId);
+        setChurchEvents(Array.isArray(evts) ? evts : []);
+      } catch (e) {
+        console.warn('Church events load notice:', e);
+      } finally {
+        setEventsLoading(false);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [churchId]);
 
   const isOwner = !!church && !!profile?.id && church.owner_id === profile.id;
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';
+  const isAdmin = Boolean((profile as any)?.is_admin) || profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';
+  const canManage = isOwner || isAdmin;
+
+  const DAY_NAMES = ar
+    ? ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+    : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  const handleAddScheduleItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!schedTitle.trim() || schedSaving) return;
+    setSchedSaving(true);
+    try {
+      const item = await churchesApi.addScheduleItem(churchId, {
+        day_of_week: schedDay,
+        title: schedTitle.trim(),
+        time: schedTime.trim(),
+        notes: schedNotes.trim(),
+      });
+      setSchedule((prev) =>
+        [...prev, item].sort(
+          (a, b) => (a.day_of_week - b.day_of_week) || String(a.time || '').localeCompare(String(b.time || ''))
+        )
+      );
+      setSchedTitle('');
+      setSchedTime('');
+      setSchedNotes('');
+      setSchedDay(0);
+      setShowSchedForm(false);
+    } catch (err) {
+      console.warn('Add schedule item failed:', err);
+    } finally {
+      setSchedSaving(false);
+    }
+  };
+
+  const handleDeleteScheduleItem = async (itemId: string) => {
+    if (!window.confirm(ar ? 'حذف هذا الموعد من الجدول؟' : 'Delete this schedule item?')) return;
+    try {
+      await churchesApi.deleteScheduleItem(churchId, itemId);
+      setSchedule((prev) => prev.filter((s) => s.id !== itemId));
+    } catch (err) {
+      console.warn('Delete schedule item failed:', err);
+    }
+  };
+
+  const handleAddChurchEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!evtTitle.trim() || !evtDate || evtSaving) return;
+    setEvtSaving(true);
+    try {
+      const created: any = await eventsApi.create({
+        title: evtTitle.trim(),
+        description: evtDesc.trim(),
+        date: evtDate,
+        time: evtTime.trim() || '10:00 AM',
+        location_address: evtLocation.trim(),
+        parish: church?.name || 'Orthodox Church',
+        church_id: churchId,
+      } as any);
+      setChurchEvents((prev) =>
+        [...prev, created].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+      );
+      setEvtTitle('');
+      setEvtDate('');
+      setEvtTime('');
+      setEvtDesc('');
+      setEvtLocation('');
+      setShowEventForm(false);
+    } catch (err) {
+      console.warn('Add church event failed:', err);
+    } finally {
+      setEvtSaving(false);
+    }
+  };
 
   const openEdit = () => {
     if (!church) return;
@@ -282,6 +392,133 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
         )}
       </div>
 
+      {/* Weekly schedule card — visible to everyone */}
+      <div className="rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-serif-coptic font-bold text-sm uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] flex items-center gap-2">
+            <Clock className="w-4 h-4 text-(--ac-gold-tx)" />
+            {ar ? 'الجدول الأسبوعي' : 'Weekly Schedule'}
+          </h3>
+          {canManage && (
+            <button
+              onClick={() => setShowSchedForm((v) => !v)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white text-[11px] font-bold uppercase tracking-wider cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              {ar ? 'إضافة موعد' : 'Add'}
+            </button>
+          )}
+        </div>
+
+        {canManage && showSchedForm && (
+          <form onSubmit={handleAddScheduleItem} className="mb-3 p-3 rounded-2xl bg-[#282019] border border-(--ln-gold)/40 space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <select value={schedDay} onChange={(e) => setSchedDay(parseInt(e.target.value, 10))} className={inputCls}>
+                {DAY_NAMES.map((d, i) => (
+                  <option key={i} value={i}>{d}</option>
+                ))}
+              </select>
+              <input value={schedTime} onChange={(e) => setSchedTime(e.target.value)} placeholder={ar ? 'الوقت (مثال: 8:00 ص)' : 'Time (e.g. 8:00 AM)'} className={inputCls} />
+            </div>
+            <input value={schedTitle} onChange={(e) => setSchedTitle(e.target.value)} placeholder={ar ? 'العنوان (مثال: القداس الإلهي) *' : 'Title (e.g. Divine Liturgy) *'} className={inputCls} />
+            <input value={schedNotes} onChange={(e) => setSchedNotes(e.target.value)} placeholder={ar ? 'ملاحظات (اختياري)' : 'Notes (optional)'} className={inputCls} />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowSchedForm(false)} className="px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider text-[#a89379] hover:text-[#f5ebd9] cursor-pointer">
+                {ar ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button type="submit" disabled={schedSaving || !schedTitle.trim()} className="px-4 py-2 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white text-[11px] font-bold uppercase tracking-wider cursor-pointer disabled:opacity-40 flex items-center gap-1">
+                {schedSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {ar ? 'حفظ' : 'Save'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {scheduleLoading ? (
+          <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-(--ac-gold-tx)" /></div>
+        ) : schedule.length === 0 ? (
+          <p className="text-xs text-(--tx-mute) font-serif text-center py-3">
+            {ar ? 'لم يُنشر جدول أسبوعي بعد.' : 'No weekly schedule posted yet.'}
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {[0, 1, 2, 3, 4, 5, 6].map((d) => {
+              const items = schedule.filter((s) => Number(s.day_of_week) === d);
+              if (!items.length) return null;
+              return (
+                <div key={d}>
+                  <p className="text-[10px] uppercase tracking-widest text-(--ac-gold-tx) font-serif font-bold mb-1">{DAY_NAMES[d]}</p>
+                  <div className="space-y-1.5">
+                    {items.map((s) => (
+                      <div key={s.id} className="flex items-start gap-2 py-1.5 border-b border-(--ln-gold)/20 last:border-0">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-(--tx-strong) dark:text-[#f5ebd9] font-serif font-bold">
+                            {s.time && <span className="text-(--ac-gold-tx) font-bold">{s.time} — </span>}
+                            {s.title}
+                          </p>
+                          {s.notes && <p className="text-xs text-(--tx-mute) font-serif">{s.notes}</p>}
+                        </div>
+                        {canManage && (
+                          <button onClick={() => handleDeleteScheduleItem(s.id)} className="p-1.5 rounded-lg text-red-400/70 hover:text-red-400 hover:bg-red-950/40 cursor-pointer" title={ar ? 'حذف' : 'Delete'}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Church events card — visible to everyone */}
+      <div className="rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-serif-coptic font-bold text-sm uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 text-(--ac-gold-tx)" />
+            {ar ? 'فعاليات الكنيسة' : 'Church Events'}
+          </h3>
+          {canManage && (
+            <button
+              onClick={() => setShowEventForm(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white text-[11px] font-bold uppercase tracking-wider cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              {ar ? 'إضافة فعالية' : 'Add event'}
+            </button>
+          )}
+        </div>
+        {eventsLoading ? (
+          <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-(--ac-gold-tx)" /></div>
+        ) : (() => {
+          const todayStr = new Date().toISOString().split('T')[0];
+          const upcoming = churchEvents.filter((e) => String(e.date || '') >= todayStr);
+          if (!upcoming.length) {
+            return (
+              <p className="text-xs text-(--tx-mute) font-serif text-center py-3">
+                {ar ? 'لا توجد فعاليات قادمة.' : 'No upcoming events.'}
+              </p>
+            );
+          }
+          return (
+            <div className="space-y-2">
+              {upcoming.map((e) => (
+                <div key={e.id} className="py-2 border-b border-(--ln-gold)/20 last:border-0">
+                  <p className="text-sm text-(--tx-strong) dark:text-[#f5ebd9] font-serif font-bold">{e.title}</p>
+                  <p className="text-xs text-(--tx-mute) font-serif mt-0.5">
+                    {[e.date, e.time].filter(Boolean).join(' • ')}
+                    {e.location_address ? ` • ${e.location_address}` : ''}
+                  </p>
+                  {e.description && <p className="text-xs text-(--tx-strong) dark:text-[#e8dcc4] font-serif mt-1 line-clamp-2">{e.description}</p>}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </div>
+
       {/* Edit modal */}
       {isEditOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
@@ -360,6 +597,62 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
                 >
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                   {ar ? 'حفظ' : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Add event modal (owner/admin) */}
+      {showEventForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-md max-h-[92vh] overflow-y-auto no-scrollbar bg-[#1c1611] border-2 border-(--ln-gold) rounded-3xl p-6 shadow-2xl text-[#f5ebd9]">
+            <button
+              onClick={() => setShowEventForm(false)}
+              className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-1.5 rounded-full text-[#a89379] hover:text-[#f5ebd9] hover:bg-[#282019] transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-(--ln-gold)/30">
+              <CalendarDays className="w-5 h-5 text-(--ac-gold-tx)" />
+              <h3 className="font-serif-coptic font-bold text-sm text-[#f5ebd9] uppercase tracking-wider">
+                {ar ? 'إضافة فعالية للكنيسة' : 'Add church event'}
+              </h3>
+            </div>
+            <form onSubmit={handleAddChurchEvent} className="space-y-3 text-xs font-serif">
+              <div>
+                <label className="block text-(--ac-gold-tx) font-bold uppercase tracking-wider mb-1">{ar ? 'عنوان الفعالية *' : 'Event title *'}</label>
+                <input required value={evtTitle} onChange={(e) => setEvtTitle(e.target.value)} className={inputCls} placeholder={ar ? 'مثال: دراسة الكتاب المقدس' : 'e.g. Bible Study'} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-(--ac-gold-tx) font-bold uppercase tracking-wider mb-1">{ar ? 'التاريخ *' : 'Date *'}</label>
+                  <input required type="date" value={evtDate} onChange={(e) => setEvtDate(e.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-(--ac-gold-tx) font-bold uppercase tracking-wider mb-1">{ar ? 'الوقت' : 'Time'}</label>
+                  <input value={evtTime} onChange={(e) => setEvtTime(e.target.value)} className={inputCls} placeholder="7:00 PM" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-(--ac-gold-tx) font-bold uppercase tracking-wider mb-1">{ar ? 'المكان' : 'Location'}</label>
+                <input value={evtLocation} onChange={(e) => setEvtLocation(e.target.value)} className={inputCls} placeholder={ar ? 'مثال: قاعة الكنيسة' : 'e.g. Church hall'} />
+              </div>
+              <div>
+                <label className="block text-(--ac-gold-tx) font-bold uppercase tracking-wider mb-1">{ar ? 'الوصف' : 'Description'}</label>
+                <textarea rows={3} value={evtDesc} onChange={(e) => setEvtDesc(e.target.value)} className={inputCls} />
+              </div>
+              <div className="pt-1 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowEventForm(false)} className="px-5 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-wider text-[#a89379] hover:text-[#f5ebd9] cursor-pointer">
+                  {ar ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={evtSaving || !evtTitle.trim() || !evtDate}
+                  className="px-6 py-2.5 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-40"
+                >
+                  {evtSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {ar ? 'إضافة' : 'Add event'}
                 </button>
               </div>
             </form>

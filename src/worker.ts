@@ -2561,6 +2561,82 @@ export default {
         }
       }
 
+      // 6b-2. Church weekly schedule (/api/churches/:id/schedule)
+      // Recurring weekly schedule per church (Liturgy, Bible study, ...).
+      // GET is public; POST/DELETE need the church owner or an admin.
+      if (/^\/api\/churches\/[^/]+\/schedule(\/[^/]+)?\/?$/.test(url.pathname)) {
+        const schedParts = url.pathname.split('/').filter(Boolean); // ['api','churches',':id','schedule',':itemId?']
+        const schedChurchId = decodeURIComponent(schedParts[2] || '');
+        const schedItemId = schedParts[4] ? decodeURIComponent(schedParts[4]) : '';
+        if (env.DB) {
+          try {
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS church_schedules ( id TEXT PRIMARY KEY, church_id TEXT NOT NULL, day_of_week INTEGER NOT NULL DEFAULT 0, title TEXT NOT NULL, time TEXT DEFAULT '', notes TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+          } catch (ctErr) {
+            console.warn('[church-schedule] ensure table notice:', ctErr);
+          }
+        }
+        const canManageSchedule = async (): Promise<boolean> => {
+          const schedAuth = await getAuthIdentity(request, env);
+          if (!schedAuth.id) return false;
+          if (schedAuth.isAdmin) return true;
+          if (!env.DB) return false;
+          const chRow: any = await env.DB.prepare('SELECT owner_id FROM churches WHERE id = ?').bind(schedChurchId).first();
+          return !!(chRow && chRow.owner_id && chRow.owner_id === schedAuth.id);
+        };
+
+        if (request.method === 'GET' && !schedItemId) {
+          let items: any[] = [];
+          if (env.DB) {
+            const { results } = await env.DB.prepare(
+              'SELECT * FROM church_schedules WHERE church_id = ? ORDER BY day_of_week ASC, time ASC'
+            ).bind(schedChurchId).all();
+            items = results || [];
+          }
+          return jsonResponse({ success: true, schedule: items });
+        }
+
+        if (request.method === 'POST' && !schedItemId) {
+          if (!(await canManageSchedule())) {
+            return jsonResponse({ success: false, error: 'Not authorized to manage this church schedule' }, 403);
+          }
+          const schedBody: any = await request.json().catch(() => ({}));
+          const schedTitle = (schedBody.title || '').trim();
+          if (!schedTitle) {
+            return jsonResponse({ success: false, error: 'Title is required' }, 400);
+          }
+          let dow = parseInt(schedBody.day_of_week ?? schedBody.dayOfWeek ?? '0', 10);
+          if (isNaN(dow) || dow < 0 || dow > 6) dow = 0;
+          const schedId = schedBody.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sched_${Date.now()}`);
+          const item = {
+            id: schedId,
+            church_id: schedChurchId,
+            day_of_week: dow,
+            title: schedTitle,
+            time: schedBody.time || '',
+            notes: schedBody.notes || '',
+            created_at: new Date().toISOString(),
+          };
+          if (env.DB) {
+            await env.DB.prepare(
+              'INSERT INTO church_schedules (id, church_id, day_of_week, title, time, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+            ).bind(item.id, item.church_id, item.day_of_week, item.title, item.time, item.notes, item.created_at).run();
+          }
+          return jsonResponse({ success: true, item }, 201);
+        }
+
+        if (request.method === 'DELETE' && schedItemId) {
+          if (!(await canManageSchedule())) {
+            return jsonResponse({ success: false, error: 'Not authorized to manage this church schedule' }, 403);
+          }
+          if (env.DB) {
+            await env.DB.prepare('DELETE FROM church_schedules WHERE id = ? AND church_id = ?').bind(schedItemId, schedChurchId).run();
+          }
+          return jsonResponse({ success: true, id: schedItemId });
+        }
+
+        return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
+      }
+
       // Single Church (/api/churches/:id)
       if (url.pathname.startsWith('/api/churches/')) {
         const churchId = decodeURIComponent(url.pathname.replace('/api/churches/', '').trim());
@@ -2796,10 +2872,24 @@ export default {
 
       // 7. Events Endpoints (/api/events and /api/events/:id)
       if (url.pathname === '/api/events' || url.pathname === '/api/events/') {
+        // Bulletproof: events can belong to a church (church_id), shown on the church page.
+        if (env.DB) {
+          try {
+            await env.DB.exec(`ALTER TABLE events ADD COLUMN church_id TEXT DEFAULT ''`);
+          } catch (ctErr) {
+            /* column already exists */
+          }
+        }
         if (request.method === 'GET') {
           let events: any[] = [];
           if (env.DB) {
-            const stmt = env.DB.prepare('SELECT * FROM events ORDER BY date ASC, created_at DESC');
+            const churchFilter = (url.searchParams.get('church_id') || '').trim();
+            let stmt;
+            if (churchFilter) {
+              stmt = env.DB.prepare('SELECT * FROM events WHERE church_id = ? ORDER BY date ASC, created_at DESC').bind(churchFilter);
+            } else {
+              stmt = env.DB.prepare('SELECT * FROM events ORDER BY date ASC, created_at DESC');
+            }
             const { results } = await stmt.all();
             events = (results || []).map((e: any) => ({
               ...e,
@@ -2828,6 +2918,18 @@ export default {
             return jsonResponse({ success: false, error: 'Authentication required to create events.' }, 401);
           }
           const hostId = authEvt.id;
+          // Optional church link: only the church owner or an admin may tag an event to a church.
+          const eventChurchId = (body.church_id || body.churchId || '').trim();
+          if (eventChurchId && env.DB) {
+            const chRow: any = await env.DB.prepare('SELECT owner_id FROM churches WHERE id = ?').bind(eventChurchId).first();
+            const isChurchOwner = chRow && chRow.owner_id && chRow.owner_id === authEvt.id;
+            if (!chRow) {
+              return jsonResponse({ success: false, error: 'Church not found' }, 404);
+            }
+            if (!isChurchOwner && !authEvt.isAdmin) {
+              return jsonResponse({ success: false, error: 'Not authorized to add events for this church' }, 403);
+            }
+          }
           const imageUrl = body.image_url || body.imageUrl || null;
           const goingCount = body.going_count ?? body.goingCount ?? 1;
           const interestedCount = body.interested_count ?? body.interestedCount ?? 0;
@@ -2836,14 +2938,14 @@ export default {
 
           if (env.DB) {
             await env.DB.prepare(`
-              INSERT INTO events (id, title, description, date, time, location_type, location_address, virtual_link, category, parish, host_name, host_avatar, host_id, image_url, going_count, interested_count, rsvps, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(id, title, description, date, time, locationType, locationAddress, virtualLink, category, parish, hostName, hostAvatar, hostId, imageUrl, goingCount, interestedCount, rsvps, createdAt).run();
+              INSERT INTO events (id, title, description, date, time, location_type, location_address, virtual_link, category, parish, host_name, host_avatar, host_id, image_url, going_count, interested_count, rsvps, church_id, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(id, title, description, date, time, locationType, locationAddress, virtualLink, category, parish, hostName, hostAvatar, hostId, imageUrl, goingCount, interestedCount, rsvps, eventChurchId, createdAt).run();
           }
 
           return jsonResponse({
             success: true,
-            event: { id, title, description, date, time, location_type: locationType, location_address: locationAddress, virtual_link: virtualLink, category, parish, host_name: hostName, host_avatar: hostAvatar, host_id: hostId, image_url: imageUrl, going_count: goingCount, interested_count: interestedCount, rsvps: JSON.parse(rsvps), created_at: createdAt },
+            event: { id, title, description, date, time, location_type: locationType, location_address: locationAddress, virtual_link: virtualLink, category, parish, host_name: hostName, host_avatar: hostAvatar, host_id: hostId, image_url: imageUrl, going_count: goingCount, interested_count: interestedCount, rsvps: JSON.parse(rsvps), church_id: eventChurchId, created_at: createdAt },
           }, 201);
         }
       }

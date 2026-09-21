@@ -318,17 +318,17 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
 
       {/* Header card */}
       <div className="overflow-hidden rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
-        <div className="h-20 bg-gradient-to-br from-[#c5a059] via-[#8b6b4a] to-[#3d2b18] relative">
+        <div className="h-12 bg-gradient-to-br from-[#c5a059] via-[#8b6b4a] to-[#3d2b18] relative">
           {church.cover ? (
             <img src={church.cover} alt="" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <ChurchIcon className="w-10 h-10 text-white/25" />
+              <ChurchIcon className="w-8 h-8 text-white/25" />
             </div>
           )}
         </div>
         <div className="p-4 pt-0">
-          <div className="-mt-8 mb-3 flex items-end justify-between">
+          <div className="-mt-6 mb-3 flex items-end justify-between">
             <div className="w-20 h-20 rounded-3xl overflow-hidden border-4 border-(--bg-card) dark:border-[#1c1611] bg-(--bg-soft) dark:bg-[#282019] shadow-lg flex items-center justify-center">
               {church.avatar ? (
                 <img src={church.avatar} alt={church.name} className="w-full h-full object-cover" />

@@ -1580,6 +1580,50 @@ async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
   }
 }
 
+// YouTube live-status check (runs on a frequent cron): for streams still flagged
+// as live whose media_url is a YouTube link, ask YouTube's watch page whether the
+// broadcast actually ended. YouTube embeds `"isLiveNow":false` in
+// liveBroadcastDetails once a broadcast is over. Fail-safe: if the marker is
+// missing (page layout changed, bot check, fetch failed) we change nothing.
+async function checkYouTubeLiveStatus(db: D1Database): Promise<void> {
+  try {
+    const { results } = await db
+      .prepare(
+        `SELECT id, media_url FROM live_streams WHERE is_live = 1 AND (media_url LIKE '%youtube%' OR media_url LIKE '%youtu.be%')`
+      )
+      .all();
+    const rows = (results || []) as any[];
+    for (const row of rows) {
+      const videoId = extractYouTubeId(row.media_url);
+      if (!videoId) continue;
+      try {
+        const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+          },
+          signal: AbortSignal.timeout(12000),
+        });
+        if (!resp.ok) continue;
+        const html = await resp.text();
+        if (html.includes('"isLiveNow":false')) {
+          const now = new Date().toISOString();
+          await db
+            .prepare(`UPDATE live_streams SET is_live = 0, ended_at = ?, status = 'ended' WHERE id = ?`)
+            .bind(now, row.id)
+            .run();
+          console.log('[yt-live-check] marked ended: ' + row.id);
+        }
+      } catch (e) {
+        console.warn('[yt-live-check] check failed for ' + row.id, e);
+      }
+    }
+  } catch (err) {
+    console.error('[yt-live-check] run failed:', err);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -4527,9 +4571,14 @@ export default {
     try {
       if (!env.DB) return;
       await ensureD1TablesOnce(env.DB);
-      await runCommunityBots(env.DB, new Date(event.scheduledTime || Date.now()));
+      if (event.cron === '*/10 * * * *') {
+        // Frequent check: flip YouTube live streams to "ended" once YouTube says the broadcast is over.
+        await checkYouTubeLiveStatus(env.DB);
+      } else {
+        await runCommunityBots(env.DB, new Date(event.scheduledTime || Date.now()));
+      }
     } catch (err) {
-      console.error('[bots] scheduled run failed:', err);
+      console.error('[scheduled] run failed:', err);
     }
   },
 };

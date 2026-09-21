@@ -18,6 +18,7 @@ interface LiveStreamItem {
   viewers: number;
   videoUrl: string;
   isLive: boolean;
+  endedAt?: string | null;
   replayGuid?: string | null;
   // Bunny Stream Live (true live) fields
   isBunnyLive?: boolean;
@@ -240,6 +241,7 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
               viewers: row.viewers_count || row.viewers || 1,
               videoUrl,
               isLive: live,
+              endedAt: row.ended_at || null,
               replayGuid,
             };
           });
@@ -938,9 +940,19 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider">
-                    {s.isLive ? (language === 'ar' ? 'مباشر' : 'LIVE') : (language === 'ar' ? 'غير متصل' : 'OFFLINE')}
-                  </span>
+                  {s.isLive ? (
+                    <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider">
+                      {language === 'ar' ? 'مباشر' : 'LIVE'}
+                    </span>
+                  ) : s.endedAt ? (
+                    <span className="px-2.5 py-0.5 rounded-full bg-stone-600 text-stone-200 text-[10px] font-bold uppercase tracking-wider">
+                      {language === 'ar' ? 'انتهى البث' : 'Was live'}
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider">
+                      {language === 'ar' ? 'غير متصل' : 'OFFLINE'}
+                    </span>
+                  )}
 
                   <div className="flex items-center gap-2">
                     <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1">

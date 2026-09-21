@@ -13,6 +13,8 @@ interface ChurchProfileViewProps {
 
 const inputCls =
   'w-full p-2.5 rounded-xl bg-[#282019] border border-(--ln-gold) text-[#f5ebd9] placeholder-(--tx-ph-dark) focus:outline-none text-sm';
+const inputClsLight =
+  'w-full p-2.5 rounded-xl bg-white dark:bg-[#282019] border border-(--ln-gold) dark:border-(--ln-gold) text-(--tx-strong) dark:text-[#f5ebd9] placeholder:text-(--tx-mute) dark:placeholder-(--tx-ph-dark) focus:outline-none text-sm';
 
 export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, onBack }) => {
   const { profile, updateProfile } = useAuth();
@@ -411,17 +413,17 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
         </div>
 
         {canManage && showSchedForm && (
-          <form onSubmit={handleAddScheduleItem} className="mb-3 p-3 rounded-2xl bg-[#282019] border border-(--ln-gold)/40 space-y-2">
+          <form onSubmit={handleAddScheduleItem} className="mb-3 p-3 rounded-2xl bg-[#f6efe0] dark:bg-[#282019] border border-(--ln-gold)/60 dark:border-(--ln-gold)/40 space-y-2">
             <div className="grid grid-cols-2 gap-2">
-              <select value={schedDay} onChange={(e) => setSchedDay(parseInt(e.target.value, 10))} className={inputCls}>
+              <select value={schedDay} onChange={(e) => setSchedDay(parseInt(e.target.value, 10))} className={inputClsLight}>
                 {DAY_NAMES.map((d, i) => (
                   <option key={i} value={i}>{d}</option>
                 ))}
               </select>
-              <input value={schedTime} onChange={(e) => setSchedTime(e.target.value)} placeholder={ar ? 'الوقت (مثال: 8:00 ص)' : 'Time (e.g. 8:00 AM)'} className={inputCls} />
+              <input value={schedTime} onChange={(e) => setSchedTime(e.target.value)} placeholder={ar ? 'الوقت (مثال: 8:00 ص)' : 'Time (e.g. 8:00 AM)'} className={inputClsLight} />
             </div>
-            <input value={schedTitle} onChange={(e) => setSchedTitle(e.target.value)} placeholder={ar ? 'العنوان (مثال: القداس الإلهي) *' : 'Title (e.g. Divine Liturgy) *'} className={inputCls} />
-            <input value={schedNotes} onChange={(e) => setSchedNotes(e.target.value)} placeholder={ar ? 'ملاحظات (اختياري)' : 'Notes (optional)'} className={inputCls} />
+            <input value={schedTitle} onChange={(e) => setSchedTitle(e.target.value)} placeholder={ar ? 'العنوان (مثال: القداس الإلهي) *' : 'Title (e.g. Divine Liturgy) *'} className={inputClsLight} />
+            <input value={schedNotes} onChange={(e) => setSchedNotes(e.target.value)} placeholder={ar ? 'ملاحظات (اختياري)' : 'Notes (optional)'} className={inputClsLight} />
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setShowSchedForm(false)} className="px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider text-[#a89379] hover:text-[#f5ebd9] cursor-pointer">
                 {ar ? 'إلغاء' : 'Cancel'}

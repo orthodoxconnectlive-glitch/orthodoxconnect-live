@@ -319,7 +319,13 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
       {/* Header card */}
       <div className="overflow-hidden rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
         <div className="h-32 bg-gradient-to-br from-[#c5a059] via-[#8b6b4a] to-[#3d2b18] relative">
-          {church.cover && <img src={church.cover} alt="" className="w-full h-full object-cover" />}
+          {church.cover ? (
+            <img src={church.cover} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <ChurchIcon className="w-16 h-16 text-white/25" />
+            </div>
+          )}
         </div>
         <div className="p-4 pt-0">
           <div className="-mt-10 mb-3 flex items-end justify-between">

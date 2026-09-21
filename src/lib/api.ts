@@ -493,6 +493,12 @@ export const liveStreamsApi = {
     return res.stream;
   },
 
+  async delete(id: string): Promise<void> {
+    await apiFetch(`/api/live-streams/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+
   /* ---------- Bunny Stream Live (true YouTube-style live) ---------- */
   async createBunny(opts: { title: string; description?: string; recordVod?: boolean; host_parish?: string; priest_name?: string }): Promise<any> {
     const res = await apiFetch<{ success: boolean; stream?: any; error?: string; message?: string }>('/api/live-streams/bunny/create', {

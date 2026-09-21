@@ -2973,6 +2973,20 @@ export default {
         return jsonResponse({ success: true, stream: row });
       }
 
+      // 8c. Live Stream item endpoint (DELETE /api/live-streams/:id) — admin only.
+      // Permanently removes a live stream record so it disappears for everyone.
+      if (url.pathname.match(/^\/api\/live-streams\/[^/]+\/?$/) && request.method === 'DELETE') {
+        const streamId = decodeURIComponent(url.pathname.replace('/api/live-streams/', '').replace(/\/?$/, ''));
+        const authStreamDel = await getAuthIdentity(request, env);
+        if (!authStreamDel.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+        if (!authStreamDel.isAdmin) return jsonResponse({ success: false, error: 'Forbidden: admin only.' }, 403);
+        if (!env.DB) return jsonResponse({ success: false, error: 'Database unavailable' }, 500);
+        const existing = await env.DB.prepare('SELECT id FROM live_streams WHERE id = ?').bind(streamId).first<{ id: string }>();
+        if (!existing) return jsonResponse({ success: false, error: 'Live stream not found' }, 404);
+        await env.DB.prepare('DELETE FROM live_streams WHERE id = ?').bind(streamId).run();
+        return jsonResponse({ success: true, deleted: streamId });
+      }
+
       // 8. Live Streams Endpoints (/api/live-streams)
       if (url.pathname === '/api/live-streams' || url.pathname === '/api/live-streams/') {
         if (request.method === 'GET') {

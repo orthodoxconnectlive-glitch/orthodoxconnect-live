@@ -351,6 +351,9 @@ const CORS_HEADERS: Record<string, string> = {
 };
 
 export const SUPER_ADMIN_EMAIL = 'orthodoxconnect.live@gmail.com';
+// All emails the server recognizes as admin (kept in sync with the app's admin
+// email fallback, so the buttons the app shows always work when tapped).
+export const ADMIN_EMAILS = ['orthodoxconnect.live@gmail.com', 'hsyz9625@gmail.com'];
 
 /**
  * Edge-compatible password hashing using Web Crypto API SHA-256.
@@ -603,7 +606,7 @@ export async function getAuthIdentity(request: Request, env: Env) {
     const email = (p.email || '').trim().toLowerCase();
     const role = (p.role || '').trim().toLowerCase();
     const isSuperAdmin = email === SUPER_ADMIN_EMAIL || role === 'super_admin';
-    const isAdmin = isSuperAdmin || role === 'admin' || role === 'owner';
+    const isAdmin = isSuperAdmin || role === 'admin' || role === 'owner' || ADMIN_EMAILS.includes(email);
     return { email, role, id: p.id, bearerToken: token, isSuperAdmin, isAdmin };
   } catch (e) {
     return anon;

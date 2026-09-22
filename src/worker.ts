@@ -3415,6 +3415,7 @@ export default {
           const authorId = url.searchParams.get('author_id');
           const groupId = url.searchParams.get('group_id');
           const onlyVideos = url.searchParams.get('videos_only') === 'true';
+          const kidsFilter = url.searchParams.get('kids'); // 'only' | 'exclude' | null
 
           let query = 'SELECT * FROM posts';
           const conditions: string[] = [];
@@ -3432,6 +3433,11 @@ export default {
           }
           if (onlyVideos) {
             conditions.push('video_id IS NOT NULL AND video_id != ""');
+          }
+          if (kidsFilter === 'only') {
+            conditions.push("LOWER(COALESCE(content,'')) LIKE '%#kidsonly%'");
+          } else if (kidsFilter === 'exclude') {
+            conditions.push("LOWER(COALESCE(content,'')) NOT LIKE '%#kidsonly%'");
           }
 
           if (conditions.length > 0) {

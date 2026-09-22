@@ -217,7 +217,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
     try {
       const { posts: fetchedPosts, error } = await loadPosts(
         undefined,
-        { limit: PAGE_SIZE, forceRefresh: true },
+        { limit: PAGE_SIZE, forceRefresh: true, kids: 'exclude' },
         profile
       );
 
@@ -285,7 +285,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       const nextPage = page + 1;
       const { posts: nextBatch, error } = await loadPosts(
         undefined,
-        { limit: PAGE_SIZE, offset: posts.length },
+        { limit: PAGE_SIZE, offset: posts.length, kids: 'exclude' },
         profile
       );
 
@@ -950,7 +950,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
               : 'text-(--tx-mute) hover:text-(--tx-strong) dark:text-[#a89379]'
           }`}
         >
-          {t('allParishFeed')} ({posts.length})
+          {t('allParishFeed')} ({filteredPosts.length})
         </button>
         <button
           onClick={() => setFeedTab('following')}

@@ -317,13 +317,13 @@ export function getAuthHeaders(_overrideProfile?: any): Record<string, string> {
 
 export async function loadPosts(
   groupId?: string,
-  options?: { limit?: number; offset?: number; forceRefresh?: boolean },
+  options?: { limit?: number; offset?: number; forceRefresh?: boolean; kids?: 'only' | 'exclude' },
   userProfile?: any
 ): Promise<{ posts: Post[]; error: any }> {
   const limit = options?.limit ?? 50;
   const offset = options?.offset ?? 0;
   const identity = getActiveUserIdentity(userProfile);
-  const cacheKey = `posts-${groupId || 'all'}-${offset}-${limit}-${identity.userId}`;
+  const cacheKey = `posts-${groupId || 'all'}-${offset}-${limit}-${identity.userId}-kids-${options?.kids || 'any'}`;
 
   if (!options?.forceRefresh && cachedPosts && cachedPosts.key === cacheKey && Date.now() - cachedPosts.timestamp < CACHE_TTL_MS) {
     return { posts: cachedPosts.data, error: null };
@@ -345,6 +345,9 @@ export async function loadPosts(
     });
     if (groupId) {
       params.set('group_id', groupId);
+    }
+    if (options?.kids) {
+      params.set('kids', options.kids);
     }
 
     try {
@@ -413,9 +416,11 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
   return [];
 }
 
-export async function loadVideos(): Promise<Post[]> {
+export async function loadVideos(kids?: 'only' | 'exclude'): Promise<Post[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/posts?video_only=true&limit=50`, {
+    const vparams = new URLSearchParams({ video_only: 'true', limit: '50' });
+    if (kids) vparams.set('kids', kids);
+    const res = await fetch(`${API_BASE_URL}/api/posts?${vparams.toString()}`, {
       method: 'GET',
       headers: { Accept: 'application/json', ...getAuthHeaders() },
     });

@@ -211,7 +211,7 @@ export const KidsView: React.FC = () => {
     (async () => {
       try {
         const [vids, bookRes, synced] = await Promise.all([
-          loadVideos().catch(() => [] as Post[]),
+          loadVideos('only').catch(() => [] as Post[]),
           fetch('/api/books?category=all')
             .then((r) => (r.ok ? r.json() : []))
             .catch(() => [] as KidsBook[]),

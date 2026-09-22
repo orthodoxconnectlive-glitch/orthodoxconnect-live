@@ -72,6 +72,18 @@ function posterFor(v: Post): string {
   return v.image || anyV.image_url || DEFAULT_POSTER;
 }
 
+function ytIdOf(v: Post): string | null {
+  return extractYouTubeId(videoRawSource(v)) || extractYouTubeId(videoText(v)) || null;
+}
+
+function cleanCaption(v: Post): string {
+  return videoText(v)
+    .replace(/https?:\/\/[^\s]+/gi, '')
+    .replace(/#\S+/g, '')
+    .trim()
+    .slice(0, 120);
+}
+
 const SectionHeader: React.FC<{ icon: React.ReactNode; title: string; count: number }> = ({
   icon,
   title,
@@ -105,6 +117,35 @@ export const KidsView: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [playing, setPlaying] = useState<Post | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [ytMeta, setYtMeta] = useState<Record<string, { title: string; author: string }>>({});
+  const ytMetaFetching = useRef<Set<string>>(new Set());
+
+  // Real YouTube titles via the keyless oEmbed endpoint (no API key needed).
+  useEffect(() => {
+    const ids = new Set<string>();
+    for (const v of videos) {
+      const id = ytIdOf(v);
+      if (id && !ytMeta[id] && !ytMetaFetching.current.has(id)) ids.add(id);
+    }
+    if (ids.size === 0) return;
+    ids.forEach((id) => {
+      ytMetaFetching.current.add(id);
+      fetch(
+        'https://www.youtube.com/oembed?url=' +
+          encodeURIComponent('https://www.youtube.com/watch?v=' + id) +
+          '&format=json'
+      )
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          if (j && j.title)
+            setYtMeta((m) => ({ ...m, [id]: { title: String(j.title), author: String(j.author_name || '') } }));
+        })
+        .catch(() => {})
+        .finally(() => {
+          ytMetaFetching.current.delete(id);
+        });
+    });
+  }, [videos, ytMeta]);
 
   const authContext = useAuth() as any;
   const profile = authContext?.profile;
@@ -408,8 +449,11 @@ export const KidsView: React.FC = () => {
         ) : (
           <div className="flex flex-col gap-2">
             {videos.map((v) => {
-              const caption = videoText(v).replace(/#\S+/g, '').trim().slice(0, 120);
-              const author = v.authorName || (v as any).author_name || '';
+              const ytId = ytIdOf(v);
+              const meta = ytId ? ytMeta[ytId] : undefined;
+              const caption = cleanCaption(v);
+              const title = meta?.title || caption || (ar ? 'فيديو أطفال' : 'Kids video');
+              const author = meta?.author || v.authorName || (v as any).author_name || '';
               return (
                 <div
                   key={v.id}
@@ -446,7 +490,7 @@ export const KidsView: React.FC = () => {
                   </div>
                   <div className="flex-1 min-w-0 py-1">
                     <p className="text-sm font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9] leading-snug line-clamp-2">
-                      {caption || (ar ? 'فيديو أطفال' : 'Kids video')}
+                      {title}
                     </p>
                     {author ? (
                       <p className="text-[11px] text-(--tx-mute) font-serif mt-1 truncate">{author}</p>
@@ -601,15 +645,9 @@ export const KidsView: React.FC = () => {
             {renderPlayer(playing)}
             <p className="text-xs font-serif text-(--tx-strong) dark:text-[#f5ebd9] mt-3 leading-relaxed line-clamp-3">
               {(() => {
-                const clean = videoText(playing)
-                  .replace(/https?:\/\/[^\s]+/gi, '')
-                  .replace(/#\S+/g, '')
-                  .trim();
-                return clean
-                  ? clean.slice(0, 200)
-                  : ar
-                    ? 'فيديو أطفال'
-                    : 'Kids video';
+                const ytId = ytIdOf(playing);
+                const meta = ytId ? ytMeta[ytId] : undefined;
+                return meta?.title || cleanCaption(playing) || (ar ? 'فيديو أطفال' : 'Kids video');
               })()}
             </p>
           </div>

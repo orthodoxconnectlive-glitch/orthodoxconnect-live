@@ -10,6 +10,7 @@ import {
   Languages,
   Music,
   Search,
+  Share2,
   Type,
   Users,
   X,
@@ -62,7 +63,7 @@ const label = (text: CRText, uiLang: 'en' | 'ar') =>
 const loadingText = (lang: 'en' | 'ar') =>
   lang === 'ar' ? 'جاري التحميل...' : 'Loading...';
 
-const BlockView: React.FC<{ block: CRBlock; clang: ContentLang; fontSize: string }> = ({ block, clang, fontSize }) => {
+const BlockView: React.FC<{ block: CRBlock; clang: ContentLang; fontSize: string; onShare: (b: CRBlock) => void }> = ({ block, clang, fontSize, onShare }) => {
   const showEn = clang === 'en' || clang === 'both';
   const showAr = (clang === 'ar' || clang === 'both') && block.text.ar;
   const lbl = block.label;
@@ -111,18 +112,31 @@ const BlockView: React.FC<{ block: CRBlock; clang: ContentLang; fontSize: string
 
   return (
     <div>
-      {lbl && (
-        <div dir={arOnly ? 'rtl' : 'ltr'} className={`mb-1 text-[11px] font-extrabold text-black dark:text-white ${arOnly ? 'text-right' : 'text-left'}`}>
-          {showEn && <span className="uppercase tracking-[0.14em]">{lbl.en || lbl.ar}</span>}
-          {showEn && showAr && lbl.ar && (
-            <>
-              <span className="mx-1 opacity-60">·</span>
-              <span dir="rtl">{lbl.ar}</span>
-            </>
-          )}
-          {arOnly && <span>{lbl.ar}</span>}
-        </div>
-      )}
+      <div dir={arOnly ? 'rtl' : 'ltr'} className="mb-1 flex items-center justify-between gap-2">
+        {lbl ? (
+          <div className={`min-w-0 text-[11px] font-extrabold text-black dark:text-white ${arOnly ? 'text-right' : 'text-left'}`}>
+            {showEn && <span className="uppercase tracking-[0.14em]">{lbl.en || lbl.ar}</span>}
+            {showEn && showAr && lbl.ar && (
+              <>
+                <span className="mx-1 opacity-60">·</span>
+                <span dir="rtl">{lbl.ar}</span>
+              </>
+            )}
+            {arOnly && <span>{lbl.ar}</span>}
+          </div>
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          onClick={() => onShare(block)}
+          className="shrink-0 rounded-lg p-1.5 text-[#8a6a3b]/50 hover:text-[#8a6a3b] hover:bg-black/5 dark:text-[#d9b978]/50 dark:hover:text-[#d9b978] dark:hover:bg-white/10"
+          aria-label="Share"
+          title="Share"
+        >
+          <Share2 size={14} />
+        </button>
+      </div>
       {showEn && <p className={`${fontSize} leading-8 ${body}`}>{block.text.en}</p>}
       {showAr && (
         <p dir="rtl" className={`mt-2 text-right ${fontSize} leading-9 ${body}`}>
@@ -160,6 +174,70 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
 
   const toggleBookmark = (id: string) =>
     setBookmarks((b) => (b.includes(id) ? b.filter((x) => x !== id) : [...b, id]));
+
+  const [toast, setToast] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 2200);
+  };
+
+  const doShare = async (title: string, text: string) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text });
+      } catch {
+        /* user dismissed the share sheet */
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+      } catch {
+        /* noop */
+      }
+      document.body.removeChild(ta);
+    }
+    showToast(lang === 'ar' ? 'تم نسخ النص' : 'Text copied');
+  };
+
+  const blockShareLines = (b: CRBlock): string[] => {
+    const lines: string[] = [];
+    if (b.label) {
+      if (clang === 'ar') lines.push(b.label.ar || b.label.en);
+      else if (clang === 'en') lines.push(b.label.en);
+      else lines.push([b.label.en, b.label.ar].filter(Boolean).join(' · '));
+    }
+    if (clang !== 'ar' && b.text.en) lines.push(b.text.en);
+    if (clang !== 'en' && b.text.ar) lines.push(b.text.ar);
+    return lines;
+  };
+
+  const sig = lang === 'ar' ? '— المكتبة القبطية' : '— Coptic Library';
+
+  const shareBlock = (b: CRBlock) => {
+    const title = lang === 'ar' ? 'المكتبة القبطية' : 'Coptic Library';
+    void doShare(title, [...blockShareLines(b), '', sig].join('\n'));
+  };
+
+  const shareDoc = () => {
+    if (nav.level !== 'reader') return;
+    const doc = nav.doc;
+    const title = (clang === 'ar' ? doc.title.ar : null) || doc.title.en;
+    const parts: string[] = [title, ''];
+    for (const b of doc.blocks) {
+      parts.push(blockShareLines(b).join('\n'));
+      parts.push('');
+    }
+    parts.push(sig);
+    void doShare(title, parts.join('\n'));
+  };
 
   const openSection = async (book: CRBook, section: CRSection) => {
     setLoadingDocs(true);
@@ -422,6 +500,15 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                       </button>
                       <button
                         type="button"
+                        onClick={shareDoc}
+                        className="p-2 rounded-xl hover:bg-black/10 dark:hover:bg-white/10"
+                        title={lang === 'ar' ? 'مشاركة' : 'Share'}
+                        aria-label={lang === 'ar' ? 'مشاركة' : 'Share'}
+                      >
+                        <Share2 size={16} />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => toggleBookmark(nav.doc.id)}
                         className={`p-2 rounded-xl hover:bg-black/10 dark:hover:bg-white/10 ${bookmarks.includes(nav.doc.id) ? goldTx : ''}`}
                         title="Bookmark"
@@ -446,7 +533,7 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                   ) : (
                     <div className="flex flex-col gap-5">
                       {nav.doc.blocks.map((b, i) => (
-                        <BlockView key={i} block={b} clang={clang} fontSize={fontSize} />
+                        <BlockView key={i} block={b} clang={clang} fontSize={fontSize} onShare={shareBlock} />
                       ))}
                     </div>
                   )}
@@ -460,6 +547,11 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
           )}
         </div>
       </div>
+      {toast && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-black/85 px-4 py-2 text-sm text-white shadow-lg">
+          {toast}
+        </div>
+      )}
     </div>
   );
 };

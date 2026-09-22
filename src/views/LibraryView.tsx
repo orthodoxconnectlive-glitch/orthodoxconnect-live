@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon, Pencil, Trash2, Headphones, Play, Heart, MessageCircle, Share2, Send } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
+
+const SynaxariumView = React.lazy(() => import('./SynaxariumView'));
 
 interface Book {
   id: string;
@@ -61,6 +63,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [playingBook, setPlayingBook] = useState<Book | null>(null);
+  const [synaxariumOpen, setSynaxariumOpen] = useState<boolean>(false);
   const [commentBook, setCommentBook] = useState<Book | null>(null);
   const [bookComments, setBookComments] = useState<BookComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -507,7 +510,16 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
                   </p>
                 </div>
 
-                {book.category === 'audiobook' ? (
+                {book.file_url && book.file_url.startsWith('synaxarium://') ? (
+                  <button
+                    type="button"
+                    onClick={() => setSynaxariumOpen(true)}
+                    className="mt-4 w-full py-2 px-3 rounded-xl bg-(--ac-gold) text-white text-xs font-serif font-bold flex items-center justify-center gap-1.5 hover:bg-(--ac-gold-deep) transition-colors shadow-sm cursor-pointer"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>{language === 'ar' ? 'اقرأ الآن' : 'Read Now'}</span>
+                  </button>
+                ) : book.category === 'audiobook' ? (
                   <button
                     type="button"
                     onClick={() => setPlayingBook(book)}
@@ -626,6 +638,21 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
             </p>
           </div>
         </div>
+      )}
+
+      {/* Synaxarium Reader Overlay */}
+      {synaxariumOpen && (
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#f7f1e5] dark:bg-[#14100b]">
+              <div className="font-serif text-sm animate-pulse text-(--tx-mute)">
+                {language === 'ar' ? 'جاري فتح السنكسار...' : 'Opening Synaxarium...'}
+              </div>
+            </div>
+          }
+        >
+          <SynaxariumView onClose={() => setSynaxariumOpen(false)} />
+        </Suspense>
       )}
 
       {/* Book Comments Modal */}

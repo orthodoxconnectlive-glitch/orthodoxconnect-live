@@ -406,16 +406,17 @@ export const KidsView: React.FC = () => {
             }
           />
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="flex flex-col gap-2">
             {videos.map((v) => {
-              const caption = videoText(v).replace(/#\S+/g, '').trim().slice(0, 90);
+              const caption = videoText(v).replace(/#\S+/g, '').trim().slice(0, 120);
+              const author = v.authorName || (v as any).author_name || '';
               return (
                 <div
                   key={v.id}
                   onClick={() => setPlaying(v)}
-                  className="group relative rounded-3xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] bg-(--bg-card) dark:bg-[#1c1611] shadow-md text-left rtl:text-right cursor-pointer"
+                  className="group flex gap-3 p-2 rounded-2xl border border-(--ln-gold) dark:border-[#8b6b4a] bg-(--bg-card) dark:bg-[#1c1611] shadow-sm hover:shadow-md transition-shadow text-left rtl:text-right cursor-pointer"
                 >
-                  <div className="relative aspect-[4/3] overflow-hidden">
+                  <div className="relative w-36 sm:w-44 shrink-0 aspect-video rounded-xl overflow-hidden">
                     <img
                       src={posterFor(v)}
                       alt={caption || (ar ? 'فيديو أطفال' : 'Kids video')}
@@ -424,8 +425,8 @@ export const KidsView: React.FC = () => {
                     />
                     <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-12 h-12 rounded-full bg-black/60 border-2 border-(--ln-gold) flex items-center justify-center text-amber-200 shadow-xl">
-                        <Play className="w-6 h-6 fill-current ml-0.5" />
+                      <div className="w-9 h-9 rounded-full bg-black/60 border-2 border-(--ln-gold) flex items-center justify-center text-amber-200">
+                        <Play className="w-4 h-4 fill-current ml-0.5" />
                       </div>
                     </div>
                     {canDelete(v) && (
@@ -436,20 +437,20 @@ export const KidsView: React.FC = () => {
                           handleDeleteVideo(v.id);
                         }}
                         disabled={deletingId === v.id}
-                        className="absolute top-2 right-2 rtl:right-auto rtl:left-2 w-8 h-8 rounded-full bg-black/60 border border-white/30 text-white/90 hover:text-white hover:bg-red-600 flex items-center justify-center transition-colors z-10 cursor-pointer disabled:opacity-50"
+                        className="absolute top-1.5 right-1.5 rtl:right-auto rtl:left-1.5 w-7 h-7 rounded-full bg-black/60 border border-white/30 text-white/90 hover:text-white hover:bg-red-600 flex items-center justify-center transition-colors z-10 cursor-pointer disabled:opacity-50"
                         title={ar ? 'حذف' : 'Delete'}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
-                  <div className="p-3">
-                    <p className="text-xs font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9] leading-snug line-clamp-2">
+                  <div className="flex-1 min-w-0 py-1">
+                    <p className="text-sm font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9] leading-snug line-clamp-2">
                       {caption || (ar ? 'فيديو أطفال' : 'Kids video')}
                     </p>
-                    <p className="text-[10px] text-(--tx-mute) font-serif mt-1 truncate">
-                      {v.authorName || (v as any).author_name || ''}
-                    </p>
+                    {author ? (
+                      <p className="text-[11px] text-(--tx-mute) font-serif mt-1 truncate">{author}</p>
+                    ) : null}
                   </div>
                 </div>
               );

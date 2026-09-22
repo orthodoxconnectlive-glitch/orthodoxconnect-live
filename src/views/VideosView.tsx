@@ -109,7 +109,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
   const fetchVideosList = async () => {
     setLoading(true);
-    const loadedVideos = await loadVideos();
+    const loadedVideos = await loadVideos('exclude');
     const shuffled = shuffleVideos(loadedVideos);
     setVideos(shuffled);
 

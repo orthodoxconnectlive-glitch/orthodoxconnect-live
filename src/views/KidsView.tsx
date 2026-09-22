@@ -630,14 +630,10 @@ export const KidsView: React.FC = () => {
         </span>
       </div>
 
-      {/* Video player modal — watch page: player with the playlist beside it */}
+      {/* Video player modal — full-screen watch page: player with the playlist beside it */}
       {playing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => setPlaying(null)}
-          />
-          <div className="relative w-full max-w-5xl max-h-[92vh] bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-50">
+          <div className="relative w-full h-[100dvh] bg-(--bg-card) dark:bg-[#1c1611] flex flex-col overflow-hidden">
             <button
               onClick={() => setPlaying(null)}
               className="absolute top-3 right-3 rtl:right-auto rtl:left-3 w-9 h-9 rounded-full bg-(--ac-bronze) text-white flex items-center justify-center shadow-lg cursor-pointer z-10"
@@ -645,8 +641,8 @@ export const KidsView: React.FC = () => {
             >
               <X className="w-5 h-5" />
             </button>
-            <div className="flex flex-col md:flex-row overflow-hidden">
-              <div className="flex-1 min-w-0 p-4 md:overflow-y-auto">
+            <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
+              <div className="flex-none md:flex-1 min-w-0 p-4 md:overflow-y-auto">
                 {renderPlayer(playing)}
                 <p className="text-sm font-serif font-semibold text-(--tx-strong) dark:text-[#f5ebd9] mt-3 leading-relaxed">
                   {(() => {
@@ -656,7 +652,7 @@ export const KidsView: React.FC = () => {
                   })()}
                 </p>
               </div>
-              <div className="md:w-80 lg:w-96 shrink-0 border-t md:border-t-0 md:border-s border-black/10 dark:border-white/10 p-2 overflow-y-auto max-h-72 md:max-h-[92vh]">
+              <div className="flex-1 min-h-0 md:flex-none md:w-80 lg:w-96 border-t md:border-t-0 md:border-s border-black/10 dark:border-white/10 p-2 overflow-y-auto">
                 <div className="flex flex-col">
                   {videos.map((v) => renderVideoRow(v))}
                 </div>

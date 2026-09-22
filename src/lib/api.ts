@@ -414,6 +414,32 @@ export const churchesApi = {
 };
 
 /* =========================================================
+   FELLOWSHIP GROUPS API (Cloudflare D1)
+   User-created groups live on the server so every account
+   sees them; names/descriptions are bilingual (AR/EN).
+   ========================================================= */
+export async function fetchServerGroups(): Promise<any[]> {
+  const res = await apiFetch<{ groups: any[] }>('/api/groups');
+  return res.groups || [];
+}
+
+export async function createServerGroup(data: any): Promise<any> {
+  const res = await apiFetch<{ group: any }>('/api/groups', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return res.group;
+}
+
+export async function updateServerGroup(id: string, data: any): Promise<any> {
+  const res = await apiFetch<{ group: any }>(`/api/groups/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return res.group;
+}
+
+/* =========================================================
    MARKETPLACE API (Cloudflare D1)
    ========================================================= */
 export const marketplaceApi = {

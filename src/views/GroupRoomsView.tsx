@@ -20,13 +20,14 @@ import {
   Shield,
   Volume2,
   Video,
+  Pencil,
 } from 'lucide-react';
 import { GroupRoom } from '../types';
 import { GroupRoomModal } from '../components/GroupRoomModal';
 import { CreateGroupModal } from '../components/CreateGroupModal';
 import { useTheme } from '../context/ThemeContext';
 import { getFollowedAuthors, toggleFollow } from '../utils/follows';
-import { getJoinedGroupIds, toggleGroupJoin, getCustomGroups } from '../utils/groups';
+import { getJoinedGroupIds, toggleGroupJoin, getCustomGroups, syncGroupsFromServer } from '../utils/groups';
 import { UserProfileData } from './ProfileView';
 
 interface ParishMember {
@@ -100,7 +101,22 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [liveCalls, setLiveCalls] = useState<Record<string, any>>({});
   const { joinCall, activeCall: activeGroupCall, leaveCall } = useGroupCall();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+
+  // Admin permission check (profile flag, role, or fallback admin email)
+  const isAdmin = Boolean(
+    (profile as any)?.is_admin ||
+    (profile as any)?.role === 'admin' ||
+    user?.email === 'hsyz9625@gmail.com'
+  );
+
+  // Bilingual group display: follow the app language, fall back to what was typed.
+  const groupDisplayName = (g: GroupRoom) =>
+    language === 'ar' ? g.name_ar || g.name : g.name_en || g.name;
+  const groupDisplayDesc = (g: GroupRoom) =>
+    language === 'ar' ? g.description_ar || g.description : g.description_en || g.description;
+
+  const [editGroup, setEditGroup] = useState<GroupRoom | null>(null);
 
   // Poll for live group calls on each room
   useEffect(() => {
@@ -126,16 +142,16 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
     if (activeGroupCall) leaveCall();
     const existing = liveCalls[group.id];
     if (existing) {
-      await joinCall(existing.id, group.id, group.name);
+      await joinCall(existing.id, group.id, groupDisplayName(group));
     } else {
       const callId = await groupCallsApi.start(
         group.id,
-        group.name,
+        groupDisplayName(group),
         (profile?.id || '').replace(/^auth-/, ''),
         profile?.full_name || 'Host',
       );
       setLiveCalls((prev) => ({ ...prev, [group.id]: { id: callId } }));
-      await joinCall(callId, group.id, group.name, true);
+      await joinCall(callId, group.id, groupDisplayName(group), true);
     }
   };
 
@@ -144,6 +160,17 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
   useEffect(() => {
     refreshData();
     fetchRealMembers();
+    // Pull server-side groups (and push local-only ones up) so every
+    // account sees the same fellowship groups.
+    let cancelled = false;
+    syncGroupsFromServer()
+      .then((merged) => {
+        if (!cancelled) setCustomGroups(merged);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const fetchRealMembers = async () => {
@@ -216,7 +243,7 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
 
   const filteredJoinedGroups = joinedGroupsList.filter(
     (g) =>
-      g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      groupDisplayName(g).toLowerCase().includes(searchQuery.toLowerCase()) ||
       g.parish.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -299,7 +326,10 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
           </button>
 
           <button
-            onClick={() => setIsCreateGroupOpen(true)}
+            onClick={() => {
+              setEditGroup(null);
+              setIsCreateGroupOpen(true);
+            }}
             className="ml-auto px-4 py-2.5 rounded-2xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white font-bold uppercase tracking-wider flex items-center gap-2 transition-all shadow-md cursor-pointer shrink-0"
           >
             <PlusCircle className="w-4 h-4" />
@@ -483,11 +513,11 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
                     </div>
 
                     <h4 className="font-serif-coptic font-bold text-base text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider leading-snug">
-                      {group.name}
+                      {groupDisplayName(group)}
                     </h4>
 
                     <p className="text-xs text-(--tx-mute) dark:text-[#a89379] font-serif leading-relaxed mt-2">
-                      {group.description}
+                      {groupDisplayDesc(group)}
                     </p>
                   </div>
 
@@ -500,6 +530,18 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {group.isUserCreated && (isAdmin || (group.creator_id && group.creator_id === profile?.id)) && (
+                        <button
+                          onClick={() => {
+                            setEditGroup(group);
+                            setIsCreateGroupOpen(true);
+                          }}
+                          className="p-2 rounded-xl bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) dark:text-[#a89379] hover:text-(--ac-gold-tx) border border-(--ln-gold) cursor-pointer"
+                          title={language === 'ar' ? 'تعديل المجموعة' : 'Edit group'}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleToggleGroupJoin(group.id)}
                         className="px-3 py-1.5 rounded-xl bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) dark:text-[#a89379] hover:bg-red-900/20 hover:text-red-600 border border-(--ln-gold) font-bold uppercase tracking-wider text-[10px] cursor-pointer"
@@ -550,11 +592,11 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
                       </div>
 
                       <h4 className="font-serif-coptic font-bold text-base text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider">
-                        {group.name}
+                        {groupDisplayName(group)}
                       </h4>
 
                       <p className="text-xs text-(--tx-mute) dark:text-[#a89379] font-serif leading-relaxed mt-1">
-                        {group.description}
+                        {groupDisplayDesc(group)}
                       </p>
                     </div>
 
@@ -688,13 +730,20 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
         onClose={() => setActiveRoomModal(null)}
       />
 
-      {/* Modal for Custom Group Creation */}
+      {/* Modal for Custom Group Creation / Editing */}
       <CreateGroupModal
         isOpen={isCreateGroupOpen}
-        onClose={() => setIsCreateGroupOpen(false)}
+        onClose={() => {
+          setIsCreateGroupOpen(false);
+          setEditGroup(null);
+        }}
         onGroupCreated={(newGroup) => {
           refreshData();
           setActiveRoomModal(newGroup);
+        }}
+        editGroup={editGroup}
+        onGroupUpdated={() => {
+          refreshData();
         }}
       />
     </div>

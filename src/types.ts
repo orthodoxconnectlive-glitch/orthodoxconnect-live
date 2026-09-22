@@ -79,3 +79,23 @@ export interface MarketplaceListing {
   status?: 'active' | 'sold';
   created_at?: string;
 }
+
+export interface GroupRoom {
+  id: string;
+  name: string;
+  name_ar?: string;
+  name_en?: string;
+  type: 'bible_study' | 'youth' | 'choir' | 'women_prayer' | 'parish_live' | 'philanthropy' | 'general';
+  description: string;
+  description_ar?: string;
+  description_en?: string;
+  activeCount: number;
+  membersCount?: number;
+  icon: string;
+  hostName: string;
+  host_id?: string;
+  parish: string;
+  creator_id?: string;
+  isUserCreated?: boolean;
+  created_at?: string;
+}

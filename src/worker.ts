@@ -2561,6 +2561,126 @@ export default {
         }
       }
 
+      // 6b-1. User-created fellowship groups (/api/groups)
+      // GET is public; POST needs any signed-in user; PUT/DELETE need the
+      // group creator or an admin. Names/descriptions are bilingual (AR/EN).
+      if (url.pathname === '/api/groups' || url.pathname === '/api/groups/') {
+        if (env.DB) {
+          try {
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS custom_groups (id TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT DEFAULT '', name_en TEXT DEFAULT '', description TEXT DEFAULT '', description_ar TEXT DEFAULT '', description_en TEXT DEFAULT '', type TEXT DEFAULT 'general', icon TEXT DEFAULT '', host_name TEXT DEFAULT '', host_id TEXT DEFAULT '', parish TEXT DEFAULT '', creator_id TEXT DEFAULT '', active_count INTEGER DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+          } catch (ctErr) {
+            console.warn('[groups] ensure table notice:', ctErr);
+          }
+        }
+
+        if (request.method === 'GET') {
+          let groups: any[] = [];
+          if (env.DB) {
+            const { results } = await env.DB.prepare(
+              'SELECT * FROM custom_groups ORDER BY created_at DESC'
+            ).all();
+            groups = results || [];
+          }
+          return jsonResponse({ success: true, groups });
+        }
+
+        if (request.method === 'POST') {
+          const gAuth = await getAuthIdentity(request, env);
+          if (!gAuth.id) {
+            return jsonResponse({ success: false, error: 'Sign in to create a group' }, 401);
+          }
+          const gBody: any = await request.json().catch(() => ({}));
+          const gName = String(gBody.name || '').trim();
+          const gNameAr = String(gBody.name_ar || '').trim();
+          const gNameEn = String(gBody.name_en || '').trim();
+          if (!gName && !gNameAr && !gNameEn) {
+            return jsonResponse({ success: false, error: 'Group name is required' }, 400);
+          }
+          const newGId = String(gBody.id || '').trim() || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `group-custom-${Date.now()}`);
+          const group = {
+            id: newGId,
+            name: gName || gNameAr || gNameEn,
+            name_ar: gNameAr,
+            name_en: gNameEn,
+            description: String(gBody.description || '').trim(),
+            description_ar: String(gBody.description_ar || '').trim(),
+            description_en: String(gBody.description_en || '').trim(),
+            type: String(gBody.type || 'general').trim() || 'general',
+            icon: String(gBody.icon || '✨'),
+            host_name: String(gBody.host_name || gBody.hostName || ''),
+            host_id: gAuth.id,
+            parish: String(gBody.parish || '').trim(),
+            creator_id: gAuth.id,
+            active_count: 1,
+            created_at: new Date().toISOString(),
+          };
+          if (env.DB) {
+            await env.DB.prepare(
+              'INSERT OR REPLACE INTO custom_groups (id, name, name_ar, name_en, description, description_ar, description_en, type, icon, host_name, host_id, parish, creator_id, active_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            ).bind(group.id, group.name, group.name_ar, group.name_en, group.description, group.description_ar, group.description_en, group.type, group.icon, group.host_name, group.host_id, group.parish, group.creator_id, group.active_count, group.created_at).run();
+          }
+          return jsonResponse({ success: true, group }, 201);
+        }
+
+        return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
+      }
+
+      // 6b-1b. Single fellowship group (/api/groups/:id)
+      if (/^\/api\/groups\/[^/]+\/?$/.test(url.pathname)) {
+        if (env.DB) {
+          try {
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS custom_groups (id TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT DEFAULT '', name_en TEXT DEFAULT '', description TEXT DEFAULT '', description_ar TEXT DEFAULT '', description_en TEXT DEFAULT '', type TEXT DEFAULT 'general', icon TEXT DEFAULT '', host_name TEXT DEFAULT '', host_id TEXT DEFAULT '', parish TEXT DEFAULT '', creator_id TEXT DEFAULT '', active_count INTEGER DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+          } catch (ctErr) {
+            console.warn('[groups] ensure table notice:', ctErr);
+          }
+        }
+        const gParts = url.pathname.split('/').filter(Boolean);
+        const gId = decodeURIComponent(gParts[2] || '');
+        const canManageGroup = async (): Promise<boolean> => {
+          const gAuth = await getAuthIdentity(request, env);
+          if (!gAuth.id || !env.DB) return false;
+          const row: any = await env.DB.prepare('SELECT creator_id FROM custom_groups WHERE id = ?').bind(gId).first();
+          if (!row) return false;
+          return row.creator_id === gAuth.id || gAuth.isAdmin;
+        };
+
+        if (request.method === 'PUT') {
+          if (!(await canManageGroup())) {
+            return jsonResponse({ success: false, error: 'Not authorized to edit this group' }, 403);
+          }
+          const gBody: any = await request.json().catch(() => ({}));
+          const fields = ['name', 'name_ar', 'name_en', 'description', 'description_ar', 'description_en', 'type', 'icon', 'parish', 'host_name'];
+          const sets: string[] = [];
+          const vals: any[] = [];
+          for (const f of fields) {
+            if (gBody[f] !== undefined) {
+              sets.push(`${f} = ?`);
+              vals.push(String(gBody[f]));
+            }
+          }
+          if (sets.length && env.DB) {
+            await env.DB.prepare(`UPDATE custom_groups SET ${sets.join(', ')} WHERE id = ?`).bind(...vals, gId).run();
+          }
+          let updated: any = null;
+          if (env.DB) {
+            updated = await env.DB.prepare('SELECT * FROM custom_groups WHERE id = ?').bind(gId).first();
+          }
+          return jsonResponse({ success: true, group: updated });
+        }
+
+        if (request.method === 'DELETE') {
+          if (!(await canManageGroup())) {
+            return jsonResponse({ success: false, error: 'Not authorized to delete this group' }, 403);
+          }
+          if (env.DB) {
+            await env.DB.prepare('DELETE FROM custom_groups WHERE id = ?').bind(gId).run();
+          }
+          return jsonResponse({ success: true, id: gId });
+        }
+
+        return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
+      }
+
       // 6b-2. Church weekly schedule (/api/churches/:id/schedule)
       // Recurring weekly schedule per church (Liturgy, Bible study, ...).
       // GET is public; POST/DELETE need the church owner or an admin.

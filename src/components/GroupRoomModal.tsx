@@ -83,7 +83,7 @@ export const GroupRoomModal: React.FC<GroupRoomModalProps> = ({ room, isOpen, on
             <span className="text-2xl">{room.icon}</span>
             <div>
               <h3 className="font-serif font-bold text-lg text-amber-100">
-                {room.name}
+                {language === 'ar' ? room.name_ar || room.name : room.name_en || room.name}
               </h3>
               <p className="text-xs text-stone-400 flex items-center gap-2">
                 <span>

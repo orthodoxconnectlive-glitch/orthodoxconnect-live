@@ -111,7 +111,7 @@ const BlockView: React.FC<{ block: CRBlock; clang: ContentLang; fontSize: string
   return (
     <div>
       {lbl && (
-        <div className={`mb-1 text-[11px] font-bold uppercase tracking-[0.14em] ${gold} opacity-80`}>
+        <div className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-black dark:text-white">
           {label(lbl, showEn ? 'en' : 'ar')}
           {showEn && showAr && lbl.ar ? ` · ${lbl.ar}` : ''}
         </div>

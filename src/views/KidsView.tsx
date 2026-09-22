@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Baby,
   Film,
@@ -9,9 +9,13 @@ import {
   CheckCircle2,
   PlusCircle,
   Sparkles,
+  Video,
+  Send,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { loadVideos } from '../utils/posts';
+import { useAuth } from '../context/AuthContext';
+import { loadVideos, savePost } from '../utils/posts';
+import { uploadVideoToBunnyStream } from '../utils/storage';
 import {
   getCustomGroups,
   syncGroupsFromServer,
@@ -30,6 +34,8 @@ import type { Post, GroupRoom } from '../types';
 // explicitly tagged it for kids (caption, hashtag, title) — or when it is a
 // built-in youth group. The general feed is never shown here.
 const KIDS_RE = /kid|child|أطفال|اطفال|للأطفال|للاطفال|sunday school|مدرسة ?الأحد/i;
+// Marks a post as kids-only: hidden from the main feed, shown only in Kids Corner.
+const KIDSONLY_RE = /#kidsonly/i;
 
 interface KidsBook {
   id: string;
@@ -98,6 +104,61 @@ export const KidsView: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [playing, setPlaying] = useState<Post | null>(null);
 
+  const authContext = useAuth() as any;
+  const profile = authContext?.profile;
+
+  // Kids share bar — everything shared here is automatically kids-only.
+  const [shareCaption, setShareCaption] = useState('');
+  const [kidsFile, setKidsFile] = useState<File | null>(null);
+  const [kidsUploading, setKidsUploading] = useState(false);
+  const [kidsProgress, setKidsProgress] = useState(0);
+  const kidsFileRef = useRef<HTMLInputElement>(null);
+
+  const handleKidsShare = async () => {
+    const caption = shareCaption.trim();
+    if ((!caption && !kidsFile) || kidsUploading) return;
+    setKidsUploading(true);
+    setKidsProgress(0);
+    try {
+      let finalVideoId: string | null = null;
+      if (kidsFile) {
+        const guid = await uploadVideoToBunnyStream(
+          kidsFile,
+          caption || kidsFile.name,
+          (pct: number) => setKidsProgress(pct)
+        );
+        if (!guid) throw new Error('Bunny upload failed');
+        finalVideoId = guid;
+      } else {
+        const match = caption.match(/https?:\/\/[^\s]+/i);
+        if (match) finalVideoId = match[0];
+      }
+      let finalCaption = caption;
+      if (!KIDSONLY_RE.test(finalCaption)) {
+        finalCaption = (finalCaption ? finalCaption + ' ' : '') + '#kidsonly';
+      }
+      const created = await savePost({
+        text: finalCaption,
+        content: finalCaption,
+        authorName: profile?.full_name || (ar ? 'عضو الرعية' : 'Orthodox Parishioner'),
+        authorParish: profile?.parish || (ar ? 'كنيسة أرثوذكسية' : 'Orthodox Church'),
+        authorAvatar:
+          profile?.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
+        authorId: profile?.id,
+        video_id: finalVideoId || undefined,
+        video: finalVideoId || undefined,
+      });
+      setVideos((prev) => [created, ...prev]);
+      setShareCaption('');
+      setKidsFile(null);
+      setKidsProgress(0);
+    } catch (err) {
+      console.warn('[KidsView] kids share failed:', err);
+    } finally {
+      setKidsUploading(false);
+    }
+  };
+
   const gName = (g: GroupRoom) => (ar ? g.name_ar || g.name : g.name_en || g.name);
   const gDesc = (g: GroupRoom) =>
     ar ? g.description_ar || g.description : g.description_en || g.description;
@@ -116,7 +177,7 @@ export const KidsView: React.FC = () => {
         if (!alive) return;
 
         setVideos(
-          (vids || []).filter((v) => KIDS_RE.test(videoText(v)))
+          (vids || []).filter((v) => KIDS_RE.test(videoText(v)) || KIDSONLY_RE.test(videoText(v)))
         );
 
         const bookList: KidsBook[] = Array.isArray(bookRes) ? bookRes : [];
@@ -231,6 +292,71 @@ export const KidsView: React.FC = () => {
         </div>
       </div>
 
+      {/* Kids share bar — everything shared here is kids-only (never on the main feed) */}
+      <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="w-10 h-10 rounded-full bg-(--chip-dark) text-(--ac-gold-tx) flex items-center justify-center shrink-0 border-2 border-(--ln-gold)">
+            <Baby className="w-5 h-5" />
+          </div>
+          <input
+            type="text"
+            value={shareCaption}
+            onChange={(e) => setShareCaption(e.target.value)}
+            placeholder={ar ? 'شارك فيديو للأطفال… الصق رابط يوتيوب أو أرفق فيديو' : 'Share a kids video… paste a YouTube link or attach a video'}
+            className="flex-1 min-w-0 bg-transparent text-xs font-serif text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute) dark:placeholder-(--tx-ph-dark) focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => kidsFileRef.current?.click()}
+            className="p-2 rounded-xl text-(--tx-mute) hover:text-(--tx-strong) hover:bg-(--bg-soft) dark:hover:bg-[#282019] transition-colors shrink-0 cursor-pointer"
+            title={ar ? 'أرفق فيديو' : 'Attach a video'}
+          >
+            <Video className="w-5 h-5 text-(--ac-bronze-tx)" />
+          </button>
+          <button
+            type="button"
+            onClick={handleKidsShare}
+            disabled={kidsUploading || (!shareCaption.trim() && !kidsFile)}
+            className="px-4 py-2 rounded-xl bg-(--ac-bronze) hover:bg-(--ac-bronze-dk) text-white font-serif uppercase tracking-wider font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+          >
+            {kidsUploading ? (
+              <span>{kidsProgress > 0 ? `${kidsProgress}%` : (ar ? 'جارٍ النشر…' : 'Sharing…')}</span>
+            ) : (
+              <>
+                <Send className="w-3.5 h-3.5 rtl:rotate-180" />
+                <span>{ar ? 'مشاركة' : 'Share'}</span>
+              </>
+            )}
+          </button>
+        </div>
+        {kidsFile && (
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold)/40">
+            <span className="text-[11px] font-serif text-(--tx-strong) dark:text-[#f5ebd9] truncate">{kidsFile.name}</span>
+            <button
+              type="button"
+              onClick={() => setKidsFile(null)}
+              className="p-1 text-(--tx-mute) hover:text-red-500 cursor-pointer shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        <input
+          ref={kidsFileRef}
+          type="file"
+          accept="video/*"
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.[0]) setKidsFile(e.target.files[0]);
+          }}
+        />
+        <p className="text-[10px] font-serif text-(--tx-mute) dark:text-[#a89379] px-1">
+          {ar
+            ? 'كل ما يُشارك هنا يظهر في ركن الأطفال فقط — ولن يظهر في الصفحة الرئيسية.'
+            : 'Everything shared here appears only in Kids Corner — never on the main feed.'}
+        </p>
+      </div>
+
       {/* Kids videos */}
       <div className="space-y-4">
         <SectionHeader
@@ -242,8 +368,8 @@ export const KidsView: React.FC = () => {
           <EmptyNote
             text={
               ar
-                ? 'لا توجد فيديوهات أطفال بعد — شارك فيديو واكتب "للأطفال" في الوصف ليظهر هنا.'
-                : 'No kids videos yet — share a video and write "for kids" in the caption so it appears here.'
+                ? 'لا توجد فيديوهات أطفال بعد — استخدم صندوق المشاركة بالأعلى؛ كل ما يُشارك هنا يظهر في ركن الأطفال فقط.'
+                : 'No kids videos yet — use the share box above; everything shared here appears only in Kids Corner.'
             }
           />
         ) : (

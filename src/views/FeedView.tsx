@@ -648,13 +648,19 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
   const parsedPreviewEmbed = parseVideoEmbed(videoUrl);
 
+  // Kids-only posts (shared from Kids Corner) never appear on the main feed.
+  const KIDSONLY_RE = /#kidsonly/i;
+  const isKidsOnlyPost = (p: Post) =>
+    KIDSONLY_RE.test(`${p.text || ''} ${(p as any).content || ''}`);
+
   const filteredPosts =
     feedTab === 'all'
-      ? posts
+      ? posts.filter((p) => !isKidsOnlyPost(p))
       : posts.filter(
           (p) =>
-            followedMap[p.authorName] ||
-            (profile?.full_name && p.authorName.toLowerCase() === profile.full_name.toLowerCase())
+            !isKidsOnlyPost(p) &&
+            (followedMap[p.authorName] ||
+              (profile?.full_name && p.authorName.toLowerCase() === profile.full_name.toLowerCase()))
         );
 
   // Jump to a specific post when opened from a notification (like/comment).

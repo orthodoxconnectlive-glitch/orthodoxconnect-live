@@ -149,6 +149,10 @@ export const VideosView: React.FC<VideosViewProps> = ({
   // Filter videos by tab, search query, and selected hashtag
   const filteredVideos = useMemo(() => {
     return videos.filter((v) => {
+      // Kids-only posts (shared from Kids Corner) never appear on main surfaces
+      if (/#kidsonly/i.test(`${v.text || ''} ${(v as any).content || ''}`)) {
+        return false;
+      }
       // Tab filter
       if (activeTab === 'following' && !followedAuthors[v.authorName]) {
         return false;

@@ -1,8 +1,8 @@
-# Coptic Reader library — sources & notes
+# Coptic Library library — sources & notes
 
 In-app bilingual (English + Arabic) liturgical library rendered by
 `src/components/CopticReader.tsx`, opened from the Library view's
-"Coptic Reader" section.
+"Coptic Library" section.
 
 ## Content sources
 

@@ -374,7 +374,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
         </p>
       </div>
 
-      {/* Coptic Reader — bilingual liturgical library */}
+      {/* Coptic Library — bilingual liturgical library */}
       <div className="rounded-3xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg bg-gradient-to-br from-[#3a2a18] via-[#241a10] to-[#3a2a18]">
         <div className="flex flex-col sm:flex-row items-center gap-5 p-5 sm:p-6">
           <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#d4a24e]/15 border border-[#d4a24e]/50 flex items-center justify-center shrink-0">
@@ -382,7 +382,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
           </div>
           <div className="flex-1 text-center sm:text-left rtl:sm:text-right">
             <div className="text-[10px] font-serif uppercase tracking-[0.25em] text-[#d4a24e] mb-1">
-              ✦ {language === 'ar' ? 'القارئ القبطي' : 'Coptic Reader'} ✦
+              ✦ {language === 'ar' ? 'المكتبة القبطية' : 'Coptic Library'} ✦
             </div>
             <h2 className="font-serif-coptic font-bold text-xl sm:text-2xl text-[#f5ebd9] mb-1">
               {language === 'ar' ? 'مكتبة الصلوات والقراءات' : 'Prayers, Readings & Services'}
@@ -689,13 +689,13 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
         </Suspense>
       )}
 
-      {/* Coptic Reader Overlay */}
+      {/* Coptic Library Overlay */}
       {copticReaderOpen && (
         <Suspense
           fallback={
             <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#f7f1e5] dark:bg-[#14100b]">
               <div className="font-serif text-sm animate-pulse text-(--tx-mute)">
-                {language === 'ar' ? 'جاري فتح القارئ القبطي...' : 'Opening Coptic Reader...'}
+                {language === 'ar' ? 'جاري فتح المكتبة القبطية...' : 'Opening Coptic Library...'}
               </div>
             </div>
           }

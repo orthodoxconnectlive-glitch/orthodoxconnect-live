@@ -62,7 +62,7 @@ const label = (text: CRText, uiLang: 'en' | 'ar') =>
 const loadingText = (lang: 'en' | 'ar') =>
   lang === 'ar' ? 'جاري التحميل...' : 'Loading...';
 
-function BlockView({ block, clang, fontSize }: { block: CRBlock; clang: ContentLang; fontSize: string }) {
+const BlockView: React.FC<{ block: CRBlock; clang: ContentLang; fontSize: string }> = ({ block, clang, fontSize }) => {
   const showEn = clang === 'en' || clang === 'both';
   const showAr = (clang === 'ar' || clang === 'both') && block.text.ar;
   const lbl = block.label;
@@ -124,7 +124,7 @@ function BlockView({ block, clang, fontSize }: { block: CRBlock; clang: ContentL
       )}
     </div>
   );
-}
+};
 
 export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { language } = useTheme();
@@ -203,7 +203,7 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
       className="fixed inset-0 z-[60] flex flex-col bg-[#f7f1e5] dark:bg-[#14100b] text-[#2b2118] dark:text-[#f5ebd9]"
       role="dialog"
       aria-modal="true"
-      aria-label={lang === 'ar' ? 'القارئ القبطي' : 'Coptic Reader'}
+      aria-label={lang === 'ar' ? 'المكتبة القبطية' : 'Coptic Library'}
     >
       {/* Header */}
       <div className="shrink-0 border-b-2 border-[#b08d57]/40 dark:border-[#8b6b4a] bg-[#efe4cd] dark:bg-[#1c1611] px-4 pt-4 pb-3">
@@ -224,7 +224,7 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
           )}
           <div className="min-w-0 flex-1">
             <h2 className="font-bold text-lg leading-tight truncate">
-              {nav.level === 'shelf' ? label(library?.title ?? { en: 'Coptic Reader', ar: 'القارئ القبطي' }, lang) : crumbs}
+              {nav.level === 'shelf' ? label(library?.title ?? { en: 'Coptic Library', ar: 'المكتبة القبطية' }, lang) : crumbs}
             </h2>
             {nav.level === 'shelf' && library && (
               <p className="text-xs opacity-70 truncate">{label(library.subtitle, lang)}</p>

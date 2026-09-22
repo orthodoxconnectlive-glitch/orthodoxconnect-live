@@ -1,12 +1,12 @@
-import type { CRBook } from './types';
+import type { CRBook, CRDocument, CRSection } from './types';
 
-const doc = (id: string, en: string, ar: string) => ({
+const doc = (id: string, en: string, ar: string): CRDocument => ({
   id,
   title: { en, ar },
   blocks: [],
 });
 
-const section = (id: string, en: string, ar: string, docs: { id: string; title: { en: string; ar: string }; blocks: never[] }[]) => ({
+const section = (id: string, en: string, ar: string, docs: CRDocument[]): CRSection => ({
   id,
   title: { en, ar },
   documents: docs,

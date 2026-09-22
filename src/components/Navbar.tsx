@@ -23,6 +23,7 @@ import {
   BookOpen,
   Church,
   Store,
+  Baby,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -42,6 +43,16 @@ interface NavbarProps {
   onSelectUser?: (user: UserProfileData) => void;
   onOpenChurch?: (churchId: string) => void;
 }
+
+// "K" kids tab icon: a friendly Baby glyph with a gold K badge.
+const KidsTabIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <span className={`relative inline-flex items-center justify-center ${className ?? ''}`}>
+    <Baby className="w-full h-full" />
+    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-(--ac-gold) text-white text-[9px] font-black flex items-center justify-center ring-2 ring-[#f3e3be] dark:ring-[#18120e] leading-none">
+      K
+    </span>
+  </span>
+);
 
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenInvite,
@@ -131,7 +142,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'library', icon: BookOpen, label: language === 'ar' ? 'المكتبة' : 'Library' },
     { id: 'myNetwork', icon: Users, label: t('myNetwork') },
     { id: 'calendar', icon: Calendar, label: t('calendar') },
-    { id: 'churches', icon: Church, label: language === 'ar' ? 'الكنائس' : 'Churches' },
+    { id: 'kids', icon: KidsTabIcon, label: language === 'ar' ? 'أطفال' : 'Kids' },
     { id: 'marketplace', icon: Store, label: language === 'ar' ? 'السوق' : 'Marketplace' },
   ];
 
@@ -141,6 +152,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'live', label: t('goLive'), icon: Radio, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isLive: true },
     { id: 'candle', label: language === 'ar' ? 'أضئ شمعة' : 'Light a Candle', emoji: '🕯', color: 'text-amber-600 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30', isCandle: true },
     { id: 'profile', label: t('profile'), icon: UserIcon, color: 'text-stone-700 dark:text-amber-200', bg: 'bg-stone-200 dark:bg-stone-800' },
+    { id: 'churches', label: language === 'ar' ? 'الكنائس' : 'Churches', icon: Church, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
   ];
 
   const isSuperAdmin = profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';

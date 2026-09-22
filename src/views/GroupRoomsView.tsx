@@ -42,7 +42,7 @@ interface ParishMember {
 
 const ALL_MEMBERS_DEFAULT: ParishMember[] = [];
 
-const ALL_GROUPS: GroupRoom[] = [
+export const ALL_GROUPS: GroupRoom[] = [
   {
     id: 'room-bible',
     name: 'Orthodox Bible Study & Scripture Commentary',

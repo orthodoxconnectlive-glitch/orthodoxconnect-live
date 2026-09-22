@@ -503,6 +503,8 @@ export const KidsView: React.FC = () => {
           <div className="flex flex-col">
             {videos.map((v) => renderVideoRow(v))}
           </div>
+        )}
+      </div>
 
       {/* Kids books */}
       <div className="space-y-4">

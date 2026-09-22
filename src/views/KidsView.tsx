@@ -447,7 +447,7 @@ export const KidsView: React.FC = () => {
             }
           />
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col">
             {videos.map((v) => {
               const ytId = ytIdOf(v);
               const meta = ytId ? ytMeta[ytId] : undefined;
@@ -458,20 +458,17 @@ export const KidsView: React.FC = () => {
                 <div
                   key={v.id}
                   onClick={() => setPlaying(v)}
-                  className="group flex gap-3 p-2 rounded-2xl border border-(--ln-gold) dark:border-[#8b6b4a] bg-(--bg-card) dark:bg-[#1c1611] shadow-sm hover:shadow-md transition-shadow text-left rtl:text-right cursor-pointer"
+                  className="group flex gap-3 px-2 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left rtl:text-right cursor-pointer"
                 >
-                  <div className="relative w-36 sm:w-44 shrink-0 aspect-video rounded-xl overflow-hidden">
+                  <div className="relative w-40 sm:w-52 shrink-0 aspect-video rounded-lg overflow-hidden bg-black/10">
                     <img
                       src={posterFor(v)}
-                      alt={caption || (ar ? 'فيديو أطفال' : 'Kids video')}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      alt={title}
+                      className="w-full h-full object-cover"
                       loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-9 h-9 rounded-full bg-black/60 border-2 border-(--ln-gold) flex items-center justify-center text-amber-200">
-                        <Play className="w-4 h-4 fill-current ml-0.5" />
-                      </div>
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                      <Play className="w-8 h-8 text-white fill-current opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
                     </div>
                     {canDelete(v) && (
                       <button
@@ -488,12 +485,12 @@ export const KidsView: React.FC = () => {
                       </button>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0 py-1">
-                    <p className="text-sm font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9] leading-snug line-clamp-2">
+                  <div className="flex-1 min-w-0 py-0.5">
+                    <p className="text-sm font-serif font-semibold text-(--tx-strong) dark:text-[#f5ebd9] leading-snug line-clamp-2">
                       {title}
                     </p>
                     {author ? (
-                      <p className="text-[11px] text-(--tx-mute) font-serif mt-1 truncate">{author}</p>
+                      <p className="text-xs text-(--tx-mute) font-serif mt-1 truncate">{author}</p>
                     ) : null}
                   </div>
                 </div>

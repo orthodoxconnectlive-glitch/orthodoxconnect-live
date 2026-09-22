@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 
 const SynaxariumView = React.lazy(() => import('./SynaxariumView'));
+const CopticReader = React.lazy(() => import('../components/CopticReader'));
 
 interface Book {
   id: string;
@@ -64,6 +65,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [playingBook, setPlayingBook] = useState<Book | null>(null);
   const [synaxariumOpen, setSynaxariumOpen] = useState<boolean>(false);
+  const [copticReaderOpen, setCopticReaderOpen] = useState<boolean>(false);
   const [commentBook, setCommentBook] = useState<Book | null>(null);
   const [bookComments, setBookComments] = useState<BookComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -372,6 +374,38 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
         </p>
       </div>
 
+      {/* Coptic Library — bilingual liturgical library */}
+      <div className="rounded-3xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg bg-gradient-to-br from-[#3a2a18] via-[#241a10] to-[#3a2a18]">
+        <div className="flex flex-col sm:flex-row items-center gap-5 p-5 sm:p-6">
+          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#d4a24e]/15 border border-[#d4a24e]/50 flex items-center justify-center shrink-0">
+            <BookOpen className="w-10 h-10 text-[#d4a24e]" />
+          </div>
+          <div className="flex-1 text-center sm:text-left rtl:sm:text-right">
+            <div className="text-[10px] font-serif uppercase tracking-[0.25em] text-[#d4a24e] mb-1">
+              ✦ {language === 'ar' ? 'المكتبة القبطية' : 'Coptic Library'} ✦
+            </div>
+            <h2 className="font-serif-coptic font-bold text-xl sm:text-2xl text-[#f5ebd9] mb-1">
+              {language === 'ar' ? 'مكتبة الصلوات والقراءات' : 'Prayers, Readings & Services'}
+            </h2>
+            <p className="text-xs text-[#c9b18c] font-serif leading-relaxed mb-4 line-clamp-2">
+              {language === 'ar'
+                ? 'الأجبية، الكتاب المقدس، السنكسار، التسبحة، والقداسات — بالعربية والإنجليزية معًا.'
+                : 'Agpeya, Holy Bible, Synaxarium, Psalmody & Liturgies — English and Arabic together.'}
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center sm:justify-start rtl:sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setCopticReaderOpen(true)}
+                className="px-5 py-2.5 rounded-full bg-[#d4a24e] hover:bg-[#e5b85c] text-[#1c1410] text-sm font-serif font-bold flex items-center gap-2 shadow-md transition-all cursor-pointer"
+              >
+                <BookOpen className="w-4 h-4" />
+                {language === 'ar' ? 'افتح القارئ' : 'Open Reader'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Special Bible spotlight */}
       {bibleBooks.length > 0 && (
         <div className="rounded-3xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg bg-gradient-to-br from-[#2b1d12] via-[#1c1410] to-[#2b1d12]">
@@ -652,6 +686,21 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
           }
         >
           <SynaxariumView onClose={() => setSynaxariumOpen(false)} />
+        </Suspense>
+      )}
+
+      {/* Coptic Library Overlay */}
+      {copticReaderOpen && (
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#f7f1e5] dark:bg-[#14100b]">
+              <div className="font-serif text-sm animate-pulse text-(--tx-mute)">
+                {language === 'ar' ? 'جاري فتح المكتبة القبطية...' : 'Opening Coptic Library...'}
+              </div>
+            </div>
+          }
+        >
+          <CopticReader onClose={() => setCopticReaderOpen(false)} />
         </Suspense>
       )}
 

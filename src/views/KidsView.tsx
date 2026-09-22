@@ -600,7 +600,17 @@ export const KidsView: React.FC = () => {
             </button>
             {renderPlayer(playing)}
             <p className="text-xs font-serif text-(--tx-strong) dark:text-[#f5ebd9] mt-3 leading-relaxed line-clamp-3">
-              {videoText(playing).slice(0, 200)}
+              {(() => {
+                const clean = videoText(playing)
+                  .replace(/https?:\/\/[^\s]+/gi, '')
+                  .replace(/#\S+/g, '')
+                  .trim();
+                return clean
+                  ? clean.slice(0, 200)
+                  : ar
+                    ? 'فيديو أطفال'
+                    : 'Kids video';
+              })()}
             </p>
           </div>
         </div>

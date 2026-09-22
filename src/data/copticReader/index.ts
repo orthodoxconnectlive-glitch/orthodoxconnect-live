@@ -27,8 +27,8 @@ export async function loadCopticReaderLibrary(): Promise<CRLibrary> {
       ar: 'صلوات وقراءات وخدمات الكنيسة القبطية الأرثوذكسية',
     },
     attribution: {
-      en: 'Prayer texts: coptic.io liturgical data project.',
-      ar: 'نصوص الصلوات: مشروع coptic.io للبيانات الليتورجية.'
+      en: 'Texts: coptic.io liturgical data (MIT) · Bible: NKJV © Thomas Nelson · tasbeha.org · st-takla.org',
+      ar: 'النصوص: بيانات coptic.io الليتورجية (MIT) · الكتاب المقدس: NKJV © Thomas Nelson · tasbeha.org · st-takla.org'
     },
     books: [
       agpeya.book,

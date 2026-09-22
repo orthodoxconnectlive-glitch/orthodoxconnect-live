@@ -66,6 +66,7 @@ const BlockView: React.FC<{ block: CRBlock; clang: ContentLang; fontSize: string
   const showEn = clang === 'en' || clang === 'both';
   const showAr = (clang === 'ar' || clang === 'both') && block.text.ar;
   const lbl = block.label;
+  const arOnly = showAr && !showEn;
   const gold = 'text-[#8a6a3b] dark:text-[#d9b978]';
   const body = 'text-[#2b2118] dark:text-[#f5ebd9]';
 
@@ -111,9 +112,15 @@ const BlockView: React.FC<{ block: CRBlock; clang: ContentLang; fontSize: string
   return (
     <div>
       {lbl && (
-        <div className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-black dark:text-white">
-          {label(lbl, showEn ? 'en' : 'ar')}
-          {showEn && showAr && lbl.ar ? ` · ${lbl.ar}` : ''}
+        <div dir={arOnly ? 'rtl' : 'ltr'} className={`mb-1 text-[11px] font-extrabold text-black dark:text-white ${arOnly ? 'text-right' : 'text-left'}`}>
+          {showEn && <span className="uppercase tracking-[0.14em]">{lbl.en || lbl.ar}</span>}
+          {showEn && showAr && lbl.ar && (
+            <>
+              <span className="mx-1 opacity-60">·</span>
+              <span dir="rtl">{lbl.ar}</span>
+            </>
+          )}
+          {arOnly && <span>{lbl.ar}</span>}
         </div>
       )}
       {showEn && <p className={`${fontSize} leading-8 ${body}`}>{block.text.en}</p>}

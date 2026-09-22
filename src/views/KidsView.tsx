@@ -220,7 +220,7 @@ export const KidsView: React.FC = () => {
           </div>
           <div>
             <h2 className="font-serif-coptic font-bold text-2xl text-(--tx-strong) dark:text-[#f5ebd9]">
-              {ar ? '🌈 ركن الأطفال' : '🌈 Kids Corner'}
+              {ar ? 'ركن الأطفال' : 'Kids Corner'}
             </h2>
             <p className="text-xs text-(--tx-mute) dark:text-[#c9b795] font-serif mt-1 leading-relaxed">
               {ar

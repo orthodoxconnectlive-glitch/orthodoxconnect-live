@@ -8,9 +8,13 @@ In-app bilingual (English + Arabic) liturgical library rendered by
 
 - **Agpeya, Psalms, Gospels, Psalmody (Tasbeha), St. Basil Liturgy, Raising of
   Incense** — generated from the public liturgical data at
-  [coptic.io](https://coptic.io). Licensing/attribution terms of coptic.io
-  should be verified before production use; the in-app attribution names the
-  source without claiming a specific license.
+  [coptic.io](https://coptic.io) ([MIT licensed](https://github.com/abanobmikaeel/coptic.io)).
+  Their liturgy/psalmody texts were imported from the
+  [tasbeha.org hymn library](https://tasbeha.org/hymn_library/); their Bible
+  text is the **New King James Version (NKJV), © Thomas Nelson** — full-book
+  republication exceeds Thomas Nelson's gratis terms, so the Bible translation
+  should be reviewed (e.g. swap to a public-domain text) before relying on it
+  long-term. The in-app attribution names all sources.
 - **Prayer of the Veil (Agpeya)** — adapted from the Arabic/English text at
   St. Takla Haymanot's Coptic Orthodox site (st-takla.org); their renderings
   belong to their authors/site.

@@ -31,9 +31,9 @@ import {
 import { ALL_GROUPS } from './GroupRoomsView';
 import type { Post, GroupRoom } from '../types';
 
-// A video / book / group counts as kids material only when its creator
-// explicitly tagged it for kids (caption, hashtag, title) — or when it is a
-// built-in youth group. The general feed is never shown here.
+// Kids Corner videos show ONLY posts explicitly tagged #kidsonly. Ordinary posts
+// that merely mention kids stay on the main feed. Books/groups still use keyword
+// matching (or the built-in youth type). The general feed is never shown here.
 const KIDS_RE = /kid|child|أطفال|اطفال|للأطفال|للاطفال|sunday school|مدرسة ?الأحد/i;
 // Marks a post as kids-only: hidden from the main feed, shown only in Kids Corner.
 const KIDSONLY_RE = /#kidsonly/i;
@@ -219,9 +219,10 @@ export const KidsView: React.FC = () => {
         ]);
         if (!alive) return;
 
-        setVideos(
-          (vids || []).filter((v) => KIDS_RE.test(videoText(v)) || KIDSONLY_RE.test(videoText(v)))
-        );
+        // Kids Corner videos: ONLY posts explicitly tagged #kidsonly (shared from
+        // the Kids Corner share bar). Ordinary posts that merely mention kids
+        // stay on the main feed.
+        setVideos((vids || []).filter((v) => KIDSONLY_RE.test(videoText(v))));
 
         const bookList: KidsBook[] = Array.isArray(bookRes) ? bookRes : [];
         setBooks(

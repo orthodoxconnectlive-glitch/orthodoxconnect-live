@@ -292,6 +292,59 @@ export const KidsView: React.FC = () => {
     }
   };
 
+  const renderVideoRow = (v: Post) => {
+    const ytId = ytIdOf(v);
+    const meta = ytId ? ytMeta[ytId] : undefined;
+    const caption = cleanCaption(v);
+    const title = meta?.title || caption || (ar ? 'فيديو أطفال' : 'Kids video');
+    const author = meta?.author || v.authorName || (v as any).author_name || '';
+    const active = playing?.id === v.id;
+    return (
+      <div
+        key={v.id}
+        onClick={() => setPlaying(v)}
+        className={
+          'group flex gap-3 px-2 py-2.5 rounded-xl transition-colors text-left rtl:text-right cursor-pointer ' +
+          (active ? 'bg-amber-100/70 dark:bg-white/10' : 'hover:bg-black/5 dark:hover:bg-white/5')
+        }
+      >
+        <div className="relative w-40 sm:w-52 shrink-0 aspect-video rounded-lg overflow-hidden bg-black/10">
+          <img
+            src={posterFor(v)}
+            alt={title}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+            <Play className="w-8 h-8 text-white fill-current opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+          </div>
+          {canDelete(v) && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteVideo(v.id);
+              }}
+              disabled={deletingId === v.id}
+              className="absolute top-1.5 right-1.5 rtl:right-auto rtl:left-1.5 w-7 h-7 rounded-full bg-black/60 border border-white/30 text-white/90 hover:text-white hover:bg-red-600 flex items-center justify-center transition-colors z-10 cursor-pointer disabled:opacity-50"
+              title={ar ? 'حذف' : 'Delete'}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+        <div className="flex-1 min-w-0 py-0.5">
+          <p className="text-sm font-serif font-semibold text-(--tx-strong) dark:text-[#f5ebd9] leading-snug line-clamp-2">
+            {title}
+          </p>
+          {author ? (
+            <p className="text-xs text-(--tx-mute) font-serif mt-1 truncate">{author}</p>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
   const renderPlayer = (v: Post) => {
     const raw = videoRawSource(v);
     const yt = extractYouTubeId(raw) || extractYouTubeId(videoText(v));
@@ -448,57 +501,8 @@ export const KidsView: React.FC = () => {
           />
         ) : (
           <div className="flex flex-col">
-            {videos.map((v) => {
-              const ytId = ytIdOf(v);
-              const meta = ytId ? ytMeta[ytId] : undefined;
-              const caption = cleanCaption(v);
-              const title = meta?.title || caption || (ar ? 'فيديو أطفال' : 'Kids video');
-              const author = meta?.author || v.authorName || (v as any).author_name || '';
-              return (
-                <div
-                  key={v.id}
-                  onClick={() => setPlaying(v)}
-                  className="group flex gap-3 px-2 py-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left rtl:text-right cursor-pointer"
-                >
-                  <div className="relative w-40 sm:w-52 shrink-0 aspect-video rounded-lg overflow-hidden bg-black/10">
-                    <img
-                      src={posterFor(v)}
-                      alt={title}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                      <Play className="w-8 h-8 text-white fill-current opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
-                    </div>
-                    {canDelete(v) && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteVideo(v.id);
-                        }}
-                        disabled={deletingId === v.id}
-                        className="absolute top-1.5 right-1.5 rtl:right-auto rtl:left-1.5 w-7 h-7 rounded-full bg-black/60 border border-white/30 text-white/90 hover:text-white hover:bg-red-600 flex items-center justify-center transition-colors z-10 cursor-pointer disabled:opacity-50"
-                        title={ar ? 'حذف' : 'Delete'}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0 py-0.5">
-                    <p className="text-sm font-serif font-semibold text-(--tx-strong) dark:text-[#f5ebd9] leading-snug line-clamp-2">
-                      {title}
-                    </p>
-                    {author ? (
-                      <p className="text-xs text-(--tx-mute) font-serif mt-1 truncate">{author}</p>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
+            {videos.map((v) => renderVideoRow(v))}
           </div>
-        )}
-      </div>
 
       {/* Kids books */}
       <div className="space-y-4">
@@ -624,29 +628,38 @@ export const KidsView: React.FC = () => {
         </span>
       </div>
 
-      {/* Video player modal */}
+      {/* Video player modal — watch page: player with the playlist beside it */}
       {playing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setPlaying(null)}
           />
-          <div className="relative w-full max-w-2xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) rounded-3xl p-4 shadow-2xl">
+          <div className="relative w-full max-w-5xl max-h-[92vh] bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) rounded-3xl shadow-2xl overflow-hidden flex flex-col">
             <button
               onClick={() => setPlaying(null)}
-              className="absolute -top-3 -right-3 rtl:-right-auto rtl:-left-3 w-9 h-9 rounded-full bg-(--ac-bronze) text-white flex items-center justify-center shadow-lg cursor-pointer z-10"
+              className="absolute top-3 right-3 rtl:right-auto rtl:left-3 w-9 h-9 rounded-full bg-(--ac-bronze) text-white flex items-center justify-center shadow-lg cursor-pointer z-10"
               aria-label={ar ? 'إغلاق' : 'Close'}
             >
               <X className="w-5 h-5" />
             </button>
-            {renderPlayer(playing)}
-            <p className="text-xs font-serif text-(--tx-strong) dark:text-[#f5ebd9] mt-3 leading-relaxed line-clamp-3">
-              {(() => {
-                const ytId = ytIdOf(playing);
-                const meta = ytId ? ytMeta[ytId] : undefined;
-                return meta?.title || cleanCaption(playing) || (ar ? 'فيديو أطفال' : 'Kids video');
-              })()}
-            </p>
+            <div className="flex flex-col md:flex-row overflow-hidden">
+              <div className="flex-1 min-w-0 p-4 md:overflow-y-auto">
+                {renderPlayer(playing)}
+                <p className="text-sm font-serif font-semibold text-(--tx-strong) dark:text-[#f5ebd9] mt-3 leading-relaxed">
+                  {(() => {
+                    const ytId = ytIdOf(playing);
+                    const meta = ytId ? ytMeta[ytId] : undefined;
+                    return meta?.title || cleanCaption(playing) || (ar ? 'فيديو أطفال' : 'Kids video');
+                  })()}
+                </p>
+              </div>
+              <div className="md:w-80 lg:w-96 shrink-0 border-t md:border-t-0 md:border-s border-black/10 dark:border-white/10 p-2 overflow-y-auto max-h-72 md:max-h-[92vh]">
+                <div className="flex flex-col">
+                  {videos.map((v) => renderVideoRow(v))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

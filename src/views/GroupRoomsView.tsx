@@ -247,6 +247,12 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
       g.parish.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredOtherGroups = otherGroupsList.filter(
+    (g) =>
+      groupDisplayName(g).toLowerCase().includes(searchQuery.toLowerCase()) ||
+      g.parish.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
       {/* Top Banner Header */}
@@ -575,8 +581,15 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
               <span>Available Fellowship Groups</span>
             </h3>
 
+            {filteredOtherGroups.length === 0 && (
+              <div className="p-8 text-center bg-(--bg-card) dark:bg-[#1c1611] rounded-3xl border-2 border-(--ln-gold) text-(--tx-mute) text-xs font-serif">
+                <p className="font-bold text-(--tx-strong) dark:text-[#f5ebd9]">
+                  {language === 'ar' ? 'لا توجد مجموعات جديدة متاحة الآن.' : 'No new groups available right now.'}
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {ALL_GROUPS.map((group) => {
+              {filteredOtherGroups.map((group) => {
                 const isJoined = joinedGroupIds.includes(group.id);
                 return (
                   <div

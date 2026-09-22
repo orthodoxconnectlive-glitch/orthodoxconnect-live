@@ -11,10 +11,11 @@ import {
   Sparkles,
   Video,
   Send,
+  Trash2,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { loadVideos, savePost } from '../utils/posts';
+import { loadVideos, savePost, deletePost } from '../utils/posts';
 import { uploadVideoToBunnyStream } from '../utils/storage';
 import {
   getCustomGroups,
@@ -103,6 +104,7 @@ export const KidsView: React.FC = () => {
   const [joinedIds, setJoinedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [playing, setPlaying] = useState<Post | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const authContext = useAuth() as any;
   const profile = authContext?.profile;
@@ -216,6 +218,37 @@ export const KidsView: React.FC = () => {
   const handleJoin = (id: string) => {
     toggleGroupJoin(id);
     setJoinedIds(getJoinedGroupIds());
+  };
+
+  // Delete: the author can delete their own posts; an admin can delete any post.
+  // Mirrors the main-feed PostCard pattern (owner-or-admin); the server's
+  // DELETE /api/posts/:id enforces the same rule (auth.isAdmin || isAuthor).
+  const isAdminProfile =
+    profile?.role === 'admin' ||
+    profile?.role === 'owner' ||
+    profile?.role === 'super_admin' ||
+    profile?.email === 'orthodoxconnect.live@gmail.com' ||
+    profile?.id === '9e63fd72-f7c1-4748-b463-1137b469c7f5';
+
+  const postAuthorId = (v: Post): string => (v.authorId || (v as any).author_id || '') as string;
+
+  const canDelete = (v: Post): boolean =>
+    Boolean(profile?.id) && (isAdminProfile || postAuthorId(v) === profile.id);
+
+  const handleDeleteVideo = async (postId: string) => {
+    const ok = window.confirm(ar ? 'هل تريد حذف هذا الفيديو؟' : 'Delete this video?');
+    if (!ok) return;
+    setDeletingId(postId);
+    try {
+      const res = await deletePost(postId, profile);
+      if (res.success) {
+        setVideos((prev) => prev.filter((pp) => pp.id !== postId));
+      } else {
+        window.alert(ar ? 'تعذر حذف الفيديو.' : 'Could not delete the video.');
+      }
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const renderPlayer = (v: Post) => {
@@ -377,7 +410,7 @@ export const KidsView: React.FC = () => {
             {videos.map((v) => {
               const caption = videoText(v).replace(/#\S+/g, '').trim().slice(0, 90);
               return (
-                <button
+                <div
                   key={v.id}
                   onClick={() => setPlaying(v)}
                   className="group relative rounded-3xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] bg-(--bg-card) dark:bg-[#1c1611] shadow-md text-left rtl:text-right cursor-pointer"
@@ -395,6 +428,20 @@ export const KidsView: React.FC = () => {
                         <Play className="w-6 h-6 fill-current ml-0.5" />
                       </div>
                     </div>
+                    {canDelete(v) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteVideo(v.id);
+                        }}
+                        disabled={deletingId === v.id}
+                        className="absolute top-2 right-2 rtl:right-auto rtl:left-2 w-8 h-8 rounded-full bg-black/60 border border-white/30 text-white/90 hover:text-white hover:bg-red-600 flex items-center justify-center transition-colors z-10 cursor-pointer disabled:opacity-50"
+                        title={ar ? 'حذف' : 'Delete'}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                   <div className="p-3">
                     <p className="text-xs font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9] leading-snug line-clamp-2">
@@ -404,7 +451,7 @@ export const KidsView: React.FC = () => {
                       {v.authorName || (v as any).author_name || ''}
                     </p>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

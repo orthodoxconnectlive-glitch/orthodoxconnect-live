@@ -38,6 +38,36 @@ const ICONS: Record<string, React.ReactNode> = {
 
 type ContentLang = 'en' | 'ar' | 'both';
 
+/** Budded Coptic cross — each arm ends in three points, for the Holy Trinity. */
+const CopticCross: React.FC<{ className?: string }> = ({ className }) => (
+  <svg
+    viewBox="0 0 48 48"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={3}
+    strokeLinecap="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M24 11v26" />
+    <path d="M13 22h22" />
+    <g fill="currentColor" stroke="none">
+      <circle cx="24" cy="6.5" r="2" />
+      <circle cx="20.3" cy="8.3" r="2" />
+      <circle cx="27.7" cy="8.3" r="2" />
+      <circle cx="24" cy="41.5" r="2" />
+      <circle cx="20.3" cy="39.7" r="2" />
+      <circle cx="27.7" cy="39.7" r="2" />
+      <circle cx="8.5" cy="22" r="2" />
+      <circle cx="10.3" cy="18.3" r="2" />
+      <circle cx="10.3" cy="25.7" r="2" />
+      <circle cx="39.5" cy="22" r="2" />
+      <circle cx="37.7" cy="18.3" r="2" />
+      <circle cx="37.7" cy="25.7" r="2" />
+    </g>
+  </svg>
+);
+
 type Nav =
   | { level: 'shelf' }
   | { level: 'book'; book: CRBook }
@@ -314,7 +344,7 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
             </button>
           ) : (
             <div className="w-10 h-10 rounded-2xl bg-[#b08d57]/20 border border-[#b08d57] flex items-center justify-center shrink-0">
-              <BookOpen className="w-5 h-5 text-[#8a6a3b] dark:text-[#d9b978]" />
+              <CopticCross className="w-5 h-5 text-[#8a6a3b] dark:text-[#d9b978]" />
             </div>
           )}
           <div className="min-w-0 flex-1">

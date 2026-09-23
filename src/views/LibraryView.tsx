@@ -1,11 +1,11 @@
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useMemo } from 'react';
 import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon, Pencil, Trash2, Headphones, Play, Heart, MessageCircle, Share2, Send } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
+import { ErrorBoundary, importWithRetry } from '../components/ErrorBoundary';
 
 const SynaxariumView = React.lazy(() => import('./SynaxariumView'));
-const CopticReader = React.lazy(() => import('../components/CopticReader'));
 
 interface Book {
   id: string;
@@ -66,6 +66,12 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
   const [playingBook, setPlayingBook] = useState<Book | null>(null);
   const [synaxariumOpen, setSynaxariumOpen] = useState<boolean>(false);
   const [copticReaderOpen, setCopticReaderOpen] = useState<boolean>(false);
+  // Bumps to force a brand-new lazy import if the reader chunk fails to load.
+  const [readerAttempt, setReaderAttempt] = useState(0);
+  const CopticReader = useMemo(
+    () => React.lazy(() => importWithRetry(() => import('../components/CopticReader'))),
+    [readerAttempt],
+  );
   const [commentBook, setCommentBook] = useState<Book | null>(null);
   const [bookComments, setBookComments] = useState<BookComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -691,17 +697,19 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
 
       {/* Coptic Library Overlay */}
       {copticReaderOpen && (
-        <Suspense
-          fallback={
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#f7f1e5] dark:bg-[#14100b]">
-              <div className="font-serif text-sm animate-pulse text-(--tx-mute)">
-                {language === 'ar' ? 'جاري فتح المكتبة القبطية...' : 'Opening Coptic Library...'}
+        <ErrorBoundary lang={language} onRetry={() => setReaderAttempt((a) => a + 1)}>
+          <Suspense
+            fallback={
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#f7f1e5] dark:bg-[#14100b]">
+                <div className="font-serif text-sm animate-pulse text-(--tx-mute)">
+                  {language === 'ar' ? 'جاري فتح المكتبة القبطية...' : 'Opening Coptic Library...'}
+                </div>
               </div>
-            </div>
-          }
-        >
-          <CopticReader onClose={() => setCopticReaderOpen(false)} />
-        </Suspense>
+            }
+          >
+            <CopticReader onClose={() => setCopticReaderOpen(false)} />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       {/* Book Comments Modal */}

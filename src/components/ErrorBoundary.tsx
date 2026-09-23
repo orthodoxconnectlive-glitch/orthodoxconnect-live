@@ -57,6 +57,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             >
               {ar ? 'حاول مجددًا' : 'Try again'}
             </button>
+            {this.state.error && (
+              <p className="mt-4 text-[11px] leading-relaxed text-[#6b5a44]/70 dark:text-[#a89379]/70 break-words font-mono">
+                {String((this.state.error as Error)?.message || this.state.error).slice(0, 300)}
+              </p>
+            )}
           </div>
         </div>
       );

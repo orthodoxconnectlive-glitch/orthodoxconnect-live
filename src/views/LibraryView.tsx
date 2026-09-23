@@ -134,6 +134,20 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
       .catch(() => {});
   }, []);
 
+  // Special featured Synaxarium spotlight — the synaxarium reader book
+  const [synaxariumBook, setSynaxariumBook] = useState<Book | null>(null);
+  useEffect(() => {
+    fetch('/api/books')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setSynaxariumBook(
+          list.find((b: Book) => (b.file_url || '').startsWith('synaxarium://')) || null
+        );
+      })
+      .catch(() => {});
+  }, []);
+
   const openAddModal = () => {
     setEditingBookId(null);
     setFormData(initialFormState);
@@ -450,6 +464,44 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
                   <Download className="w-4 h-4" />
                   {language === 'ar' ? 'تحميل' : 'Download'}
                 </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Special Synaxarium spotlight */}
+      {synaxariumBook && (
+        <div className="rounded-3xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg bg-gradient-to-br from-[#2b1d12] via-[#1c1410] to-[#2b1d12]">
+          <div className="flex flex-col sm:flex-row items-center gap-5 p-5 sm:p-6">
+            {synaxariumBook.cover_image_url && (
+              <img
+                src={synaxariumBook.cover_image_url}
+                alt={language === 'ar' ? synaxariumBook.title_ar : (synaxariumBook.title_en || synaxariumBook.title_ar)}
+                className="w-28 sm:w-36 rounded-xl shadow-2xl border border-[#8b6b4a]/50 shrink-0"
+              />
+            )}
+            <div className="flex-1 text-center sm:text-left rtl:sm:text-right">
+              <div className="text-[10px] font-serif uppercase tracking-[0.25em] text-[#d4a24e] mb-1">
+                ✦ {language === 'ar' ? 'السنكسار' : 'The Synaxarium'} ✦
+              </div>
+              <h2 className="font-serif-coptic font-bold text-xl sm:text-2xl text-[#f5ebd9] mb-1">
+                {language === 'ar' ? synaxariumBook.title_ar : (synaxariumBook.title_en || synaxariumBook.title_ar)}
+              </h2>
+              {synaxariumBook.description && (
+                <p className="text-xs text-[#c9b18c] font-serif leading-relaxed mb-4 line-clamp-3">
+                  {synaxariumBook.description}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2 justify-center sm:justify-start rtl:sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSynaxariumOpen(true)}
+                  className="px-5 py-2.5 rounded-full bg-[#d4a24e] hover:bg-[#e5b85c] text-[#1c1410] text-sm font-serif font-bold flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  {language === 'ar' ? 'اقرأ الآن' : 'Read Now'}
+                </button>
               </div>
             </div>
           </div>

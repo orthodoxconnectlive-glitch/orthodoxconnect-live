@@ -158,9 +158,17 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   const [fontSize, setFontSize] = useState(() => readJSON(FONT_KEY, 'text-[17px]'));
   const [bookmarks, setBookmarks] = useState<string[]>(() => readJSON(BOOKMARK_KEY, []));
   const [loadingDocs, setLoadingDocs] = useState(false);
+  const [libError, setLibError] = useState(false);
+
+  const loadLibrary = () => {
+    setLibError(false);
+    loadCopticReaderLibrary()
+      .then(setLibrary)
+      .catch(() => setLibError(true));
+  };
 
   useEffect(() => {
-    loadCopticReaderLibrary().then(setLibrary);
+    loadLibrary();
   }, []);
 
   useEffect(() => {
@@ -368,9 +376,26 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="max-w-3xl mx-auto flex flex-col gap-3">
           {!library ? (
-            <p className="text-center text-sm text-[#6b5a44] dark:text-[#a89379] font-serif py-10 animate-pulse">
-              {loadingText(lang)}
-            </p>
+            libError ? (
+              <div className="text-center py-10">
+                <p className="text-sm text-[#6b5a44] dark:text-[#a89379] font-serif">
+                  {lang === 'ar'
+                    ? 'تعذّر تحميل المكتبة. تحقق من الاتصال وحاول مجددًا.'
+                    : 'Could not load the library. Check your connection and try again.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={loadLibrary}
+                  className="mt-4 px-6 py-2.5 rounded-full bg-[#b08d57] hover:bg-[#c09a63] text-white text-sm font-serif font-bold shadow-md transition-colors cursor-pointer"
+                >
+                  {lang === 'ar' ? 'حاول مجددًا' : 'Try again'}
+                </button>
+              </div>
+            ) : (
+              <p className="text-center text-sm text-[#6b5a44] dark:text-[#a89379] font-serif py-10 animate-pulse">
+                {loadingText(lang)}
+              </p>
+            )
           ) : (
             <>
               {/* Shelf */}

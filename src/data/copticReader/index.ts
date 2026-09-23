@@ -8,7 +8,7 @@ import type { CRLibrary } from './types';
  * Large modules (Bible) lazy-load their documents so the app bundle stays small.
  */
 export async function loadCopticReaderLibrary(): Promise<CRLibrary> {
-  const [agpeya, liturgies, bible, readings, psalmody, synaxarion, sacraments] =
+  const [agpeya, liturgies, bible, readings, psalmody, synaxarion] =
     await Promise.all([
       import('./agpeya'),
       import('./liturgies'),
@@ -16,7 +16,6 @@ export async function loadCopticReaderLibrary(): Promise<CRLibrary> {
       import('./readings'),
       import('./psalmody'),
       import('./synaxarion'),
-      import('./sacraments'),
     ]);
 
   return {
@@ -37,7 +36,6 @@ export async function loadCopticReaderLibrary(): Promise<CRLibrary> {
       liturgies.book,
       readings.book,
       synaxarion.book,
-      sacraments.book,
     ],
   };
 }

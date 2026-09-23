@@ -153,6 +153,7 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   const [library, setLibrary] = useState<CRLibrary | null>(null);
   const [nav, setNav] = useState<Nav>({ level: 'shelf' });
   const [query, setQuery] = useState('');
+  const [docQuery, setDocQuery] = useState('');
   const [clang, setClang] = useState<ContentLang>(() => readJSON(LANG_KEY, 'both' as ContentLang));
   const [fontSize, setFontSize] = useState(() => readJSON(FONT_KEY, 'text-[17px]'));
   const [bookmarks, setBookmarks] = useState<string[]>(() => readJSON(BOOKMARK_KEY, []));
@@ -241,6 +242,7 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
 
   const openSection = async (book: CRBook, section: CRSection) => {
     setLoadingDocs(true);
+    setDocQuery('');
     try {
       const docs = Array.isArray(section.documents) ? section.documents : await section.documents();
       setNav({ level: 'section', book, section, docs });
@@ -434,10 +436,41 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
               {/* Section → documents */}
               {nav.level === 'section' && (
                 <div className="flex flex-col gap-2">
+                  {nav.docs.length > 8 && (
+                    <div className="relative">
+                      <Search size={16} className="absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-[#6b5a44] dark:text-[#a89379]" />
+                      <input
+                        value={docQuery}
+                        onChange={(e) => setDocQuery(e.target.value)}
+                        placeholder={lang === 'ar' ? 'ابحث في هذه القائمة...' : 'Search this list...'}
+                        className="w-full rounded-xl border border-[#b08d57]/50 bg-white/60 dark:bg-[#282019] py-2 pl-9 rtl:pl-3 rtl:pr-9 pr-8 text-sm text-[#2b2118] dark:text-[#f5ebd9] placeholder-[#6b5a44]/60 dark:placeholder-[#a89379]/60 focus:outline-none focus:border-[#b08d57]"
+                      />
+                      {docQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setDocQuery('')}
+                          className="absolute right-2 rtl:right-auto rtl:left-2 top-1/2 -translate-y-1/2 p-1 text-[#6b5a44] dark:text-[#a89379]"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {loadingDocs && (
                     <p className={`p-4 text-sm ${muted} animate-pulse`}>{loadingText(lang)}</p>
                   )}
-                  {nav.docs.map((d) => {
+                  {nav.docs
+                    .filter((d) => {
+                      const q = docQuery.trim().toLowerCase();
+                      if (!q) return true;
+                      return (
+                        d.title.en.toLowerCase().includes(q) ||
+                        (d.title.ar || '').includes(docQuery.trim()) ||
+                        (d.subtitle?.en.toLowerCase().includes(q) ?? false) ||
+                        (d.subtitle?.ar || '').includes(docQuery.trim())
+                      );
+                    })
+                    .map((d) => {
                     const marked = bookmarks.includes(d.id);
                     return (
                       <div

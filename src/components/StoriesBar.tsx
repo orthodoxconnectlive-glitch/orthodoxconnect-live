@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Sparkles, X, ChevronLeft, ChevronRight, Send, Image as ImageIcon, Church, Film, Music, Play, Pause, Upload, Loader2, Trash2 } from 'lucide-react';
 import { storiesApi } from '../lib/api';
-import { Story, loadStories, saveStory } from '../utils/stories';
+import { Story, loadStories, persistStory } from '../utils/stories';
 import { compressImageToDataUrl, uploadVideoToBunnyStream, BUNNY_LIBRARY_ID } from '../utils/storage';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -313,7 +313,14 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
         mediaUrl = audioDataUrl;
       }
 
-      const created = saveStory({
+      const nowIso = new Date().toISOString();
+      // Build the story up-front so the local copy and the server row share
+      // the same id (never shown as duplicates in the bar). It is only
+      // persisted locally AFTER the server accepts it — or as an offline
+      // draft when the network itself is unreachable. A server rejection
+      // (e.g. expired session) must never appear in the bar as "published".
+      const draft: Story = {
+        id: 'story-' + Date.now(),
         authorName: profile?.full_name || (ar ? 'عضو الرعية' : 'Orthodox Parishioner'),
         authorAvatar:
           profile?.avatar_url ||
@@ -322,19 +329,21 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
         imageUrl: mediaUrl,
         mediaType,
         caption: caption.trim(),
-      });
+        createdAt: nowIso,
+      };
 
       let serverOk = true;
       let serverDetail = '';
+      let authFailed = false;
       try {
         await storiesApi.create({
-          id: created.id,
-          author_name: created.authorName,
-          author_avatar: created.authorAvatar,
-          author_parish: created.authorParish,
-          image_url: created.imageUrl,
+          id: draft.id,
+          author_name: draft.authorName,
+          author_avatar: draft.authorAvatar,
+          author_parish: draft.authorParish,
+          image_url: draft.imageUrl,
           media_type: mediaType,
-          caption: created.caption,
+          caption: draft.caption,
           author_id: profile?.id,
         } as any);
       } catch (err) {
@@ -343,11 +352,27 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
         console.warn('Stories insert detail:', detail);
         serverOk = false;
         serverDetail = detail;
+        // 401 from the server means the login session is dead (expired or
+        // signed out elsewhere) — not a connection problem. The
+        // oc:session-expired bounce already sent the user to sign-in; keep
+        // their draft in the open modal so nothing is lost.
+        authFailed = /\b401\b|unauthorized|authentication required/i.test(detail);
       }
 
-      setStories([created, ...stories]);
       if (!serverOk) {
         // Keep the modal open so the failure is visible instead of failing silently.
+        if (authFailed) {
+          setFormError(
+            ar
+              ? 'انتهت جلسة تسجيل الدخول — سجّل الدخول مرة أخرى ثم انشر القصة. مسودتك محفوظة هنا ولم يضع شيء.'
+              : 'Your sign-in expired — please sign in again, then publish your story. Your draft is safe here; nothing was lost.'
+          );
+          return;
+        }
+        // Genuine network/server failure: keep a local draft copy so the
+        // story isn't lost, and say plainly it stayed on this device.
+        persistStory(draft);
+        setStories([draft, ...stories]);
         setFormError(
           (ar
             ? 'تم حفظ القصة على هذا الجهاز فقط — تعذّر إرسالها للخادم. تحقق من الإنترنت ثم حاول مجدداً.'
@@ -356,6 +381,9 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
         );
         return;
       }
+
+      persistStory(draft);
+      setStories([draft, ...stories]);
       closeModal();
     } catch (err) {
       console.warn('Story publish failed:', err);

@@ -5,6 +5,7 @@ import { formatCopticDate, shiftCopticDay, copticToGregorian, COPTIC_MONTHS_EN, 
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
+import { useSpeech, detectSpeechLang } from '../hooks/useSpeech';
 
 interface SynaxComment {
   id: string;
@@ -42,15 +43,9 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
     setMode('read');
   }, [copticDate.year, copticDate.month, copticDate.day]);
   const bodyRef = useRef<HTMLDivElement>(null);
-  // Reading the day aloud with the phone's own voice (no network needed).
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
+  // Reading the day aloud with the phone's own voice (no network needed),
+  // through the shared speech hook (Arabic + English voices).
+  const speech = useSpeech();
   // Engagement key: one per Coptic day ("MM-DD"), shared across languages
   // and years so the whole community likes/comments on the same day entry.
   const synaxKey = `${String(viewDate.month).padStart(2, '0')}-${String(viewDate.day).padStart(2, '0')}`;
@@ -63,10 +58,7 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
     setError(false);
     bodyRef.current?.scrollTo({ top: 0 });
     // Stop any in-progress reading when the day changes.
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    setIsSpeaking(false);
+    speech.stop();
     getSynaxariumDay(viewDate)
       .then((d) => {
         if (!cancelled) setDay(d);
@@ -225,45 +217,25 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
 
   // --- Listen to the day (text-to-speech) ---
   const toggleListen = () => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    if (!speech.supported) {
       alert(isAr ? 'القراءة الصوتية غير مدعومة على هذا الجهاز' : 'Text-to-speech is not supported on this device');
       return;
     }
-    if (isSpeaking) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
+    if (speech.speaking) {
+      speech.stop();
       return;
     }
-    const fullText = [...titles, ...paragraphs].join('\n').trim();
-    if (!fullText) return;
-    window.speechSynthesis.cancel();
-    const chunks = fullText.match(/[^.!?،؛\n]+[.!?،؛\n]?/g) || [fullText];
-    const voices = window.speechSynthesis.getVoices();
-    const arabicChars = (fullText.match(/[؀-ۿ]/g) || []).length;
-    const contentIsAr = arabicChars > fullText.length * 0.3;
-    let voice: SpeechSynthesisVoice | undefined;
-    let lang: string;
-    if (contentIsAr) {
-      lang = 'ar-EG';
-      voice = voices.find((v) => v.lang === 'ar-EG') || voices.find((v) => v.lang.startsWith('ar'));
-    } else {
-      lang = 'en-US';
-      voice = voices.find((v) => v.lang === 'en-US') || voices.find((v) => v.lang.startsWith('en'));
+    const items: { text: string; lang: 'ar' | 'en' }[] = [];
+    for (const t of titles) {
+      const x = t.trim();
+      if (x) items.push({ text: x, lang: detectSpeechLang(x) });
     }
-    setIsSpeaking(true);
-    chunks.forEach((chunk, index) => {
-      const text = chunk.trim();
-      if (!text) return;
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = lang;
-      utterance.rate = 0.95;
-      if (voice) utterance.voice = voice;
-      if (index === chunks.length - 1) {
-        utterance.onend = () => setIsSpeaking(false);
-        utterance.onerror = () => setIsSpeaking(false);
-      }
-      window.speechSynthesis.speak(utterance);
-    });
+    for (const p of paragraphs) {
+      const x = p.trim();
+      if (x) items.push({ text: x, lang: detectSpeechLang(x) });
+    }
+    if (!items.length) return;
+    speech.speak(items);
   };
 
   const shareDay = async () => {
@@ -510,12 +482,12 @@ export const SynaxariumReader: React.FC<SynaxariumReaderProps> = ({ copticDate, 
                   type="button"
                   onClick={toggleListen}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-serif font-bold transition-colors cursor-pointer ${
-                    isSpeaking ? 'text-(--ac-gold-tx)' : 'text-(--tx-mute) dark:text-[#a89379] hover:text-(--ac-gold-tx)'
+                    speech.speaking ? 'text-(--ac-gold-tx)' : 'text-(--tx-mute) dark:text-[#a89379] hover:text-(--ac-gold-tx)'
                   }`}
                   title={isAr ? 'استمع لسنكسار اليوم' : 'Listen to the day'}
                 >
-                  {isSpeaking ? <Square className="w-4 h-4 fill-current" /> : <Volume2 className="w-4 h-4" />}
-                  <span>{isAr ? (isSpeaking ? 'إيقاف' : 'استمع') : (isSpeaking ? 'Stop' : 'Listen')}</span>
+                  {speech.speaking ? <Square className="w-4 h-4 fill-current" /> : <Volume2 className="w-4 h-4" />}
+                  <span>{isAr ? (speech.speaking ? 'إيقاف' : 'استمع') : (speech.speaking ? 'Stop' : 'Listen')}</span>
                 </button>
               </div>
 

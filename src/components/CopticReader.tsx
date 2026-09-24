@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -7,16 +7,21 @@ import {
   Church,
   Clock,
   Flame,
+  Headphones,
   Languages,
   Music,
+  Pause,
+  Play,
   Search,
   Share2,
+  Square,
   Type,
   Users,
   X,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { loadCopticReaderLibrary } from '../data/copticReader';
+import { useSpeech, detectSpeechLang, type SpeechItem } from '../hooks/useSpeech';
 import type {
   CRBlock,
   CRBook,
@@ -92,6 +97,31 @@ const label = (text: CRText, uiLang: 'en' | 'ar') =>
 
 const loadingText = (lang: 'en' | 'ar') =>
   lang === 'ar' ? 'جاري التحميل...' : 'Loading...';
+
+/**
+ * Flatten a document into speakable items, honoring the content-language
+ * mode: 'en' reads English, 'ar' reads Arabic, 'both' reads English then
+ * Arabic block by block. Each item carries its block index so the reader
+ * can highlight the line being spoken.
+ */
+function buildSpeechItems(doc: CRDocument, clang: ContentLang): SpeechItem[] {
+  const items: SpeechItem[] = [];
+  const push = (text: string | undefined, blockIndex: number) => {
+    const t = (text || '').trim();
+    if (t) items.push({ text: t, lang: detectSpeechLang(t), ref: blockIndex });
+  };
+  if (clang !== 'ar') push(doc.title.en, -1);
+  if (clang !== 'en') push(doc.title.ar, -1);
+  doc.blocks.forEach((b, bi) => {
+    const langs: ('en' | 'ar')[] = clang === 'both' ? ['en', 'ar'] : [clang];
+    for (const L of langs) {
+      const lbl = b.label ? (L === 'ar' ? b.label.ar || b.label.en : b.label.en) : '';
+      const txt = L === 'ar' ? b.text.ar || b.text.en : b.text.en;
+      push([lbl, txt].filter(Boolean).join(' — '), bi);
+    }
+  });
+  return items;
+}
 
 const BlockView: React.FC<{ block: CRBlock; clang: ContentLang; fontSize: string; onShare: (b: CRBlock) => void }> = ({ block, clang, fontSize, onShare }) => {
   const showEn = clang === 'en' || clang === 'both';
@@ -189,6 +219,53 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   const [bookmarks, setBookmarks] = useState<string[]>(() => readJSON(BOOKMARK_KEY, []));
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [libError, setLibError] = useState(false);
+
+  // Listen (text-to-speech) — the phone's own voice, Arabic and English.
+  const speech = useSpeech();
+  const speechItemsRef = useRef<SpeechItem[]>([]);
+  const blockRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  const startListening = () => {
+    if (nav.level !== 'reader') return;
+    if (!speech.supported) {
+      showToast(lang === 'ar' ? 'القراءة الصوتية غير مدعومة على هذا الجهاز' : 'Text-to-speech is not supported on this device');
+      return;
+    }
+    const items = buildSpeechItems(nav.doc, clang);
+    if (!items.length) {
+      showToast(lang === 'ar' ? 'لا يوجد نص للقراءة' : 'No text to read aloud');
+      return;
+    }
+    speechItemsRef.current = items;
+    speech.speak(items);
+  };
+
+  // Switching the content language mid-listen restarts reading in the new language.
+  const changeClang = (c: ContentLang) => {
+    setClang(c);
+    if (speech.speaking && nav.level === 'reader') {
+      const items = buildSpeechItems(nav.doc, c);
+      speechItemsRef.current = items;
+      speech.speak(items);
+    }
+  };
+
+  // Leaving the reader stops the voice.
+  useEffect(() => {
+    if (nav.level !== 'reader') {
+      speechItemsRef.current = [];
+      speech.stop();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nav]);
+
+  // Follow along: highlight + scroll to the block being read.
+  const activeBlockIndex =
+    speech.currentIndex >= 0 ? speechItemsRef.current[speech.currentIndex]?.ref ?? -1 : -1;
+  useEffect(() => {
+    if (activeBlockIndex < 0) return;
+    blockRefs.current.get(activeBlockIndex)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [activeBlockIndex]);
 
   const loadLibrary = () => {
     setLibError(false);
@@ -361,7 +438,7 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
               <button
                 key={c}
                 type="button"
-                onClick={() => setClang(c)}
+                onClick={() => changeClang(c)}
                 className={`rounded-lg px-2 py-1 text-[11px] font-bold transition-colors ${
                   clang === c ? 'bg-[#b08d57] text-white shadow-sm' : 'text-[#6b5a44] dark:text-[#c9b48c] hover:bg-[#b08d57]/15'
                 }`}
@@ -576,6 +653,17 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
+                      {speech.supported && (
+                        <button
+                          type="button"
+                          onClick={() => (speech.speaking ? speech.stop() : startListening())}
+                          className={`p-2 rounded-xl hover:bg-black/10 dark:hover:bg-white/10 ${speech.speaking ? goldTx : ''}`}
+                          title={lang === 'ar' ? (speech.speaking ? 'إيقاف الاستماع' : 'استمع') : speech.speaking ? 'Stop listening' : 'Listen'}
+                          aria-label={lang === 'ar' ? 'استمع' : 'Listen'}
+                        >
+                          {speech.speaking ? <Square size={16} /> : <Headphones size={16} />}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() =>
@@ -621,7 +709,18 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                   ) : (
                     <div className="flex flex-col gap-5">
                       {nav.doc.blocks.map((b, i) => (
-                        <BlockView key={i} block={b} clang={clang} fontSize={fontSize} onShare={shareBlock} />
+                        <div
+                          key={i}
+                          ref={(el) => {
+                            if (el) blockRefs.current.set(i, el);
+                            else blockRefs.current.delete(i);
+                          }}
+                          className={`-mx-2 rounded-xl px-2 py-1 transition-colors ${
+                            i === activeBlockIndex ? 'bg-[#b08d57]/15 ring-1 ring-[#b08d57]/60' : ''
+                          }`}
+                        >
+                          <BlockView block={b} clang={clang} fontSize={fontSize} onShare={shareBlock} />
+                        </div>
                       ))}
                     </div>
                   )}
@@ -629,6 +728,36 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
                   <p className={`mt-8 border-t border-[#b08d57]/40 pt-3 text-center text-[11px] ${muted}`}>
                     {label(library.attribution, lang)}
                   </p>
+
+                  {/* Listening controls */}
+                  {speech.speaking && (
+                    <div className="sticky bottom-4 mt-6 flex justify-center">
+                      <div className="flex items-center gap-2 rounded-full bg-black/85 px-4 py-2.5 text-white shadow-xl">
+                        <Headphones size={15} className="text-[#d9b978]" />
+                        <span className="text-xs font-bold">
+                          {lang === 'ar' ? 'جارٍ الاستماع…' : 'Listening…'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => (speech.paused ? speech.resume() : speech.pause())}
+                          className="p-1.5 rounded-full hover:bg-white/15"
+                          aria-label={speech.paused ? (lang === 'ar' ? 'استئناف' : 'Resume') : lang === 'ar' ? 'إيقاف مؤقت' : 'Pause'}
+                          title={speech.paused ? (lang === 'ar' ? 'استئناف' : 'Resume') : lang === 'ar' ? 'إيقاف مؤقت' : 'Pause'}
+                        >
+                          {speech.paused ? <Play size={15} /> : <Pause size={15} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={speech.stop}
+                          className="p-1.5 rounded-full hover:bg-white/15"
+                          aria-label={lang === 'ar' ? 'إيقاف' : 'Stop'}
+                          title={lang === 'ar' ? 'إيقاف' : 'Stop'}
+                        >
+                          <Square size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>

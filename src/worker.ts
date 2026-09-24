@@ -3647,6 +3647,35 @@ export default {
         }
       }
 
+      // TEMPORARY one-time bulk YouTube import (single-use; removed right after).
+      if (url.pathname === '/api/_bulk_yt_import' && request.method === 'POST') {
+        const impBody: any = await request.json().catch(() => ({}));
+        if (impBody.key !== '9cafaf21-78ae-4854-9d52-e8d78975f5b0' || !env.DB) {
+          return jsonResponse({ success: false, error: 'Not found' }, 404);
+        }
+        const impVids: any[] = Array.isArray(impBody.videos) ? impBody.videos : [];
+        const impProf = await env.DB.prepare('SELECT id, display_name, name, avatar_url FROM profiles WHERE email = ?').bind(SUPER_ADMIN_EMAIL).first<any>().catch(() => null);
+        const impAuthorId = impProf?.id || 'orthodoxconnect';
+        const impAuthorName = impProf?.display_name || impProf?.name || 'orthodoxconnect';
+        const impAvatar = impProf?.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png';
+        let impInserted = 0, impSkipped = 0;
+        const impNow = Date.now();
+        for (let impI = 0; impI < impVids.length; impI++) {
+          const v = impVids[impI] || {};
+          const ytid = String(v.yt || '').trim();
+          if (!ytid) { impSkipped++; continue; }
+          const impId = 'yt-khelwa-' + ytid;
+          const impUrl = v.short ? 'https://www.youtube.com/shorts/' + ytid : 'https://www.youtube.com/watch?v=' + ytid;
+          const impTitle = String(v.title || '').trim();
+          const impCreated = new Date(impNow - (impVids.length - impI) * 1000).toISOString();
+          try {
+            const r = await env.DB.prepare('INSERT INTO posts (id, content, video_id, author_id, author_name, author_parish, author_avatar, image_url, group_id, likes_count, comments_count, reshares_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?) ON CONFLICT(id) DO NOTHING').bind(impId, impTitle, impUrl, impAuthorId, impAuthorName, 'Orthodox Church', impAvatar, null, null, impCreated).run();
+            if (r && r.meta && (r.meta as any).changes > 0) impInserted++; else impSkipped++;
+          } catch (e) { impSkipped++; }
+        }
+        return jsonResponse({ success: true, inserted: impInserted, skipped: impSkipped });
+      }
+
       // 12. Post Likes List (/api/posts/:id/likes)
       if (url.pathname.match(/^\/api\/posts\/[^/]+\/likes\/?$/) && request.method === 'GET') {
         const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').replace(/\/likes\/?$/, ''));

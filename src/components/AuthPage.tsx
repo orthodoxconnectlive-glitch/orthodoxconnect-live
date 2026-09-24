@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
 export const AuthPage: React.FC = () => {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, sessionExpiredNotice, clearSessionExpiredNotice } = useAuth();
   const { t, language, setLanguage } = useTheme();
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -140,6 +140,28 @@ export const AuthPage: React.FC = () => {
               : 'Register to connect with your Orthodox brothers and sisters.'}
           </p>
         </div>
+
+        {/* Session-expired notice: the saved login was rejected by the server */}
+        {sessionExpiredNotice && (
+          <div className="relative z-10 mb-6 flex items-start gap-2.5 rounded-2xl border border-(--ln-gold) bg-(--ac-gold)/10 px-4 py-3">
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-(--ac-gold-tx)" />
+            <div className="flex-1">
+              <p className="text-xs font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9] leading-relaxed">
+                {language === 'ar'
+                  ? 'انتهت جلسة تسجيل الدخول السابقة. سجّل الدخول مرة أخرى للمتابعة.'
+                  : 'Your previous sign-in session expired. Please sign in again to continue.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={clearSessionExpiredNotice}
+              aria-label={language === 'ar' ? 'إغلاق' : 'Dismiss'}
+              className="shrink-0 text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Mode Selector Tabs */}
         <div className="flex rounded-2xl bg-(--bg-soft) dark:bg-[#282019] p-1.5 mb-6 border border-(--ln-gold)/40 relative z-10">

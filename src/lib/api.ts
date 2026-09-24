@@ -165,7 +165,7 @@ export const authApi = {
     return res;
   },
 
-  async getSession(): Promise<{ user: User | null; profile: UserProfile | null }> {
+  async getSession(): Promise<{ user: User | null; profile: UserProfile | null; unreachable?: boolean }> {
     const token = getAuthToken();
     if (!token) return { user: null, profile: null };
 
@@ -173,7 +173,10 @@ export const authApi = {
       const res = await apiFetch(`/api/auth/session?token=${encodeURIComponent(token)}`);
       return { user: res.user || null, profile: res.profile || null };
     } catch (e) {
-      return { user: null, profile: null };
+      // Network failure (or timeout) is NOT the same as "session invalid":
+      // callers use `unreachable` to decide whether to keep the cached
+      // profile or drop a dead session.
+      return { user: null, profile: null, unreachable: true };
     }
   },
 

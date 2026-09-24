@@ -46,14 +46,23 @@ export function saveStory(newStoryPartial: Omit<Story, 'id' | 'createdAt'>): Sto
     createdAt: new Date().toISOString(),
   };
 
+  persistStory(newStory);
+
+  return newStory;
+}
+
+/**
+ * Persist a fully-built story (used when the id must be known before the
+ * server call, so the local copy and the server row share the same id and
+ * never appear as duplicates in the bar).
+ */
+export function persistStory(story: Story): void {
   const existing = loadStories();
-  const updated = [newStory, ...existing];
+  const updated = [story, ...existing.filter((s) => s.id !== story.id)];
 
   try {
     localStorage.setItem(STORIES_STORAGE_KEY, JSON.stringify(updated));
   } catch (err) {
     console.warn('Failed to save story to localStorage:', err);
   }
-
-  return newStory;
 }

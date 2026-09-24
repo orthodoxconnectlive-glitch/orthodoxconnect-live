@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
 export const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, closeAuthModal, signIn, signUp } = useAuth();
+  const { isAuthModalOpen, closeAuthModal, signIn, signUp, sessionExpiredNotice, clearSessionExpiredNotice } = useAuth();
   const { t, language } = useTheme();
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -80,6 +80,26 @@ export const AuthModal: React.FC = () => {
               : 'Create your account to join OrthodoxConnect'}
           </p>
         </div>
+
+        {/* Session-expired notice */}
+        {sessionExpiredNotice && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-600/40 bg-amber-500/10 px-3 py-2.5 mb-4">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+            <p className="flex-1 text-[11px] font-bold text-amber-100 leading-relaxed">
+              {language === 'ar'
+                ? 'انتهت جلسة تسجيل الدخول. سجّل الدخول مرة أخرى للمتابعة.'
+                : 'Your sign-in session expired. Please sign in again to continue.'}
+            </p>
+            <button
+              type="button"
+              onClick={clearSessionExpiredNotice}
+              aria-label={language === 'ar' ? 'إغلاق' : 'Dismiss'}
+              className="shrink-0 text-stone-400 hover:text-amber-200 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Auth Mode Toggle Tabs */}
         <div className="flex rounded-xl bg-stone-900 p-1 mb-6 border border-amber-900/30">

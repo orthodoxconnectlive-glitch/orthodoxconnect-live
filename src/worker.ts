@@ -3530,6 +3530,12 @@ export default {
                 if (/^data:image\//i.test(String(p.author_avatar || ''))) {
                   p.author_avatar = 'https://orthodoxconnect.live/post-avatar/' + encodeURIComponent(key);
                 }
+                // Video posts store no photo; derive the YouTube thumbnail so
+                // share cards and other clients reading image_url show the video's photo.
+                if (!p.image_url) {
+                  const ytThumbId = extractYouTubeId(p.video_id);
+                  if (ytThumbId) p.image_url = 'https://i.ytimg.com/vi/' + ytThumbId + '/hqdefault.jpg';
+                }
               }
             }
           }
@@ -3838,6 +3844,12 @@ export default {
           }
           if (/^data:image\//i.test(String((post as any).author_avatar || ''))) {
             (post as any).author_avatar = 'https://orthodoxconnect.live/post-avatar/' + encodeURIComponent(String((post as any).id));
+          }
+          // Video posts store no photo; derive the YouTube thumbnail so
+          // share cards and other clients reading image_url show the video's photo.
+          if (!(post as any).image_url) {
+            const ytThumbId = extractYouTubeId((post as any).video_id);
+            if (ytThumbId) (post as any).image_url = 'https://i.ytimg.com/vi/' + ytThumbId + '/hqdefault.jpg';
           }
           return jsonResponse({ success: true, post });
         }

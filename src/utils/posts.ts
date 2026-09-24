@@ -418,7 +418,7 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
 
 export async function loadVideos(kids?: 'only' | 'exclude'): Promise<Post[]> {
   try {
-    const vparams = new URLSearchParams({ video_only: 'true', limit: '50' });
+    const vparams = new URLSearchParams({ videos_only: 'true', limit: '50' });
     if (kids) vparams.set('kids', kids);
     const res = await fetch(`${API_BASE_URL}/api/posts?${vparams.toString()}`, {
       method: 'GET',
@@ -451,7 +451,7 @@ export async function loadVideoPage(
   try {
     const probe = VIDEO_PAGE_SIZE + 1;
     const vparams = new URLSearchParams({
-      video_only: 'true',
+      videos_only: 'true',
       limit: String(probe),
       offset: String(Math.max(0, offset)),
     });

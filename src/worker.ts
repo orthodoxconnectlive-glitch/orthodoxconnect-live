@@ -3414,7 +3414,7 @@ export default {
           const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10), 0);
           const authorId = url.searchParams.get('author_id');
           const groupId = url.searchParams.get('group_id');
-          const onlyVideos = url.searchParams.get('videos_only') === 'true';
+          const onlyVideos = url.searchParams.get('videos_only') === 'true' || url.searchParams.get('video_only') === 'true';
           const kidsFilter = url.searchParams.get('kids'); // 'only' | 'exclude' | null
 
           let query = 'SELECT * FROM posts';

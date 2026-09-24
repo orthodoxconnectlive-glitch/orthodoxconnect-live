@@ -439,6 +439,45 @@ export async function loadVideos(kids?: 'only' | 'exclude'): Promise<Post[]> {
 
 export const loadReels = loadVideos;
 
+// Paged video loader for infinite scroll. Fetches one extra row as a
+// "has more" probe; video filtering semantics identical to loadVideos.
+export const VIDEO_PAGE_SIZE = 50;
+
+export async function loadVideoPage(
+  kids: 'only' | 'exclude',
+  offset: number,
+): Promise<{ videos: Post[]; hasMore: boolean; nextOffset: number }> {
+  const empty = { videos: [] as Post[], hasMore: false, nextOffset: offset };
+  try {
+    const probe = VIDEO_PAGE_SIZE + 1;
+    const vparams = new URLSearchParams({
+      video_only: 'true',
+      limit: String(probe),
+      offset: String(Math.max(0, offset)),
+    });
+    if (kids) vparams.set('kids', kids);
+    const res = await fetch(`${API_BASE_URL}/api/posts?${vparams.toString()}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json', ...getAuthHeaders() },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const rawList = Array.isArray(data) ? data : (data?.posts || []);
+      const videos = rawList
+        .map(mapRowToPost)
+        .filter((p: Post) => Boolean((p.video_id && p.video_id.trim() !== '') || (p.video && p.video.trim() !== '')))
+        .sort((a: Post, b: Post) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return {
+        videos,
+        hasMore: rawList.length === probe,
+        nextOffset: offset + rawList.length,
+      };
+    }
+  } catch (err) {}
+  return empty;
+}
+
 export async function savePost(postPartial: Partial<Post>): Promise<Post> {
   const videoGuid = postPartial.video_id || extractBunnyVideoGuid(postPartial.video);
 

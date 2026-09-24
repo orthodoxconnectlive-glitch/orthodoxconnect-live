@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Film,
   Upload,
@@ -16,7 +16,7 @@ import {
   Compass,
 } from 'lucide-react';
 import { Post } from '../types';
-import { loadVideos, deletePost, savePost, togglePostLike, addPostComment } from '../utils/posts';
+import { loadVideoPage, deletePost, savePost, togglePostLike, addPostComment } from '../utils/posts';
 import { uploadVideoToBunnyStream } from '../utils/storage';
 import { addNotification } from '../utils/notifications';
 import { VideoCard, VideoComment } from '../components/VideoCard';
@@ -77,6 +77,16 @@ export const VideosView: React.FC<VideosViewProps> = ({
   // Feed container ref for snap scrolling
   const feedContainerRef = useRef<HTMLDivElement>(null);
 
+  // Infinite scroll pagination state
+  const [hasMoreVideos, setHasMoreVideos] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const videosOffsetRef = useRef<number>(0);
+  const hasMoreRef = useRef<boolean>(true);
+  const loadingMoreRef = useRef<boolean>(false);
+  const knownVideoIdsRef = useRef<Set<string>>(new Set());
+  const savedLikesRef = useRef<Record<string, boolean>>({});
+  const savedCommentsRef = useRef<Record<string, VideoComment[]>>({});
+
   // Strict Tab Isolation & Total Unmount Cleanup
   useEffect(() => {
     return () => {
@@ -109,9 +119,20 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
   const fetchVideosList = async () => {
     setLoading(true);
-    const loadedVideos = await loadVideos('exclude');
-    const shuffled = shuffleVideos(loadedVideos);
+    // Reset pagination for a fresh load
+    videosOffsetRef.current = 0;
+    hasMoreRef.current = true;
+    loadingMoreRef.current = false;
+    setHasMoreVideos(true);
+    setLoadingMore(false);
+    knownVideoIdsRef.current = new Set();
+    const page = await loadVideoPage('exclude', 0);
+    const shuffled = shuffleVideos(page.videos);
     setVideos(shuffled);
+    videosOffsetRef.current = page.nextOffset;
+    hasMoreRef.current = page.hasMore;
+    setHasMoreVideos(page.hasMore);
+    knownVideoIdsRef.current = new Set(shuffled.map((v) => v.id));
 
     // Set first video (shuffled) as active playing video
     if (shuffled.length > 0 && !activePlayingId) {
@@ -131,11 +152,13 @@ export const VideosView: React.FC<VideosViewProps> = ({
     }
 
     setLikedMap(savedLikes);
+    savedLikesRef.current = savedLikes;
+    savedCommentsRef.current = savedComments;
 
     const initialLikesCount: Record<string, number> = {};
     const initialComments: Record<string, VideoComment[]> = {};
 
-    loadedVideos.forEach((v) => {
+    shuffled.forEach((v) => {
       const baseLikes = v.likesCount || 0;
       initialLikesCount[v.id] = savedLikes[v.id] ? baseLikes + 1 : baseLikes;
       initialComments[v.id] = savedComments[v.id] || [];
@@ -145,6 +168,55 @@ export const VideosView: React.FC<VideosViewProps> = ({
     setVideoCommentsMap(initialComments);
     setLoading(false);
   };
+
+  // Infinite scroll: fetch the next page when the user nears the end of the feed
+  const loadMoreVideos = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const page = await loadVideoPage('exclude', videosOffsetRef.current);
+      videosOffsetRef.current = page.nextOffset;
+      hasMoreRef.current = page.hasMore;
+      setHasMoreVideos(page.hasMore);
+      const fresh = page.videos.filter((v) => !knownVideoIdsRef.current.has(v.id));
+      if (fresh.length > 0) {
+        fresh.forEach((v) => knownVideoIdsRef.current.add(v.id));
+        setVideos((prev) => [...prev, ...fresh]);
+        // Merge like counts and cached comments for the newly loaded videos
+        setLikeCounts((prev) => {
+          const next = { ...prev };
+          fresh.forEach((v) => {
+            if (!(v.id in next)) {
+              const baseLikes = v.likesCount || 0;
+              next[v.id] = savedLikesRef.current[v.id] ? baseLikes + 1 : baseLikes;
+            }
+          });
+          return next;
+        });
+        setVideoCommentsMap((prev) => {
+          const next = { ...prev };
+          fresh.forEach((v) => {
+            if (!(v.id in next)) next[v.id] = savedCommentsRef.current[v.id] || [];
+          });
+          return next;
+        });
+      }
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, []);
+
+  const handleFeedScroll = useCallback(() => {
+    const el = feedContainerRef.current;
+    if (!el || el.scrollHeight <= el.clientHeight + 1) return;
+    const nearBottom =
+      el.scrollTop + el.clientHeight >= el.scrollHeight - el.clientHeight * 1.5;
+    if (nearBottom) {
+      loadMoreVideos();
+    }
+  }, [loadMoreVideos]);
 
   // Filter videos by tab, search query, and selected hashtag
   const filteredVideos = useMemo(() => {
@@ -272,6 +344,11 @@ export const VideosView: React.FC<VideosViewProps> = ({
       top: Math.max(0, scrollTop - clientHeight),
       behavior: 'smooth',
     });
+  };
+
+  const scrollFeedToTop = () => {
+    if (!feedContainerRef.current) return;
+    feedContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleVideoUploadSubmit = async (e: React.FormEvent) => {
@@ -598,8 +675,10 @@ export const VideosView: React.FC<VideosViewProps> = ({
             )}
           </div>
         ) : (
+          <>
           <div
             ref={feedContainerRef}
+            onScroll={handleFeedScroll}
             className="w-full h-full snap-y snap-mandatory overflow-y-scroll no-scrollbar relative"
           >
             {filteredVideos.map((video) => (
@@ -630,7 +709,34 @@ export const VideosView: React.FC<VideosViewProps> = ({
                 onHashtagClick={handleHashtagClick}
               />
             ))}
+            {/* End-of-feed card: shown once every video has been loaded */}
+            {!hasMoreVideos && !loadingMore && (
+              <div className="w-full h-full snap-start snap-always flex flex-col items-center justify-center bg-[#1c1611] text-center px-8 select-none">
+                <CheckCircle className="w-12 h-12 text-(--ac-gold-tx) mb-4" />
+                <h3 className="font-serif-coptic font-bold text-base text-[#f5ebd9] uppercase tracking-wider">
+                  You are all caught up
+                </h3>
+                <p className="text-xs text-[#a89379] font-serif mt-2 max-w-xs">
+                  You have watched every video in the Orthodox feed. New videos from parishes and creators will appear here.
+                </p>
+                <button
+                  type="button"
+                  onClick={scrollFeedToTop}
+                  className="mt-5 px-5 py-2 rounded-xl bg-(--ac-gold) text-(--tx-ink) font-serif font-bold text-xs uppercase cursor-pointer shadow-md active:scale-95 transition-transform"
+                >
+                  Back to top
+                </button>
+              </div>
+            )}
           </div>
+          {/* Floating "loading more" pill while the next page fetches */}
+          {loadingMore && (
+            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-40 px-4 py-1.5 rounded-full bg-black/70 border border-(--ln-gold)/40 text-[#f5ebd9] text-[11px] font-serif uppercase tracking-wider flex items-center gap-2 pointer-events-none">
+              <Sparkles className="w-3.5 h-3.5 text-(--ac-gold-tx) animate-spin" />
+              Loading more videos…
+            </div>
+          )}
+          </>
         )}
       </div>
 

@@ -118,6 +118,8 @@ export const KidsView: React.FC = () => {
   const [playing, setPlaying] = useState<Post | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [ytMeta, setYtMeta] = useState<Record<string, { title: string; author: string }>>({});
+  // Two-part hymns: English vs Arabic (auto-detected from caption/YouTube title).
+  const [hymnTab, setHymnTab] = useState<'en' | 'ar'>(ar ? 'ar' : 'en');
   const ytMetaFetching = useRef<Set<string>>(new Set());
 
   // Real YouTube titles via the keyless oEmbed endpoint (no API key needed).
@@ -292,6 +294,17 @@ export const KidsView: React.FC = () => {
       setDeletingId(null);
     }
   };
+
+  // Split kids videos into English / Arabic hymn parts — auto-detected from the
+  // caption or the resolved YouTube title, so sharing needs no extra step.
+  const isArabicVideo = (v: Post): boolean => {
+    const ytId = ytIdOf(v);
+    const metaTitle = (ytId && ytMeta[ytId]?.title) || '';
+    return /[\u0600-\u06FF]/.test(`${videoText(v)} ${metaTitle}`);
+  };
+  const arabicVideos = videos.filter(isArabicVideo);
+  const englishVideos = videos.filter((v) => !isArabicVideo(v));
+  const tabVideos = hymnTab === 'ar' ? arabicVideos : englishVideos;
 
   const renderVideoRow = (v: Post) => {
     const ytId = ytIdOf(v);
@@ -485,24 +498,54 @@ export const KidsView: React.FC = () => {
         </p>
       </div>
 
-      {/* Kids videos */}
+      {/* Kids videos — two parts: English hymns and Arabic hymns (ترانيم إنجليزي / ترانيم عربي) */}
       <div className="space-y-4">
         <SectionHeader
           icon={<Film className="w-4 h-4" />}
           title={ar ? 'فيديوهات الأطفال' : 'Kids Videos'}
           count={videos.length}
         />
-        {videos.length === 0 ? (
+        {videos.length > 0 && (
+          <div className="flex gap-2 px-1">
+            <button
+              type="button"
+              onClick={() => setHymnTab('en')}
+              className={`flex-1 px-4 py-2.5 rounded-xl font-serif font-bold text-sm transition-all cursor-pointer ${
+                hymnTab === 'en'
+                  ? 'bg-(--ac-bronze) text-white shadow-md'
+                  : 'bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) border border-(--ln-gold)/50'
+              }`}
+            >
+              English ({englishVideos.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setHymnTab('ar')}
+              className={`flex-1 px-4 py-2.5 rounded-xl font-serif font-bold text-sm transition-all cursor-pointer ${
+                hymnTab === 'ar'
+                  ? 'bg-(--ac-bronze) text-white shadow-md'
+                  : 'bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) border border-(--ln-gold)/50'
+              }`}
+            >
+              عربي ({arabicVideos.length})
+            </button>
+          </div>
+        )}
+        {tabVideos.length === 0 ? (
           <EmptyNote
             text={
-              ar
-                ? 'لا توجد فيديوهات أطفال بعد — استخدم صندوق المشاركة بالأعلى؛ كل ما يُشارك هنا يظهر في ركن الأطفال فقط.'
-                : 'No kids videos yet — use the share box above; everything shared here appears only in Kids Corner.'
+              videos.length === 0
+                ? ar
+                  ? 'لا توجد فيديوهات أطفال بعد — استخدم صندوق المشاركة بالأعلى؛ كل ما يُشارك هنا يظهر في ركن الأطفال فقط.'
+                  : 'No kids videos yet — use the share box above; everything shared here appears only in Kids Corner.'
+                : hymnTab === 'ar'
+                  ? 'لا توجد ترانيم عربية بعد — شارك ترنيمة بالعربية من صندوق المشاركة بالأعلى.'
+                  : 'No English hymns here yet — share one from the share box above.'
             }
           />
         ) : (
           <div className="flex flex-col">
-            {videos.map((v) => renderVideoRow(v))}
+            {tabVideos.map((v) => renderVideoRow(v))}
           </div>
         )}
       </div>
@@ -655,7 +698,7 @@ export const KidsView: React.FC = () => {
               </div>
               <div className="flex-1 min-h-0 md:flex-none md:w-80 lg:w-96 border-t md:border-t-0 md:border-s border-black/10 dark:border-white/10 p-2 overflow-y-auto">
                 <div className="flex flex-col">
-                  {videos.map((v) => renderVideoRow(v))}
+                  {tabVideos.map((v) => renderVideoRow(v))}
                 </div>
               </div>
             </div>

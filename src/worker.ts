@@ -1878,6 +1878,52 @@ export default {
             } catch (welcomeErr) { /* never break signup */ }
           }
 
+          // New-member alert: notify every admin when someone registers —
+          // an in-app notification row plus a phone-top Web Push to their
+          // devices (arrives even with the app closed). Best-effort —
+          // it must never break signup.
+          if (env.DB) {
+            try {
+              const adminEmails = ADMIN_EMAILS.map((e: string) => e.toLowerCase());
+              const emailPlaceholders = adminEmails.map(() => '?').join(',');
+              const adminRows: any[] = ((await env.DB.prepare(
+                `SELECT id FROM profiles WHERE role IN ('super_admin','admin','owner')${emailPlaceholders ? ` OR LOWER(email) IN (${emailPlaceholders})` : ''}`
+              ).bind(...adminEmails).all()).results) || [];
+              const adminIds = adminRows.map((r: any) => r.id).filter((id: any) => id && id !== userId);
+              if (adminIds.length > 0) {
+                const notifTitle = 'New member joined 🎉';
+                const notifBody = `${fullName} just registered on OrthodoxConnect.`;
+                for (const adminId of adminIds) {
+                  try {
+                    await env.DB.prepare(
+                      'INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    ).bind(`notif_newmember_${userId}_${adminId}`, adminId, userId, fullName, avatarUrl, 'new_member', notifTitle, notifBody, null, null, 0, now).run();
+                  } catch (e) { /* one admin failing must not stop the others */ }
+                }
+                const idPlaceholders = adminIds.map(() => '?').join(',');
+                const { results: adminSubs } = await env.DB.prepare(
+                  `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id IN (${idPlaceholders})`
+                ).bind(...adminIds).all();
+                const subs = adminSubs || [];
+                if (subs.length > 0) {
+                  const newMemberPush = {
+                    type: 'new_member',
+                    title: notifTitle,
+                    body: notifBody,
+                    icon: 'https://orthodoxconnect.live/launchericon-512x512.png',
+                    badge: 'https://orthodoxconnect.live/launchericon-512x512.png',
+                    data: { url: '/', notifType: 'new_member' },
+                  };
+                  for (const s of subs as any[]) {
+                    if (s && s.endpoint && s.p256dh && s.auth) {
+                      try { await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, newMemberPush); } catch (e) { /* keep going */ }
+                    }
+                  }
+                }
+              }
+            } catch (newMemberErr) { /* never break signup */ }
+          }
+
           const profileObj = {
             id: userId,
             email,

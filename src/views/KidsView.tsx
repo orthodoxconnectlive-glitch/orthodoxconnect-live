@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { loadVideos, savePost, deletePost } from '../utils/posts';
+import { loadAllVideos, savePost, deletePost } from '../utils/posts';
 import { uploadVideoToBunnyStream } from '../utils/storage';
 import {
   getCustomGroups,
@@ -213,7 +213,7 @@ export const KidsView: React.FC = () => {
     (async () => {
       try {
         const [vids, bookRes, synced] = await Promise.all([
-          loadVideos('only').catch(() => [] as Post[]),
+          loadAllVideos('only').catch(() => [] as Post[]),
           fetch('/api/books?category=all')
             .then((r) => (r.ok ? r.json() : []))
             .catch(() => [] as KidsBook[]),

@@ -418,6 +418,29 @@ export async function loadPostsByAuthor(authorId: string): Promise<Post[]> {
 
 export async function loadVideos(kids?: 'only' | 'exclude'): Promise<Post[]> {
   try {
+    const vparams = new URLSearchParams({ videos_only: 'true', limit: '50' });
+    if (kids) vparams.set('kids', kids);
+    const res = await fetch(`${API_BASE_URL}/api/posts?${vparams.toString()}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json', ...getAuthHeaders() },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const rawList = Array.isArray(data) ? data : (data?.posts || []);
+      return rawList
+        .map(mapRowToPost)
+        .filter((p: Post) => Boolean((p.video_id && p.video_id.trim() !== '') || (p.video && p.video.trim() !== '')))
+        .sort((a: Post, b: Post) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+  } catch (err) {}
+  return [];
+}
+
+// Uncapped variant for Kids Corner: pages through every result so the full
+// kids video library loads. Reels (loadReels = loadVideos) keep the 50 cap.
+export async function loadAllVideos(kids?: 'only' | 'exclude'): Promise<Post[]> {
+  try {
     // No cap: keep fetching pages until the server returns a short page,
     // so Kids Corner shows the full video library (safety stop at 2000).
     const PAGE = 50;

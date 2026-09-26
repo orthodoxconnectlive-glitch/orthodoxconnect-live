@@ -122,7 +122,8 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     }
   }, [profile?.id]);
 
-  const LOCAL_MESSAGES_KEY = 'orthodox_local_messages_v2';
+  // Per-account cache key: two accounts on one device must never share cached chats.
+  const LOCAL_MESSAGES_KEY = `orthodox_local_messages_v2_${profile?.id || 'anon'}`;
 
   const loadLocalMessagesForContact = (contactId: string): ExtendedMessage[] => {
     try {
@@ -350,7 +351,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     setActiveContact(contact);
     setIsMobileChatOpen(true);
     try {
-      localStorage.setItem('orthodox_active_contact_id', contact.id);
+      localStorage.setItem(`orthodox_active_contact_id_${profile?.id || 'anon'}`, contact.id);
     } catch (e) {
       console.warn('Active contact save error:', e);
     }
@@ -367,7 +368,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
 
   const [inputContent, setInputContent] = useState(() => {
     try {
-      return activeContact ? localStorage.getItem(`orthodox_messenger_draft_${activeContact.id}`) || '' : '';
+      return activeContact ? localStorage.getItem(`orthodox_messenger_draft_${profile?.id || 'anon'}_${activeContact.id}`) || '' : '';
     } catch (e) {
       return '';
     }
@@ -376,7 +377,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   useEffect(() => {
     if (!activeContact) return;
     try {
-      const draft = localStorage.getItem(`orthodox_messenger_draft_${activeContact.id}`) || '';
+      const draft = localStorage.getItem(`orthodox_messenger_draft_${profile?.id || 'anon'}_${activeContact.id}`) || '';
       setInputContent(draft);
     } catch (e) {
       setInputContent('');
@@ -387,7 +388,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     setInputContent(val);
     if (!activeContact) return;
     try {
-      localStorage.setItem(`orthodox_messenger_draft_${activeContact.id}`, val);
+      localStorage.setItem(`orthodox_messenger_draft_${profile?.id || 'anon'}_${activeContact.id}`, val);
     } catch (e) {
       console.warn('Draft error:', e);
     }
@@ -557,7 +558,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
     if (customContent === undefined) {
       setInputContent('');
       try {
-        localStorage.removeItem(`orthodox_messenger_draft_${activeContact.id}`);
+        localStorage.removeItem(`orthodox_messenger_draft_${profile?.id || 'anon'}_${activeContact.id}`);
       } catch (err) {
         console.warn('Draft clear error:', err);
       }

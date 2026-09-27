@@ -202,7 +202,7 @@ const FIXED_FEASTS: FixedFeast[] = [
   {
     month: 9, day: 27,
     nameAr: 'عيد الصليب المجيد', nameEn: 'Exaltation of the Holy Cross',
-    titleAr: 'عيد سيدي كبير', titleEn: 'Great Feast of the Lord',
+    titleAr: 'عيد الصليب', titleEn: 'Feast of the Cross',
     refAr: '١ كورنثوس ١: ١٨', refEn: '1 Corinthians 1:18',
     textAr: 'فَإِنَّ كَلِمَةَ الصَّلِيبِ عِنْدَ الْهَالِكِينَ جَهَالَةٌ، وَأَمَّا عِنْدَنَا نَحْنُ الْمُخَلَّصِينَ فَهِيَ قُوَّةُ اللهِ.',
     textEn: 'For the message of the cross is foolishness to those who are perishing, but to us who are being saved it is the power of God.',

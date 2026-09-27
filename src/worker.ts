@@ -9,6 +9,7 @@ import {
   getTodayCommemoration,
   getFastingInfo,
   getUpcomingFeastsFrom,
+  getCopticDate,
 } from './utils/liturgicalEngine';
 import { SYNAX_TITLES } from './synaxTitles';
 
@@ -1480,7 +1481,29 @@ interface CalendarItem {
 // countdown to the next feast, all from liturgicalEngine.ts.
 
 function calendarPostFor(d: Date): string {
-  // 1. A real feast today? Announce it with its verse.
+  // 1. The Synaxar of the day — the single source for the daily calendar post.
+  try {
+    const cd = getCopticDate(d);
+    const key = String(cd.month).padStart(2, '0') + '-' + String(cd.day).padStart(2, '0');
+    const synax = SYNAX_TITLES[key];
+    if (synax) {
+      const fastEn = getFastingInfo(d, 'en');
+      const fastAr = getFastingInfo(d, 'ar');
+      const fastingLine =
+        fastEn.type === 'fast_free' ? '' : '\n\n🕊️ ' + fastEn.label + ' — ' + fastAr.label;
+      return (
+        '☨ Synaxar Today — سنكسار اليوم · ' + cd.day + ' ' + cd.monthAr + ' ' + cd.year + '\n\n' +
+        synax.ar.join('\n') + '\n' + synax.teaser_ar + '\n\n' +
+        synax.en.join('\n') + '\n' + synax.teaser_en +
+        fastingLine +
+        '\n\n📖 Read the full Synaxar — اقرأ السنكسار كاملاً:\nhttps://orthodoxconnect.live/?synax=' + key
+      );
+    }
+  } catch (e) {
+    console.warn('[bots] synaxar post failed, falling back', e);
+  }
+
+  // 2. Fallback: a real feast today? Announce it with its verse.
   const feast = getTodayCommemoration(d);
   if (feast) {
     return (
@@ -1493,7 +1516,7 @@ function calendarPostFor(d: Date): string {
     );
   }
 
-  // 2. No feast: today's real fasting rule.
+  // 3. No feast: today's real fasting rule.
   const fastEn = getFastingInfo(d, 'en');
   const fastAr = getFastingInfo(d, 'ar');
   if (fastEn.type !== 'fast_free') {
@@ -1504,7 +1527,7 @@ function calendarPostFor(d: Date): string {
     );
   }
 
-  // 3. No fast either: count down to the next feast.
+  // 4. No fast either: count down to the next feast.
   const upcoming = getUpcomingFeastsFrom(d, 1);
   if (upcoming.length > 0) {
     const nx = upcoming[0];

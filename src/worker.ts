@@ -1466,8 +1466,36 @@ function versePostFor(dayOfYear: number): string {
   );
 }
 
-function saintPostFor(dayOfYear: number): string {
-  const s = SAINTS_OF_DAY[dayOfYear % SAINTS_OF_DAY.length];
+function saintPostFor(d: Date): string {
+  // Saint of the Day comes from the Synaxar (per Hany 2026-09-27):
+  // the day's saint commemorations (martyrdoms + departures).
+  try {
+    const cd = getCopticDate(d);
+    const key = String(cd.month).padStart(2, '0') + '-' + String(cd.day).padStart(2, '0');
+    const synax = SYNAX_TITLES[key];
+    if (synax && synax.en.length > 0) {
+      const saintIdx = synax.en
+        .map((t, i) => (/martyrdom|departure/i.test(t) ? i : -1))
+        .filter((i) => i >= 0);
+      const pick = saintIdx.length > 0 ? saintIdx : [0];
+      const arTitles = pick.map((i) => synax.ar[i] || synax.en[i]).join('\n');
+      const enTitles = pick.map((i) => synax.en[i]).join('\n');
+      // The teaser tells the first commemoration's story — include it only
+      // when the saint of the day is that first commemoration.
+      const teaserAr = pick[0] === 0 ? '\n' + synax.teaser_ar : '';
+      const teaserEn = pick[0] === 0 ? '\n' + synax.teaser_en : '';
+      return (
+        '☨ Saint of the Day — قديس اليوم · ' + cd.day + ' ' + cd.monthAr + ' ' + cd.year + '\n\n' +
+        arTitles + teaserAr + '\n\n' + enTitles + teaserEn +
+        '\n\n📖 من سنكسار اليوم — From today\'s Synaxar:\nhttps://orthodoxconnect.live/?synax=' + key
+      );
+    }
+  } catch (e) {
+    console.warn('[bots] saint post failed, falling back', e);
+  }
+  // Fallback: the old rotating list.
+  const doy = botDayOfYear(d);
+  const s = SAINTS_OF_DAY[doy % SAINTS_OF_DAY.length];
   return '☨ Saint of the Day — قديس اليوم\n\n' + s.en + '\n\n' + s.ar;
 }
 
@@ -1576,7 +1604,7 @@ async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
   const doy = botDayOfYear(now);
   const jobs: Array<{ bot: CommunityBotDef; content: string }> = [
     { bot: COMMUNITY_BOTS[0], content: versePostFor(doy) },
-    { bot: COMMUNITY_BOTS[1], content: saintPostFor(doy) },
+    { bot: COMMUNITY_BOTS[1], content: saintPostFor(now) },
     { bot: COMMUNITY_BOTS[2], content: calendarPostFor(now) },
   ];
 

@@ -156,7 +156,7 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
   const [linkCelebrant, setLinkCelebrant] = useState(profile?.full_name || '');
   const [isSubmittingLink, setIsSubmittingLink] = useState(false);
 
-  const [likeCount, setLikeCount] = useState<number>(142);
+  const [likeCount, setLikeCount] = useState<number>(0);
   const [isLiked, setIsLiked] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -223,8 +223,10 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
       try {
         const data = await liveStreamsApi.getAll();
 
-        if (data && data.length > 0) {
-          const mapped: LiveStreamItem[] = data.map((row) => {
+        // Server is the source of truth. Reconcile even when it returns an
+        // empty list, so deleted broadcasts ("ghosts") can't keep showing as
+        // live with stale viewer numbers.
+        const mapped: LiveStreamItem[] = (data && data.length > 0) ? data.map((row) => {
             const live = Boolean(row.is_live ?? true);
             const replayGuid = row.replay_guid || null;
             let videoUrl =
@@ -244,18 +246,21 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
               endedAt: row.ended_at || null,
               replayGuid,
             };
-          });
+          }) : [];
 
           setStreams((prev) => {
             const combined = [...mapped];
             const nowTs = Date.now();
             prev.forEach((p) => {
               if (combined.some((c) => c.id === p.id)) return;
+              // Keep this device's own in-progress broadcast even if the
+              // server hasn't echoed it back yet.
+              if (p.id === broadcastLocalIdRef.current) { combined.push(p); return; }
               // Server is the source of truth. Keep a local-only entry only if
               // it was created on this device within the last day and never
               // synced (id like "stream-<ts>" / "bunny-<ts>"). Anything older
               // that the server doesn't know is a ghost: drop it so it can't
-              // haunt the list or 404 when deleted.
+              // haunt the list or 404 when shared.
               const m = String(p.id || '').match(/^(stream|bunny)-(\d+)$/);
               const ageMs = m ? nowTs - parseInt(m[2], 10) : Infinity;
               if (m && ageMs < 24 * 3600 * 1000) combined.push(p);
@@ -265,7 +270,6 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
             } catch (e) {}
             return combined;
           });
-        }
 
         // Fetch true-live Bunny streams (status='live') and merge them in
         try {
@@ -304,7 +308,7 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
     fetchRemoteStreams();
   }, [language]);
 
-  const activeStream = streams.find((s) => s.id === activeStreamId) || streams[0] || defaultStreams[0];
+  const activeStream = streams.find((s) => s.id === activeStreamId) || streams[0];
 
   const startRecording = (stream: MediaStream) => {
     try {
@@ -784,6 +788,7 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
       )} {/* end header action bar (hidden while broadcasting) */}
 
       {/* Theatre View Layout: Bunny Player + Live Chat Sidebar */}
+      {activeStream ? (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-4">
           {isUserBroadcasting && activeStream.isBunnyLive ? (
@@ -938,8 +943,22 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
           <ParishLiveChat parishName={activeStream.parish} />
         </div>
       </div>
+      ) : (
+        <div className="p-8 rounded-2xl bg-stone-950 border border-amber-900/30 text-center">
+          <Radio className="w-10 h-10 text-amber-500/60 mx-auto mb-3" />
+          <h3 className="font-serif font-bold text-amber-100 mb-1">
+            {language === 'ar' ? 'لا توجد بثوث مباشرة الآن' : 'No live broadcasts right now'}
+          </h3>
+          <p className="text-xs text-stone-400">
+            {language === 'ar'
+              ? 'عندما تبدأ رعية بثاً مباشراً سيظهر هنا.'
+              : 'When a parish goes live, it will appear here.'}
+          </p>
+        </div>
+      )}
 
       {/* Other Parish Live Broadcasts List */}
+      {streams.length > 0 && (
       <div className="space-y-3 pt-4">
         <h3 className="font-serif font-bold text-sm text-amber-300 uppercase tracking-wider">
           {t('moreParishBroadcasts')}
@@ -1022,6 +1041,7 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
           ))}
         </div>
       </div>
+      )}
 
       {/* Webcam GoLive Modal */}
       <GoLiveModal

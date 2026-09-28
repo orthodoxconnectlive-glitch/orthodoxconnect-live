@@ -2288,7 +2288,17 @@ export default {
             profiles = results || [];
           }
 
-          return jsonResponse({ success: true, profiles, count: profiles.length });
+          // Slim the list payload: inline base64 photo avatars (data: URLs) can be
+          // hundreds of KB each, ballooning this response to ~2MB. Lists never carry
+          // them — the frontend falls back to the default icon. The full photo is
+          // still served by the single-profile endpoint (/api/profiles/:id).
+          const slimProfiles = profiles.map((p: any) =>
+            p && /^data:image\//i.test(String(p.avatar_url || ''))
+              ? { ...p, avatar_url: '' }
+              : p
+          );
+
+          return jsonResponse({ success: true, profiles: slimProfiles, count: slimProfiles.length });
         }
 
         if (request.method === 'POST') {

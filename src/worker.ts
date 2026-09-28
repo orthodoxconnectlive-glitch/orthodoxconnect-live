@@ -2289,12 +2289,13 @@ export default {
           }
 
           // Slim the list payload: inline base64 photo avatars (data: URLs) can be
-          // hundreds of KB each, ballooning this response to ~2MB. Lists never carry
-          // them — the frontend falls back to the default icon. The full photo is
-          // still served by the single-profile endpoint (/api/profiles/:id).
+          // hundreds of KB each, ballooning this response to ~2MB. Lists carry a
+          // lazy per-profile image URL instead, so the real photo shows everywhere
+          // without the weight. The full data URI is still served by the
+          // single-profile endpoint (/api/profiles/:id).
           const slimProfiles = profiles.map((p: any) =>
             p && /^data:image\//i.test(String(p.avatar_url || ''))
-              ? { ...p, avatar_url: '' }
+              ? { ...p, avatar_url: 'https://orthodoxconnect.live/profile-avatar/' + encodeURIComponent(String(p.id)) }
               : p
           );
 
@@ -3648,8 +3649,11 @@ export default {
                         userId: r.user_id,
                         userName: r.user_name || 'Orthodox Member',
                         // Never ship megabytes of base64 avatars in the feed;
-                        // the app falls back to the launcher icon when empty.
-                        userAvatar: /^data:image\//i.test(rawLikerAv) ? '' : r.user_avatar,
+                        // point at the lazy per-profile image URL instead so the
+                        // real photo shows.
+                        userAvatar: /^data:image\//i.test(rawLikerAv)
+                          ? 'https://orthodoxconnect.live/profile-avatar/' + encodeURIComponent(String(r.user_id))
+                          : r.user_avatar,
                       });
                       likersMap.set(key, arr);
                     }
@@ -4872,6 +4876,32 @@ export default {
               const avHeaders: Record<string, string> = {
                 'Content-Type': m[1],
                 'Cache-Control': 'public, max-age=31536000, immutable',
+                'Content-Length': String(bytes.length),
+              };
+              return new Response(request.method === 'HEAD' ? null : bytes, { status: 200, headers: avHeaders });
+            }
+          } catch (e) {}
+        }
+        return new Response('Not found', { status: 404 });
+      }
+
+      // Public profile avatar: /profile-avatar/:id — decodes the inline base64
+      // data-URI avatars stored on profiles so list responses stay tiny while the
+      // real photo still shows everywhere (contacts, chat, likers). No login required.
+      if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
+          url.pathname.startsWith('/profile-avatar/')) {
+        const avId = decodeURIComponent(url.pathname.replace('/profile-avatar/', '').split('/')[0].trim());
+        if (avId) {
+          try {
+            const row = await env.DB.prepare('SELECT avatar_url FROM profiles WHERE id = ?').bind(avId).first<any>();
+            const m = /^data:(image\/[a-zA-Z0-9+.-]+);base64,([A-Za-z0-9+/=\s]+)$/.exec(String(row?.avatar_url || ''));
+            if (m) {
+              const bin = atob(m[2].replace(/\s+/g, ''));
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              const avHeaders: Record<string, string> = {
+                'Content-Type': m[1],
+                'Cache-Control': 'public, max-age=86400',
                 'Content-Length': String(bytes.length),
               };
               return new Response(request.method === 'HEAD' ? null : bytes, { status: 200, headers: avHeaders });

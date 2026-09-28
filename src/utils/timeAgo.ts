@@ -30,3 +30,29 @@ export function formatTimeAgo(dateInput?: string | Date | number, lang: 'en' | '
     return date.toLocaleDateString(isArabic ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' });
   }
 }
+
+// ---- Real presence helpers (2026-09-28) ----
+// "Online" = seen in the last 5 minutes. Anything older shows "Active X ago".
+export const PRESENCE_WINDOW_MS = 5 * 60 * 1000;
+
+export function isRecentlyActive(lastSeen?: string | null): boolean {
+  if (!lastSeen) return false;
+  const ms = Date.parse(lastSeen);
+  if (isNaN(ms)) return false;
+  const diff = Date.now() - ms;
+  return diff >= 0 && diff < PRESENCE_WINDOW_MS;
+}
+
+export function presenceLabel(lastSeen: string | null | undefined, lang: string = 'en'): string {
+  const ar = lang === 'ar';
+  if (!lastSeen) return ar ? 'غير متصل' : 'Offline';
+  const diff = Date.now() - Date.parse(lastSeen);
+  if (isNaN(diff) || diff < 0) return ar ? 'غير متصل' : 'Offline';
+  if (diff < PRESENCE_WINDOW_MS) return ar ? 'متصل الآن' : 'Active now';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return ar ? `نشط منذ ${mins} د` : `Active ${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return ar ? `نشط منذ ${hrs} س` : `Active ${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return ar ? `نشط منذ ${days} يوم` : `Active ${days}d ago`;
+}

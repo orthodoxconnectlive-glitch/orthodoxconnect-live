@@ -78,6 +78,7 @@ export interface D1ProfileRow {
   is_banned: number;
   created_at: string;
   updated_at: string;
+  last_seen?: string | null;
 }
 
 export interface D1SessionRow {
@@ -567,6 +568,26 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
   }
 }
 
+// ---- Real presence tracking (2026-09-28) ----
+// profiles.last_seen = last time the user made an authenticated API call.
+// Self-healing one-time ALTER (idempotent). It lives here instead of
+// ensureD1Tables because that function's fast-path probe skips ALL
+// migrations on fully-migrated databases.
+let lastSeenColumnReady = false;
+async function ensureLastSeenColumn(db: D1Database): Promise<void> {
+  if (lastSeenColumnReady || !db) return;
+  try {
+    await db.prepare('ALTER TABLE profiles ADD COLUMN last_seen TEXT').run();
+  } catch (e) {
+    const msg = String((e as any)?.message || e || '');
+    if (!/duplicate column/i.test(msg)) return; // e.g. table missing yet — retry on next request
+  }
+  lastSeenColumnReady = true;
+}
+// Throttle map: user id -> last touch timestamp (per Worker isolate).
+// Keeps presence writes to ~1 per user per 5 minutes.
+const presenceTouchedAt = new Map<string, number>();
+
 // Verified identity: the ONLY trusted source of "who is calling".
 // Resolves the session token (query ?token= or Authorization: Bearer header)
 // against the D1 sessions table and loads the user's verified id/email/role.
@@ -608,6 +629,19 @@ export async function getAuthIdentity(request: Request, env: Env) {
     const role = (p.role || '').trim().toLowerCase();
     const isSuperAdmin = email === SUPER_ADMIN_EMAIL || role === 'super_admin';
     const isAdmin = isSuperAdmin || role === 'admin' || role === 'owner' || ADMIN_EMAILS.includes(email);
+    // Real presence: best-effort last_seen touch, throttled to one write
+    // per user per 5 minutes per isolate. Fire-and-forget so it never slows
+    // down the request; a lost write simply retries on the next call.
+    try {
+      const nowMs = Date.now();
+      if (nowMs - (presenceTouchedAt.get(p.id) || 0) > 5 * 60 * 1000) {
+        presenceTouchedAt.set(p.id, nowMs);
+        ensureLastSeenColumn(env.DB).then(() =>
+          env.DB.prepare('UPDATE profiles SET last_seen = ? WHERE id = ?')
+            .bind(new Date(nowMs).toISOString(), p.id).run()
+        ).catch(() => {});
+      }
+    } catch (e) {}
     return { email, role, id: p.id, bearerToken: token, isSuperAdmin, isAdmin };
   } catch (e) {
     return anon;
@@ -2230,7 +2264,8 @@ export default {
           const excludeId = url.searchParams.get('exclude_id');
 
           if (env.DB) {
-            let query = 'SELECT id, email, full_name, parish, bio, avatar_url, role, is_banned, created_at, updated_at FROM profiles';
+            await ensureLastSeenColumn(env.DB);
+          let query = 'SELECT id, email, full_name, parish, bio, avatar_url, role, is_banned, created_at, updated_at, last_seen FROM profiles';
             const params: any[] = [];
             const where: string[] = [];
 
@@ -2296,7 +2331,8 @@ export default {
         if (request.method === 'GET') {
           let profile: D1ProfileRow | null = null;
           if (env.DB) {
-            profile = await env.DB.prepare('SELECT id, email, full_name, parish, bio, avatar_url, role, is_banned, created_at, updated_at FROM profiles WHERE id = ?').bind(profileId).first<D1ProfileRow>();
+            await ensureLastSeenColumn(env.DB);
+            profile = await env.DB.prepare('SELECT id, email, full_name, parish, bio, avatar_url, role, is_banned, created_at, updated_at, last_seen FROM profiles WHERE id = ?').bind(profileId).first<D1ProfileRow>();
           }
           if (!profile) {
             return jsonResponse({ success: false, error: 'Profile not found.' }, 404);

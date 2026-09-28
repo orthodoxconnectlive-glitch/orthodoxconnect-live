@@ -39,7 +39,7 @@ import { WebRTCCallModal } from '../components/WebRTCCallModal';
 import { UserProfileData } from './ProfileView';
 import { uploadMediaFile } from '../utils/storage';
 import { TimeAgo } from '../components/TimeAgo';
-import { formatTimeAgo } from '../utils/timeAgo';
+import { formatTimeAgo, isRecentlyActive, presenceLabel } from '../utils/timeAgo';
 
 interface ChatContact {
   id: string;
@@ -49,6 +49,7 @@ interface ChatContact {
   parish: string;
   avatar: string;
   isOnline?: boolean;
+  last_seen?: string | null;
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount?: number;
@@ -112,7 +113,7 @@ interface MessengerViewProps {
 
 export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, onSelectUser }) => {
   const { profile } = useAuth();
-  const { t } = useTheme();
+  const { t, language } = useTheme();
   const { initiateCall } = useCall();
 
   // Clear the message badge when the messages view is opened
@@ -221,13 +222,15 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
         if (profilesData && profilesData.length > 0) {
           const mapped: ChatContact[] = profilesData.map((p) => {
             const displayName = getContactDisplayName(p);
+            const lastSeen = (p as any).last_seen || null;
             return {
               id: p.id,
               name: displayName,
               full_name: p.full_name || undefined,
               parish: p.parish || 'Orthodox Church',
               avatar: p.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
-              isOnline: true,
+              isOnline: isRecentlyActive(lastSeen),
+              last_seen: lastSeen,
               lastMessage: activePartnerIds.has(p.id) ? 'Active conversation' : 'Tap to chat',
             };
           });
@@ -953,7 +956,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                 alt={activeContact.name}
                 className="w-10 h-10 rounded-full object-cover group-hover:opacity-90 transition-opacity"
               />
-              {activeContact.isOnline && (
+              {isRecentlyActive(activeContact.last_seen) && (
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white dark:border-[#18191a]" />
               )}
             </div>
@@ -963,11 +966,14 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                 {activeContact.name}
               </h3>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
-                {activeContact.isOnline ? (
-                  <span className="text-emerald-500 font-medium">Active now</span>
-                ) : (
-                  <span>Offline</span>
-                )}
+                {(() => {
+                  const online = isRecentlyActive(activeContact.last_seen);
+                  return (
+                    <span className={online ? 'text-emerald-500 font-medium' : ''}>
+                      {presenceLabel(activeContact.last_seen, language)}
+                    </span>
+                  );
+                })()}
                 <span>•</span>
                 <span>{activeContact.parish}</span>
               </p>

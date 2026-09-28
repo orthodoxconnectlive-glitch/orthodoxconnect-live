@@ -29,6 +29,7 @@ import { useTheme } from '../context/ThemeContext';
 import { getFollowedAuthors, toggleFollow } from '../utils/follows';
 import { getJoinedGroupIds, toggleGroupJoin, getCustomGroups, syncGroupsFromServer } from '../utils/groups';
 import { UserProfileData } from './ProfileView';
+import { isRecentlyActive } from '../utils/timeAgo';
 
 interface ParishMember {
   id: string;
@@ -185,7 +186,7 @@ export const GroupRoomsView: React.FC<GroupRoomsViewProps> = ({ onSelectUser, on
           parish: p.parish || 'Orthodox Church',
           avatar: p.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
           bio: p.bio || 'Orthodox Christian parishioner.',
-          isOnline: true,
+          isOnline: isRecentlyActive((p as any).last_seen),
         }));
         setMembersList(mapped);
       }

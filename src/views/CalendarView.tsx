@@ -29,7 +29,7 @@ export const CalendarView: React.FC = () => {
       ? `${copticDate.day} ${copticDate.monthNameAr} ${copticDate.year} ش`
       : `${copticDate.day} ${copticDate.monthNameEn} ${copticDate.year} AM`;
 
-  const [activeTab, setActiveTab] = useState<'events' | 'liturgical'>('events');
+  const [activeTab, setActiveTab] = useState<'events' | 'liturgical'>('liturgical');
   const [eventsList, setEventsList] = useState<EventItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -131,18 +131,6 @@ export const CalendarView: React.FC = () => {
       {/* Main Tab Bar */}
       <div className="flex items-center gap-2 border-b border-(--ln-bright)/20 pb-2">
         <button
-          onClick={() => setActiveTab('events')}
-          className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-            activeTab === 'events'
-              ? 'bg-(--ac-bright) text-white shadow-md'
-              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
-          }`}
-        >
-          <Church className="w-4 h-4" />
-          <span>{t('parishEventsTab')} ({eventsList.length})</span>
-        </button>
-
-        <button
           onClick={() => setActiveTab('liturgical')}
           className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
             activeTab === 'liturgical'
@@ -152,6 +140,18 @@ export const CalendarView: React.FC = () => {
         >
           <Sparkles className="w-4 h-4" />
           <span>{t('orthodoxFeastsTab')}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('events')}
+          className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === 'events'
+              ? 'bg-(--ac-bright) text-white shadow-md'
+              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
+          }`}
+        >
+          <Church className="w-4 h-4" />
+          <span>{t('parishEventsTab')} ({eventsList.length})</span>
         </button>
       </div>
 

@@ -67,6 +67,8 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
   const [playingBook, setPlayingBook] = useState<Book | null>(null);
   const [synaxariumOpen, setSynaxariumOpen] = useState<boolean>(false);
   const [copticReaderOpen, setCopticReaderOpen] = useState<boolean>(false);
+  // Pope Shenouda III collection modal — groups all his books in one spot.
+  const [shenoudaOpen, setShenoudaOpen] = useState<boolean>(false);
   // Bumps to force a full remount of the reader if its error boundary retries.
   const [readerAttempt, setReaderAttempt] = useState(0);
   const [commentBook, setCommentBook] = useState<Book | null>(null);
@@ -106,7 +108,6 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
     { id: 'liturgy', ar: 'طقوس وتسبحة', en: 'Liturgy' },
     { id: 'bible_study', ar: 'دراسات كتابية', en: 'Bible Study' },
     { id: 'audiobook', ar: 'كتب مسموعة', en: 'Audiobooks' },
-    { id: 'shenouda', ar: 'كتب البابا شنودة الثالث', en: 'Pope Shenouda III' },
   ];
 
   const fetchBooks = () => {
@@ -148,6 +149,14 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
       })
       .catch(() => {});
   }, []);
+
+  // Pope Shenouda III's books live in one collection card; everything else
+  // renders as individual cards. Matches all author spellings (شنودة/شنوده,
+  // "Pope Shenouda III", and the "الباب شنودة" typo).
+  const isShenoudaBook = (b: Book) =>
+    /شنود[ةه]/.test(b.author_ar || '') || /shenouda/i.test(b.author_en || '');
+  const shenoudaBooks = books.filter(isShenoudaBook);
+  const otherBooks = books.filter((b) => !isShenoudaBook(b));
 
   const openAddModal = () => {
     setEditingBookId(null);
@@ -284,6 +293,9 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
     if (!target) { onFocusBookConsumed && onFocusBookConsumed(); return; }
     if (target.category === 'audiobook') {
       setPlayingBook(target);
+    } else if (isShenoudaBook(target)) {
+      // Shenouda books live inside the collection card — open it instead.
+      setShenoudaOpen(true);
     } else {
       setHighlightBookId(target.id);
       setTimeout(() => {
@@ -509,6 +521,48 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
         </div>
       )}
 
+      {/* Pope Shenouda III collection spotlight — all his books in one spot */}
+      {shenoudaBooks.length > 0 && (
+        <div className="rounded-3xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg bg-gradient-to-br from-[#2b1d12] via-[#1c1410] to-[#2b1d12]">
+          <div className="flex flex-col sm:flex-row items-center gap-5 p-5 sm:p-6">
+            {shenoudaBooks[0].cover_image_url ? (
+              <img
+                src={shenoudaBooks[0].cover_image_url}
+                alt={language === 'ar' ? 'البابا شنوده الثالث' : 'Pope Shenouda III'}
+                className="w-28 sm:w-36 rounded-xl shadow-2xl border border-[#8b6b4a]/50 shrink-0"
+              />
+            ) : (
+              <div className="w-28 sm:w-36 h-36 rounded-xl bg-[#d4a24e]/15 border border-[#d4a24e]/50 flex items-center justify-center shrink-0">
+                <BookOpen className="w-12 h-12 text-[#d4a24e]" />
+              </div>
+            )}
+            <div className="flex-1 text-center sm:text-left rtl:sm:text-right">
+              <div className="text-[10px] font-serif uppercase tracking-[0.25em] text-[#d4a24e] mb-1">
+                ✦ {language === 'ar' ? 'كتب البابا شنوده الثالث' : 'Pope Shenouda III Books'} ✦
+              </div>
+              <h2 className="font-serif-coptic font-bold text-xl sm:text-2xl text-[#f5ebd9] mb-1">
+                {language === 'ar' ? 'البابا شنوده الثالث' : 'Pope Shenouda III'}
+              </h2>
+              <p className="text-xs text-[#c9b18c] font-serif leading-relaxed mb-4">
+                {language === 'ar'
+                  ? `كل كتبه في مكان واحد — ${shenoudaBooks.length} كتاب`
+                  : `All his books in one place — ${shenoudaBooks.length} books`}
+              </p>
+              <div className="flex flex-wrap gap-2 justify-center sm:justify-start rtl:sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShenoudaOpen(true)}
+                  className="px-5 py-2.5 rounded-full bg-[#d4a24e] hover:bg-[#e5b85c] text-[#1c1410] text-sm font-serif font-bold flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  {language === 'ar' ? 'عرض كل الكتب' : 'View All Books'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filter / Search Bar */}
       <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
         <div className="relative w-full md:w-80">
@@ -550,7 +604,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {books.map((book) => (
+          {otherBooks.map((book) => (
             <div
               key={book.id}
               id={`book-card-${book.id}`}
@@ -665,6 +719,103 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Pope Shenouda III collection modal — all his books in one place */}
+      {shenoudaOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShenoudaOpen(false)}>
+          <div
+            className="bg-(--bg-soft) dark:bg-[#18120e] border-2 border-(--ln-gold) dark:border-[#8b6b4a] w-full max-w-2xl rounded-3xl shadow-2xl relative text-(--tx-strong) dark:text-[#f5ebd9] flex flex-col max-h-[85vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 pb-3 border-b border-(--ln-gold)/30 flex items-center gap-3">
+              {shenoudaBooks[0]?.cover_image_url && (
+                <img src={shenoudaBooks[0].cover_image_url} alt="" className="w-10 h-14 object-cover rounded-lg border border-[#8b6b4a]/50 shrink-0" />
+              )}
+              <div className="min-w-0 flex-1">
+                <h2 className="font-serif-coptic font-bold text-lg leading-snug">
+                  {language === 'ar' ? 'كتب البابا شنوده الثالث' : 'Pope Shenouda III Books'}
+                </h2>
+                <p className="text-xs text-(--tx-mute) dark:text-[#a89379] font-serif mt-0.5">
+                  {language === 'ar' ? `${shenoudaBooks.length} كتاب` : `${shenoudaBooks.length} books`}
+                </p>
+              </div>
+              <button
+                onClick={() => setShenoudaOpen(false)}
+                className="text-(--tx-mute) hover:text-(--tx-strong) dark:hover:text-white shrink-0"
+                aria-label={language === 'ar' ? 'إغلاق' : 'Close'}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4 space-y-2">
+              {shenoudaBooks.map((book) => (
+                <div
+                  key={book.id}
+                  className="flex items-center gap-3 p-2.5 rounded-2xl bg-(--bg-card) dark:bg-[#1c1611] border border-(--ln-gold)/40"
+                >
+                  {book.cover_image_url ? (
+                    <img src={book.cover_image_url} alt={book.title_ar} className="w-10 h-14 object-cover rounded-lg shrink-0" />
+                  ) : (
+                    <div className="w-10 h-14 rounded-lg bg-(--bg-soft) dark:bg-[#282019] flex items-center justify-center shrink-0">
+                      <BookOpen className="w-5 h-5 text-(--ac-gold-tx)" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="font-serif-coptic font-bold text-sm line-clamp-2">
+                      {language === 'ar' ? book.title_ar : book.title_en || book.title_ar}
+                    </div>
+                    <div className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif mt-0.5 line-clamp-1">
+                      {language === 'ar' ? book.author_ar : book.author_en || book.author_ar}
+                    </div>
+                  </div>
+                  {book.file_url && book.file_url.startsWith('synaxarium://') ? (
+                    <button
+                      type="button"
+                      onClick={() => { setShenoudaOpen(false); setSynaxariumOpen(true); }}
+                      className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0 cursor-pointer"
+                    >
+                      {language === 'ar' ? 'اقرأ الآن' : 'Read Now'}
+                    </button>
+                  ) : book.category === 'audiobook' ? (
+                    <button
+                      type="button"
+                      onClick={() => { setShenoudaOpen(false); setPlayingBook(book); }}
+                      className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0 cursor-pointer"
+                    >
+                      {language === 'ar' ? 'استمع الآن' : 'Listen Now'}
+                    </button>
+                  ) : (
+                    <a
+                      href={book.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0"
+                    >
+                      {language === 'ar' ? 'قراءة / تحميل' : 'Read / Download'}
+                    </a>
+                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => openEditModal(book)}
+                      className="p-1.5 text-(--tx-mute) hover:text-amber-500 transition-colors"
+                      title={language === 'ar' ? 'تعديل' : 'Edit'}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteBook(book.id)}
+                      className="p-1.5 text-(--tx-mute) hover:text-red-500 transition-colors"
+                      title={language === 'ar' ? 'حذف' : 'Delete'}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

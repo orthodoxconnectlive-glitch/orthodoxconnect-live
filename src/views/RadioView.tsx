@@ -286,7 +286,7 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
   };
 
   const shareTrack = async (t: RadioTrack) => {
-    const url = `https://orthodoxconnect.live/?track=${encodeURIComponent(t.id)}`;
+    const url = `https://orthodoxconnect.live/radio/${encodeURIComponent(t.id)}`;
     const text = `${t.title} | ${ar ? 'راديو أورثوذكس كونكت' : 'OrthodoxConnect Radio'} 🎧`;
     if (typeof navigator !== 'undefined' && (navigator as any).share) {
       try {
@@ -304,7 +304,7 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
   };
 
   const shareLive = async () => {
-    const url = 'https://orthodoxconnect.live/?radioLive=1';
+    const url = 'https://orthodoxconnect.live/radio/live';
     const text = `${live.title || (ar ? 'بث مباشر' : 'Live broadcast')} | ${ar ? 'راديو أورثوذكس كونكت' : 'OrthodoxConnect Radio'} 🔴`;
     if (typeof navigator !== 'undefined' && (navigator as any).share) {
       try {

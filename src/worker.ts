@@ -1116,6 +1116,64 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
           <p class="meta">${escHtml(s.priest_name || '')} · ${escHtml(s.host_parish || 'Orthodox Church')}</p>
           ${live ? `<p class="meta">🔴 ${escHtml(String(s.viewers_count || 1))} watching now</p>` : ''}`;
       }
+    } else if (kind === 'radio') {
+      // Radio share: id 'live' = the live broadcast, otherwise a radio_tracks row id.
+      // Table reads are best-effort: if the radio tables are missing we still
+      // render a generic (found) radio page instead of a 404.
+      const radioImg = APP_URL + '/radio-share.png';
+      try {
+        if (id === 'live') {
+          let isLive = false, ytId = '', liveTitle = '';
+          try {
+            const rs = await db.prepare(`SELECT key, value FROM radio_state WHERE key IN ('is_live','live_youtube_id','live_title')`).all();
+            const m: Record<string, string> = {};
+            for (const r of ((rs as any).results || [])) m[String((r as any).key)] = String((r as any).value || '');
+            isLive = m['is_live'] === '1';
+            ytId = m['live_youtube_id'] || '';
+            liveTitle = m['live_title'] || '';
+          } catch (e) {}
+          found = true;
+          title = isLive ? `🔴 ${liveTitle || 'Live broadcast'} — OrthodoxConnect Radio` : 'OrthodoxConnect Radio 📻';
+          desc = isLive ? 'Tune in now — live on OrthodoxConnect Radio.' : 'Liturgy, hymns and songs — OrthodoxConnect Radio.';
+          image = ytId ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : radioImg;
+          if (ytId) { imageW = '480'; imageH = '360'; } else { imageW = '1200'; imageH = '630'; }
+          appLink = APP_URL + '/?radioLive=1';
+          bodyHtml = `
+          <div class="badge ${isLive ? 'live' : ''}">${isLive ? '● LIVE' : '📻 Radio'}</div>
+          <h1>${escHtml(liveTitle || 'OrthodoxConnect Radio')}</h1>
+          <p class="meta">${isLive ? 'Live now on OrthodoxConnect Radio' : 'Liturgy · Hymns · Songs'}</p>
+          ${ytId ? `<a href="${escHtml(appLink)}"><img class="media" src="${escHtml(image)}" alt="Live broadcast" onerror="this.style.display='none'"/></a>` : ''}`;
+        } else {
+          const t = await db.prepare('SELECT id, title, youtube_id, category FROM radio_tracks WHERE id = ?').bind(id).first<any>();
+          if (t) {
+            found = true;
+            const tTitle = String(t.title || 'Radio track');
+            const tYt = String(t.youtube_id || '');
+            title = `${tTitle} — OrthodoxConnect Radio`;
+            desc = 'On OrthodoxConnect Radio 📻 — liturgy, hymns and songs.';
+            image = tYt ? `https://i.ytimg.com/vi/${tYt}/hqdefault.jpg` : radioImg;
+            if (tYt) { imageW = '480'; imageH = '360'; } else { imageW = '1200'; imageH = '630'; }
+            appLink = APP_URL + '/?track=' + encodeURIComponent(String(t.id));
+            bodyHtml = `
+          <div class="badge">📻 Radio</div>
+          <h1>${escHtml(tTitle)}</h1>
+          <p class="meta">OrthodoxConnect Radio</p>
+          ${tYt ? `<a href="${escHtml(appLink)}"><img class="media" src="${escHtml(image)}" alt="Track" onerror="this.style.display='none'"/></a>` : ''}`;
+          }
+        }
+      } catch (e) {}
+      if (!found) {
+        // Generic radio page (e.g. track removed): still a valid share target.
+        found = true;
+        title = 'OrthodoxConnect Radio 📻';
+        desc = 'Liturgy, hymns and songs — OrthodoxConnect Radio.';
+        image = radioImg; imageW = '1200'; imageH = '630';
+        appLink = APP_URL + '/?radioLive=1';
+        bodyHtml = `
+          <div class="badge">📻 Radio</div>
+          <h1>OrthodoxConnect Radio</h1>
+          <p class="meta">Liturgy · Hymns · Songs</p>`;
+      }
     } else if (kind === 'book') {
       const b = await db.prepare(
         'SELECT id, title_ar, title_en, author_ar, author_en, category, description, cover_image_url FROM books WHERE id = ?'
@@ -1248,7 +1306,7 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
     bodyHtml = `<h1>OrthodoxConnect</h1><p class="meta">This post is no longer available.</p>`;
   }
 
-  const pageUrl = APP_URL + (kind === 'live' ? '/live/' : kind === 'book' ? '/book/' : kind === 'synax' ? '/synax/' : '/post/') + encodeURIComponent(id);
+  const pageUrl = APP_URL + (kind === 'live' ? '/live/' : kind === 'book' ? '/book/' : kind === 'synax' ? '/synax/' : kind === 'radio' ? '/radio/' : '/post/') + encodeURIComponent(id);
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5296,18 +5354,20 @@ export default {
         return Response.redirect(`${url.origin}/invite`, 302);
       }
 
-      // Public share pages: /post/:id, /live/:id, /book/:id, /synax/:MM-DD
-      // (OG tags + preview + app CTA).
+      // Public share pages: /post/:id, /live/:id, /book/:id, /synax/:MM-DD,
+      // /radio/live, /radio/track/:id (OG tags + preview + app CTA).
       // HEAD is served too: several link-preview scrapers probe headers first.
       // NOTE: /synax/ is matched only for MM-DD keys so it can never swallow
       // the static /synaxarium/*.json data files.
       if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
           (url.pathname.startsWith('/post/') || url.pathname.startsWith('/live/') || url.pathname.startsWith('/book/') ||
+           url.pathname.startsWith('/radio/') ||
            /^\/synax\/\d{1,2}-\d{1,2}\/?$/.test(url.pathname))) {
         let kind: string;
         let prefix: string;
         if (url.pathname.startsWith('/live/')) { kind = 'live'; prefix = '/live/'; }
         else if (url.pathname.startsWith('/book/')) { kind = 'book'; prefix = '/book/'; }
+        else if (url.pathname.startsWith('/radio/')) { kind = 'radio'; prefix = '/radio/'; }
         else if (url.pathname.startsWith('/synax/')) { kind = 'synax'; prefix = '/synax/'; }
         else { kind = 'post'; prefix = '/post/'; }
         const shareId = decodeURIComponent(url.pathname.replace(prefix, '').split('/')[0].trim());

@@ -43,6 +43,12 @@
     <!-- Preconnect & DNS-Prefetch for Fonts & CDN performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Fonts as <link> (not CSS @import) so they load in parallel with the
+         app bundle instead of chaining serially after the CSS downloads. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    />
     <link rel="preconnect" href="https://yrkjbxdiujvbauszlqpa.supabase.co" crossorigin />
     <link rel="dns-prefetch" href="https://yrkjbxdiujvbauszlqpa.supabase.co" />
     <link rel="dns-prefetch" href="https://vz-840ad26e-6fe.b-cdn.net" />

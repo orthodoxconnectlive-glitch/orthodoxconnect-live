@@ -231,11 +231,13 @@ const SHENOUDA_BOOK_CATEGORIES: Record<string, string> = {
 async function seedShenoudaBooks(db: D1Database): Promise<void> {
   try {
     const stmts = SHENOUDA_BOOKS.map(([id, titleAr, titleEn, fileUrl]) =>
-      db.prepare(`INSERT OR IGNORE INTO books (id, title_ar, title_en, author_ar, author_en, category, file_url, description) VALUES (?, ?, ?, 'البابا شنودة الثالث', 'Pope Shenouda III', ?, ?, '')`).bind(id, titleAr, titleEn, SHENOUDA_BOOK_CATEGORIES[id] || 'spiritual', fileUrl)
+      db.prepare(`INSERT OR IGNORE INTO books (id, title_ar, title_en, author_ar, author_en, category, file_url, description) VALUES (?, ?, ?, 'البابا شنودة الثالث', 'Pope Shenouda III', 'shenouda', ?, '')`).bind(id, titleAr, titleEn, fileUrl)
     );
     await db.batch(stmts);
     // Cover photo for all Pope Shenouda III books (added 2026-09-29 per Hany).
     await db.prepare(`UPDATE books SET cover_image_url = ? WHERE id LIKE 'shenouda-%' AND (cover_image_url IS NULL OR cover_image_url = '')`).bind('https://orthodoxconnect.live/pope-shenouda-iii-cover.jpg').run();
+    // Collect all Pope Shenouda III books under one library category (added 2026-09-29 per Hany).
+    await db.prepare(`UPDATE books SET category = 'shenouda' WHERE id LIKE 'shenouda-%' AND category != 'shenouda'`).run();
   } catch (seedErr) {
     console.warn('[seedShenoudaBooks] notice:', seedErr);
   }

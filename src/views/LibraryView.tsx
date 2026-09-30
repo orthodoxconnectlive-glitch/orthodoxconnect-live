@@ -106,6 +106,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
     { id: 'liturgy', ar: 'طقوس وتسبحة', en: 'Liturgy' },
     { id: 'bible_study', ar: 'دراسات كتابية', en: 'Bible Study' },
     { id: 'audiobook', ar: 'كتب مسموعة', en: 'Audiobooks' },
+    { id: 'shenouda', ar: 'كتب البابا شنودة الثالث', en: 'Pope Shenouda III' },
   ];
 
   const fetchBooks = () => {

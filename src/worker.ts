@@ -4368,7 +4368,10 @@ export default {
           const youtubeId = extractYouTubeId(body.youtube_url || body.youtube_id || '');
           const category = ['liturgy', 'hymns', 'songs'].includes(body.category) ? body.category : 'hymns';
           if (!title || !youtubeId) {
-            return jsonResponse({ success: false, error: 'Title and a valid YouTube link are required.' }, 400);
+            const err = !title
+              ? 'Please enter a title for the track.'
+              : 'That doesn’t look like a YouTube video link. Open the video in the YouTube app, tap Share, copy the link, and paste it here.';
+            return jsonResponse({ success: false, error: err }, 400);
           }
           const id = `radio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           let sortOrder = 0;

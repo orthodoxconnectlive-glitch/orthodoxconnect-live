@@ -236,8 +236,10 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
       } else {
         setAdminMsg(d?.error || (ar ? 'الرابط غير صالح.' : 'That YouTube link looks invalid.'));
       }
-    } catch {
-      setAdminMsg(ar ? 'حدث خطأ.' : 'Something went wrong.');
+    } catch (e: any) {
+      // apiFetch throws on HTTP errors (e.g. 400) carrying the server's message — surface it instead of a generic error.
+      const msg = String((e && e.message) || '').replace(/^API error:[^(]*\(\d+\)\s*/, '').trim();
+      setAdminMsg(ar ? 'تعذّر الحفظ. تأكد أن الرابط رابط فيديو يوتيوب مباشر ثم حاول مجددًا.' : (msg || 'Something went wrong.'));
     } finally {
       setAdminBusy(false);
     }
@@ -266,8 +268,9 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
       } else {
         setAdminMsg(d?.error || (ar ? 'حدث خطأ.' : 'Something went wrong.'));
       }
-    } catch {
-      setAdminMsg(ar ? 'حدث خطأ.' : 'Something went wrong.');
+    } catch (e: any) {
+      const msg = String((e && e.message) || '').replace(/^API error:[^(]*\(\d+\)\s*/, '').trim();
+      setAdminMsg(ar ? 'تعذّر حفظ البث. تأكد أن الرابط رابط فيديو يوتيوب مباشر.' : (msg || 'Something went wrong.'));
     } finally {
       setAdminBusy(false);
     }

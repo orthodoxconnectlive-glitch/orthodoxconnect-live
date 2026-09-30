@@ -234,6 +234,8 @@ async function seedShenoudaBooks(db: D1Database): Promise<void> {
       db.prepare(`INSERT OR IGNORE INTO books (id, title_ar, title_en, author_ar, author_en, category, file_url, description) VALUES (?, ?, ?, 'البابا شنودة الثالث', 'Pope Shenouda III', ?, ?, '')`).bind(id, titleAr, titleEn, SHENOUDA_BOOK_CATEGORIES[id] || 'spiritual', fileUrl)
     );
     await db.batch(stmts);
+    // Cover photo for all Pope Shenouda III books (added 2026-09-29 per Hany).
+    await db.prepare(`UPDATE books SET cover_image_url = ? WHERE id LIKE 'shenouda-%' AND (cover_image_url IS NULL OR cover_image_url = '')`).bind('https://orthodoxconnect.live/pope-shenouda-iii-cover.jpg').run();
   } catch (seedErr) {
     console.warn('[seedShenoudaBooks] notice:', seedErr);
   }

@@ -140,6 +140,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'feed', icon: Rss, label: t('feed') },
     { id: 'videos', icon: Film, label: t('videos') },
     { id: 'library', icon: BookOpen, label: language === 'ar' ? 'المكتبة' : 'Library' },
+    { id: 'radio', icon: Radio, label: language === 'ar' ? 'الراديو' : 'Radio' },
     { id: 'myNetwork', icon: Users, label: t('myNetwork') },
     { id: 'calendar', icon: Calendar, label: t('calendar') },
     { id: 'kids', icon: KidsTabIcon, label: language === 'ar' ? 'أطفال' : 'Kids' },

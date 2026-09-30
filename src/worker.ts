@@ -4330,6 +4330,95 @@ export default {
         }
       }
 
+      // 16a0. Radio — liturgy / hymns / songs station (YouTube playlist + live mode).
+      // GET is public; POST/DELETE need an admin. Tables are created
+      // self-healing right here (never depend on the giant ensureD1Tables batch).
+      if (url.pathname === '/api/radio' || url.pathname === '/api/radio/') {
+        if (env.DB) {
+          try {
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS radio_tracks ( id TEXT PRIMARY KEY, title TEXT NOT NULL, youtube_id TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'hymns', sort_order INTEGER NOT NULL DEFAULT 0, added_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS radio_state ( key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '' )`);
+          } catch (e) { /* tables already exist */ }
+        }
+
+        if (request.method === 'GET') {
+          let tracks: any[] = [];
+          let live = { is_live: false, youtube_id: '', title: '' };
+          if (env.DB) {
+            try {
+              const { results } = await env.DB.prepare(`SELECT id, title, youtube_id, category, sort_order, created_at FROM radio_tracks ORDER BY sort_order ASC, datetime(created_at) ASC`).all();
+              tracks = results || [];
+            } catch (e) { /* empty station */ }
+            try {
+              const { results } = await env.DB.prepare(`SELECT key, value FROM radio_state WHERE key IN ('is_live','live_youtube_id','live_title')`).all();
+              const m: Record<string, string> = {};
+              (results || []).forEach((r: any) => { m[r.key] = r.value; });
+              live = { is_live: m['is_live'] === '1', youtube_id: m['live_youtube_id'] || '', title: m['live_title'] || '' };
+            } catch (e) { /* no live state yet */ }
+          }
+          return jsonResponse({ success: true, tracks, live });
+        }
+
+        if (request.method === 'POST') {
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          if (!auth.isAdmin) return jsonResponse({ success: false, error: 'Admin only.' }, 403);
+          const body: any = await request.json().catch(() => ({}));
+          const title = String(body.title || '').trim();
+          const youtubeId = extractYouTubeId(body.youtube_url || body.youtube_id || '');
+          const category = ['liturgy', 'hymns', 'songs'].includes(body.category) ? body.category : 'hymns';
+          if (!title || !youtubeId) {
+            return jsonResponse({ success: false, error: 'Title and a valid YouTube link are required.' }, 400);
+          }
+          const id = `radio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          let sortOrder = 0;
+          if (env.DB) {
+            try {
+              const r = await env.DB.prepare(`SELECT COALESCE(MAX(sort_order), -1) AS m FROM radio_tracks`).first<any>();
+              sortOrder = (r && typeof r.m === 'number' ? r.m : -1) + 1;
+            } catch (e) { /* first track */ }
+            await env.DB.prepare(`INSERT INTO radio_tracks (id, title, youtube_id, category, sort_order, added_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`).bind(id, title, youtubeId, category, sortOrder, auth.id, new Date().toISOString()).run();
+          }
+          return jsonResponse({ success: true, track: { id, title, youtube_id: youtubeId, category } }, 201);
+        }
+      }
+
+      // 16a1. Radio track delete (/api/radio/tracks/:id) — admin only.
+      if (url.pathname.match(/^\/api\/radio\/tracks\/[^/]+\/?$/) && env.DB) {
+        if (request.method === 'DELETE') {
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          if (!auth.isAdmin) return jsonResponse({ success: false, error: 'Admin only.' }, 403);
+          try {
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS radio_tracks ( id TEXT PRIMARY KEY, title TEXT NOT NULL, youtube_id TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'hymns', sort_order INTEGER NOT NULL DEFAULT 0, added_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
+          } catch (e) {}
+          const trackId = decodeURIComponent(url.pathname.split('/').filter(Boolean).pop() || '');
+          await env.DB.prepare(`DELETE FROM radio_tracks WHERE id = ?`).bind(trackId).run();
+          return jsonResponse({ success: true });
+        }
+      }
+
+      // 16a2. Radio live mode (/api/radio/live) — admin only.
+      // Body: { is_live: boolean, youtube_url?: string, title?: string }
+      if ((url.pathname === '/api/radio/live' || url.pathname === '/api/radio/live/') && env.DB) {
+        if (request.method === 'POST') {
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          if (!auth.isAdmin) return jsonResponse({ success: false, error: 'Admin only.' }, 403);
+          try {
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS radio_state ( key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '' )`);
+          } catch (e) {}
+          const body: any = await request.json().catch(() => ({}));
+          const isLive = body.is_live === true || body.is_live === '1' || body.is_live === 1;
+          const youtubeId = extractYouTubeId(body.youtube_url || body.youtube_id || '') || '';
+          const title = String(body.title || '').trim();
+          await env.DB.prepare(`INSERT INTO radio_state (key, value) VALUES ('is_live', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(isLive ? '1' : '0').run();
+          await env.DB.prepare(`INSERT INTO radio_state (key, value) VALUES ('live_youtube_id', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(youtubeId).run();
+          await env.DB.prepare(`INSERT INTO radio_state (key, value) VALUES ('live_title', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(title).run();
+          return jsonResponse({ success: true, live: { is_live: isLive, youtube_id: youtubeId, title } });
+        }
+      }
+
       // 16a. Book like toggle (/api/books/:id/like)
       if (url.pathname.match(/^\/api\/books\/[^/]+\/like\/?$/) && env.DB) {
         const bookId = decodeURIComponent(url.pathname.replace('/api/books/', '').replace(/\/like\/?$/, ''));

@@ -105,6 +105,8 @@ function AppContent() {
   const [focusSynaxKey, setFocusSynaxKey] = useState<string | null>(null);
   // Share-link deep link: ?track=<radioTrackId> opens the radio on that track.
   const [focusTrackId, setFocusTrackId] = useState<string | null>(null);
+  // Share-link deep link: ?radioLive=1 opens the radio on the live broadcast.
+  const [focusRadioLive, setFocusRadioLive] = useState(false);
 
 
   // Check URL params for referral invite link /invite?ref=xyz
@@ -175,6 +177,7 @@ function AppContent() {
     const sharedBookId = searchParams.get('book');
     const sharedSynaxKey = searchParams.get('synax');
     const sharedTrackId = searchParams.get('track');
+    const sharedRadioLive = searchParams.get('radioLive');
     if (sharedPostId) {
       setFocusPostId(sharedPostId);
       setCurrentView('feed');
@@ -200,7 +203,12 @@ function AppContent() {
       setCurrentView('radio');
       searchParams.delete('track');
     }
-    if (readNotifId || sharedPostId || sharedLiveId || sharedBookId || sharedSynaxKey || sharedTrackId) {
+    if (sharedRadioLive) {
+      setFocusRadioLive(true);
+      setCurrentView('radio');
+      searchParams.delete('radioLive');
+    }
+    if (readNotifId || sharedPostId || sharedLiveId || sharedBookId || sharedSynaxKey || sharedTrackId || sharedRadioLive) {
       const cleanUrl = window.location.pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '') + window.location.hash;
       window.history.replaceState(null, '', cleanUrl);
     }
@@ -368,7 +376,7 @@ function AppContent() {
       case 'marketplace':
         return <MarketplaceView />;
       case 'radio':
-        return <RadioView focusTrackId={focusTrackId} onFocusTrackConsumed={() => setFocusTrackId(null)} />;
+        return <RadioView focusTrackId={focusTrackId} onFocusTrackConsumed={() => setFocusTrackId(null)} focusRadioLive={focusRadioLive} onFocusRadioLiveConsumed={() => setFocusRadioLive(false)} />;
       default:
         return <FeedView onSelectUser={handleSelectUser} />;
     }

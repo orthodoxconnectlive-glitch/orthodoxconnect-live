@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   Share2,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -67,9 +68,11 @@ const CATS = [
 interface RadioViewProps {
   focusTrackId?: string | null;
   onFocusTrackConsumed?: () => void;
+  focusRadioLive?: boolean;
+  onFocusRadioLiveConsumed?: () => void;
 }
 
-export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrackConsumed }) => {
+export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrackConsumed, focusRadioLive, onFocusRadioLiveConsumed }) => {
   const { profile } = useAuth();
   const { language } = useTheme();
   const ar = language === 'ar';
@@ -82,6 +85,7 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
   const [isPlaying, setIsPlaying] = useState(false);
   const [started, setStarted] = useState(false);
   const [playerError, setPlayerError] = useState('');
+  const [liveLinkExpired, setLiveLinkExpired] = useState(false);
 
   const playerRef = useRef<any>(null);
   const playerHostRef = useRef<HTMLDivElement>(null);
@@ -299,6 +303,24 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
     }
   };
 
+  const shareLive = async () => {
+    const url = 'https://orthodoxconnect.live/?radioLive=1';
+    const text = `${live.title || (ar ? 'بث مباشر' : 'Live broadcast')} | ${ar ? 'راديو أورثوذكس كونكت' : 'OrthodoxConnect Radio'} 🔴`;
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ title: live.title || 'Live', text, url });
+        return;
+      } catch (e) { /* user dismissed */ }
+    }
+    try {
+      // Copy-link fallback carries the broadcast title too, not just the URL.
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      alert(ar ? 'تم نسخ رابط البث المباشر — شاركه مع أحبائك' : 'Live link copied — share it with your loved ones');
+    } catch (e) {
+      console.error('Share failed:', e);
+    }
+  };
+
   // Deep link: ?track=<id> starts the station on that track.
   useEffect(() => {
     if (!focusTrackId || tracks.length === 0) return;
@@ -311,6 +333,16 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
     void startAt(idx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTrackId, tracks]);
+
+  // Deep link: ?radioLive=1 opens the radio on the live broadcast.
+  // The live banner autoplays on its own when the station is live; if the
+  // broadcast has ended by the time the link is opened, show a note instead.
+  useEffect(() => {
+    if (!focusRadioLive || loading) return;
+    if (onFocusRadioLiveConsumed) onFocusRadioLiveConsumed();
+    if (!(live.is_live && live.youtube_id)) setLiveLinkExpired(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRadioLive, loading]);
 
   return (
     <div className="max-w-3xl mx-auto space-y-4 pb-10">
@@ -336,6 +368,21 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
         </div>
       </div>
 
+      {liveLinkExpired && (
+        <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg flex items-center gap-3">
+          <p className="flex-1 text-sm text-(--tx-strong) dark:text-[#f5ebd9]">
+            {ar ? 'انتهى هذا البث المباشر — هذه هي المحطة العادية.' : 'That live broadcast has ended — here is the regular station.'}
+          </p>
+          <button
+            onClick={() => setLiveLinkExpired(false)}
+            className="p-2 rounded-lg text-(--tx-mute) dark:text-[#a89379] hover:bg-(--bg-soft) cursor-pointer"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="w-10 h-10 rounded-full border-4 border-(--ln-gold) border-t-transparent animate-spin" />
@@ -345,9 +392,17 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
         <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-red-500/60 rounded-3xl p-4 shadow-lg space-y-3">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse" />
-            <h2 className="font-bold text-(--tx-strong) dark:text-[#f5ebd9]">
+            <h2 className="font-bold text-(--tx-strong) dark:text-[#f5ebd9] flex-1 min-w-0 truncate">
               {live.title || (ar ? 'بث مباشر' : 'Live now')}
             </h2>
+            <button
+              onClick={shareLive}
+              className="w-10 h-10 rounded-full bg-(--bg-soft) dark:bg-[#282019] border border-red-500/50 flex items-center justify-center text-(--tx-strong) dark:text-[#f5ebd9] cursor-pointer shrink-0"
+              title={ar ? 'مشاركة البث المباشر' : 'Share live broadcast'}
+              aria-label="Share"
+            >
+              <Share2 className="w-5 h-5" />
+            </button>
           </div>
           <div className="rounded-2xl overflow-hidden aspect-video bg-black">
             <iframe

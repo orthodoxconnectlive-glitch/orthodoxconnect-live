@@ -279,7 +279,8 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
       } catch (e) { /* user dismissed */ }
     }
     try {
-      await navigator.clipboard.writeText(url);
+      // Copy-link fallback carries the book name too, not just the URL.
+      await navigator.clipboard.writeText(`${text}\n${url}`);
       alert(language === 'ar' ? 'تم نسخ رابط الكتاب — شاركه مع أحبائك' : 'Book link copied — share it with your loved ones');
     } catch (e) {
       console.error('Share failed:', e);

@@ -4812,7 +4812,7 @@ export default {
                     (globalThis as any).__lastPushStatus = null;
                     const ok = await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
                     if (ok) sent++;
-                    sendResults.push({ ok, status: (globalThis as any).__lastPushStatus, endpointHost: String(s.endpoint).split('/')[2] || '' });
+                    sendResults.push({ ok, status: (globalThis as any).__lastPushStatus, body: String((globalThis as any).__lastPushBody || '').slice(0, 200), endpointHost: String(s.endpoint).split('/')[2] || '' });
                   } catch (pe) { console.warn('[call-signals] push send failed:', (pe as any)?.message || pe); }
                 }
               }

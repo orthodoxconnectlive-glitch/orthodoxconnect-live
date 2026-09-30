@@ -327,6 +327,16 @@ async function seedShenoudaBooks(db: D1Database): Promise<void> {
   }
 }
 
+// 2026-09-30: Hany-provided booklet — سير القديسين (author-approved for the library).
+// Hosted as a real PDF on orthodoxconnect.live/public. INSERT OR IGNORE = idempotent.
+async function seedSaintsBook(db: D1Database): Promise<void> {
+  try {
+    await db.prepare(`INSERT OR IGNORE INTO books (id, title_ar, title_en, author_ar, author_en, category, file_url, description) VALUES ('saints-001', 'سير القديسين', 'Lives of the Saints', 'القمص إبراهيم مجدي', 'Fr. Ibrahim Magdy', 'spiritual', 'https://orthodoxconnect.live/saints-biographies-ar.pdf', 'سير القديس البابا ديسقورس الأول، والقديس يوحنا ذهبي الفم، والقديس أثناسيوس الرسولي، والقديس ساويرس الأنطاكي — إعداد كنيسة السيدة العذراء مريم، الاجتماع العام.')`).run();
+  } catch (seedErr) {
+    console.warn('[seedSaintsBook] notice:', seedErr);
+  }
+}
+
 let d1TablesInitialized = false;
 export async function ensureD1Tables(db?: D1Database) {
   if (!db || d1TablesInitialized) return;
@@ -340,6 +350,7 @@ export async function ensureD1Tables(db?: D1Database) {
   try {
     await db.prepare(`SELECT bunny_stream_id FROM live_streams LIMIT 0`).all();
     await seedShenoudaBooks(db);
+    await seedSaintsBook(db);
     d1TablesInitialized = true;
     return;
   } catch (probeErr) {
@@ -547,6 +558,7 @@ export async function ensureD1Tables(db?: D1Database) {
       console.warn('[ensureD1Tables] live_streams bunny-live migration notice:', bunnyLiveMigErr);
     }
     await seedShenoudaBooks(db);
+    await seedSaintsBook(db);
     d1TablesInitialized = true;
   } catch (e) {
     // Non-fatal if tables already exist

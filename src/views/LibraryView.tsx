@@ -800,6 +800,14 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
                   )}
                   <div className="flex items-center gap-1 shrink-0">
                     <button
+                      type="button"
+                      onClick={() => shareBook(book)}
+                      className="p-1.5 text-(--tx-mute) hover:text-amber-500 transition-colors"
+                      title={language === 'ar' ? 'مشاركة' : 'Share'}
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
                       onClick={() => openEditModal(book)}
                       className="p-1.5 text-(--tx-mute) hover:text-amber-500 transition-colors"
                       title={language === 'ar' ? 'تعديل' : 'Edit'}

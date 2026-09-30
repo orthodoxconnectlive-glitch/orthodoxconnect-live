@@ -3,6 +3,7 @@ import { MessageSquare, ChevronRight, User } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { profilesApi } from '../lib/api';
+import { isRecentlyActive, presenceLabel } from '../utils/timeAgo';
 import { UserProfileData } from '../views/ProfileView';
 
 interface ActiveChatUser {
@@ -20,90 +21,28 @@ interface ActiveChatsPanelProps {
   onSelectUser?: (userData: UserProfileData) => void;
 }
 
-const DEFAULT_ACTIVE_MEMBERS_EN: ActiveChatUser[] = [
-  {
-    id: 'user-fr-athanasios',
-    name: 'Fr. Athanasios',
-    parish: "St. Anthony's Monastery",
-    avatar: 'https://orthodoxconnect.live/launchericon-512x512.png',
-    isOnline: true,
-    lastMessage: 'Peace be with you all. ☨',
-  },
-  {
-    id: 'user-deacon-mark',
-    name: 'Deacon Mark',
-    parish: 'Annunciation Orthodox Church',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-    isOnline: true,
-    lastMessage: 'Choir practice tomorrow after Vespers.',
-  },
-  {
-    id: 'user-maria-sophia',
-    name: 'Maria Sophia',
-    parish: 'Holy Trinity Cathedral',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-    isOnline: true,
-    lastMessage: 'Blessed feast day!',
-  },
-  {
-    id: 'user-kyrillos-alexander',
-    name: 'Kyrillos Alexander',
-    parish: 'St. George Coptic Church',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
-    isOnline: false,
-    lastMessage: 'Glory to God for all things.',
-  },
-];
-
-const DEFAULT_ACTIVE_MEMBERS_AR: ActiveChatUser[] = [
-  {
-    id: 'user-fr-athanasios',
-    name: 'أبونا أثناسيوس',
-    parish: 'دير القديس أنطونيوس',
-    avatar: 'https://orthodoxconnect.live/launchericon-512x512.png',
-    isOnline: true,
-    lastMessage: 'سلام ونعمة للجميع. ☨',
-  },
-  {
-    id: 'user-deacon-mark',
-    name: 'الشماس مرقس',
-    parish: 'كنيسة البشارة الأرثوذكسية',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-    isOnline: true,
-    lastMessage: 'تمرين الكورال غداً بعد صلاة العشية.',
-  },
-  {
-    id: 'user-maria-sophia',
-    name: 'ماريا صوفيا',
-    parish: 'كاتدرائية الثالوث الأقدس',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
-    isOnline: true,
-    lastMessage: 'عيد مبارك ومقدس!',
-  },
-  {
-    id: 'user-kyrillos-alexander',
-    name: 'كيرلس إسكندر',
-    parish: 'كنيسة مارجرجس القبطية',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
-    isOnline: false,
-    lastMessage: 'المجد لله على كل شيء.',
-  },
-];
-
 export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessenger, onSelectUser }) => {
   const { t, language } = useTheme();
   const { profile: currentProfile } = useAuth();
-  const [users, setUsers] = useState<ActiveChatUser[]>(() =>
-    language === 'ar' ? DEFAULT_ACTIVE_MEMBERS_AR : DEFAULT_ACTIVE_MEMBERS_EN
-  );
-  const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<ActiveChatUser[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchRealUsers() {
+    let cancelled = false;
+
+    async function fetchOnlineUsers() {
       try {
         const data = await profilesApi.getAll(undefined, currentProfile?.id);
-        if (data && data.length > 0) {
-          const mappedUsers: ActiveChatUser[] = data.slice(0, 10).map((p) => ({
+        if (cancelled) return;
+        const online = (data || [])
+          .filter((p) => isRecentlyActive((p as any).last_seen))
+          .sort((a, b) => {
+            const ta = Date.parse((a as any).last_seen || '') || 0;
+            const tb = Date.parse((b as any).last_seen || '') || 0;
+            return tb - ta;
+          })
+          .slice(0, 10)
+          .map((p) => ({
             id: p.id,
             name: p.full_name || (language === 'ar' ? 'عضو الرعية' : 'Parish Member'),
             parish: p.parish || (language === 'ar' ? 'كنيسة أرثوذكسية' : 'Orthodox Church'),
@@ -111,21 +50,24 @@ export const ActiveChatsPanel: React.FC<ActiveChatsPanelProps> = ({ onOpenMessen
               p.avatar_url ||
               'https://orthodoxconnect.live/launchericon-512x512.png',
             isOnline: true,
-            lastMessage: language === 'ar' ? 'اضغط لفتح المحادثة' : 'Tap to open chat',
+            lastMessage: presenceLabel((p as any).last_seen, language),
           }));
-
-          setUsers(mappedUsers);
-        } else {
-          setUsers(language === 'ar' ? DEFAULT_ACTIVE_MEMBERS_AR : DEFAULT_ACTIVE_MEMBERS_EN);
-        }
+        setUsers(online);
       } catch (err) {
-        console.warn('Error fetching real active users for panel:', err);
+        console.warn('Error fetching online users for panel:', err);
+        if (!cancelled) setUsers([]);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
-    fetchRealUsers();
+    fetchOnlineUsers();
+    // Re-check every minute so the list stays honest as people come and go.
+    const timer = setInterval(fetchOnlineUsers, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, [currentProfile?.id, language]);
 
   return (

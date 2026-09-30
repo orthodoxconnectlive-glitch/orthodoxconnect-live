@@ -96,123 +96,129 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-lg animate-fade-in">
-      <div className="relative w-full max-w-2xl bg-stone-950 border-2 border-amber-600/50 rounded-3xl p-6 shadow-2xl text-stone-100 flex flex-col items-center justify-between min-h-[480px]">
-        {/* Top Bar */}
-        <div className="w-full flex items-center justify-between pb-4 border-b border-amber-900/40">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-serif font-bold text-xs uppercase tracking-wider text-amber-200">
-              {callState.status === 'connecting' || callState.status === 'calling'
-                ? t('calling')
-                : callState.status === 'ringing'
-                ? t('incomingCall')
-                : t('inCall')}
-            </span>
+    <div className="fixed inset-0 z-50 bg-black animate-fade-in overflow-hidden">
+      {/* ===== Full-screen stage ===== */}
+      <div className="absolute inset-0">
+        {callState.type === 'video' && !isVideoOff ? (
+          remoteStream ? (
+            <video
+              ref={remoteVideoRef}
+              data-user-initiated="true"
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover bg-black"
+            />
+          ) : (
+            <div className="w-full h-full bg-stone-950 flex flex-col items-center justify-center gap-3">
+              <img
+                src={callState.partnerAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
+                alt={callState.partnerName}
+                className="w-24 h-24 rounded-full object-cover border-2 border-amber-400"
+              />
+              <span className="text-sm font-bold text-amber-200">
+                {callState.partnerName}
+              </span>
+              <span className="text-xs text-stone-400 animate-pulse">
+                {t('connecting') || 'Connecting video...'}
+              </span>
+            </div>
+          )
+        ) : (
+          /* Audio Call / Video Off Placeholder */
+          <div className="w-full h-full bg-stone-950 flex flex-col items-center justify-center text-center space-y-4 px-6">
+            <div className="relative">
+              <img
+                src={callState.partnerAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
+                alt={callState.partnerName}
+                className="w-28 h-28 rounded-full object-cover border-4 border-amber-500 shadow-2xl"
+              />
+              <span className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-stone-950 flex items-center justify-center text-white text-[10px]">
+                ✓
+              </span>
+            </div>
+
+            <div>
+              <h3 className="font-serif font-bold text-xl text-amber-100">
+                {callState.partnerName}
+              </h3>
+              <p className="text-xs text-amber-400/80 font-serif">
+                {callState.type === 'video' ? 'Video Call (Camera Off)' : 'Orthodox 1-on-1 Voice Call'}
+              </p>
+            </div>
+
+            {/* Audio Wave Simulation */}
+            <div className="flex items-center gap-1.5 h-8">
+              <span className="w-1.5 bg-amber-500 rounded-full animate-bounce h-4" />
+              <span className="w-1.5 bg-amber-400 rounded-full animate-bounce h-7" style={{ animationDelay: '150ms' }} />
+              <span className="w-1.5 bg-amber-500 rounded-full animate-bounce h-5" style={{ animationDelay: '300ms' }} />
+              <span className="w-1.5 bg-amber-400 rounded-full animate-bounce h-8" style={{ animationDelay: '450ms' }} />
+              <span className="w-1.5 bg-amber-500 rounded-full animate-bounce h-4" style={{ animationDelay: '200ms' }} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ===== Top overlay bar ===== */}
+      <div className="absolute top-0 inset-x-0 z-10 bg-gradient-to-b from-black/80 via-black/40 to-transparent px-4 pt-4 pb-8">
+        <div className="w-full flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <div className="min-w-0">
+              <div className="font-serif font-bold text-xs uppercase tracking-wider text-amber-200">
+                {callState.status === 'connecting' || callState.status === 'calling'
+                  ? t('calling')
+                  : callState.status === 'ringing'
+                  ? t('incomingCall')
+                  : t('inCall')}
+              </div>
+              <div className="text-[11px] text-stone-300 truncate max-w-[45vw]">
+                {callState.partnerName}
+              </div>
+            </div>
           </div>
 
           {callState.status === 'connected' && (
-            <span className="px-3 py-1 rounded-full bg-stone-900 border border-amber-900/40 text-amber-400 font-mono text-xs font-bold">
+            <span className="px-3 py-1 rounded-full bg-black/60 border border-amber-900/40 text-amber-400 font-mono text-xs font-bold">
               {formatTimer(callDuration)}
             </span>
           )}
 
           <button
             onClick={handleEndCallClick}
-            className="p-1.5 rounded-full text-stone-400 hover:text-white hover:bg-stone-900 cursor-pointer"
+            className="p-1.5 rounded-full text-stone-300 hover:text-white hover:bg-white/10 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+      </div>
 
-        {/* Center Stage */}
-        <div className="w-full flex-1 my-6 flex flex-col items-center justify-center relative rounded-2xl bg-stone-900/80 border border-amber-900/30 overflow-hidden p-6">
-          {callState.type === 'video' && !isVideoOff ? (
-            <div className="relative w-full h-full min-h-[280px] flex items-center justify-center">
-              {/* Remote Video Stream (the other person) — full stage */}
-              {remoteStream ? (
-                <video
-                  ref={remoteVideoRef}
-                  data-user-initiated="true"
-                  autoPlay
-                  playsInline
-                  className="w-full h-full max-h-[300px] object-cover rounded-2xl border-2 border-amber-500/40 shadow-inner bg-black"
-                />
-              ) : (
-                <div className="w-full h-full max-h-[300px] rounded-2xl border-2 border-amber-500/40 bg-black flex flex-col items-center justify-center gap-3">
-                  <img
-                    src={callState.partnerAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
-                    alt={callState.partnerName}
-                    className="w-20 h-20 rounded-full object-cover border-2 border-amber-400"
-                  />
-                  <span className="text-xs font-bold text-amber-200">
-                    {callState.partnerName}
-                  </span>
-                  <span className="text-[10px] text-stone-400 animate-pulse">
-                    {t('connecting') || 'Connecting video...'}
-                  </span>
-                </div>
-              )}
-
-              {/* Local Video Stream — picture-in-picture */}
-              <div className="absolute bottom-3 right-3 w-28 h-20 rounded-xl bg-stone-950/90 border-2 border-amber-500 shadow-2xl overflow-hidden">
-                {localStream ? (
-                  <video
-                    ref={localVideoRef}
-                    data-user-initiated="true"
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-[9px] text-stone-400">...</span>
-                  </div>
-                )}
-              </div>
-            </div>
+      {/* ===== Local Video — picture-in-picture ===== */}
+      {callState.type === 'video' && !isVideoOff && (
+        <div className="absolute z-10 bottom-32 right-4 w-28 h-40 rounded-xl bg-stone-950/90 border-2 border-amber-500 shadow-2xl overflow-hidden">
+          {localStream ? (
+            <video
+              ref={localVideoRef}
+              data-user-initiated="true"
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+            />
           ) : (
-            /* Audio Call / Video Off Placeholder */
-            <div className="flex flex-col items-center text-center space-y-4">
-              <div className="relative">
-                <img
-                  src={callState.partnerAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
-                  alt={callState.partnerName}
-                  className="w-28 h-28 rounded-full object-cover border-4 border-amber-500 shadow-2xl"
-                />
-                <span className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-stone-950 flex items-center justify-center text-white text-[10px]">
-                  ✓
-                </span>
-              </div>
-
-              <div>
-                <h3 className="font-serif font-bold text-xl text-amber-100">
-                  {callState.partnerName}
-                </h3>
-                <p className="text-xs text-amber-400/80 font-serif">
-                  {callState.type === 'video' ? 'Video Call (Camera Off)' : 'Orthodox 1-on-1 Voice Call'}
-                </p>
-              </div>
-
-              {/* Audio Wave Simulation */}
-              <div className="flex items-center gap-1.5 h-8">
-                <span className="w-1.5 bg-amber-500 rounded-full animate-bounce h-4" />
-                <span className="w-1.5 bg-amber-400 rounded-full animate-bounce h-7" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 bg-amber-500 rounded-full animate-bounce h-5" style={{ animationDelay: '300ms' }} />
-                <span className="w-1.5 bg-amber-400 rounded-full animate-bounce h-8" style={{ animationDelay: '450ms' }} />
-                <span className="w-1.5 bg-amber-500 rounded-full animate-bounce h-4" style={{ animationDelay: '200ms' }} />
-              </div>
+            <div className="w-full h-full flex items-center justify-center">
+              <span className="text-[9px] text-stone-400">...</span>
             </div>
           )}
         </div>
+      )}
 
-        {/* Bottom Call Control Action Bar */}
-        <div className="flex items-center justify-center gap-4 pt-2">
+      {/* ===== Bottom overlay controls ===== */}
+      <div className="absolute bottom-0 inset-x-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-4 pt-10 pb-6">
+        <div className="flex items-center justify-center gap-4">
           <button
             onClick={handleToggleMute}
             className={`p-4 rounded-full transition-all cursor-pointer shadow-lg ${
-              isMuted ? 'bg-red-600 text-white' : 'bg-stone-800 text-amber-300 hover:bg-stone-700'
+              isMuted ? 'bg-red-600 text-white' : 'bg-stone-800/90 text-amber-300 hover:bg-stone-700'
             }`}
             title={isMuted ? t('unmuteMic') : t('muteMic')}
           >
@@ -223,7 +229,7 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
             <button
               onClick={handleToggleVideo}
               className={`p-4 rounded-full transition-all cursor-pointer shadow-lg ${
-                isVideoOff ? 'bg-red-600 text-white' : 'bg-stone-800 text-amber-300 hover:bg-stone-700'
+                isVideoOff ? 'bg-red-600 text-white' : 'bg-stone-800/90 text-amber-300 hover:bg-stone-700'
               }`}
               title={isVideoOff ? t('cameraOn') : t('cameraOff')}
             >
@@ -234,7 +240,7 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
           {callState.type === 'video' && !isVideoOff && (
             <button
               onClick={() => switchCamera()}
-              className="p-4 rounded-full transition-all cursor-pointer shadow-lg bg-stone-800 text-amber-300 hover:bg-stone-700"
+              className="p-4 rounded-full transition-all cursor-pointer shadow-lg bg-stone-800/90 text-amber-300 hover:bg-stone-700"
               title={t('switchCamera') || 'Switch camera'}
             >
               <SwitchCamera className="w-6 h-6" />
@@ -244,7 +250,7 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
           <button
             onClick={() => setIsSpeakerMuted(!isSpeakerMuted)}
             className={`p-4 rounded-full transition-all cursor-pointer shadow-lg ${
-              isSpeakerMuted ? 'bg-red-600 text-white' : 'bg-stone-800 text-amber-300 hover:bg-stone-700'
+              isSpeakerMuted ? 'bg-red-600 text-white' : 'bg-stone-800/90 text-amber-300 hover:bg-stone-700'
             }`}
           >
             {isSpeakerMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}

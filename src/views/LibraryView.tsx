@@ -722,11 +722,11 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
         </div>
       )}
 
-      {/* Pope Shenouda III collection modal — all his books in one place */}
+      {/* Pope Shenouda III collection modal — full screen, all his books */}
       {shenoudaOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShenoudaOpen(false)}>
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" onClick={() => setShenoudaOpen(false)}>
           <div
-            className="bg-(--bg-soft) dark:bg-[#18120e] border-2 border-(--ln-gold) dark:border-[#8b6b4a] w-full max-w-2xl rounded-3xl shadow-2xl relative text-(--tx-strong) dark:text-[#f5ebd9] flex flex-col max-h-[85vh]"
+            className="bg-(--bg-soft) dark:bg-[#18120e] w-full h-full relative text-(--tx-strong) dark:text-[#f5ebd9] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-5 pb-3 border-b border-(--ln-gold)/30 flex items-center gap-3">
@@ -749,7 +749,8 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="overflow-y-auto p-4 space-y-2">
+            <div className="overflow-y-auto p-4 flex-1">
+              <div className="max-w-4xl mx-auto space-y-2">
               {shenoudaBooks.map((book) => (
                 <div
                   key={book.id}
@@ -814,6 +815,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
                   </div>
                 </div>
               ))}
+              </div>
             </div>
           </div>
         </div>

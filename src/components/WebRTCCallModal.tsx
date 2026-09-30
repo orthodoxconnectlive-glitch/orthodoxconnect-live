@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X,
   Phone,
@@ -33,19 +33,31 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Attach the local stream (owned by CallContext) to the preview element
-  useEffect(() => {
-    if (localVideoRef.current && localStream && callState?.type === 'video') {
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localStream, callState?.type]);
+  // Callback refs: (re)attach the stream every time a <video> element
+  // (re)mounts OR the stream itself changes. The PiP and stage get torn
+  // down and rebuilt (camera toggle, stage re-render) — a one-time effect
+  // leaves the rebuilt element with no stream, i.e. a frozen preview.
+  const attachLocalVideo = useCallback(
+    (el: HTMLVideoElement | null) => {
+      localVideoRef.current = el;
+      if (el && localStream && callState?.type === 'video') {
+        el.srcObject = localStream;
+        el.play().catch(() => {});
+      }
+    },
+    [localStream, callState?.type]
+  );
 
-  // Attach the remote stream when the other side's media arrives
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [remoteStream]);
+  const attachRemoteVideo = useCallback(
+    (el: HTMLVideoElement | null) => {
+      remoteVideoRef.current = el;
+      if (el && remoteStream) {
+        el.srcObject = remoteStream;
+        el.play().catch(() => {});
+      }
+    },
+    [remoteStream]
+  );
 
   useEffect(() => {
     // Timer for active call duration
@@ -102,7 +114,7 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
         {callState.type === 'video' && !isVideoOff ? (
           remoteStream ? (
             <video
-              ref={remoteVideoRef}
+              ref={attachRemoteVideo}
               data-user-initiated="true"
               autoPlay
               playsInline
@@ -197,7 +209,7 @@ export const WebRTCCallModal: React.FC<WebRTCCallModalProps> = ({ callState, onE
         <div className="absolute z-10 bottom-32 right-4 w-28 h-40 rounded-xl bg-stone-950/90 border-2 border-amber-500 shadow-2xl overflow-hidden">
           {localStream ? (
             <video
-              ref={localVideoRef}
+              ref={attachLocalVideo}
               data-user-initiated="true"
               autoPlay
               playsInline

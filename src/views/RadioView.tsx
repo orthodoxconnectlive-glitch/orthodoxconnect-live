@@ -11,6 +11,7 @@ import {
   Settings2,
   ChevronDown,
   ChevronUp,
+  Share2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -63,7 +64,12 @@ const CATS = [
   { id: 'songs', en: 'Songs', ar: 'أغاني' },
 ];
 
-export const RadioView: React.FC = () => {
+interface RadioViewProps {
+  focusTrackId?: string | null;
+  onFocusTrackConsumed?: () => void;
+}
+
+export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrackConsumed }) => {
   const { profile } = useAuth();
   const { language } = useTheme();
   const ar = language === 'ar';
@@ -272,6 +278,37 @@ export const RadioView: React.FC = () => {
     return c ? (ar ? c.ar : c.en) : id;
   };
 
+  const shareTrack = async (t: RadioTrack) => {
+    const url = `https://orthodoxconnect.live/?track=${encodeURIComponent(t.id)}`;
+    const text = `${t.title} | ${ar ? 'راديو أورثوذكس كونكت' : 'OrthodoxConnect Radio'} 🎧`;
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ title: t.title, text, url });
+        return;
+      } catch (e) { /* user dismissed */ }
+    }
+    try {
+      // Copy-link fallback carries the track name too, not just the URL.
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      alert(ar ? 'تم نسخ رابط الأغنية — شاركه مع أحبائك' : 'Track link copied — share it with your loved ones');
+    } catch (e) {
+      console.error('Share failed:', e);
+    }
+  };
+
+  // Deep link: ?track=<id> starts the station on that track.
+  useEffect(() => {
+    if (!focusTrackId || tracks.length === 0) return;
+    if (onFocusTrackConsumed) onFocusTrackConsumed();
+    const idx = tracks.findIndex((t) => t.id === focusTrackId);
+    if (idx < 0) return;
+    setFilter('all');
+    filterRef.current = 'all';
+    setCurrentIndex(0);
+    void startAt(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTrackId, tracks]);
+
   return (
     <div className="max-w-3xl mx-auto space-y-4 pb-10">
       {/* Header */}
@@ -393,6 +430,16 @@ export const RadioView: React.FC = () => {
                 <p className="text-xs text-(--tx-mute) dark:text-[#a89379]">{catLabel(nowPlaying.category)}</p>
               )}
             </div>
+            {started && nowPlaying && (
+              <button
+                onClick={() => shareTrack(nowPlaying)}
+                className="w-11 h-11 rounded-full bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) flex items-center justify-center text-(--tx-strong) dark:text-[#f5ebd9] cursor-pointer shrink-0"
+                title={ar ? 'مشاركة' : 'Share'}
+                aria-label="Share"
+              >
+                <Share2 className="w-5 h-5" />
+              </button>
+            )}
           </div>
           {playerError && <p className="text-xs text-red-600 dark:text-red-400">{playerError}</p>}
 
@@ -406,28 +453,40 @@ export const RadioView: React.FC = () => {
             </div>
             <div className="space-y-1 max-h-72 overflow-y-auto">
               {filteredTracks.map((t, i) => (
-                <button
+                <div
                   key={t.id}
-                  onClick={() => startAt(i)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left cursor-pointer transition-colors ${
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl transition-colors ${
                     started && i === currentIndex
                       ? 'bg-(--ac-gold)/15 border border-(--ln-gold)'
                       : 'hover:bg-(--bg-soft) dark:hover:bg-[#282019]'
                   }`}
                 >
-                  <span className="text-xs font-bold text-(--tx-mute) w-6 text-center">{i + 1}</span>
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-sm font-semibold text-(--tx-strong) dark:text-[#f5ebd9] truncate">{t.title}</span>
-                    <span className="block text-[11px] text-(--tx-mute) dark:text-[#a89379]">{catLabel(t.category)}</span>
-                  </span>
-                  {started && i === currentIndex && isPlaying && (
-                    <span className="flex gap-0.5 items-end h-4" aria-hidden>
-                      <span className="w-1 bg-(--ac-gold) rounded animate-pulse h-4" />
-                      <span className="w-1 bg-(--ac-gold) rounded animate-pulse h-2.5" />
-                      <span className="w-1 bg-(--ac-gold) rounded animate-pulse h-3.5" />
+                  <button
+                    onClick={() => startAt(i)}
+                    className="flex-1 min-w-0 flex items-center gap-3 text-left cursor-pointer"
+                  >
+                    <span className="text-xs font-bold text-(--tx-mute) w-6 text-center">{i + 1}</span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-semibold text-(--tx-strong) dark:text-[#f5ebd9] truncate">{t.title}</span>
+                      <span className="block text-[11px] text-(--tx-mute) dark:text-[#a89379]">{catLabel(t.category)}</span>
                     </span>
-                  )}
-                </button>
+                    {started && i === currentIndex && isPlaying && (
+                      <span className="flex gap-0.5 items-end h-4" aria-hidden>
+                        <span className="w-1 bg-(--ac-gold) rounded animate-pulse h-4" />
+                        <span className="w-1 bg-(--ac-gold) rounded animate-pulse h-2.5" />
+                        <span className="w-1 bg-(--ac-gold) rounded animate-pulse h-3.5" />
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => shareTrack(t)}
+                    className="p-2 rounded-lg text-(--tx-mute) dark:text-[#a89379] hover:bg-(--bg-soft) dark:hover:bg-[#282019] cursor-pointer shrink-0"
+                    title={ar ? 'مشاركة' : 'Share'}
+                    aria-label="Share"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
+                </div>
               ))}
             </div>
           </div>

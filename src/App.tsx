@@ -103,6 +103,8 @@ function AppContent() {
   const [focusBookId, setFocusBookId] = useState<string | null>(null);
   // Share-link deep link: ?synax=<MM-DD> opens the Synaxarium reader on that Coptic day.
   const [focusSynaxKey, setFocusSynaxKey] = useState<string | null>(null);
+  // Share-link deep link: ?track=<radioTrackId> opens the radio on that track.
+  const [focusTrackId, setFocusTrackId] = useState<string | null>(null);
 
 
   // Check URL params for referral invite link /invite?ref=xyz
@@ -172,6 +174,7 @@ function AppContent() {
     const sharedLiveId = searchParams.get('live');
     const sharedBookId = searchParams.get('book');
     const sharedSynaxKey = searchParams.get('synax');
+    const sharedTrackId = searchParams.get('track');
     if (sharedPostId) {
       setFocusPostId(sharedPostId);
       setCurrentView('feed');
@@ -192,7 +195,12 @@ function AppContent() {
       setCurrentView('feed');
       searchParams.delete('synax');
     }
-    if (readNotifId || sharedPostId || sharedLiveId || sharedBookId || sharedSynaxKey) {
+    if (sharedTrackId) {
+      setFocusTrackId(sharedTrackId);
+      setCurrentView('radio');
+      searchParams.delete('track');
+    }
+    if (readNotifId || sharedPostId || sharedLiveId || sharedBookId || sharedSynaxKey || sharedTrackId) {
       const cleanUrl = window.location.pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '') + window.location.hash;
       window.history.replaceState(null, '', cleanUrl);
     }
@@ -360,7 +368,7 @@ function AppContent() {
       case 'marketplace':
         return <MarketplaceView />;
       case 'radio':
-        return <RadioView />;
+        return <RadioView focusTrackId={focusTrackId} onFocusTrackConsumed={() => setFocusTrackId(null)} />;
       default:
         return <FeedView onSelectUser={handleSelectUser} />;
     }

@@ -117,6 +117,128 @@ export interface D1BookRow {
   created_at: string;
 }
 
+// Pope Shenouda III readable book collection — 82 books with verified HTTP 200 URLs.
+// Generated 2026-09-30. Sources: library.awtar-alsama.com (A), st-takla.org (T), frantoniosfahmy.com (F).
+// IDs: shenouda-001 .. shenouda-082. INSERT OR IGNORE makes seeding idempotent.
+const SHENOUDA_BOOKS: Array<[string, string, string, string]> = [
+  // [id, title_ar, title_en, file_url] — author/category/description are fixed below
+  ["shenouda-001", "آدم وحواء، قايين وهابيل", "Adam and Eve, Cain and Abel", "https://library.awtar-alsama.com/30-023/"],
+  ["shenouda-002", "الوجود مع الله", "Being with God", "https://library.awtar-alsama.com/30-056/"],
+  ["shenouda-003", "الهدوء", "Calmness", "https://st-takla.org/books/pope-sheounda-iii/calmness/virtues.html"],
+  ["shenouda-004", "معالم الطريق الروحي", "Characteristics of the Spiritual Path", "https://library.awtar-alsama.com/30-060/"],
+  ["shenouda-005", "منهج روحي متكامل في رومية 12", "A Complete Spiritual Curriculum (Romans 12)", "https://library.awtar-alsama.com/30-027/"],
+  ["shenouda-006", "تأملات في الميلاد", "Contemplations on Christmas", "https://library.awtar-alsama.com/30-029/"],
+  ["shenouda-007", "تأملات في مزامير وقطع النوم", "Contemplations on the Prayer Before Sleeping", "https://library.awtar-alsama.com/30-066/"],
+  ["shenouda-008", "تأملات في صلاة الشكر والمزمور الخمسين", "Contemplations on the Prayer of Thanksgiving and Psalm 50", "https://library.awtar-alsama.com/30-083/"],
+  ["shenouda-009", "تأملات في القيامة", "Contemplations on the Resurrection", "https://library.awtar-alsama.com/30-039/"],
+  ["shenouda-010", "الوصايا العشر ج1", "Contemplations on the Ten Commandments, Vol. I", "https://library.awtar-alsama.com/30-018/"],
+  ["shenouda-011", "الوصايا العشر ج2", "Contemplations on the Ten Commandments, Vol. II", "https://library.awtar-alsama.com/30-019/"],
+  ["shenouda-012", "الوصايا العشر ج3", "Contemplations on the Ten Commandments, Vol. III", "https://library.awtar-alsama.com/30-020/"],
+  ["shenouda-013", "الوصايا العشر ج4", "Contemplations on the Ten Commandments, Vol. IV", "https://library.awtar-alsama.com/30-021/"],
+  ["shenouda-014", "قانون الإيمان", "The Creed", "http://st-takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/35-Kanoun-El-Iman/Christian-Faith__00-index.html"],
+  ["shenouda-015", "حروب الشياطين", "Diabolic Warfare", "https://library.awtar-alsama.com/30-061/"],
+  ["shenouda-016", "التلمذة", "Discipleship", "https://library.awtar-alsama.com/30-079/"],
+  ["shenouda-017", "خبرات في الحياة ج1", "Experiences in Life, Vol. I", "https://st-takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/03-Experiences-in-Life/000-Khebrat-Fel-Hayah-Book_El-Bana-Shenoda-3-index-00.html"],
+  ["shenouda-018", "خبرات في الحياة ج2", "Experiences in Life, Vol. II", "https://st-takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/03-Experiences-in-Life/000-Khebrat-Fel-Hayah-Book_El-Bana-Shenoda-3-index-02.html"],
+  ["shenouda-019", "القمص ميخائيل إبراهيم", "Father Michael Ibrahim", "https://library.awtar-alsama.com/30-072/"],
+  ["shenouda-020", "مخافة الله", "The Fear of God", "https://library.awtar-alsama.com/30-062/"],
+  ["shenouda-021", "النعمة", "Grace", "https://library.awtar-alsama.com/30-052/"],
+  ["shenouda-022", "الجمعة العظيمة", "Good Friday", "https://library.awtar-alsama.com/30-037/"],
+  ["shenouda-023", "الأسرة الروحية السعيدة", "The Happy Spiritual Family", "https://library.awtar-alsama.com/30-080/"],
+  ["shenouda-024", "بدعة الخلاص في لحظة", "The Heresy of Salvation in a Moment", "https://library.awtar-alsama.com/30-011/"],
+  ["shenouda-025", "خميس العهد", "Holy Thursday", "https://library.awtar-alsama.com/30-033/"],
+  ["shenouda-026", "أسبوع الآلام", "Holy Week", "https://library.awtar-alsama.com/30-035/"],
+  ["shenouda-027", "الغيرة المقدسة", "The Holy Zeal", "https://st-takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/17-Al-Ghira-Al-Mokadasa/Holy-Zeal_00-index.html"],
+  ["shenouda-028", "كيف نعامل الأطفال", "How to Deal with Children", "https://library.awtar-alsama.com/30-081/"],
+  ["shenouda-029", "كيف نبدأ عامًا جديدًا", "How to Start a New Year", "https://library.awtar-alsama.com/30-042/"],
+  ["shenouda-030", "يعقوب ويوسف", "Jacob and Joseph", "https://library.awtar-alsama.com/30-022/"],
+  ["shenouda-031", "يونان النبي", "Jonah the Prophet", "https://st-takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/05-Contemplations-On-The-Book-Of-Jonah-The-Prophet/"],
+  ["shenouda-032", "إدانة الآخرين", "Judging Others", "https://st-takla.org/books/pope-sheounda-iii/judge-not-others/advice-guidance-rebuke.html"],
+  ["shenouda-033", "حياة الإيمان", "The Life of Faith", "http://st-takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/10-Hayat-El-Iman/Life-of-Faith_00-index.html"],
+  ["shenouda-034", "حياة الرجاء", "The Life of Hope", "http://st-takla.org/books/pope-sheounda-iii/hope/index.html"],
+  ["shenouda-035", "حياة داود", "The Life of David", "https://library.awtar-alsama.com/30-016/"],
+  ["shenouda-036", "حياة التواضع والوداعة", "The Life of Humility and Meekness", "https://library.awtar-alsama.com/30-059/"],
+  ["shenouda-037", "حياة التوبة والنقاوة", "The Life of Repentance and Purity", "https://st-takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/50-Hayat-El-Touba-Wal-Nakawa/Life-of-Repentance-and-Purity-007-Importance.html"],
+  ["shenouda-038", "حياة الشكر", "The Life of Thanksgiving", "https://St-Takla.org/books/pope-sheounda-iii/thankfulness/"],
+  ["shenouda-039", "حياة الفضيلة والبر", "The Life of Virtues and Righteousness", "https://library.awtar-alsama.com/30-055/"],
+  ["shenouda-040", "المحبة قمة الفضائل", "Love: Summit of Virtues", "https://library.awtar-alsama.com/30-051/"],
+  ["shenouda-041", "سنوات مع أسئلة الناس ج1", "Many Years With the Questions of People, Part I", "https://www.frantoniosfahmy.com/books/382"],
+  ["shenouda-042", "سنوات مع أسئلة الناس ج2", "Many Years With the Questions of People, Part II", "https://www.frantoniosfahmy.com/books/383"],
+  ["shenouda-043", "سنوات مع أسئلة الناس ج3", "Many Years With the Questions of People, Part III", "https://www.frantoniosfahmy.com/books/384"],
+  ["shenouda-044", "سنوات مع أسئلة الناس ج4", "Many Years With the Questions of People, Part IV", "https://www.frantoniosfahmy.com/books/385"],
+  ["shenouda-045", "سنوات مع أسئلة الناس ج5", "Many Years With the Questions of People, Part V", "https://www.frantoniosfahmy.com/books/2102"],
+  ["shenouda-046", "سنوات مع أسئلة الناس ج6", "Many Years With the Questions of People, Part VI", "https://www.frantoniosfahmy.com/books/2103"],
+  ["shenouda-047", "سنوات مع أسئلة الناس ج7", "Many Years With the Questions of People, Part VII", "https://www.frantoniosfahmy.com/books/2104"],
+  ["shenouda-048", "سنوات مع أسئلة الناس ج8", "Many Years With the Questions of People, Part VIII", "https://www.frantoniosfahmy.com/books/2105"],
+  ["shenouda-049", "سنوات مع أسئلة الناس ج9", "Many Years With the Questions of People, Part IX", "https://www.frantoniosfahmy.com/books/2106"],
+  ["shenouda-050", "سنوات مع أسئلة الناس ج10", "Many Years With the Questions of People, Part X", "https://www.frantoniosfahmy.com/books/2107"],
+  ["shenouda-051", "سنوات مع أسئلة الناس ج11", "Many Years With the Questions of People, Part XI", "https://www.frantoniosfahmy.com/books/2108"],
+  ["shenouda-052", "سنوات مع أسئلة الناس ج12", "Many Years With the Questions of People, Part XII", "https://www.frantoniosfahmy.com/books/2109"],
+  ["shenouda-053", "الزوجة الواحدة", "Monogamy", "https://st-takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/09-Al-Zoga-Al-Wahda-in-Coptic-Church/Monogamy-in-Christianity-01-Sources.html"],
+  ["shenouda-054", "موسى وفرعون", "Moses and Pharaoh", "https://library.awtar-alsama.com/30-014/"],
+  ["shenouda-055", "الكهنوت", "The Priesthood", "http://st-takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/16-El-Kahanout/Priesthood-000-index.html"],
+  ["shenouda-056", "المطهر", "Purgatory", "https://st-takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/36-El-Mathar/Reject-Purgatory__00-index.html"],
+  ["shenouda-057", "الرجوع إلى الله", "Return to God", "https://library.awtar-alsama.com/30-043/"],
+  ["shenouda-058", "انطلاق الروح", "The Release of the Spirit", "https://st-takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/64-Entelak-Al-Rouh/The-Release-of-The-Spirit__00-index.html"],
+  ["shenouda-059", "أيوب الصديق", "The Righteous Job", "https://library.awtar-alsama.com/30-017/"],
+  ["shenouda-060", "القديس أنطونيوس", "Saint Anthony", "https://library.awtar-alsama.com/30-071/"],
+  ["shenouda-061", "مار مرقس", "Saint Mark", "https://library.awtar-alsama.com/30-070/"],
+  ["shenouda-062", "العظة على الجبل", "The Sermon on the Mountain", "https://library.awtar-alsama.com/30-026/"],
+  ["shenouda-063", "كلمات السيد المسيح على الصليب", "The Seven Words of Our Lord on the Cross", "https://library.awtar-alsama.com/30-038/"],
+  ["shenouda-064", "روحانية الصوم", "The Spirituality of Fasting", "https://St-Takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/06-The-Spirituality-of-Fasting/"],
+  ["shenouda-065", "روحانية الصلاة بالأجبية", "Spirituality of Prayer with the Agbia", "https://library.awtar-alsama.com/30-067/"],
+  ["shenouda-066", "الوسائط الروحية", "The Spiritual Means", "https://library.awtar-alsama.com/30-050/"],
+  ["shenouda-067", "الإنسان الروحي", "The Spiritual Person", "https://st-takla.org/books/pope-sheounda-iii/spiritual/arm.html"],
+  ["shenouda-068", "الخدمة الروحية والخادم الروحي ج1", "Spiritual Service and the Spiritual Servant, Vol. I", "https://library.awtar-alsama.com/30-073/"],
+  ["shenouda-069", "الخدمة الروحية والخادم الروحي ج3", "Spiritual Service and the Spiritual Servant, Vol. III", "https://library.awtar-alsama.com/30-074/"],
+  ["shenouda-070", "السهر الروحي", "Spiritual Vigilance", "https://st-takla.org/js3d5qt"],
+  ["shenouda-071", "الحروب الروحية", "Spiritual Warfare", "https://st-takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/70-Al-Horoub-Al-Roheya/Spiritual-Warfares__000-index-00.html"],
+  ["shenouda-072", "الدموع في الحياة الروحية", "Tears", "https://St-Takla.org/Full-Free-Coptic-Books/His-Holiness-Pope-Shenouda-III-Books-Online/56-Al-Domu3-Fel-Haya-Al-Roheya/preface.html"],
+  ["shenouda-073", "التجربة على الجبل", "Temptation on the Mountain", "https://library.awtar-alsama.com/30-032/"],
+  ["shenouda-074", "عشرة مفاهيم", "Ten Concepts", "https://st-takla.org/vq49ncy"],
+  ["shenouda-075", "لك القوة والمجد", "Thine Is the Power and the Glory", "https://library.awtar-alsama.com/30-034/"],
+  ["shenouda-076", "الغضب", "Wrath", "https://library.awtar-alsama.com/30-063/"],
+  ["shenouda-077", "ليستجيب لك الرب (مزمور 20)", "Psalm 20: May the Lord Answer You", "https://library.awtar-alsama.com/30-064/"],
+  ["shenouda-078", "يا رب لماذا (مزمور 3)", "Psalm 3: Lord, How?", "https://library.awtar-alsama.com/30-065/"],
+  ["shenouda-079", "كلمة منفعة ج1", "Words of Spiritual Benefit, Vol. I", "https://library.awtar-alsama.com/30-076/"],
+  ["shenouda-080", "كلمة منفعة ج2", "Words of Spiritual Benefit, Vol. II", "https://library.awtar-alsama.com/30-075/"],
+  ["shenouda-081", "كلمة منفعة ج3", "Words of Spiritual Benefit, Vol. III", "https://library.awtar-alsama.com/30-077/"],
+  ["shenouda-082", "كلمة منفعة ج4", "Words of Spiritual Benefit, Vol. IV", "https://library.awtar-alsama.com/30-078/"],
+];
+const SHENOUDA_BOOK_CATEGORIES: Record<string, string> = {
+  "shenouda-001": "bible_study", "shenouda-002": "spiritual", "shenouda-003": "spiritual", "shenouda-004": "spiritual",
+  "shenouda-005": "bible_study", "shenouda-006": "spiritual", "shenouda-007": "liturgy", "shenouda-008": "liturgy",
+  "shenouda-009": "spiritual", "shenouda-010": "bible_study", "shenouda-011": "bible_study", "shenouda-012": "bible_study",
+  "shenouda-013": "bible_study", "shenouda-014": "dogmatics", "shenouda-015": "spiritual", "shenouda-016": "spiritual",
+  "shenouda-017": "spiritual", "shenouda-018": "spiritual", "shenouda-019": "patristics", "shenouda-020": "spiritual",
+  "shenouda-021": "spiritual", "shenouda-022": "liturgy", "shenouda-023": "spiritual", "shenouda-024": "dogmatics",
+  "shenouda-025": "liturgy", "shenouda-026": "liturgy", "shenouda-027": "spiritual", "shenouda-028": "spiritual",
+  "shenouda-029": "spiritual", "shenouda-030": "bible_study", "shenouda-031": "bible_study", "shenouda-032": "spiritual",
+  "shenouda-033": "spiritual", "shenouda-034": "spiritual", "shenouda-035": "bible_study", "shenouda-036": "spiritual",
+  "shenouda-037": "spiritual", "shenouda-038": "spiritual", "shenouda-039": "spiritual", "shenouda-040": "spiritual",
+  "shenouda-041": "spiritual", "shenouda-042": "spiritual", "shenouda-043": "spiritual", "shenouda-044": "spiritual",
+  "shenouda-045": "spiritual", "shenouda-046": "spiritual", "shenouda-047": "spiritual", "shenouda-048": "spiritual",
+  "shenouda-049": "spiritual", "shenouda-050": "spiritual", "shenouda-051": "spiritual", "shenouda-052": "spiritual",
+  "shenouda-053": "dogmatics", "shenouda-054": "bible_study", "shenouda-055": "dogmatics", "shenouda-056": "dogmatics",
+  "shenouda-057": "spiritual", "shenouda-058": "spiritual", "shenouda-059": "bible_study", "shenouda-060": "patristics",
+  "shenouda-061": "patristics", "shenouda-062": "bible_study", "shenouda-063": "bible_study", "shenouda-064": "spiritual",
+  "shenouda-065": "liturgy", "shenouda-066": "spiritual", "shenouda-067": "spiritual", "shenouda-068": "spiritual",
+  "shenouda-069": "spiritual", "shenouda-070": "spiritual", "shenouda-071": "spiritual", "shenouda-072": "spiritual",
+  "shenouda-073": "bible_study", "shenouda-074": "spiritual", "shenouda-075": "liturgy", "shenouda-076": "spiritual",
+  "shenouda-077": "bible_study", "shenouda-078": "bible_study", "shenouda-079": "spiritual", "shenouda-080": "spiritual",
+  "shenouda-081": "spiritual", "shenouda-082": "spiritual",
+};
+async function seedShenoudaBooks(db: D1Database): Promise<void> {
+  try {
+    const stmts = SHENOUDA_BOOKS.map(([id, titleAr, titleEn, fileUrl]) =>
+      db.prepare(`INSERT OR IGNORE INTO books (id, title_ar, title_en, author_ar, author_en, category, file_url, description) VALUES (?, ?, ?, 'البابا شنودة الثالث', 'Pope Shenouda III', ?, ?, '')`).bind(id, titleAr, titleEn, SHENOUDA_BOOK_CATEGORIES[id] || 'spiritual', fileUrl)
+    );
+    await db.batch(stmts);
+  } catch (seedErr) {
+    console.warn('[seedShenoudaBooks] notice:', seedErr);
+  }
+}
+
 let d1TablesInitialized = false;
 export async function ensureD1Tables(db?: D1Database) {
   if (!db || d1TablesInitialized) return;
@@ -129,6 +251,7 @@ export async function ensureD1Tables(db?: D1Database) {
   // initialized. (1 round trip instead of ~40.)
   try {
     await db.prepare(`SELECT bunny_stream_id FROM live_streams LIMIT 0`).all();
+    await seedShenoudaBooks(db);
     d1TablesInitialized = true;
     return;
   } catch (probeErr) {
@@ -335,6 +458,7 @@ export async function ensureD1Tables(db?: D1Database) {
     } catch (bunnyLiveMigErr) {
       console.warn('[ensureD1Tables] live_streams bunny-live migration notice:', bunnyLiveMigErr);
     }
+    await seedShenoudaBooks(db);
     d1TablesInitialized = true;
   } catch (e) {
     // Non-fatal if tables already exist

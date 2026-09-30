@@ -733,7 +733,7 @@ async function getVapidKeys(env: Env): Promise<{ publicKey: string; privateKey: 
   return { publicKey: envPub || d1Pub, privateKey: envPriv || d1Priv, subject };
 }
 
-async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; auth: string }, payload: any): Promise<boolean> {
+async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; auth: string }, payload: any, opts?: { urgency?: string }): Promise<boolean> {
   try {
     const { publicKey: vapidPublic, privateKey: vapidPrivate, subject } = await getVapidKeys(env);
     if (!vapidPublic || !vapidPrivate) {
@@ -758,6 +758,8 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
           'Encryption': 'salt=' + enc.saltB64,
           'Crypto-Key': 'dh=' + enc.dhB64,
           'Authorization': authHeader,
+          // Calls must wake the phone immediately; everything else stays normal priority.
+          'Urgency': (opts && opts.urgency) || 'normal',
         },
         body: enc.body as any,
         signal: pushCtrl.signal,
@@ -767,9 +769,11 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
     }
     (globalThis as any).__lastPushStatus = res.status;
     try { (globalThis as any).__lastPushBody = (await res.text()).slice(0, 300); } catch (e) { (globalThis as any).__lastPushBody = ''; }
-    if (!res.ok && (res.status === 400 || res.status === 404 || res.status === 410)) {
-      // 400 = bad request (e.g. subscription created with a different VAPID key);
-      // 404/410 = subscription gone. All are dead — remove so they can't linger.
+    if (!res.ok && (res.status === 404 || res.status === 410)) {
+      // 404/410 = subscription gone. Those are dead — remove so they can't linger.
+      // NOTE: never delete on 400 — that's OUR request that's malformed
+      // (e.g. oversized payload), not a dead subscription. Deleting on 400
+      // once wiped good subscriptions so the next call found zero devices.
       try { await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').bind(sub.endpoint).run(); } catch (e) {}
     }
     return res.ok;
@@ -4795,12 +4799,24 @@ export default {
               const strippedTarget = targetUserId.replace(/^auth-/, '');
               const { results } = await env.DB.prepare('SELECT endpoint, p256dh, auth, user_id FROM push_subscriptions WHERE user_id = ? OR user_id = ?').bind(targetUserId, strippedTarget).all();
               const subs = results || [];
+              // Keep the encrypted payload far under FCM's 4096-byte limit: a
+              // data-URL avatar as `icon` once made EVERY call push answer 400
+              // ("binary data ... must be less than 4096 bytes"), so no call
+              // ever rang on a closed app.
+              const avatarStr = String(callerAvatar || '');
+              const safeIcon = (avatarStr && !avatarStr.startsWith('data:') && avatarStr.length < 500)
+                ? avatarStr
+                : 'https://orthodoxconnect.live/launchericon-512x512.png';
+              // pushId lets the service worker ping back receipt — "FCM accepted"
+              // is not the same as "the phone showed it".
+              const callPushId = 'cp-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+              try { await env.DB.prepare('INSERT INTO push_receipts (push_id, user_id) VALUES (?, ?)').bind(callPushId, targetUserId).run(); } catch (e) {}
               const pushPayload = {
                 type: 'call',
-                title: `📞 Incoming ${callType === 'video' ? 'Video' : 'Voice'} Call`,
-                body: `${callerName} is calling you on OrthodoxConnect.`,
-                icon: callerAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png',
-                data: { url: '/?call=' + callId, callId, callerName, callType },
+                title: `📞 Incoming ${callType === 'video' ? 'Video' : 'Voice'} Call`.slice(0, 120),
+                body: `${callerName} is calling you on OrthodoxConnect.`.slice(0, 160),
+                icon: safeIcon,
+                data: { url: '/?call=' + callId, callId, callerName: String(callerName).slice(0, 80), callType, pushId: callPushId, callerId, targetUserId },
               };
               let sent = 0;
               const seen = new Set<string>();
@@ -4810,7 +4826,7 @@ export default {
                   seen.add(s.endpoint);
                   try {
                     (globalThis as any).__lastPushStatus = null;
-                    const ok = await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
+                    const ok = await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload, { urgency: 'high' });
                     if (ok) sent++;
                     sendResults.push({ ok, status: (globalThis as any).__lastPushStatus, body: String((globalThis as any).__lastPushBody || '').slice(0, 200), endpointHost: String(s.endpoint).split('/')[2] || '' });
                   } catch (pe) { console.warn('[call-signals] push send failed:', (pe as any)?.message || pe); }

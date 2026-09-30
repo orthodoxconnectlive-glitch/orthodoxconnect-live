@@ -44,7 +44,7 @@ self.addEventListener('push', (event) => {
     body: data.body,
     icon: data.icon,
     badge: data.badge,
-    vibrate: [300, 100, 300, 100, 500],
+    vibrate: data.type === 'call' ? [500, 200, 500, 200, 500, 200, 1000] : [300, 100, 300, 100, 500],
     data: data.data || { url: '/' },
     requireInteraction: data.type === 'call',
     actions: data.type === 'call' ? [
@@ -68,6 +68,25 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const data = event.notification.data || {};
+
+  // "Decline" tapped on a call notification: tell the caller to stop ringing.
+  // The server relays it to the caller's open app; no need to open ours.
+  if (event.action === 'decline' && data.callId && data.callerId) {
+    event.waitUntil(
+      fetch('/api/call-signals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'DECLINE_CALL',
+          callId: data.callId,
+          callerId: data.targetUserId || 'callee',
+          targetUserId: data.callerId,
+        }),
+      }).catch(() => {})
+    );
+    return;
+  }
+
   let targetUrl = data.url || '/';
   // Pass the notification id so the app can mark it as read on open (clears the badge)
   if (data.notifId) {

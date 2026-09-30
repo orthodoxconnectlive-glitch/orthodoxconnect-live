@@ -327,11 +327,12 @@ async function seedShenoudaBooks(db: D1Database): Promise<void> {
   }
 }
 
-// 2026-09-30: Hany-provided booklet — سير القديسين (author-approved for the library).
-// Hosted as a real PDF on orthodoxconnect.live/public. INSERT OR IGNORE = idempotent.
+// 2026-09-30: Hany-provided booklet — علم الآباء (الباترولوجي), author-approved for the library.
+// Real PDF + cover hosted on orthodoxconnect.live/public. INSERT OR IGNORE = idempotent.
 async function seedSaintsBook(db: D1Database): Promise<void> {
   try {
-    await db.prepare(`INSERT OR IGNORE INTO books (id, title_ar, title_en, author_ar, author_en, category, file_url, description) VALUES ('saints-001', 'سير القديسين', 'Lives of the Saints', 'القمص إبراهيم مجدي', 'Fr. Ibrahim Magdy', 'spiritual', 'https://orthodoxconnect.live/saints-biographies-ar.pdf', 'سير القديس البابا ديسقورس الأول، والقديس يوحنا ذهبي الفم، والقديس أثناسيوس الرسولي، والقديس ساويرس الأنطاكي — إعداد كنيسة السيدة العذراء مريم، الاجتماع العام.')`).run();
+    await db.prepare(`INSERT OR IGNORE INTO books (id, title_ar, title_en, author_ar, author_en, category, file_url, cover_image_url, description) VALUES ('saints-001', 'علم الآباء (الباترولوجي)', 'Patrology: The Science of the Fathers', 'إيبوذياكون حنا جاب الله أبوسيف', 'Deacon Hanna Gaballa Abouseif', 'patristics', 'https://orthodoxconnect.live/saints-biographies-ar.pdf', 'https://orthodoxconnect.live/saints-biographies-ar-cover.jpg', 'علم الآباء (الباترولوجي): دراسة في حياة آباء الكنيسة وتعاليمهم — البابا ديسقورس الأول، والقديس يوحنا ذهبي الفم، والقديس أثناسيوس الرسولي، والقديس ساويرس الأنطاكي. إعداد كنيسة السيدة العذراء مريم، الاجتماع العام، تحت إشراف القمص إبراهيم مجدي.')`).run();
+    await db.prepare(`UPDATE books SET title_ar = 'علم الآباء (الباترولوجي)', title_en = 'Patrology: The Science of the Fathers', author_ar = 'إيبوذياكون حنا جاب الله أبوسيف', author_en = 'Deacon Hanna Gaballa Abouseif', category = 'patristics', cover_image_url = 'https://orthodoxconnect.live/saints-biographies-ar-cover.jpg' WHERE id = 'saints-001'`).run();
   } catch (seedErr) {
     console.warn('[seedSaintsBook] notice:', seedErr);
   }

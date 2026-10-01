@@ -467,6 +467,16 @@ export async function ensureD1Tables(db?: D1Database) {
       const mcCols = new Set(((mcInfo && mcInfo.results) || []).map((r: any) => r.name));
       if (!mcCols.has('mentions')) { await db.exec(`ALTER TABLE post_comments ADD COLUMN mentions TEXT DEFAULT '[]'`); }
     } catch (e) { /* table missing: created by the batch below */ }
+    // Unified emoji reactions (2026-10-01): one reactions table for posts,
+    // books, stories and comments. Old single-emoji likes are backfilled as
+    // heart reactions (idempotent INSERT OR IGNORE; one reaction per user
+    // per item, tapping another emoji switches it).
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS reactions ( target_type TEXT NOT NULL, target_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, user_avatar TEXT, emoji TEXT NOT NULL DEFAULT '\u2764\uFE0F', created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (target_type, target_id, user_id) )`);
+      await db.exec(`CREATE INDEX IF NOT EXISTS idx_reactions_target ON reactions (target_type, target_id)`);
+      try { await db.exec(`INSERT OR IGNORE INTO reactions (target_type, target_id, user_id, user_name, user_avatar, emoji, created_at) SELECT 'post', post_id, user_id, user_name, user_avatar, '\u2764\uFE0F', created_at FROM post_likes`); } catch (e) { /* post_likes missing on fresh DBs */ }
+      try { await db.exec(`INSERT OR IGNORE INTO reactions (target_type, target_id, user_id, emoji, created_at) SELECT 'book', book_id, user_id, '\u2764\uFE0F', created_at FROM book_likes`); } catch (e) { /* book_likes missing on fresh DBs */ }
+    } catch (e) { console.warn('[ensureD1Tables] reactions migration notice:', (e as any)?.message || e); }
   try {
     await db.exec(`CREATE TABLE IF NOT EXISTS profiles ( id TEXT PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT, full_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', parish TEXT NOT NULL DEFAULT 'Orthodox Church', bio TEXT DEFAULT 'Orthodox Christian seeking fellowship and spiritual growth.', avatar_url TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', role TEXT NOT NULL DEFAULT 'user', is_banned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS sessions ( id TEXT PRIMARY KEY, user_id TEXT NOT NULL, token TEXT UNIQUE NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS posts ( id TEXT PRIMARY KEY, content TEXT NOT NULL DEFAULT '', video_id TEXT, author_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_parish TEXT DEFAULT 'Orthodox Church', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', image_url TEXT, group_id TEXT, likes_count INTEGER DEFAULT 0, comments_count INTEGER DEFAULT 0, reshares_count INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS post_likes ( post_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, user_avatar TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (post_id, user_id) ); CREATE TABLE IF NOT EXISTS post_comments ( id TEXT PRIMARY KEY, post_id TEXT NOT NULL, user_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS messages ( id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, sender_name TEXT, receiver_id TEXT NOT NULL, content TEXT NOT NULL DEFAULT '', image_url TEXT, video_url TEXT, audio_url TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS stories ( id TEXT PRIMARY KEY, author_id TEXT, author_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', author_parish TEXT DEFAULT 'Orthodox Church', image_url TEXT NOT NULL, media_type TEXT DEFAULT 'image', caption TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS events ( id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', date TEXT NOT NULL, time TEXT DEFAULT '10:00 AM', location_type TEXT DEFAULT 'physical', location_address TEXT, virtual_link TEXT, category TEXT DEFAULT 'liturgy', parish TEXT DEFAULT 'Orthodox Parish', host_name TEXT DEFAULT 'Priest / Host', host_avatar TEXT, host_id TEXT, image_url TEXT, going_count INTEGER DEFAULT 1, interested_count INTEGER DEFAULT 0, rsvps TEXT DEFAULT '[]', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS live_streams ( id TEXT PRIMARY KEY, title TEXT NOT NULL, host_parish TEXT DEFAULT 'Orthodox Church', priest_name TEXT DEFAULT 'Priest / Host', media_url TEXT NOT NULL, is_live INTEGER DEFAULT 1, viewers_count INTEGER DEFAULT 1, ended_at TEXT, replay_guid TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS content_reports ( id TEXT PRIMARY KEY, target_type TEXT NOT NULL, target_id TEXT NOT NULL, target_content_preview TEXT, target_author_name TEXT, target_author_id TEXT, reporter_id TEXT, reporter_name TEXT, reason TEXT DEFAULT 'inappropriate', details TEXT, status TEXT DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS notifications ( id TEXT PRIMARY KEY, recipient_id TEXT, actor_id TEXT, actor_name TEXT DEFAULT 'Orthodox Parishioner', actor_avatar TEXT, type TEXT NOT NULL DEFAULT 'system', title TEXT, body TEXT, post_id TEXT, link TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS call_signals ( id TEXT PRIMARY KEY, call_id TEXT, sig_type TEXT, caller_id TEXT, caller_name TEXT, caller_avatar TEXT, target_user_id TEXT, call_type TEXT, sdp TEXT, candidate TEXT, meta TEXT, created_at INTEGER ); CREATE INDEX IF NOT EXISTS idx_call_signals_target ON call_signals(target_user_id, created_at); CREATE TABLE IF NOT EXISTS group_calls ( id TEXT PRIMARY KEY, room_id TEXT, room_name TEXT, host_id TEXT, host_name TEXT, started_at TEXT ); CREATE INDEX IF NOT EXISTS idx_group_calls_room ON group_calls(room_id, started_at); CREATE TABLE IF NOT EXISTS push_subscriptions ( user_id TEXT, endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, created_at TEXT DEFAULT (datetime('now')) ); CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id); CREATE TABLE IF NOT EXISTS books ( id TEXT PRIMARY KEY, title_ar TEXT NOT NULL, title_en TEXT, author_ar TEXT NOT NULL, author_en TEXT, category TEXT NOT NULL DEFAULT 'patristics', cover_image_url TEXT, file_url TEXT NOT NULL, description TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) );`);
     // Self-healing migration: older D1 databases were created before newer
@@ -888,6 +898,62 @@ function jsonResponse(data: any, status = 200): Response {
     status,
     headers: CORS_HEADERS,
   });
+}
+
+// Unified emoji reactions (2026-10-01). One reaction per user per item;
+// tapping another emoji switches it. HEART is the canonical "bless".
+const REACTION_EMOJIS = ['\u2764\uFE0F', '\u{1F64F}', '\u{1F54A}\uFE0F', '\u{1F62E}', '\u{1F622}', '\u{1F44F}'];
+const REACTION_HEART = '\u2764\uFE0F';
+
+function isReactionEmoji(e: string): boolean { return REACTION_EMOJIS.indexOf(e) >= 0; }
+
+interface ReactionSummary { counts: Record<string, number>; total: number; myEmoji: string | null; }
+
+// Batched reaction summaries for a page of items: 2 queries total per chunk
+// of 50 ids (counts grouped by emoji + the viewer's own reaction).
+async function getReactionSummaries(db: any, targetType: string, targetIds: string[], userId: string): Promise<Map<string, ReactionSummary>> {
+  const out = new Map<string, ReactionSummary>();
+  for (const tid of targetIds) out.set(String(tid), { counts: {}, total: 0, myEmoji: null });
+  if (!db || targetIds.length === 0) return out;
+  try {
+    for (let i = 0; i < targetIds.length; i += 50) {
+      const chunk = targetIds.slice(i, i + 50).map(String);
+      const placeholders = chunk.map(() => '?').join(',');
+      const countRows = await db.prepare(
+        `SELECT target_id, emoji, COUNT(*) as cnt FROM reactions WHERE target_type = ? AND target_id IN (${placeholders}) GROUP BY target_id, emoji`
+      ).bind(targetType, ...chunk).all<any>();
+      for (const r of (countRows?.results || [])) {
+        const key = String(r.target_id);
+        const s = out.get(key) || { counts: {}, total: 0, myEmoji: null };
+        const n = Number(r.cnt) || 0;
+        s.counts[String(r.emoji)] = n;
+        s.total += n;
+        out.set(key, s);
+      }
+      if (userId) {
+        const myRows = await db.prepare(
+          `SELECT target_id, emoji FROM reactions WHERE target_type = ? AND target_id IN (${placeholders}) AND user_id = ?`
+        ).bind(targetType, ...chunk, userId).all<any>();
+        for (const r of (myRows?.results || [])) {
+          const key = String(r.target_id);
+          const s = out.get(key) || { counts: {}, total: 0, myEmoji: null };
+          s.myEmoji = String(r.emoji);
+          out.set(key, s);
+        }
+      }
+    }
+  } catch (e) { /* reactions table missing: summaries stay empty */ }
+  return out;
+}
+
+// Slim avatar helper shared by reaction/liker payloads: never ship megabytes
+// of inline base64; point data-URI avatars at the lazy per-profile URL.
+function slimReactionAvatar(userId: string, rawAvatar: string): string {
+  const av = String(rawAvatar || '');
+  if (/^data:image\//i.test(av)) {
+    return 'https://orthodoxconnect.live/profile-avatar/' + encodeURIComponent(String(userId || ''));
+  }
+  return av;
 }
 
 // --- Post translation cache (per Worker isolate) ---
@@ -2875,6 +2941,15 @@ export default {
               }
               return s;
             });
+            // Attach reaction summaries (batched; viewer's own emoji included).
+            try {
+              const authS = await getAuthIdentity(request, env);
+              const summaries = await getReactionSummaries(env.DB, 'story', stories.map((x: any) => String(x.id)), (authS as any).id || '');
+              stories = stories.map((x: any) => {
+                const sm = summaries.get(String(x.id)) || { counts: {}, total: 0, myEmoji: null };
+                return { ...x, reaction_counts: sm.counts, reactions_count: sm.total, my_emoji: sm.myEmoji };
+              });
+            } catch (e) { /* stories still load without reaction data */ }
           }
           return jsonResponse({ success: true, stories });
         }
@@ -3901,10 +3976,10 @@ export default {
               const currentUserId = url.searchParams.get('user_id') || auth.id || '';
               const postIds: string[] = posts.map((p: any) => p.id);
 
-              // Batched enrichment: 4 queries total instead of 4-per-post.
-              // D1 bound-parameter limits mean we chunk post IDs into groups of 50.
-              const likedByUser = new Set<string>();
-              const likesCount = new Map<string, number>();
+              // Batched enrichment: reactions (one table for every emoji),
+              // comment counts, and top reactors. D1 bound-parameter limits
+              // mean we chunk post IDs into groups of 50.
+              const reactionSummaries = await getReactionSummaries(env.DB, 'post', postIds, currentUserId);
               const commentsCount = new Map<string, number>();
               const likersMap = new Map<string, any[]>();
 
@@ -3913,40 +3988,26 @@ export default {
                   const chunk = postIds.slice(i, i + 50);
                   const placeholders = chunk.map(() => '?').join(',');
 
-                  if (currentUserId) {
-                    const likedRows = await env.DB.prepare(
-                      `SELECT post_id FROM post_likes WHERE post_id IN (${placeholders}) AND user_id = ?`
-                    ).bind(...chunk, currentUserId).all<any>();
-                    for (const r of (likedRows?.results || [])) likedByUser.add(String(r.post_id));
-                  }
-
-                  const likeCountRows = await env.DB.prepare(
-                    `SELECT post_id, COUNT(*) as cnt FROM post_likes WHERE post_id IN (${placeholders}) GROUP BY post_id`
-                  ).bind(...chunk).all<any>();
-                  for (const r of (likeCountRows?.results || [])) likesCount.set(String(r.post_id), Number(r.cnt));
-
                   const commCountRows = await env.DB.prepare(
                     `SELECT post_id, COUNT(*) as cnt FROM post_comments WHERE post_id IN (${placeholders}) GROUP BY post_id`
                   ).bind(...chunk).all<any>();
                   for (const r of (commCountRows?.results || [])) commentsCount.set(String(r.post_id), Number(r.cnt));
 
                   const likersRows = await env.DB.prepare(
-                    `SELECT post_id, user_id, user_name, user_avatar FROM post_likes WHERE post_id IN (${placeholders}) ORDER BY created_at DESC`
+                    `SELECT target_id, user_id, user_name, user_avatar, emoji FROM reactions WHERE target_type = 'post' AND target_id IN (${placeholders}) ORDER BY created_at DESC`
                   ).bind(...chunk).all<any>();
                   for (const r of (likersRows?.results || [])) {
-                    const key = String(r.post_id);
+                    const key = String(r.target_id);
                     const arr = likersMap.get(key) || [];
                     if (arr.length < 15) {
-                      const rawLikerAv = String(r.user_avatar || '');
                       arr.push({
                         userId: r.user_id,
                         userName: r.user_name || 'Orthodox Member',
                         // Never ship megabytes of base64 avatars in the feed;
                         // point at the lazy per-profile image URL instead so the
                         // real photo shows.
-                        userAvatar: /^data:image\//i.test(rawLikerAv)
-                          ? 'https://orthodoxconnect.live/profile-avatar/' + encodeURIComponent(String(r.user_id))
-                          : r.user_avatar,
+                        userAvatar: slimReactionAvatar(String(r.user_id), String(r.user_avatar || '')),
+                        emoji: String(r.emoji || REACTION_HEART),
                       });
                       likersMap.set(key, arr);
                     }
@@ -3958,8 +4019,11 @@ export default {
 
               for (const p of posts) {
                 const key = String(p.id);
-                p.is_liked = likedByUser.has(key);
-                p.likes_count = likesCount.has(key) ? likesCount.get(key) : (Number(p.likes_count) || 0);
+                const rs = reactionSummaries.get(key) || { counts: {}, total: 0, myEmoji: null };
+                p.is_liked = rs.myEmoji === REACTION_HEART;
+                p.my_emoji = rs.myEmoji;
+                p.reaction_counts = rs.counts;
+                p.likes_count = rs.total > 0 ? rs.total : (Number(p.likes_count) || 0);
                 p.comments_count = commentsCount.has(key) ? commentsCount.get(key) : (Number(p.comments_count) || 0);
                 p.likers = likersMap.get(key) || [];
                 // Slim the JSON: serve inline base64 photos/avatars as separate
@@ -4098,11 +4162,12 @@ export default {
         const postId = decodeURIComponent(url.pathname.replace('/api/posts/', '').replace(/\/likes\/?$/, ''));
         let likes: any[] = [];
         if (env.DB) {
-          const { results } = await env.DB.prepare('SELECT user_id, user_name, user_avatar, created_at FROM post_likes WHERE post_id = ? ORDER BY created_at DESC').bind(postId).all();
+          const { results } = await env.DB.prepare('SELECT user_id, user_name, user_avatar, emoji, created_at FROM reactions WHERE target_type = ? AND target_id = ? ORDER BY created_at DESC').bind('post', postId).all();
           likes = (results || []).map((r: any) => ({
             userId: r.user_id,
             userName: r.user_name || 'Orthodox Member',
-            userAvatar: r.user_avatar,
+            userAvatar: slimReactionAvatar(String(r.user_id || ''), String(r.user_avatar || '')),
+            emoji: String(r.emoji || REACTION_HEART),
           }));
         }
         return jsonResponse({ success: true, post_id: postId, likes, count: likes.length });
@@ -4129,24 +4194,27 @@ export default {
         let isLiked = false;
         let likesCount = 0;
         let likers: any[] = [];
+        let myEmoji: string | null = null;
+        let reactionCounts: Record<string, number> = {};
 
         if (env.DB) {
-          const existingLike = await env.DB.prepare('SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ?')
-            .bind(postId, userId)
-            .first();
+          const existingReaction = await env.DB.prepare('SELECT emoji FROM reactions WHERE target_type = ? AND target_id = ? AND user_id = ?')
+            .bind('post', postId, userId)
+            .first<any>();
 
           const postRow = await env.DB.prepare('SELECT author_id, content FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
 
-          if (existingLike) {
-            // UNLIKE: Remove strictly this user's record
-            await env.DB.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?').bind(postId, userId).run();
+          if (existingReaction) {
+            // UNLIKE: remove strictly this user's reaction (whatever the emoji)
+            await env.DB.prepare('DELETE FROM reactions WHERE target_type = ? AND target_id = ? AND user_id = ?').bind('post', postId, userId).run();
             isLiked = false;
           } else {
-            // LIKE: Insert or replace record for this user
-            await env.DB.prepare('INSERT OR REPLACE INTO post_likes (post_id, user_id, user_name, user_avatar, created_at) VALUES (?, ?, ?, ?, datetime(\'now\'))')
-              .bind(postId, userId, actorName, actorAvatar)
+            // LIKE (bless): single heart reaction
+            await env.DB.prepare("INSERT OR REPLACE INTO reactions (target_type, target_id, user_id, user_name, user_avatar, emoji, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))")
+              .bind('post', postId, userId, actorName, actorAvatar, REACTION_HEART)
               .run();
             isLiked = true;
+            myEmoji = REACTION_HEART;
 
             if (postRow && postRow.author_id && postRow.author_id !== userId) {
               const notifId = `notif-like-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -4156,17 +4224,21 @@ export default {
             }
           }
 
-          // Strict source of truth: count current rows in post_likes
-          const countRow = await env.DB.prepare('SELECT COUNT(*) as count FROM post_likes WHERE post_id = ?').bind(postId).first<{ count: number }>();
-          likesCount = countRow ? Number(countRow.count) : 0;
+          // Strict source of truth: count current reaction rows for this post
+          const summary = await getReactionSummaries(env.DB, 'post', [postId], userId);
+          const s = summary.get(postId) || { counts: {}, total: 0, myEmoji: null };
+          likesCount = s.total;
+          reactionCounts = s.counts;
+          myEmoji = s.myEmoji;
 
           await env.DB.prepare('UPDATE posts SET likes_count = ? WHERE id = ?').bind(likesCount, postId).run();
 
-          const likersResult = await env.DB.prepare('SELECT user_id, user_name, user_avatar FROM post_likes WHERE post_id = ? ORDER BY created_at DESC LIMIT 15').bind(postId).all<any>();
+          const likersResult = await env.DB.prepare('SELECT user_id, user_name, user_avatar, emoji FROM reactions WHERE target_type = ? AND target_id = ? ORDER BY created_at DESC LIMIT 15').bind('post', postId).all<any>();
           likers = (likersResult?.results || []).map((r: any) => ({
             userId: r.user_id,
             userName: r.user_name || 'Orthodox Member',
-            userAvatar: r.user_avatar,
+            userAvatar: slimReactionAvatar(String(r.user_id || ''), String(r.user_avatar || '')),
+            emoji: String(r.emoji || REACTION_HEART),
           }));
         }
 
@@ -4177,7 +4249,103 @@ export default {
           liked: isLiked,
           likes_count: likesCount,
           likers,
+          my_emoji: myEmoji,
+          reaction_counts: reactionCounts,
         });
+      }
+
+      // 12c. Unified reactions: set / remove / list reactors (/api/reactions)
+      // One reaction per user per item; setting another emoji switches it.
+      if (url.pathname === '/api/reactions' || url.pathname === '/api/reactions/') {
+        if (request.method === 'GET') {
+          const targetType = String(url.searchParams.get('target_type') || '');
+          const targetId = String(url.searchParams.get('target_id') || '');
+          if (!['post', 'book', 'story', 'comment'].includes(targetType) || !targetId || !env.DB) {
+            return jsonResponse({ success: false, error: 'target_type and target_id are required' }, 400);
+          }
+          const { results } = await env.DB.prepare(
+            'SELECT user_id, user_name, user_avatar, emoji FROM reactions WHERE target_type = ? AND target_id = ? ORDER BY created_at DESC LIMIT 50'
+          ).bind(targetType, targetId).all<any>();
+          const reactors = (results || []).map((r: any) => ({
+            userId: r.user_id,
+            userName: r.user_name || 'Orthodox Member',
+            userAvatar: slimReactionAvatar(String(r.user_id || ''), String(r.user_avatar || '')),
+            emoji: String(r.emoji || REACTION_HEART),
+          }));
+          // Counts must reflect ALL reactions, not just the first 50 reactors.
+          const counts: Record<string, number> = {};
+          let total = 0;
+          try {
+            const { results: grouped } = await env.DB.prepare(
+              'SELECT emoji, COUNT(*) as n FROM reactions WHERE target_type = ? AND target_id = ? GROUP BY emoji'
+            ).bind(targetType, targetId).all<any>();
+            for (const g of grouped || []) {
+              const e = String(g.emoji || REACTION_HEART);
+              const n = Number(g.n || 0);
+              counts[e] = n;
+              total += n;
+            }
+          } catch (e) { /* fall back to the 50-row counts */ }
+          if (total === 0) {
+            for (const r of reactors) counts[r.emoji] = (counts[r.emoji] || 0) + 1;
+            total = reactors.length;
+          }
+          return jsonResponse({ success: true, target_type: targetType, target_id: targetId, reactors, counts, total });
+        }
+
+        const body: any = await request.json().catch(() => ({}));
+        const authReact = await getAuthIdentity(request, env);
+        const reactUserId = (authReact.id || '').trim();
+        if (!reactUserId) {
+          return jsonResponse({ success: false, error: 'Authentication required to react' }, 401);
+        }
+        const targetType = String(body.target_type || body.targetType || '');
+        const targetId = String(body.target_id || body.targetId || '');
+        if (!['post', 'book', 'story', 'comment'].includes(targetType) || !targetId || !env.DB) {
+          return jsonResponse({ success: false, error: 'target_type and target_id are required' }, 400);
+        }
+        const actorName = body.author_name || body.userName || body.user_name || authReact.email || 'Orthodox Parishioner';
+        const actorAvatar = body.author_avatar || body.userAvatar || body.user_avatar || 'https://orthodoxconnect.live/launchericon-512x512.png';
+
+        if (request.method === 'DELETE') {
+          await env.DB.prepare('DELETE FROM reactions WHERE target_type = ? AND target_id = ? AND user_id = ?')
+            .bind(targetType, targetId, reactUserId).run();
+          const summary = await getReactionSummaries(env.DB, targetType, [targetId], reactUserId);
+          const s = summary.get(targetId) || { counts: {}, total: 0, myEmoji: null };
+          return jsonResponse({ success: true, counts: s.counts, total: s.total, my_emoji: s.myEmoji });
+        }
+
+        if (request.method === 'POST') {
+          let emoji = String(body.emoji || REACTION_HEART);
+          if (!isReactionEmoji(emoji)) emoji = REACTION_HEART;
+          const prev = await env.DB.prepare('SELECT emoji FROM reactions WHERE target_type = ? AND target_id = ? AND user_id = ?')
+            .bind(targetType, targetId, reactUserId).first<any>();
+          await env.DB.prepare(
+            "INSERT OR REPLACE INTO reactions (target_type, target_id, user_id, user_name, user_avatar, emoji, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))"
+          ).bind(targetType, targetId, reactUserId, actorName, actorAvatar, emoji).run();
+
+          // Notify on a NEW post reaction (emoji switches stay quiet; never self-notify).
+          if (targetType === 'post' && !prev) {
+            try {
+              const postRow = await env.DB.prepare('SELECT author_id, content FROM posts WHERE id = ?').bind(targetId).first<any>();
+              if (postRow && postRow.author_id && String(postRow.author_id) !== reactUserId) {
+                const notifId = `notif-react-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                const isBless = emoji === REACTION_HEART;
+                const ntype = isBless ? 'like' : 'reaction';
+                const ntitle = isBless ? `${actorName} blessed your reflection` : `${actorName} reacted ${emoji} to your post`;
+                await env.DB.prepare(
+                  'INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                ).bind(notifId, postRow.author_id, reactUserId, actorName, actorAvatar, ntype, ntitle, (postRow.content || '').slice(0, 80), targetId, 'feed', 0, new Date().toISOString()).run();
+              }
+            } catch (e) { /* notifications are best-effort */ }
+          }
+
+          const summary = await getReactionSummaries(env.DB, targetType, [targetId], reactUserId);
+          const s = summary.get(targetId) || { counts: {}, total: 0, myEmoji: null };
+          return jsonResponse({ success: true, counts: s.counts, total: s.total, my_emoji: s.myEmoji || emoji });
+        }
+
+        return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
       }
 
       // 13. Delete Single Comment (/api/posts/:id/comments/:commentId or /api/comments/:commentId)
@@ -4199,6 +4367,7 @@ export default {
             const isPostAuthor = Boolean(auth.id && post && post.author_id && auth.id === post.author_id);
 
             if (auth.isAdmin || isCommentAuthor || isPostAuthor) {
+              await env.DB.prepare("DELETE FROM reactions WHERE target_type = 'comment' AND target_id = ?").bind(commentId).run();
               await env.DB.prepare('DELETE FROM post_comments WHERE id = ?').bind(commentId).run();
               const commCountRow = await env.DB.prepare('SELECT COUNT(*) as count FROM post_comments WHERE post_id = ?').bind(targetPostId).first<{ count: number }>();
               const newCommCount = commCountRow ? Number(commCountRow.count) : 0;
@@ -4221,6 +4390,15 @@ export default {
             const stmt = env.DB.prepare('SELECT * FROM post_comments WHERE post_id = ? ORDER BY created_at ASC').bind(postId);
             const { results } = await stmt.all();
             comments = results || [];
+            // Attach reaction summaries (batched; viewer's own emoji included).
+            try {
+              const authC = await getAuthIdentity(request, env).catch(() => ({ id: '' }));
+              const summaries = await getReactionSummaries(env.DB, 'comment', comments.map((c: any) => String(c.id)), (authC as any).id || '');
+              comments = comments.map((c: any) => {
+                const s = summaries.get(String(c.id)) || { counts: {}, total: 0, myEmoji: null };
+                return { ...c, reaction_counts: s.counts, reactions_count: s.total, my_emoji: s.myEmoji };
+              });
+            } catch (e) { /* comments still load without reaction data */ }
           }
           return jsonResponse({ success: true, post_id: postId, comments, count: comments.length });
         }
@@ -4365,6 +4543,8 @@ export default {
           if (env.DB) {
             await env.DB.prepare('DELETE FROM posts WHERE id = ?').bind(postId).run();
             await env.DB.prepare('DELETE FROM post_likes WHERE post_id = ?').bind(postId).run();
+            await env.DB.prepare("DELETE FROM reactions WHERE target_type = 'post' AND target_id = ?").bind(postId).run();
+            await env.DB.prepare("DELETE FROM reactions WHERE target_type = 'comment' AND target_id IN (SELECT id FROM post_comments WHERE post_id = ?)").bind(postId).run();
             await env.DB.prepare('DELETE FROM post_comments WHERE post_id = ?').bind(postId).run();
           }
           return jsonResponse({ success: true, id: postId, message: 'Post deleted successfully.' });
@@ -4404,7 +4584,7 @@ export default {
             // engagement tables do not exist yet (never break the library).
             try {
               const query = `SELECT b.*,
-                (SELECT COUNT(*) FROM book_likes WHERE book_id = b.id) AS likes_count,
+                (SELECT COUNT(*) FROM reactions WHERE target_type = 'book' AND target_id = b.id) AS likes_count,
                 (SELECT COUNT(*) FROM book_comments WHERE book_id = b.id) AS comments_count
                 FROM books b ${where}${order}`;
               const { results } = await env.DB.prepare(query).bind(...params).all<any>();
@@ -4417,13 +4597,15 @@ export default {
               books = (results || []).map((b: any) => ({ ...b, likes_count: 0, comments_count: 0 }));
             }
 
-            // Mark which books the current user liked (optional auth — endpoint stays public).
+            // Mark which books the current user reacted to (optional auth — endpoint stays public).
             try {
               const authBooks = await getAuthIdentity(request, env);
               if (authBooks.id && books.length) {
-                const likedRows = await env.DB.prepare('SELECT book_id FROM book_likes WHERE user_id = ?').bind(authBooks.id).all<{ book_id: string }>();
-                const likedSet = new Set((likedRows.results || []).map((r) => r.book_id));
-                books = books.map((b) => ({ ...b, liked_by_me: likedSet.has(b.id) }));
+                const summaries = await getReactionSummaries(env.DB, 'book', books.map((b: any) => String(b.id)), authBooks.id);
+                books = books.map((b: any) => {
+                  const s = summaries.get(String(b.id)) || { counts: {}, total: 0, myEmoji: null };
+                  return { ...b, liked_by_me: s.myEmoji === REACTION_HEART, my_emoji: s.myEmoji, reaction_counts: s.counts };
+                });
               }
             } catch (e) { /* public read still works */ }
           }
@@ -4564,17 +4746,18 @@ export default {
           }
           const book = await env.DB.prepare('SELECT id FROM books WHERE id = ?').bind(bookId).first();
           if (!book) return jsonResponse({ success: false, error: 'Book not found' }, 404);
-          const existing = await env.DB.prepare('SELECT 1 FROM book_likes WHERE book_id = ? AND user_id = ?').bind(bookId, auth.id).first();
+          const existing = await env.DB.prepare("SELECT emoji FROM reactions WHERE target_type = 'book' AND target_id = ? AND user_id = ?").bind(bookId, auth.id).first<any>();
           let liked: boolean;
           if (existing) {
-            await env.DB.prepare('DELETE FROM book_likes WHERE book_id = ? AND user_id = ?').bind(bookId, auth.id).run();
+            await env.DB.prepare("DELETE FROM reactions WHERE target_type = 'book' AND target_id = ? AND user_id = ?").bind(bookId, auth.id).run();
             liked = false;
           } else {
-            await env.DB.prepare('INSERT INTO book_likes (book_id, user_id, created_at) VALUES (?, ?, ?)').bind(bookId, auth.id, new Date().toISOString()).run();
+            await env.DB.prepare("INSERT OR REPLACE INTO reactions (target_type, target_id, user_id, emoji, created_at) VALUES ('book', ?, ?, ?, ?)").bind(bookId, auth.id, REACTION_HEART, new Date().toISOString()).run();
             liked = true;
           }
-          const cnt = await env.DB.prepare('SELECT COUNT(*) as c FROM book_likes WHERE book_id = ?').bind(bookId).first<{ c: number }>();
-          return jsonResponse({ success: true, liked, likes_count: cnt ? Number(cnt.c) : 0 });
+          const summary = await getReactionSummaries(env.DB, 'book', [bookId], auth.id);
+          const s = summary.get(bookId) || { counts: {}, total: 0, myEmoji: null };
+          return jsonResponse({ success: true, liked, likes_count: s.total, my_emoji: s.myEmoji, reaction_counts: s.counts });
         }
       }
 

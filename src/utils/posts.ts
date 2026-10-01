@@ -667,7 +667,8 @@ export async function fetchPostComments(postId: string): Promise<any[]> {
 export async function addPostComment(
   postId: string,
   content: string,
-  userProfile?: any
+  userProfile?: any,
+  mentions?: { id: string; name: string }[]
 ): Promise<{ success: boolean; comment?: any; comments_count?: number; error?: any }> {
   const text = content.trim();
   if (!text) return { success: false, error: 'Empty comment' };
@@ -685,6 +686,7 @@ export async function addPostComment(
     author_avatar: identity.userAvatar,
     authorAvatar: identity.userAvatar,
     content: text,
+    mentions: Array.isArray(mentions) ? mentions : [],
     created_at: new Date().toISOString(),
     createdAt: new Date().toISOString(),
   };

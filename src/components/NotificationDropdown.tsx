@@ -62,6 +62,8 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         return <MessageSquare className="w-4 h-4 text-emerald-600" />;
       case 'mention':
         return <AtSign className="w-4 h-4 text-blue-600" />;
+      case 'comment_mention':
+        return <AtSign className="w-4 h-4 text-blue-600" />;
       case 'event_invite':
         return <Calendar className="w-4 h-4 text-(--ac-gold-tx)" />;
       case 'group_invite':

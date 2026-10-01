@@ -461,6 +461,12 @@ export async function ensureD1Tables(db?: D1Database) {
         }
       }
     }
+    // Comment @mentions (2026-10-01): PRAGMA-gated so the ALTER is skipped when the column already exists.
+    try {
+      const mcInfo: any = await db.prepare(`PRAGMA table_info(post_comments)`).all();
+      const mcCols = new Set(((mcInfo && mcInfo.results) || []).map((r: any) => r.name));
+      if (!mcCols.has('mentions')) { await db.exec(`ALTER TABLE post_comments ADD COLUMN mentions TEXT DEFAULT '[]'`); }
+    } catch (e) { /* table missing: created by the batch below */ }
   try {
     await db.exec(`CREATE TABLE IF NOT EXISTS profiles ( id TEXT PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT, full_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', parish TEXT NOT NULL DEFAULT 'Orthodox Church', bio TEXT DEFAULT 'Orthodox Christian seeking fellowship and spiritual growth.', avatar_url TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', role TEXT NOT NULL DEFAULT 'user', is_banned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS sessions ( id TEXT PRIMARY KEY, user_id TEXT NOT NULL, token TEXT UNIQUE NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS posts ( id TEXT PRIMARY KEY, content TEXT NOT NULL DEFAULT '', video_id TEXT, author_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_parish TEXT DEFAULT 'Orthodox Church', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', image_url TEXT, group_id TEXT, likes_count INTEGER DEFAULT 0, comments_count INTEGER DEFAULT 0, reshares_count INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS post_likes ( post_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, user_avatar TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (post_id, user_id) ); CREATE TABLE IF NOT EXISTS post_comments ( id TEXT PRIMARY KEY, post_id TEXT NOT NULL, user_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS messages ( id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, sender_name TEXT, receiver_id TEXT NOT NULL, content TEXT NOT NULL DEFAULT '', image_url TEXT, video_url TEXT, audio_url TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS stories ( id TEXT PRIMARY KEY, author_id TEXT, author_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', author_parish TEXT DEFAULT 'Orthodox Church', image_url TEXT NOT NULL, media_type TEXT DEFAULT 'image', caption TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS events ( id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', date TEXT NOT NULL, time TEXT DEFAULT '10:00 AM', location_type TEXT DEFAULT 'physical', location_address TEXT, virtual_link TEXT, category TEXT DEFAULT 'liturgy', parish TEXT DEFAULT 'Orthodox Parish', host_name TEXT DEFAULT 'Priest / Host', host_avatar TEXT, host_id TEXT, image_url TEXT, going_count INTEGER DEFAULT 1, interested_count INTEGER DEFAULT 0, rsvps TEXT DEFAULT '[]', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS live_streams ( id TEXT PRIMARY KEY, title TEXT NOT NULL, host_parish TEXT DEFAULT 'Orthodox Church', priest_name TEXT DEFAULT 'Priest / Host', media_url TEXT NOT NULL, is_live INTEGER DEFAULT 1, viewers_count INTEGER DEFAULT 1, ended_at TEXT, replay_guid TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS content_reports ( id TEXT PRIMARY KEY, target_type TEXT NOT NULL, target_id TEXT NOT NULL, target_content_preview TEXT, target_author_name TEXT, target_author_id TEXT, reporter_id TEXT, reporter_name TEXT, reason TEXT DEFAULT 'inappropriate', details TEXT, status TEXT DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS notifications ( id TEXT PRIMARY KEY, recipient_id TEXT, actor_id TEXT, actor_name TEXT DEFAULT 'Orthodox Parishioner', actor_avatar TEXT, type TEXT NOT NULL DEFAULT 'system', title TEXT, body TEXT, post_id TEXT, link TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS call_signals ( id TEXT PRIMARY KEY, call_id TEXT, sig_type TEXT, caller_id TEXT, caller_name TEXT, caller_avatar TEXT, target_user_id TEXT, call_type TEXT, sdp TEXT, candidate TEXT, meta TEXT, created_at INTEGER ); CREATE INDEX IF NOT EXISTS idx_call_signals_target ON call_signals(target_user_id, created_at); CREATE TABLE IF NOT EXISTS group_calls ( id TEXT PRIMARY KEY, room_id TEXT, room_name TEXT, host_id TEXT, host_name TEXT, started_at TEXT ); CREATE INDEX IF NOT EXISTS idx_group_calls_room ON group_calls(room_id, started_at); CREATE TABLE IF NOT EXISTS push_subscriptions ( user_id TEXT, endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, created_at TEXT DEFAULT (datetime('now')) ); CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id); CREATE TABLE IF NOT EXISTS books ( id TEXT PRIMARY KEY, title_ar TEXT NOT NULL, title_en TEXT, author_ar TEXT NOT NULL, author_en TEXT, category TEXT NOT NULL DEFAULT 'patristics', cover_image_url TEXT, file_url TEXT NOT NULL, description TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) );`);
     // Self-healing migration: older D1 databases were created before newer
@@ -4237,28 +4243,83 @@ export default {
           }
 
           let newCommentCount = 1;
+          let validMentions: { id: string; name: string }[] = [];
           if (env.DB) {
-            await env.DB.prepare(`
-              INSERT INTO post_comments (id, post_id, user_id, author_name, author_avatar, content, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)
-            `).bind(id, postId, userId, authorName, authorAvatar, content, createdAt).run();
+            // @mentions: the client sends [{id, name}] picked from the member
+            // list; every id is validated against profiles here.
+            if (Array.isArray(body.mentions) && body.mentions.length > 0) {
+              try {
+                const seen = new Set<string>();
+                for (const m of body.mentions.slice(0, 10)) {
+                  const mid = String((m && (m.id || m.user_id || m.userId)) || '').trim();
+                  if (!mid || mid === userId || seen.has(mid)) continue;
+                  seen.add(mid);
+                  const mp = await env.DB.prepare('SELECT id, full_name FROM profiles WHERE id = ?').bind(mid).first<any>();
+                  if (mp && mp.id) validMentions.push({ id: String(mp.id), name: String(mp.full_name || 'Orthodox Parishioner') });
+                }
+              } catch (e) { /* mentions are best-effort; the comment still saves */ }
+            }
+            const mentionJson = JSON.stringify(validMentions);
+
+            try {
+              await env.DB.prepare(
+                'INSERT INTO post_comments (id, post_id, user_id, author_name, author_avatar, content, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+              ).bind(id, postId, userId, authorName, authorAvatar, content, mentionJson, createdAt).run();
+            } catch (e) {
+              // Older database where the mentions migration has not run yet.
+              await env.DB.prepare(
+                'INSERT INTO post_comments (id, post_id, user_id, author_name, author_avatar, content, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+              ).bind(id, postId, userId, authorName, authorAvatar, content, createdAt).run();
+            }
 
             const commCountRow = await env.DB.prepare('SELECT COUNT(*) as count FROM post_comments WHERE post_id = ?').bind(postId).first<{ count: number }>();
             newCommentCount = commCountRow ? Number(commCountRow.count) : 1;
             await env.DB.prepare('UPDATE posts SET comments_count = ? WHERE id = ?').bind(newCommentCount, postId).run();
 
             const post = await env.DB.prepare('SELECT author_id, content FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
-            if (post && post.author_id && post.author_id !== userId) {
+            const postAuthorId = post && post.author_id ? String(post.author_id) : '';
+            if (post && postAuthorId && postAuthorId !== userId) {
               const notifId = `notif-comm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
               await env.DB.prepare(
                 'INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-              ).bind(notifId, post.author_id, userId, authorName, authorAvatar, 'comment', `${authorName} commented on your reflection`, content.slice(0, 80), postId, 'feed', 0, createdAt).run();
+              ).bind(notifId, postAuthorId, userId, authorName, authorAvatar, 'comment', `${authorName} commented on your reflection`, content.slice(0, 80), postId, 'feed', 0, createdAt).run();
+            }
+
+            // Notify every mentioned member (in-app + phone-top push). The post
+            // author is skipped here — they already got the 'comment' notification.
+            for (const m of validMentions) {
+              if (!m.id || m.id === postAuthorId) continue;
+              const mentionNotifId = `notif-cmention-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+              const mentionTitle = `${authorName} mentioned you in a comment`;
+              try {
+                await env.DB.prepare(
+                  'INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                ).bind(mentionNotifId, m.id, userId, authorName, authorAvatar, 'comment_mention', mentionTitle, content.slice(0, 80), postId, 'feed', 0, createdAt).run();
+              } catch (e) { /* notification insert is best-effort */ }
+              try {
+                const { results } = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?').bind(m.id).all();
+                const subs = results || [];
+                if (subs.length > 0) {
+                  const pushPayload = {
+                    type: 'comment_mention',
+                    title: mentionTitle,
+                    body: content.slice(0, 120) || mentionTitle,
+                    icon: authorAvatar || 'https://orthodoxconnect.live/launchericon-512x512.png',
+                    data: { url: '/', notifType: 'comment_mention', link: 'feed', notifId: mentionNotifId, postId },
+                  };
+                  for (const s of subs as any[]) {
+                    if (s && s.endpoint && s.p256dh && s.auth) {
+                      try { await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload); } catch (e) { /* one bad subscription never blocks the rest */ }
+                    }
+                  }
+                }
+              } catch (e) { /* push is best-effort */ }
             }
           }
 
           return jsonResponse({
             success: true,
-            comment: { id, post_id: postId, user_id: userId, author_name: authorName, author_avatar: authorAvatar, content, created_at: createdAt },
+            comment: { id, post_id: postId, user_id: userId, author_name: authorName, author_avatar: authorAvatar, content, mentions: validMentions, created_at: createdAt },
             comments_count: newCommentCount,
           }, 201);
         }

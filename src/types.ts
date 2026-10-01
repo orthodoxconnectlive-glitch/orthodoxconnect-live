@@ -99,3 +99,34 @@ export interface GroupRoom {
   isUserCreated?: boolean;
   created_at?: string;
 }
+
+export interface PostComment {
+  id: string;
+  post_id?: string;
+  postId?: string;
+  user_id?: string;
+  userId?: string;
+  author_name?: string;
+  authorName?: string;
+  author_avatar?: string;
+  authorAvatar?: string;
+  content?: string;
+  mentions?: { id: string; name: string }[] | string;
+  created_at?: string;
+  createdAt?: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  userId?: string;
+  type?: string;
+  title?: string;
+  body?: string;
+  link?: string;
+  senderName?: string;
+  senderAvatar?: string;
+  isRead?: boolean;
+  createdAt?: string;
+  post_id?: string;
+  postId?: string;
+}

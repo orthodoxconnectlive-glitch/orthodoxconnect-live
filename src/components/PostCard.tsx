@@ -38,7 +38,7 @@ interface PostCardProps {
   comments?: PostComment[] | string[];
   isCommentsOpen: boolean;
   onToggleComments: () => void;
-  onAddComment: (postId: string, commentText: string) => void;
+  onAddComment: (postId: string, commentText: string, mentions?: { id: string; name: string }[]) => void;
   onDeleteComment?: (postId: string, commentId: string) => void;
 }
 
@@ -273,6 +273,14 @@ export const PostCard: React.FC<PostCardProps> = ({
 }) => {
   const { t, language } = useTheme();
   const [commentInput, setCommentInput] = useState<string>('');
+  // @mention picker state for the comment composer
+  const [mentionOpen, setMentionOpen] = useState<boolean>(false);
+  const [mentionQuery, setMentionQuery] = useState<string>('');
+  const [mentionCandidates, setMentionCandidates] = useState<{ id: string; name: string; avatar: string }[]>([]);
+  const [mentionIndex, setMentionIndex] = useState<number>(0);
+  const [pickedMentions, setPickedMentions] = useState<{ id: string; name: string }[]>([]);
+  const mentionProfilesCache = useRef<{ id: string; name: string; avatar: string }[] | null>(null);
+  const commentInputRef = useRef<HTMLInputElement | null>(null);
   const [showLikesModal, setShowLikesModal] = useState<boolean>(false);
   const [modalLikers, setModalLikers] = useState<any[]>([]);
   const [isLoadingLikers, setIsLoadingLikers] = useState<boolean>(false);
@@ -475,11 +483,142 @@ export const PostCard: React.FC<PostCardProps> = ({
     onToggleLike(post.id);
   };
 
+  // Load the member list once per session for the @mention picker.
+  const loadMentionProfiles = async (): Promise<{ id: string; name: string; avatar: string }[]> => {
+    if (mentionProfilesCache.current) return mentionProfilesCache.current;
+    try {
+      const res = await apiFetch('/api/profiles');
+      const data = await res.json().catch(() => ({}));
+      const raw = (data && (data.profiles || data.items || data)) as any;
+      const list = Array.isArray(raw) ? raw : [];
+      const mapped = list
+        .map((p: any) => ({
+          id: String(p.id || p.user_id || ''),
+          name: String(p.full_name || p.name || 'Orthodox Parishioner'),
+          avatar: String(p.avatar_url || p.avatar || ''),
+        }))
+        .filter((p: any) => p.id && p.id !== currentProfile?.id);
+      mentionProfilesCache.current = mapped;
+      return mapped;
+    } catch {
+      return [];
+    }
+  };
+
+  const updateMentionCandidates = async (q: string) => {
+    const all = await loadMentionProfiles();
+    const query = q.trim().toLowerCase();
+    const filtered = (query ? all.filter((p) => p.name.toLowerCase().includes(query)) : all).slice(0, 8);
+    setMentionCandidates(filtered);
+    setMentionIndex(0);
+  };
+
+  const handleCommentInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setCommentInput(val);
+    const cursor = e.target.selectionStart ?? val.length;
+    const before = val.slice(0, cursor);
+    const m = before.match(/(^|\s)@([^\s@]*)$/);
+    if (m) {
+      const q = m[2] || '';
+      setMentionQuery(q);
+      setMentionOpen(true);
+      void updateMentionCandidates(q);
+    } else {
+      setMentionOpen(false);
+      setMentionQuery('');
+    }
+  };
+
+  const pickMention = (person: { id: string; name: string }) => {
+    const el = commentInputRef.current;
+    const cursor = el?.selectionStart ?? commentInput.length;
+    const tokenLen = 1 + mentionQuery.length;
+    const cutAt = Math.max(0, cursor - tokenLen);
+    const newBefore = commentInput.slice(0, cutAt) + `@${person.name} `;
+    const next = newBefore + commentInput.slice(cursor);
+    setCommentInput(next);
+    setPickedMentions((prev) => (prev.some((p) => p.id === person.id) ? prev : [...prev, { id: person.id, name: person.name }]));
+    setMentionOpen(false);
+    setMentionQuery('');
+    requestAnimationFrame(() => {
+      const input = commentInputRef.current;
+      if (input) {
+        input.focus();
+        const pos = newBefore.length;
+        try { input.setSelectionRange(pos, pos); } catch { /* noop */ }
+      }
+    });
+  };
+
+  const handleCommentKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!mentionOpen) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setMentionIndex((i) => (mentionCandidates.length ? (i + 1) % mentionCandidates.length : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setMentionIndex((i) => (mentionCandidates.length ? (i - 1 + mentionCandidates.length) % mentionCandidates.length : 0));
+    } else if ((e.key === 'Enter' || e.key === 'Tab') && mentionCandidates.length > 0) {
+      e.preventDefault();
+      pickMention(mentionCandidates[mentionIndex] || mentionCandidates[0]);
+    } else if (e.key === 'Escape') {
+      setMentionOpen(false);
+    }
+  };
+
+  // Highlight @mentioned names inside a posted comment. Tapping a mention
+  // opens that member's profile.
+  const renderCommentText = (content: string, mentionsRaw: any) => {
+    let mentions: { id: string; name: string }[] = [];
+    try {
+      if (Array.isArray(mentionsRaw)) mentions = mentionsRaw;
+      else if (typeof mentionsRaw === 'string' && mentionsRaw.trim()) {
+        const parsed = JSON.parse(mentionsRaw);
+        if (Array.isArray(parsed)) mentions = parsed;
+      }
+    } catch { /* not parseable: render plain */ }
+    if (!content || mentions.length === 0) return content;
+    const seen = new Set<string>();
+    const names = mentions
+      .map((mm) => String(mm.name || ''))
+      .filter((n) => n && !seen.has(n) && (seen.add(n), true))
+      .sort((a, b) => b.length - a.length);
+    if (names.length === 0) return content;
+    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`(@(?:${names.map(esc).join('|')}))`, 'g');
+    const byName: Record<string, string> = {};
+    mentions.forEach((mm) => { byName[String(mm.name)] = String(mm.id); });
+    const parts = content.split(pattern);
+    return parts.map((part, i) => {
+      if (part.startsWith('@') && byName[part.slice(1)]) {
+        const mName = part.slice(1);
+        const mId = byName[mName];
+        return (
+          <span
+            key={i}
+            className="font-bold text-[#1d6fdc] dark:text-[#7fb3f0] cursor-pointer hover:underline"
+            onClick={() => onSelectUser?.({ id: mId, name: mName, avatar: '', parish: 'Orthodox Church' })}
+          >
+            {part}
+          </span>
+        );
+      }
+      return <React.Fragment key={i}>{part}</React.Fragment>;
+    });
+  };
+
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!commentInput.trim()) return;
-    onAddComment(post.id, commentInput.trim());
+    const text = commentInput.trim();
+    // Keep only mentions whose @Name is still present in the final text.
+    const validMentions = pickedMentions.filter((pm) => text.includes(`@${pm.name}`));
+    onAddComment(post.id, text, validMentions);
     setCommentInput('');
+    setPickedMentions([]);
+    setMentionOpen(false);
+    setMentionQuery('');
   };
 
   const handleOpenLikesModal = async (e: React.MouseEvent) => {
@@ -1080,7 +1219,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                           </span>
                         </div>
                         <p className="text-xs text-(--tx-body) dark:text-(--chip-light) whitespace-pre-line break-words">
-                          {comm.content}
+                          {renderCommentText(comm.content, (comm as any).mentions)}
                         </p>
                       </div>
 
@@ -1122,11 +1261,44 @@ export const PostCard: React.FC<PostCardProps> = ({
               className="w-8 h-8 rounded-full object-cover border border-(--ln-gold) shrink-0"
             />
             <div className="flex-1 relative flex items-center">
+              {mentionOpen && mentionCandidates.length > 0 && (
+                <div className="absolute bottom-full mb-1.5 left-0 right-0 bg-[#fffdfa] dark:bg-[#241c14] border border-(--ln-gold)/40 rounded-xl shadow-xl z-30 max-h-56 overflow-y-auto">
+                  {mentionCandidates.map((person, idx) => (
+                    <button
+                      key={person.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        pickMention(person);
+                      }}
+                      onMouseEnter={() => setMentionIndex(idx)}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-left rtl:text-right cursor-pointer ${
+                        idx === mentionIndex ? 'bg-(--bg-inset2) dark:bg-[#2e2418]' : ''
+                      }`}
+                    >
+                      <img
+                        src={person.avatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
+                        alt=""
+                        className="w-6 h-6 rounded-full object-cover border border-(--ln-gold)/40 shrink-0"
+                      />
+                      <span className="text-xs font-semibold text-(--tx-body) dark:text-[#f5ebd9] truncate">
+                        {person.name}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <input
+                ref={commentInputRef}
                 type="text"
                 value={commentInput}
-                onChange={(e) => setCommentInput(e.target.value)}
-                placeholder={language === 'ar' ? 'اكتب تأملاً أو تعليقاً...' : 'Write a reflection or comment...'}
+                onChange={handleCommentInputChange}
+                onKeyDown={handleCommentKeyDown}
+                placeholder={
+                  language === 'ar'
+                    ? 'اكتب تأملاً... (@ لذكر شخص)'
+                    : 'Write a reflection... (@ to mention someone)'
+                }
                 className="w-full pl-3 pr-10 rtl:pl-10 rtl:pr-3 py-2 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-body) dark:text-[#f5ebd9] placeholder-(--tx-soft)/60 focus:outline-none focus:border-(--ln-bright) focus:ring-1 focus:ring-(--ac-bright)/50"
               />
               <button

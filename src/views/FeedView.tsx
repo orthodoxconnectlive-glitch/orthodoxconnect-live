@@ -573,7 +573,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
     }
   };
 
-  const handleAddComment = async (postId: string, commentText: string) => {
+  const handleAddComment = async (postId: string, commentText: string, mentions?: { id: string; name: string }[]) => {
     const text = commentText.trim();
     if (!text) return;
 
@@ -593,6 +593,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         profile?.avatar_url ||
         'https://orthodoxconnect.live/launchericon-512x512.png',
       content: text,
+      mentions: Array.isArray(mentions) ? mentions : [],
       createdAt: new Date().toISOString(),
       created_at: new Date().toISOString(),
     };
@@ -606,7 +607,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       prev.map((p) => (p.id === postId ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p))
     );
 
-    await addPostComment(postId, text, profile);
+    await addPostComment(postId, text, profile, mentions);
   };
 
   const handleDeleteComment = async (postId: string, commentId: string) => {

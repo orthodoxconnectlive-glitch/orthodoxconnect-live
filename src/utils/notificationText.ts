@@ -79,6 +79,19 @@ export function localizeNotification(
       };
     }
 
+    case 'comment_mention': {
+      const prefix =
+        actor && storedBody && !storedBody.startsWith(actor) ? `${actor}: ` : '';
+      return {
+        title: ar ? `${actorName} ذكرك في تعليق` : `${actorName} mentioned you in a comment`,
+        body: storedBody
+          ? `${prefix}${storedBody}`
+          : ar
+            ? `${actorName} ذكرك في تعليق على منشور`
+            : `${actorName} mentioned you in a comment`,
+      };
+    }
+
     case 'event_invite': {
       // Stored title: "New Parish Event: {eventTitle}" (or its Arabic form).
       // Stored body: "{date} at {time} • {parish}".

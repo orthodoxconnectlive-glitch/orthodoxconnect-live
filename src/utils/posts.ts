@@ -126,6 +126,8 @@ export function mapRowToPost(row: any): Post {
     likesCount,
     likes_count: likesCount,
     likers,
+    reaction_counts: (row.reaction_counts && typeof row.reaction_counts === 'object' ? row.reaction_counts : {}),
+    my_emoji: row.my_emoji || null,
     commentsCount,
     comments_count: commentsCount,
     resharesCount,

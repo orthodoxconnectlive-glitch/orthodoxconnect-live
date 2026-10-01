@@ -339,6 +339,22 @@ async function seedSaintsBook(db: D1Database): Promise<void> {
 }
 
 let d1TablesInitialized = false;
+// Unified emoji reactions (2026-10-01): one reactions table for posts,
+// books, stories and comments. Old single-emoji likes are backfilled as
+// heart reactions (idempotent INSERT OR IGNORE; one reaction per user
+// per item, tapping another emoji switches it).
+// Called from BOTH the fast path and the slow path of ensureD1Tables:
+// the fast path returns early on fully-migrated databases, so a migration
+// placed only in the slow path would never run in production.
+async function ensureReactionsTable(db: any) {
+  try {
+    await db.exec(`CREATE TABLE IF NOT EXISTS reactions ( target_type TEXT NOT NULL, target_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, user_avatar TEXT, emoji TEXT NOT NULL DEFAULT '\u2764\uFE0F', created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (target_type, target_id, user_id) )`);
+    await db.exec(`CREATE INDEX IF NOT EXISTS idx_reactions_target ON reactions (target_type, target_id)`);
+    try { await db.exec(`INSERT OR IGNORE INTO reactions (target_type, target_id, user_id, user_name, user_avatar, emoji, created_at) SELECT 'post', post_id, user_id, user_name, user_avatar, '\u2764\uFE0F', created_at FROM post_likes`); } catch (e) { /* post_likes missing on fresh DBs */ }
+    try { await db.exec(`INSERT OR IGNORE INTO reactions (target_type, target_id, user_id, emoji, created_at) SELECT 'book', book_id, user_id, '\u2764\uFE0F', created_at FROM book_likes`); } catch (e) { /* book_likes missing on fresh DBs */ }
+  } catch (e) { console.warn('[ensureReactionsTable] notice:', (e as any)?.message || e); }
+}
+
 export async function ensureD1Tables(db?: D1Database) {
   if (!db || d1TablesInitialized) return;
   // Speed (2026-09-20, pass 2): the ~35 sequential ALTER TABLE migrations
@@ -352,6 +368,7 @@ export async function ensureD1Tables(db?: D1Database) {
     await db.prepare(`SELECT bunny_stream_id FROM live_streams LIMIT 0`).all();
     await seedShenoudaBooks(db);
     await seedSaintsBook(db);
+    await ensureReactionsTable(db);
     d1TablesInitialized = true;
     return;
   } catch (probeErr) {
@@ -467,16 +484,7 @@ export async function ensureD1Tables(db?: D1Database) {
       const mcCols = new Set(((mcInfo && mcInfo.results) || []).map((r: any) => r.name));
       if (!mcCols.has('mentions')) { await db.exec(`ALTER TABLE post_comments ADD COLUMN mentions TEXT DEFAULT '[]'`); }
     } catch (e) { /* table missing: created by the batch below */ }
-    // Unified emoji reactions (2026-10-01): one reactions table for posts,
-    // books, stories and comments. Old single-emoji likes are backfilled as
-    // heart reactions (idempotent INSERT OR IGNORE; one reaction per user
-    // per item, tapping another emoji switches it).
-    try {
-      await db.exec(`CREATE TABLE IF NOT EXISTS reactions ( target_type TEXT NOT NULL, target_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, user_avatar TEXT, emoji TEXT NOT NULL DEFAULT '\u2764\uFE0F', created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (target_type, target_id, user_id) )`);
-      await db.exec(`CREATE INDEX IF NOT EXISTS idx_reactions_target ON reactions (target_type, target_id)`);
-      try { await db.exec(`INSERT OR IGNORE INTO reactions (target_type, target_id, user_id, user_name, user_avatar, emoji, created_at) SELECT 'post', post_id, user_id, user_name, user_avatar, '\u2764\uFE0F', created_at FROM post_likes`); } catch (e) { /* post_likes missing on fresh DBs */ }
-      try { await db.exec(`INSERT OR IGNORE INTO reactions (target_type, target_id, user_id, emoji, created_at) SELECT 'book', book_id, user_id, '\u2764\uFE0F', created_at FROM book_likes`); } catch (e) { /* book_likes missing on fresh DBs */ }
-    } catch (e) { console.warn('[ensureD1Tables] reactions migration notice:', (e as any)?.message || e); }
+    await ensureReactionsTable(db);
   try {
     await db.exec(`CREATE TABLE IF NOT EXISTS profiles ( id TEXT PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT, full_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', parish TEXT NOT NULL DEFAULT 'Orthodox Church', bio TEXT DEFAULT 'Orthodox Christian seeking fellowship and spiritual growth.', avatar_url TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', role TEXT NOT NULL DEFAULT 'user', is_banned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS sessions ( id TEXT PRIMARY KEY, user_id TEXT NOT NULL, token TEXT UNIQUE NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS posts ( id TEXT PRIMARY KEY, content TEXT NOT NULL DEFAULT '', video_id TEXT, author_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_parish TEXT DEFAULT 'Orthodox Church', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', image_url TEXT, group_id TEXT, likes_count INTEGER DEFAULT 0, comments_count INTEGER DEFAULT 0, reshares_count INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS post_likes ( post_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, user_avatar TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (post_id, user_id) ); CREATE TABLE IF NOT EXISTS post_comments ( id TEXT PRIMARY KEY, post_id TEXT NOT NULL, user_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS messages ( id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, sender_name TEXT, receiver_id TEXT NOT NULL, content TEXT NOT NULL DEFAULT '', image_url TEXT, video_url TEXT, audio_url TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS stories ( id TEXT PRIMARY KEY, author_id TEXT, author_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', author_parish TEXT DEFAULT 'Orthodox Church', image_url TEXT NOT NULL, media_type TEXT DEFAULT 'image', caption TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS events ( id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', date TEXT NOT NULL, time TEXT DEFAULT '10:00 AM', location_type TEXT DEFAULT 'physical', location_address TEXT, virtual_link TEXT, category TEXT DEFAULT 'liturgy', parish TEXT DEFAULT 'Orthodox Parish', host_name TEXT DEFAULT 'Priest / Host', host_avatar TEXT, host_id TEXT, image_url TEXT, going_count INTEGER DEFAULT 1, interested_count INTEGER DEFAULT 0, rsvps TEXT DEFAULT '[]', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS live_streams ( id TEXT PRIMARY KEY, title TEXT NOT NULL, host_parish TEXT DEFAULT 'Orthodox Church', priest_name TEXT DEFAULT 'Priest / Host', media_url TEXT NOT NULL, is_live INTEGER DEFAULT 1, viewers_count INTEGER DEFAULT 1, ended_at TEXT, replay_guid TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS content_reports ( id TEXT PRIMARY KEY, target_type TEXT NOT NULL, target_id TEXT NOT NULL, target_content_preview TEXT, target_author_name TEXT, target_author_id TEXT, reporter_id TEXT, reporter_name TEXT, reason TEXT DEFAULT 'inappropriate', details TEXT, status TEXT DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS notifications ( id TEXT PRIMARY KEY, recipient_id TEXT, actor_id TEXT, actor_name TEXT DEFAULT 'Orthodox Parishioner', actor_avatar TEXT, type TEXT NOT NULL DEFAULT 'system', title TEXT, body TEXT, post_id TEXT, link TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS call_signals ( id TEXT PRIMARY KEY, call_id TEXT, sig_type TEXT, caller_id TEXT, caller_name TEXT, caller_avatar TEXT, target_user_id TEXT, call_type TEXT, sdp TEXT, candidate TEXT, meta TEXT, created_at INTEGER ); CREATE INDEX IF NOT EXISTS idx_call_signals_target ON call_signals(target_user_id, created_at); CREATE TABLE IF NOT EXISTS group_calls ( id TEXT PRIMARY KEY, room_id TEXT, room_name TEXT, host_id TEXT, host_name TEXT, started_at TEXT ); CREATE INDEX IF NOT EXISTS idx_group_calls_room ON group_calls(room_id, started_at); CREATE TABLE IF NOT EXISTS push_subscriptions ( user_id TEXT, endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, created_at TEXT DEFAULT (datetime('now')) ); CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id); CREATE TABLE IF NOT EXISTS books ( id TEXT PRIMARY KEY, title_ar TEXT NOT NULL, title_en TEXT, author_ar TEXT NOT NULL, author_en TEXT, category TEXT NOT NULL DEFAULT 'patristics', cover_image_url TEXT, file_url TEXT NOT NULL, description TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) );`);
     // Self-healing migration: older D1 databases were created before newer

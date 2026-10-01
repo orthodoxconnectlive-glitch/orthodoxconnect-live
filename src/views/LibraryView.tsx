@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 import {
   useReactions,
+  useLongPress,
   ReactionPopup,
 } from '../components/ReactionPicker';
 import { REACTION_HEART, reactionLabel } from '../utils/reactions';
@@ -217,6 +218,10 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
   );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerRect, setPickerRect] = useState<DOMRect | null>(null);
+  const longPress = useLongPress((rect) => {
+    setPickerRect(rect);
+    setPickerOpen(true);
+  });
 
   // Resync when the parent list refreshes with fresh server data.
   useEffect(() => {
@@ -233,8 +238,8 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setPickerRect((e.currentTarget as HTMLElement).getBoundingClientRect());
-    setPickerOpen(true);
+    if (longPress.longPressFired()) return;
+    void r.toggleHeart();
   };
 
   return (
@@ -242,10 +247,18 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
       <button
         type="button"
         onClick={handleClick}
+        onMouseDown={longPress.onMouseDown}
+        onMouseUp={longPress.onMouseUp}
+        onMouseLeave={longPress.onMouseLeave}
+        onTouchStart={longPress.onTouchStart}
+        onTouchEnd={longPress.onTouchEnd}
+        onTouchMove={longPress.onTouchMove}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
         className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-serif transition-colors cursor-pointer select-none ${
           r.myEmoji ? 'text-red-500' : 'text-(--tx-mute) dark:text-[#a89379] hover:text-red-400'
         }`}
-        title={language === 'ar' ? 'اضغط لاختيار تفاعل' : 'Tap to choose a reaction'}
+        title={language === 'ar' ? 'اضغط مطولاً لاختيار تفاعل' : 'Press and hold to pick a reaction'}
       >
         {r.myEmoji ? (
           <span className="text-sm leading-none">{r.myEmoji}</span>

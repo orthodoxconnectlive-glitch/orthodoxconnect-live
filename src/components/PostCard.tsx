@@ -20,6 +20,7 @@ import { Post, UserProfile, PostComment } from '../types';
 import { apiFetch } from '../lib/api';
 import {
   useReactions,
+  useLongPress,
   ReactionPopup,
   ReactionSummary,
   ReactorsModal,
@@ -479,13 +480,18 @@ export const PostCard: React.FC<PostCardProps> = ({
     currentProfile?.email === 'orthodoxconnect.live@gmail.com' ||
     currentProfile?.id === '9e63fd72-f7c1-4748-b463-1137b469c7f5';
 
-  // One tap on the Bless button opens the emoji picker; the user picks
-  // their reaction there (tapping the heart = bless, tapping it again
-  // removes it).
+  // Press-and-hold the Bless button to open the emoji picker.
+  const longPress = useLongPress((rect) => {
+    setPickerRect(rect);
+    setPickerOpen(true);
+  });
+
+  // Tap the Bless button: toggle the heart reaction. If the press-and-hold
+  // already opened the picker, swallow the click that follows the release.
   const handleReactClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setPickerRect((e.currentTarget as HTMLElement).getBoundingClientRect());
-    setPickerOpen(true);
+    if (longPress.longPressFired()) return;
+    void postReactions.toggleHeart();
   };
 
   // Load the member list once per session for the @mention picker.
@@ -1017,12 +1023,20 @@ export const PostCard: React.FC<PostCardProps> = ({
         <button
           type="button"
           onClick={handleReactClick}
+          onMouseDown={longPress.onMouseDown}
+          onMouseUp={longPress.onMouseUp}
+          onMouseLeave={longPress.onMouseLeave}
+          onTouchStart={longPress.onTouchStart}
+          onTouchEnd={longPress.onTouchEnd}
+          onTouchMove={longPress.onTouchMove}
+          onContextMenu={(e) => e.preventDefault()}
+          style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
           className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl transition-all cursor-pointer select-none active:scale-95 ${
             postReactions.myEmoji
               ? 'bg-rose-50 dark:bg-rose-950/30 text-red-600 font-bold border border-rose-200 dark:border-rose-900/40 shadow-xs'
               : 'text-(--tx-soft) hover:text-red-600 hover:bg-(--bg-inset) dark:hover:bg-[#282019]'
           }`}
-          title={language === 'ar' ? 'اضغط لاختيار تفاعل' : 'Tap to choose a reaction'}
+          title={language === 'ar' ? 'اضغط مطولاً لاختيار تفاعل' : 'Press and hold to pick a reaction'}
         >
           {postReactions.myEmoji ? (
             <span className="text-base leading-none">{postReactions.myEmoji}</span>

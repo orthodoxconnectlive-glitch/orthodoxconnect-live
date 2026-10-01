@@ -487,8 +487,8 @@ export const PostCard: React.FC<PostCardProps> = ({
   const loadMentionProfiles = async (): Promise<{ id: string; name: string; avatar: string }[]> => {
     if (mentionProfilesCache.current) return mentionProfilesCache.current;
     try {
-      const res = await apiFetch('/api/profiles');
-      const data = await res.json().catch(() => ({}));
+      // NOTE: apiFetch already returns parsed JSON (not a Response).
+      const data = await apiFetch('/api/profiles');
       const raw = (data && (data.profiles || data.items || data)) as any;
       const list = Array.isArray(raw) ? raw : [];
       const mapped = list

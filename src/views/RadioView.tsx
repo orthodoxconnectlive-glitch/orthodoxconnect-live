@@ -89,6 +89,52 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
 
   const playerRef = useRef<any>(null);
   const playerHostRef = useRef<HTMLDivElement>(null);
+
+  // ---------- Station ID jingle: every 45 min of playback, like a real radio ----------
+  const JINGLE_EVERY_MS = 45 * 60 * 1000;
+  const JINGLE_MAX_WAIT_MS = 60 * 60 * 1000; // marathon track: interrupt rather than wait forever
+  const JINGLE_URL = '/radio-jingle.mp3';
+  const playStartRef = useRef<number | null>(null);
+  const playedMsRef = useRef(0);
+  const jinglePendingRef = useRef(false);
+  const jinglePlayingRef = useRef(false);
+  const jingleAudioRef = useRef<HTMLAudioElement | null>(null);
+  const isPlayingRef = useRef(false);
+  const liveRef = useRef(live);
+  liveRef.current = live;
+  const [jingleNow, setJingleNow] = useState(false);
+
+  const playJingle = useCallback(() => {
+    const player = playerRef.current;
+    jinglePlayingRef.current = true;
+    jinglePendingRef.current = false;
+    playedMsRef.current = 0;
+    playStartRef.current = null;
+    setIsPlaying(false);
+    isPlayingRef.current = false;
+    setJingleNow(true);
+    try { player?.pauseVideo(); } catch {}
+    const resume = () => {
+      jinglePlayingRef.current = false;
+      setJingleNow(false);
+      try { playerRef.current?.playVideo(); } catch {}
+    };
+    try {
+      let audio = jingleAudioRef.current;
+      if (!audio) {
+        audio = new Audio(JINGLE_URL);
+        audio.preload = 'auto';
+        jingleAudioRef.current = audio;
+      }
+      audio.onended = resume;
+      audio.onerror = resume; // never stall the station on a missing file
+      audio.currentTime = 0;
+      const pr = audio.play();
+      if (pr && typeof (pr as any).catch === 'function') (pr as any).catch(resume);
+    } catch {
+      resume();
+    }
+  }, []);
   const tracksRef = useRef<RadioTrack[]>([]);
   const filterRef = useRef('all');
   tracksRef.current = tracks;
@@ -121,16 +167,31 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
   };
 
   const attachPlayerEvents = (player: any) => {
+    const accumulate = () => {
+      if (playStartRef.current != null) {
+        playedMsRef.current += Date.now() - playStartRef.current;
+        playStartRef.current = null;
+      }
+    };
     player.addEventListener('onStateChange', (e: any) => {
       const YTNS = (window as any).YT;
       const state = e.data;
       if (!YTNS) return;
       if (state === YTNS.PlayerState.PLAYING) {
+        // A new track just started: fire a pending station ID before it.
+        if (jinglePendingRef.current && !jinglePlayingRef.current) {
+          playJingle();
+          return;
+        }
         setIsPlaying(true);
+        isPlayingRef.current = true;
         setStarted(true);
+        playStartRef.current = Date.now();
         try { setCurrentIndex(player.getPlaylistIndex() ?? 0); } catch {}
-      } else if (state === YTNS.PlayerState.PAUSED) {
+      } else if (state === YTNS.PlayerState.PAUSED || state === YTNS.PlayerState.ENDED) {
+        accumulate();
         setIsPlaying(false);
+        isPlayingRef.current = false;
       } else if (state === YTNS.PlayerState.CUED) {
         try { setCurrentIndex(player.getPlaylistIndex() ?? 0); } catch {}
       }
@@ -162,6 +223,14 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
       const ids = playlistIds();
       if (!ids.length) return;
       const player = await ensurePlayer();
+      // Warm up the station-ID jingle so it plays instantly when due.
+      try {
+        if (!jingleAudioRef.current) {
+          const a = new Audio(JINGLE_URL);
+          a.preload = 'auto';
+          jingleAudioRef.current = a;
+        }
+      } catch {}
       const safeIndex = Math.max(0, Math.min(index, ids.length - 1));
       player.loadPlaylist({ playlist: ids, index: safeIndex });
       setCurrentIndex(safeIndex);
@@ -320,6 +389,24 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
       console.error('Share failed:', e);
     }
   };
+
+  // Station ID scheduler: counts actual playback minutes, fires between songs.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (jinglePlayingRef.current || jinglePendingRef.current) return;
+      if (liveRef.current.is_live) return; // live broadcast: never interrupt
+      if (!isPlayingRef.current || playStartRef.current == null) return;
+      const elapsed = playedMsRef.current + (Date.now() - playStartRef.current);
+      if (elapsed >= JINGLE_EVERY_MS) {
+        if (elapsed >= JINGLE_MAX_WAIT_MS) {
+          playJingle();
+        } else {
+          jinglePendingRef.current = true; // plays at the next track boundary
+        }
+      }
+    }, 15000);
+    return () => window.clearInterval(id);
+  }, [playJingle]);
 
   // Deep link: ?track=<id> starts the station on that track.
   useEffect(() => {
@@ -481,9 +568,15 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
               <p className="text-[11px] uppercase tracking-wider text-(--tx-mute) dark:text-[#a89379] font-bold">
                 {ar ? 'يُذاع الآن' : 'Now playing'}
               </p>
-              <p className="font-bold text-(--tx-strong) dark:text-[#f5ebd9] truncate">
-                {started && nowPlaying ? nowPlaying.title : ar ? 'اضغط تشغيل لبدء الراديو' : 'Tap play to start the radio'}
-              </p>
+              {jingleNow ? (
+                <p className="font-bold text-(--tx-strong) dark:text-[#f5ebd9] truncate">
+                  📻 {ar ? 'أرثوذكس كونيكت راديو لايف' : 'OrthodoxConnect Radio Live'}
+                </p>
+              ) : (
+                <p className="font-bold text-(--tx-strong) dark:text-[#f5ebd9] truncate">
+                  {started && nowPlaying ? nowPlaying.title : ar ? 'اضغط تشغيل لبدء الراديو' : 'Tap play to start the radio'}
+                </p>
+              )}
               {started && nowPlaying && (
                 <p className="text-xs text-(--tx-mute) dark:text-[#a89379]">{catLabel(nowPlaying.category)}</p>
               )}

@@ -294,6 +294,13 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
     try {
       const ids = playlistIds();
       if (!ids.length) return;
+      // Kick the welcome greeting off synchronously inside the tap gesture,
+      // before any await: phone web views only allow audio started from a tap.
+      let welcomePromise: Promise<boolean> | null = null;
+      if (!welcomePlayedRef.current && !liveRef.current.is_live) {
+        welcomePlayedRef.current = true;
+        welcomePromise = playWelcome();
+      }
       const player = await ensurePlayer();
       // Warm up the jingles so they play instantly when due.
       try {
@@ -316,11 +323,8 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
         setStarted(true);
       };
       // First start of the visit (regular station only): welcome jingle, then the track.
-      if (!welcomePlayedRef.current && !liveRef.current.is_live) {
-        welcomePlayedRef.current = true;
-        await playWelcome();
-        begin();
-        return;
+      if (welcomePromise) {
+        await welcomePromise;
       }
       begin();
     } catch (e: any) {
@@ -487,16 +491,14 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
   // Station ID scheduler: counts actual playback minutes, fires between songs.
   useEffect(() => {
     const id = window.setInterval(() => {
-      if (jinglePlayingRef.current || jinglePendingRef.current) return;
+      if (jinglePlayingRef.current) return;
       if (liveRef.current.is_live) return; // live broadcast: never interrupt
       if (!isPlayingRef.current || playStartRef.current == null) return;
       const elapsed = playedMsRef.current + (Date.now() - playStartRef.current);
-      if (elapsed >= JINGLE_EVERY_MS) {
-        if (elapsed >= JINGLE_MAX_WAIT_MS) {
-          playJingle();
-        } else {
-          jinglePendingRef.current = true; // plays at the next track boundary
-        }
+      if (elapsed >= JINGLE_MAX_WAIT_MS) {
+        playJingle(); // marathon track (long sermon): interrupt rather than wait forever
+      } else if (elapsed >= JINGLE_EVERY_MS && !jinglePendingRef.current) {
+        jinglePendingRef.current = true; // plays at the next track boundary
       }
     }, 15000);
     return () => window.clearInterval(id);

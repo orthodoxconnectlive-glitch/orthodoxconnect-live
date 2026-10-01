@@ -17,7 +17,6 @@ import {
   loadPosts,
   savePost,
   deletePost,
-  togglePostLike,
   fetchPostComments,
   addPostComment,
   deletePostComment,
@@ -25,7 +24,6 @@ import {
 } from '../utils/posts';
 import { uploadMediaFile, uploadVideoToBunnyStream, compressImageToDataUrl } from '../utils/storage';
 import { isFollowing, toggleFollow } from '../utils/follows';
-import { addNotification } from '../utils/notifications';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 import { useTheme } from '../context/ThemeContext';
@@ -490,72 +488,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
     }
   };
 
-  const handleToggleLike = async (postId: string) => {
-    try {
-      // Grab the post before the async call so we know its author for the notification
-      const targetPost: any = posts.find((p) => p.id === postId) || null;
-
-      const res = await togglePostLike(postId, profile);
-
-      if (res.success) {
-        // Update the like UI immediately - never wait on the notification write
-        setPosts((prev) =>
-          prev.map((p) => {
-            if (p.id === postId) {
-              const updatedCount =
-                typeof res.likes_count === 'number'
-                  ? res.likes_count
-                  : res.liked
-                  ? (p.likesCount || 0) + 1
-                  : Math.max(0, (p.likesCount || 1) - 1);
-
-              return {
-                ...p,
-                isLiked: res.liked,
-                is_liked: res.liked,
-                likesCount: updatedCount,
-                likes_count: updatedCount,
-                likers: res.likers && res.likers.length > 0 ? res.likers : p.likers,
-              };
-            }
-            return p;
-          })
-        );
-
-        // Notify the post owner on a NEW like (skip unlikes and self-likes).
-        // Fire-and-forget: the like UI above already updated, never wait on this.
-        if (res.liked) {
-          const ownerId = targetPost
-            ? String(targetPost.authorId || targetPost.author_id || '')
-            : '';
-          const actorId = profile?.id ? String(profile.id) : '';
-
-          if (ownerId && actorId && ownerId !== actorId) {
-            addNotification(
-                {
-                  userId: ownerId,
-                  type: 'like',
-                  title: language === 'ar' ? 'بركة جديدة' : 'New blessing',
-                  body:
-                    language === 'ar'
-                      ? `${profile?.full_name || 'عضو الرعية'} بارك منشورك`
-                      : `${profile?.full_name || 'A parishioner'} blessed your post`,
-                  link: 'feed',
-                  senderName: profile?.full_name,
-                  senderAvatar: profile?.avatar_url,
-                },
-                actorId
-              ).catch((notifErr) => {
-              console.warn('[FeedView] Like notification failed:', notifErr);
-            });
-          }
-        }
-
-      }
-    } catch (err) {
-      console.warn('[FeedView] Error syncing like:', err);
-    }
-  };
 
   const handleToggleComments = async (postId: string) => {
     const isOpening = activeCommentPostId !== postId;
@@ -1010,7 +942,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 onOpenMessengerWithUser={onOpenMessengerWithUser}
                 onToggleFollow={handleToggleFollowUser}
                 isFollowed={Boolean(followedMap[post.authorName])}
-                onToggleLike={handleToggleLike}
                 onDeletePost={handleDelete}
                 onOpenReport={handleOpenReport}
                 onReshare={(p) => setReshareTargetPost(p)}

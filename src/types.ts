@@ -42,6 +42,9 @@ export interface Post {
   reshareKind?: 'reshare' | 'quote';
   reshare_kind?: string;
   likers?: { userId: string; userName: string; userAvatar?: string }[];
+  reaction_counts?: Record<string, number>;
+  reactions_count?: number;
+  my_emoji?: string | null;
 }
 
 export interface Church {

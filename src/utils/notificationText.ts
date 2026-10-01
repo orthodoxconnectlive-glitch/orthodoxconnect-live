@@ -40,6 +40,21 @@ export function localizeNotification(
         body: ar ? `${actorName} بارك منشورك` : `${actorName} blessed your post`,
       };
 
+    case 'reaction': {
+      // Non-heart emoji reactions. Stored title carries the emoji, e.g. "🙏 reacted to your post".
+      const m = storedTitle.match(/^(.+?) reacted to your (post|book|story|comment)$/);
+      const emoji = m ? m[1] : '💛';
+      const target = m ? m[2] : 'post';
+      const targetAr = target === 'book' ? 'كتابك' : target === 'story' ? 'قصتك' : target === 'comment' ? 'تعليقك' : 'منشورك';
+      const targetEn = target === 'book' ? 'your book' : target === 'story' ? 'your story' : target === 'comment' ? 'your comment' : 'your post';
+      return {
+        title: ar ? 'تفاعل جديد' : 'New reaction',
+        body: ar
+          ? `${actorName} تفاعل ${emoji} مع ${targetAr}`
+          : `${actorName} reacted ${emoji} to ${targetEn}`,
+      };
+    }
+
     case 'comment': {
       const prefix =
         actor && storedBody && !storedBody.startsWith(actor) ? `${actor}: ` : '';

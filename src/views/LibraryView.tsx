@@ -3,6 +3,12 @@ import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
+import {
+  useReactions,
+  useLongPress,
+  ReactionPopup,
+} from '../components/ReactionPicker';
+import { REACTION_HEART, reactionLabel } from '../utils/reactions';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import CopticReader from '../components/CopticReader';
 
@@ -200,20 +206,81 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
     }
   };
 
-  // --- Book likes / comments / share ---
-  const toggleLike = async (book: Book) => {
-    setBooks((prev) => prev.map((b) => b.id === book.id ? { ...b, liked_by_me: !b.liked_by_me, likes_count: Math.max(0, (b.likes_count || 0) + (b.liked_by_me ? -1 : 1)) } : b));
-    try {
-      const res = await apiFetch<{ success: boolean; liked: boolean; likes_count: number }>(
-        `/api/books/${encodeURIComponent(book.id)}/like`, { method: 'POST' });
-      if (res && res.success) {
-        setBooks((prev) => prev.map((b) => b.id === book.id ? { ...b, liked_by_me: res.liked, likes_count: res.likes_count } : b));
-      }
-    } catch (err) {
-      console.error('Like failed:', err);
-      fetchBooks();
-    }
+// Book reaction button (2026-10-01): tap = heart, press-and-hold = emoji picker.
+// Self-contained: the useReactions hook owns counts + my emoji per book card.
+function BookReactButton({ book, profile, language }: { book: Book; profile: any; language: string }) {
+  const r = useReactions(
+    'book',
+    book.id,
+    (book as any).reaction_counts,
+    (book as any).my_emoji || ((book as any).liked_by_me ? REACTION_HEART : null),
+    profile
+  );
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerRect, setPickerRect] = useState<DOMRect | null>(null);
+  const longPress = useLongPress((rect) => {
+    setPickerRect(rect);
+    setPickerOpen(true);
+  });
+
+  // Resync when the parent list refreshes with fresh server data.
+  useEffect(() => {
+    r.sync(
+      (book as any).reaction_counts,
+      (book as any).my_emoji !== undefined
+        ? (book as any).my_emoji
+        : (book as any).liked_by_me
+          ? REACTION_HEART
+          : null
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(book as any).reaction_counts, (book as any).my_emoji]);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (longPress.longPressFired()) return;
+    void r.toggleHeart();
   };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={handleClick}
+        onMouseDown={longPress.onMouseDown}
+        onMouseUp={longPress.onMouseUp}
+        onMouseLeave={longPress.onMouseLeave}
+        onTouchStart={longPress.onTouchStart}
+        onTouchEnd={longPress.onTouchEnd}
+        onTouchMove={longPress.onTouchMove}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
+        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-serif transition-colors cursor-pointer select-none ${
+          r.myEmoji ? 'text-red-500' : 'text-(--tx-mute) dark:text-[#a89379] hover:text-red-400'
+        }`}
+        title={language === 'ar' ? 'اضغط مطولاً لاختيار تفاعل' : 'Press and hold to pick a reaction'}
+      >
+        {r.myEmoji ? (
+          <span className="text-sm leading-none">{r.myEmoji}</span>
+        ) : (
+          <Heart className="w-4 h-4" />
+        )}
+        <span>{r.total}</span>
+      </button>
+      {pickerOpen && (
+        <ReactionPopup
+          myEmoji={r.myEmoji}
+          language={language}
+          anchorRect={pickerRect}
+          onPick={(e) => void r.pickEmoji(e)}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+  // --- Book comments / share ---
 
   const openComments = async (book: Book) => {
     setCommentBook(book);
@@ -687,17 +754,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
 
                 {/* Like / Comment / Share */}
                 <div className="mt-2 pt-2 border-t border-(--ln-gold)/30 flex items-center justify-around">
-                  <button
-                    type="button"
-                    onClick={() => toggleLike(book)}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-serif transition-colors cursor-pointer ${
-                      book.liked_by_me ? 'text-red-500' : 'text-(--tx-mute) dark:text-[#a89379] hover:text-red-400'
-                    }`}
-                    title={language === 'ar' ? 'إعجاب' : 'Like'}
-                  >
-                    <Heart className={`w-4 h-4 ${book.liked_by_me ? 'fill-red-500' : ''}`} />
-                    <span>{book.likes_count || 0}</span>
-                  </button>
+                  <BookReactButton book={book} profile={profile} language={language} />
                   <button
                     type="button"
                     onClick={() => openComments(book)}

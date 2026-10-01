@@ -4,6 +4,12 @@ import { storiesApi } from '../lib/api';
 import { Story, loadStories, persistStory } from '../utils/stories';
 import { compressImageToDataUrl, uploadVideoToBunnyStream, BUNNY_LIBRARY_ID } from '../utils/storage';
 import { useAuth } from '../context/AuthContext';
+import {
+  useReactions,
+  useLongPress,
+  ReactionPopup,
+} from '../components/ReactionPicker';
+import { topEmojis, reactionLabel } from '../utils/reactions';
 import { useTheme } from '../context/ThemeContext';
 import { UserProfileData } from '../views/ProfileView';
 
@@ -135,6 +141,83 @@ const StoryAudioPlayer: React.FC<{ src: string; artUrl: string }> = ({ src, artU
   );
 };
 
+// Story reaction button (2026-10-01): tap = heart, press-and-hold = emoji picker.
+function StoryReactButton({ story, profile, language }: { story: any; profile: any; language: string }) {
+  const r = useReactions(
+    'story',
+    story.id,
+    story.reactionCounts,
+    story.myEmoji || null,
+    profile
+  );
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerRect, setPickerRect] = useState<DOMRect | null>(null);
+  const longPress = useLongPress((rect) => {
+    setPickerRect(rect);
+    setPickerOpen(true);
+  });
+
+  useEffect(() => {
+    r.sync(story.reactionCounts, story.myEmoji !== undefined ? story.myEmoji : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [story.reactionCounts, story.myEmoji]);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (longPress.longPressFired()) return;
+    void r.toggleHeart();
+  };
+
+  const tops = topEmojis(r.counts, 3);
+
+  return (
+    <div className="flex items-center justify-center gap-2">
+      <button
+        type="button"
+        onClick={handleClick}
+        onMouseDown={longPress.onMouseDown}
+        onMouseUp={longPress.onMouseUp}
+        onMouseLeave={longPress.onMouseLeave}
+        onTouchStart={longPress.onTouchStart}
+        onTouchEnd={longPress.onTouchEnd}
+        onTouchMove={longPress.onTouchMove}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
+        className={`flex items-center gap-1.5 px-4 py-2 rounded-full transition-all cursor-pointer select-none active:scale-95 backdrop-blur-md ${
+          r.myEmoji
+            ? 'bg-rose-600/90 text-white font-bold shadow-lg'
+            : 'bg-black/50 text-white hover:bg-black/70 border border-white/20'
+        }`}
+        title={language === 'ar' ? 'اضغط مطولاً لاختيار تفاعل' : 'Press and hold to pick a reaction'}
+      >
+        <span className="text-lg leading-none">{r.myEmoji || '🤍'}</span>
+        <span className="text-xs font-bold">
+          {r.myEmoji ? reactionLabel(r.myEmoji, language) : language === 'ar' ? 'تفاعل' : 'React'}
+        </span>
+        {r.total > 0 && <span className="text-xs font-bold opacity-90">({r.total})</span>}
+      </button>
+      {tops.length > 0 && (
+        <div className="flex items-center gap-0.5 bg-black/50 backdrop-blur-md rounded-full px-2.5 py-1.5 border border-white/20">
+          {tops.map(([emoji, count]) => (
+            <span key={emoji} className="text-sm leading-none" title={String(count)}>
+              {emoji}
+            </span>
+          ))}
+        </div>
+      )}
+      {pickerOpen && (
+        <ReactionPopup
+          myEmoji={r.myEmoji}
+          language={language}
+          anchorRect={pickerRect}
+          onPick={(e) => void r.pickEmoji(e)}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
 export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';
@@ -180,7 +263,10 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
             mediaType: d.media_type || d.mediaType || 'image',
             caption: d.caption || '',
             createdAt: d.created_at || new Date().toISOString(),
-          }));
+            reactionCounts: d.reaction_counts || {},
+            reactionsCount: d.reactions_count || 0,
+            myEmoji: d.my_emoji || null,
+          } as Story & { reactionCounts?: Record<string, number>; reactionsCount?: number; myEmoji?: string | null }));
           const combined = [...local];
           mapped.forEach((m) => {
             if (!combined.some((c) => c.id === m.id)) {
@@ -602,7 +688,7 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
 
             {/* Bottom Caption Overlay */}
             {activeStory.caption && (
-              <div className="relative z-10 p-5 space-y-2">
+              <div className="relative z-10 px-5 pt-5 space-y-2">
                 <p className="text-sm text-[#f5ebd9] font-serif leading-relaxed bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-(--ln-gold)/40">
                   {activeStory.caption}
                 </p>
@@ -611,6 +697,16 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
                 </span>
               </div>
             )}
+
+            {/* Bottom Reaction Bar (2026-10-01): tap = heart, press-and-hold = emoji picker */}
+            <div className="relative z-10 p-4">
+              <StoryReactButton
+                key={activeStory.id}
+                story={activeStory}
+                profile={profile}
+                language={ar ? 'ar' : 'en'}
+              />
+            </div>
           </div>
         </div>
       )}

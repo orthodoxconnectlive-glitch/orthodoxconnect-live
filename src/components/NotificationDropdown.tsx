@@ -56,6 +56,8 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     switch (type) {
       case 'like':
         return <Heart className="w-4 h-4 text-red-500 fill-red-500" />;
+      case 'reaction':
+        return <span className="text-base leading-none">💛</span>;
       case 'comment':
         return <MessageCircle className="w-4 h-4 text-(--ac-gold-tx)" />;
       case 'message':

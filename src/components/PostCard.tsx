@@ -18,11 +18,20 @@ import {
 } from 'lucide-react';
 import { Post, UserProfile, PostComment } from '../types';
 import { apiFetch } from '../lib/api';
+import {
+  useReactions,
+  useLongPress,
+  ReactionPopup,
+  ReactionSummary,
+  ReactorsModal,
+  CommentReactions,
+} from './ReactionPicker';
+import { REACTION_HEART, reactionLabel } from '../utils/reactions';
 import { TimeAgo } from './TimeAgo';
 import { BroadcastCard } from './BroadcastCard';
 import { AudioPlayer } from './AudioPlayer';
 import { useTheme } from '../context/ThemeContext';
-import { fetchPostLikes, BUNNY_LIBRARY_ID, BUNNY_CDN_HOSTNAME } from '../utils/posts';
+import { BUNNY_LIBRARY_ID, BUNNY_CDN_HOSTNAME } from '../utils/posts';
 
 interface PostCardProps {
   post: Post;
@@ -31,7 +40,6 @@ interface PostCardProps {
   onOpenMessengerWithUser?: (userIdOrName: string) => void;
   onToggleFollow?: (authorName: string) => void;
   isFollowed?: boolean;
-  onToggleLike: (postId: string) => void;
   onDeletePost?: (postId: string) => void;
   onOpenReport: (type: 'post' | 'comment', id: string, authorName: string, snippet: string) => void;
   onReshare: (post: Post) => void;
@@ -261,7 +269,6 @@ export const PostCard: React.FC<PostCardProps> = ({
   onOpenMessengerWithUser,
   onToggleFollow,
   isFollowed = false,
-  onToggleLike,
   onDeletePost,
   onOpenReport,
   onReshare,
@@ -281,9 +288,9 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [pickedMentions, setPickedMentions] = useState<{ id: string; name: string }[]>([]);
   const mentionProfilesCache = useRef<{ id: string; name: string; avatar: string }[] | null>(null);
   const commentInputRef = useRef<HTMLInputElement | null>(null);
-  const [showLikesModal, setShowLikesModal] = useState<boolean>(false);
-  const [modalLikers, setModalLikers] = useState<any[]>([]);
-  const [isLoadingLikers, setIsLoadingLikers] = useState<boolean>(false);
+  const [showReactorsModal, setShowReactorsModal] = useState<boolean>(false);
+  const [pickerOpen, setPickerOpen] = useState<boolean>(false);
+  const [pickerRect, setPickerRect] = useState<DOMRect | null>(null);
   const [isVideoLoaded, setIsVideoLoaded] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
@@ -295,11 +302,16 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   // Sync state from D1 snake_case or standard camelCase
   const rawPost = post as any;
-  const [isLiked, setIsLiked] = useState<boolean>(Boolean(post.isLiked || rawPost.is_liked));
-  const [likesCount, setLikesCount] = useState<number>(
-    Number(rawPost.likes_count ?? post.likesCount ?? 0)
+  // Unified emoji reactions (2026-10-01): one hook drives the summary row,
+  // the Bless toolbar button (tap = heart, press-and-hold = emoji picker)
+  // and the reactors modal. Old bless data arrives as heart reactions.
+  const postReactions = useReactions(
+    'post',
+    post.id,
+    (rawPost.reaction_counts as Record<string, number>) || undefined,
+    rawPost.my_emoji || (post.isLiked || rawPost.is_liked ? REACTION_HEART : null),
+    currentProfile
   );
-  const [likers, setLikers] = useState<any[]>(post.likers || []);
 
   const postContent = (post.content ?? post.text ?? '').trim();
 
@@ -383,27 +395,19 @@ export const PostCard: React.FC<PostCardProps> = ({
     };
   }, []);
 
-  // Synchronize state when post props change
+  // Synchronize reaction state when fresh post props arrive (feed refresh).
   useEffect(() => {
-    setIsLiked(Boolean(post.isLiked || rawPost.is_liked));
-    setLikesCount(Number(rawPost.likes_count ?? post.likesCount ?? 0));
-    if (post.likers) {
-      setLikers(post.likers);
-    }
-  }, [post.isLiked, rawPost.is_liked, post.likesCount, rawPost.likes_count, post.likers]);
+    postReactions.sync(
+      (rawPost.reaction_counts as Record<string, number>) || undefined,
+      rawPost.my_emoji !== undefined
+        ? rawPost.my_emoji
+        : post.isLiked || rawPost.is_liked
+          ? REACTION_HEART
+          : null
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawPost.reaction_counts, rawPost.my_emoji, post.isLiked, rawPost.is_liked]);
 
-  // Automatically fetch who liked this post if likes exist
-  useEffect(() => {
-    if (likesCount > 0 && (!likers || likers.length === 0)) {
-      fetchPostLikes(post.id)
-        .then((data) => {
-          if (data && data.length > 0) {
-            setLikers(data);
-          }
-        })
-        .catch((err) => console.warn('Silent liker prefetch failed:', err));
-    }
-  }, [post.id, likesCount]);
 
   const toggleTextToSpeech = () => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -476,11 +480,18 @@ export const PostCard: React.FC<PostCardProps> = ({
     currentProfile?.email === 'orthodoxconnect.live@gmail.com' ||
     currentProfile?.id === '9e63fd72-f7c1-4748-b463-1137b469c7f5';
 
-  const handleLikeClick = (e: React.MouseEvent) => {
+  // Press-and-hold the Bless button to open the emoji picker.
+  const longPress = useLongPress((rect) => {
+    setPickerRect(rect);
+    setPickerOpen(true);
+  });
+
+  // Tap the Bless button: toggle the heart reaction. If the press-and-hold
+  // already opened the picker, swallow the click that follows the release.
+  const handleReactClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsLiked((prev) => !prev);
-    setLikesCount((prev) => (isLiked ? Math.max(0, prev - 1) : prev + 1));
-    onToggleLike(post.id);
+    if (longPress.longPressFired()) return;
+    void postReactions.toggleHeart();
   };
 
   // Load the member list once per session for the @mention picker.
@@ -621,27 +632,6 @@ export const PostCard: React.FC<PostCardProps> = ({
     setMentionQuery('');
   };
 
-  const handleOpenLikesModal = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowLikesModal(true);
-    setIsLoadingLikers(true);
-
-    try {
-      const fetched = await fetchPostLikes(post.id);
-      if (fetched && fetched.length > 0) {
-        setModalLikers(fetched);
-      } else if (likers && likers.length > 0) {
-        setModalLikers(likers);
-      } else {
-        setModalLikers([]);
-      }
-    } catch (err) {
-      console.warn('Failed to load likers:', err);
-      setModalLikers(likers || []);
-    } finally {
-      setIsLoadingLikers(false);
-    }
-  };
 
   const hasAudio = Boolean(post.audio || post.audioUrl || post.audio_url);
   const audioSource = post.audio || post.audioUrl || post.audio_url;
@@ -665,33 +655,6 @@ export const PostCard: React.FC<PostCardProps> = ({
     }
     return c;
   });
-
-  // Construct readable like string: "You and [Name]", "[Name 1] and 5 others", etc.
-  const totalLikes = likesCount;
-  let likeSummaryText = '';
-  if (totalLikes > 0) {
-    if (isLiked) {
-      if (totalLikes === 1) {
-        likeSummaryText = language === 'ar' ? 'أنت باركت هذا' : 'You blessed this';
-      } else {
-        const otherName = likers?.find((l) => l.userId !== currentProfile?.id && l.userId !== 'me')?.userName;
-        likeSummaryText = otherName
-          ? (language === 'ar' ? `أنت، ${otherName} و ${totalLikes - 2 > 0 ? `${totalLikes - 2} آخرين` : ''}` : `You, ${otherName} and ${totalLikes - 2 > 0 ? `${totalLikes - 2} others` : ''}`)
-          : (language === 'ar' ? `أنت و ${totalLikes - 1} آخرين` : `You and ${totalLikes - 1} others`);
-      }
-    } else {
-      if (likers && likers.length > 0) {
-        const first = likers[0]?.userName || (language === 'ar' ? 'عضو الرعية' : 'Parishioner');
-        if (totalLikes === 1) {
-          likeSummaryText = first;
-        } else {
-          likeSummaryText = language === 'ar' ? `${first} و ${totalLikes - 1} آخرين` : `${first} and ${totalLikes - 1} others`;
-        }
-      } else {
-        likeSummaryText = language === 'ar' ? `${totalLikes} بركة` : `${totalLikes} ${totalLikes === 1 ? 'blessing' : 'blessings'}`;
-      }
-    }
-  }
 
   return (
     <div
@@ -1029,31 +992,13 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Likes Preview & Interaction Header */}
       <div className="flex items-center justify-between pt-2.5 pb-1 px-1 text-[11px] text-(--tx-soft) dark:text-(--ac-gold-tx) border-t border-(--ln-bright)/15">
-        <button
-          type="button"
-          onClick={handleOpenLikesModal}
-          className="flex items-center gap-1.5 hover:underline cursor-pointer group text-left rtl:text-right"
-          title={language === 'ar' ? 'عرض من بارك هذا المنشور' : 'See who blessed this'}
-        >
-          <div className="flex items-center -space-x-1.5 rtl:space-x-reverse">
-            <span className="w-5 h-5 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 text-white flex items-center justify-center shadow-xs text-[10px] z-10">
-              ❤️
-            </span>
-            {likers &&
-              likers.length > 0 &&
-              likers.slice(0, 3).map((l, i) => (
-                <img
-                  key={i}
-                  src={l.userAvatar || l.avatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
-                  alt={l.userName || l.name || 'Liker'}
-                  className="w-5 h-5 rounded-full border border-white dark:border-[#1f1914] object-cover"
-                />
-              ))}
-          </div>
-          <span className="font-medium text-(--tx-head) dark:text-[#e6d5b8] group-hover:text-(--ac-gold-tx) transition-colors">
-            {totalLikes > 0 ? likeSummaryText : language === 'ar' ? 'كن أول من يبارك' : 'Be the first to bless'}
-          </span>
-        </button>
+        <ReactionSummary
+          counts={postReactions.counts}
+          total={postReactions.total}
+          myEmoji={postReactions.myEmoji}
+          language={language}
+          onOpen={() => setShowReactorsModal(true)}
+        />
 
         <div className="flex items-center gap-3 text-(--tx-soft) dark:text-[#a89379]">
           {(post.commentsCount || 0) > 0 && (
@@ -1077,20 +1022,45 @@ export const PostCard: React.FC<PostCardProps> = ({
       <div className="flex items-center justify-between pt-2 border-t border-(--ln-bright)/20 text-xs">
         <button
           type="button"
-          onClick={handleLikeClick}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl transition-all cursor-pointer select-none active:scale-95 ${
-            isLiked
+          onClick={handleReactClick}
+          onMouseDown={longPress.onMouseDown}
+          onMouseUp={longPress.onMouseUp}
+          onMouseLeave={longPress.onMouseLeave}
+          onTouchStart={longPress.onTouchStart}
+          onTouchEnd={longPress.onTouchEnd}
+          onTouchMove={longPress.onTouchMove}
+          onContextMenu={(e) => e.preventDefault()}
+          style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
+          className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl transition-all cursor-pointer select-none active:scale-95 ${
+            postReactions.myEmoji
               ? 'bg-rose-50 dark:bg-rose-950/30 text-red-600 font-bold border border-rose-200 dark:border-rose-900/40 shadow-xs'
               : 'text-(--tx-soft) hover:text-red-600 hover:bg-(--bg-inset) dark:hover:bg-[#282019]'
           }`}
-          title={language === 'ar' ? (isLiked ? 'إلغاء البركة' : 'مباركة التأمل') : isLiked ? 'Unlike reflection' : 'Bless reflection'}
+          title={language === 'ar' ? 'اضغط مطولاً لاختيار تفاعل' : 'Press and hold to pick a reaction'}
         >
-          <Heart className={`w-4 h-4 transition-transform ${isLiked ? 'fill-current text-red-600 scale-110' : 'group-hover:scale-110'}`} />
+          {postReactions.myEmoji ? (
+            <span className="text-base leading-none">{postReactions.myEmoji}</span>
+          ) : (
+            <Heart className="w-4 h-4 transition-transform group-hover:scale-110" />
+          )}
           <span className="font-serif font-semibold">
-            {language === 'ar' ? (isLiked ? 'مُبارك' : 'تبارك') : isLiked ? 'Blessed' : 'Bless'}
+            {postReactions.myEmoji
+              ? reactionLabel(postReactions.myEmoji, language)
+              : language === 'ar' ? 'تبارك' : 'Bless'}
           </span>
-          <span className="text-[11px] font-bold opacity-90">({totalLikes})</span>
+          {postReactions.total > 0 && (
+            <span className="text-[11px] font-bold opacity-90">({postReactions.total})</span>
+          )}
         </button>
+        {pickerOpen && (
+          <ReactionPopup
+            myEmoji={postReactions.myEmoji}
+            language={language}
+            anchorRect={pickerRect}
+            onPick={(e) => void postReactions.pickEmoji(e)}
+            onClose={() => setPickerOpen(false)}
+          />
+        )}
 
         <button
           type="button"
@@ -1224,6 +1194,15 @@ export const PostCard: React.FC<PostCardProps> = ({
                       </div>
 
                       <div className="flex items-center gap-3 pl-2 rtl:pl-0 rtl:pr-2 pt-1 text-[10px] text-(--tx-soft) dark:text-[#a89379]">
+                        {!String(comm.id).startsWith('temp-') && !String(comm.id).startsWith('comm-fallback-') && (
+                          <CommentReactions
+                            targetId={String(comm.id)}
+                            initialCounts={(comm as any).reaction_counts}
+                            initialMyEmoji={(comm as any).my_emoji}
+                            profile={currentProfile}
+                            language={language}
+                          />
+                        )}
                         {canDelete && onDeleteComment && (
                           <button
                             type="button"
@@ -1314,99 +1293,16 @@ export const PostCard: React.FC<PostCardProps> = ({
         </div>
       )}
 
-      {/* Likes Modal with Complete List of Users */}
-      {showLikesModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-[#fffdfa] dark:bg-[#1f1914] border border-(--ln-gold)/40 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
-            <div className="flex items-center justify-between p-4 border-b border-(--ln-gold)/20 bg-[#f5ebd9]/30 dark:bg-[#282019]">
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 text-white flex items-center justify-center shadow-xs text-xs">
-                  ❤️
-                </span>
-                <h3 className="font-serif font-bold text-sm text-(--tx-strong) dark:text-[#f5ebd9]">
-                  {language === 'ar'
-                    ? `الذين باركوا هذا التأمل (${modalLikers.length || totalLikes})`
-                    : `People who blessed this reflection (${modalLikers.length || totalLikes})`}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowLikesModal(false)}
-                className="p-1 rounded-lg text-(--tx-soft) hover:text-(--tx-strong) hover:bg-(--ac-gold)/15 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-4 max-h-80 overflow-y-auto divide-y divide-(--ln-gold)/10 space-y-2">
-              {isLoadingLikers ? (
-                <div className="py-6 text-center text-xs text-(--tx-soft) dark:text-(--ac-gold-tx) animate-pulse">
-                  {language === 'ar' ? 'جارٍ تحميل أبناء الرعية...' : 'Loading parishioners...'}
-                </div>
-              ) : modalLikers.length === 0 ? (
-                <div className="py-6 text-center text-xs text-(--tx-soft) dark:text-[#a89379]">
-                  {totalLikes > 0
-                    ? language === 'ar'
-                      ? `${totalLikes} أعضاء باركوا هذا التأمل`
-                      : `${totalLikes} parishioners blessed this reflection`
-                    : language === 'ar'
-                    ? 'لا توجد بركات بعد'
-                    : 'No blessings yet'}
-                </div>
-              ) : (
-                modalLikers.map((liker, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between py-2 pt-2 cursor-pointer hover:bg-(--ac-gold)/10 rounded-xl px-2 transition-colors"
-                    onClick={() => {
-                      setShowLikesModal(false);
-                      onSelectUser?.({
-                        id: liker.userId || liker.id,
-                        name: liker.userName || liker.name || 'Parishioner',
-                        avatar: liker.userAvatar || liker.avatar || '',
-                        parish: liker.parish || 'Orthodox Parish',
-                      });
-                    }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={liker.userAvatar || liker.avatar || 'https://orthodoxconnect.live/launchericon-512x512.png'}
-                        alt={liker.userName || liker.name || 'User'}
-                        className="w-9 h-9 rounded-full object-cover border border-(--ln-gold)"
-                      />
-                      <div>
-                        <div className="font-serif font-bold text-xs text-(--tx-strong) dark:text-[#f5ebd9]">
-                          {liker.userName || liker.name || 'Orthodox Parishioner'}
-                        </div>
-                        <div className="text-[10px] text-(--tx-soft) dark:text-[#a89379]">
-                          {liker.userId === currentProfile?.id
-                            ? language === 'ar'
-                              ? 'أنت'
-                              : 'You'
-                            : liker.parish || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner')}
-                        </div>
-                      </div>
-                    </div>
-                    {onOpenMessengerWithUser && liker.userId !== currentProfile?.id && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowLikesModal(false);
-                          onOpenMessengerWithUser(liker.userId || liker.id || liker.userName);
-                        }}
-                        className="p-1.5 rounded-lg text-(--tx-soft) hover:text-(--tx-strong) hover:bg-(--ac-gold)/20 transition-colors"
-                        title={language === 'ar' ? 'إرسال رسالة' : 'Send Message'}
-                      >
-                        <MessageSquare className="w-3.5 h-3.5 text-(--ac-bronze-tx)" />
-                      </button>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Reactions Modal — who reacted, with their emoji */}
+      {showReactorsModal && (
+        <ReactorsModal
+          targetType="post"
+          targetId={post.id}
+          total={postReactions.total}
+          language={language}
+          onClose={() => setShowReactorsModal(false)}
+          onSelectUser={onSelectUser}
+        />
       )}
     </div>
   );

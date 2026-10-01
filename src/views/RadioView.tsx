@@ -202,18 +202,49 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
     });
   };
 
+  // Resolves when the current YouTube player fires onReady.
+  const playerReadyRef = useRef<Promise<void> | null>(null);
+
   const ensurePlayer = async (): Promise<any> => {
-    if (playerRef.current) return playerRef.current;
+    if (playerRef.current) {
+      // A previous tap may still be initializing the player; wait for it.
+      if (playerReadyRef.current) await playerReadyRef.current;
+      return playerRef.current;
+    }
     const YT = await loadYouTubeApi();
     if (!playerHostRef.current) throw new Error('player host missing');
     const ids = playlistIds();
     if (!ids.length) throw new Error('empty');
+    let resolveReady: () => void = () => {};
+    let rejectReady: (e: any) => void = () => {};
+    playerReadyRef.current = new Promise<void>((res, rej) => {
+      resolveReady = res;
+      rejectReady = rej;
+    });
+    const readyTimer = setTimeout(() => rejectReady(new Error('player init timeout')), 20000);
     const player = new YT.Player(playerHostRef.current, {
       videoId: ids[0],
       playerVars: { autoplay: 0, rel: 0, modestbranding: 1 },
+      events: {
+        onReady: () => {
+          clearTimeout(readyTimer);
+          resolveReady();
+        },
+      },
     });
     attachPlayerEvents(player);
     playerRef.current = player;
+    try {
+      // Never issue playlist commands before the player is ready.
+      await playerReadyRef.current;
+    } catch (e) {
+      // Tear down the broken player so the next tap starts clean.
+      try { player.destroy(); } catch {}
+      playerRef.current = null;
+      playerReadyRef.current = null;
+      throw e;
+    }
+    playerReadyRef.current = null;
     return player;
   };
 
@@ -232,10 +263,12 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
         }
       } catch {}
       const safeIndex = Math.max(0, Math.min(index, ids.length - 1));
-      player.loadPlaylist({ playlist: ids, index: safeIndex });
+      // Array form is the documented loadPlaylist signature; only call once ready.
+      player.loadPlaylist(ids, safeIndex);
       setCurrentIndex(safeIndex);
       setStarted(true);
     } catch (e: any) {
+      try { console.error('[radio] startAt failed', e); } catch {}
       setPlayerError(ar ? 'تعذر تشغيل الراديو. حاول مرة أخرى.' : 'Could not start the radio. Please try again.');
     }
   };

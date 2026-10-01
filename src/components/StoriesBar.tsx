@@ -6,7 +6,6 @@ import { compressImageToDataUrl, uploadVideoToBunnyStream, BUNNY_LIBRARY_ID } fr
 import { useAuth } from '../context/AuthContext';
 import {
   useReactions,
-  useLongPress,
   ReactionPopup,
 } from '../components/ReactionPicker';
 import { topEmojis, reactionLabel } from '../utils/reactions';
@@ -152,10 +151,6 @@ function StoryReactButton({ story, profile, language }: { story: any; profile: a
   );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerRect, setPickerRect] = useState<DOMRect | null>(null);
-  const longPress = useLongPress((rect) => {
-    setPickerRect(rect);
-    setPickerOpen(true);
-  });
 
   useEffect(() => {
     r.sync(story.reactionCounts, story.myEmoji !== undefined ? story.myEmoji : null);
@@ -164,8 +159,8 @@ function StoryReactButton({ story, profile, language }: { story: any; profile: a
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (longPress.longPressFired()) return;
-    void r.toggleHeart();
+    setPickerRect((e.currentTarget as HTMLElement).getBoundingClientRect());
+    setPickerOpen(true);
   };
 
   const tops = topEmojis(r.counts, 3);
@@ -175,20 +170,12 @@ function StoryReactButton({ story, profile, language }: { story: any; profile: a
       <button
         type="button"
         onClick={handleClick}
-        onMouseDown={longPress.onMouseDown}
-        onMouseUp={longPress.onMouseUp}
-        onMouseLeave={longPress.onMouseLeave}
-        onTouchStart={longPress.onTouchStart}
-        onTouchEnd={longPress.onTouchEnd}
-        onTouchMove={longPress.onTouchMove}
-        onContextMenu={(e) => e.preventDefault()}
-        style={{ WebkitTouchCallout: 'none' } as React.CSSProperties}
         className={`flex items-center gap-1.5 px-4 py-2 rounded-full transition-all cursor-pointer select-none active:scale-95 backdrop-blur-md ${
           r.myEmoji
             ? 'bg-rose-600/90 text-white font-bold shadow-lg'
             : 'bg-black/50 text-white hover:bg-black/70 border border-white/20'
         }`}
-        title={language === 'ar' ? 'اضغط مطولاً لاختيار تفاعل' : 'Press and hold to pick a reaction'}
+        title={language === 'ar' ? 'اضغط لاختيار تفاعل' : 'Tap to choose a reaction'}
       >
         <span className="text-lg leading-none">{r.myEmoji || '🤍'}</span>
         <span className="text-xs font-bold">

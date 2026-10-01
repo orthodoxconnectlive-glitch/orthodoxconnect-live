@@ -104,6 +104,14 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
   liveRef.current = live;
   const [jingleNow, setJingleNow] = useState(false);
 
+  // ---------- Welcome jingle: plays once per visit when the station starts ----------
+  const WELCOME_URL = '/radio-welcome.mp3';
+  const welcomePlayedRef = useRef(false);
+  const welcomePlayingRef = useRef(false);
+  const welcomeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const welcomeFinishRef = useRef<((proceed: boolean) => void) | null>(null);
+  const [welcomeNow, setWelcomeNow] = useState(false);
+
   const playJingle = useCallback(() => {
     const player = playerRef.current;
     jinglePlayingRef.current = true;
@@ -134,6 +142,39 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
     } catch {
       resume();
     }
+  }, []);
+  // Welcome jingle: plays once per visit before the first track. Never stalls the station.
+  const playWelcome = useCallback((): Promise<boolean> => {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (proceed: boolean) => {
+        if (done) return;
+        done = true;
+        welcomePlayingRef.current = false;
+        welcomeFinishRef.current = null;
+        setWelcomeNow(false);
+        try { welcomeAudioRef.current?.pause(); } catch {}
+        resolve(proceed);
+      };
+      welcomeFinishRef.current = finish;
+      welcomePlayingRef.current = true;
+      setWelcomeNow(true);
+      try {
+        let audio = welcomeAudioRef.current;
+        if (!audio) {
+          audio = new Audio(WELCOME_URL);
+          audio.preload = 'auto';
+          welcomeAudioRef.current = audio;
+        }
+        audio.onended = () => finish(true);
+        audio.onerror = () => finish(true); // missing file: start the track anyway
+        audio.currentTime = 0;
+        const pr = audio.play();
+        if (pr && typeof (pr as any).catch === 'function') (pr as any).catch(() => finish(true));
+      } catch {
+        finish(true);
+      }
+    });
   }, []);
   const tracksRef = useRef<RadioTrack[]>([]);
   const filterRef = useRef('all');
@@ -254,19 +295,34 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
       const ids = playlistIds();
       if (!ids.length) return;
       const player = await ensurePlayer();
-      // Warm up the station-ID jingle so it plays instantly when due.
+      // Warm up the jingles so they play instantly when due.
       try {
         if (!jingleAudioRef.current) {
           const a = new Audio(JINGLE_URL);
           a.preload = 'auto';
           jingleAudioRef.current = a;
         }
+        if (!welcomeAudioRef.current) {
+          const w = new Audio(WELCOME_URL);
+          w.preload = 'auto';
+          welcomeAudioRef.current = w;
+        }
       } catch {}
       const safeIndex = Math.max(0, Math.min(index, ids.length - 1));
-      // Array form is the documented loadPlaylist signature; only call once ready.
-      player.loadPlaylist(ids, safeIndex);
-      setCurrentIndex(safeIndex);
-      setStarted(true);
+      const begin = () => {
+        // Array form is the documented loadPlaylist signature; only call once ready.
+        player.loadPlaylist(ids, safeIndex);
+        setCurrentIndex(safeIndex);
+        setStarted(true);
+      };
+      // First start of the visit (regular station only): welcome jingle, then the track.
+      if (!welcomePlayedRef.current && !liveRef.current.is_live) {
+        welcomePlayedRef.current = true;
+        await playWelcome();
+        begin();
+        return;
+      }
+      begin();
     } catch (e: any) {
       try { console.error('[radio] startAt failed', e); } catch {}
       setPlayerError(ar ? 'تعذر تشغيل الراديو. حاول مرة أخرى.' : 'Could not start the radio. Please try again.');
@@ -274,6 +330,11 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
   };
 
   const togglePlay = async () => {
+    if (welcomePlayingRef.current) {
+      // Tapped during the welcome: skip it and start the track right away.
+      try { welcomeFinishRef.current?.(true); } catch {}
+      return;
+    }
     if (!playerRef.current) {
       await startAt(currentIndex);
       return;
@@ -295,7 +356,7 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
     if (playerRef.current && started) {
       const ids = tracksRef.current.filter((t) => f === 'all' || t.category === f).map((t) => t.youtube_id);
       if (ids.length) {
-        try { playerRef.current.loadPlaylist({ playlist: ids, index: 0 }); } catch {}
+        try { playerRef.current.loadPlaylist(ids, 0); } catch {}
       } else {
         try { playerRef.current.stopVideo(); } catch {}
         setIsPlaying(false);
@@ -604,6 +665,10 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
               {jingleNow ? (
                 <p className="font-bold text-(--tx-strong) dark:text-[#f5ebd9] truncate">
                   📻 {ar ? 'أرثوذكس كونيكت راديو لايف' : 'OrthodoxConnect Radio Live'}
+                </p>
+              ) : welcomeNow ? (
+                <p className="font-bold text-(--tx-strong) dark:text-[#f5ebd9] truncate">
+                  👋 {ar ? 'أهلاً بيك في راديو أرثوذكس كونيكت' : 'Welcome to OrthodoxConnect Radio'}
                 </p>
               ) : (
                 <p className="font-bold text-(--tx-strong) dark:text-[#f5ebd9] truncate">

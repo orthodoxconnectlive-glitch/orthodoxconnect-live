@@ -228,6 +228,13 @@ const SHENOUDA_BOOK_CATEGORIES: Record<string, string> = {
 };
 async function seedShenoudaBooks(db: D1Database): Promise<void> {
   try {
+    // Cold-start speed (2026-10-02): the 80-book seed plus 4 follow-up
+    // batches are one-time work. If the first book exists, all of it
+    // already ran — skip the 5 round trips.
+    try {
+      const chk: any = await db.prepare(`SELECT 1 AS one FROM books WHERE id = 'shenouda-001' LIMIT 1`).all();
+      if ((((chk && chk.results) || [])[0] || {}).one) return;
+    } catch (e) { /* books table missing: fall through and seed */ }
     const stmts = SHENOUDA_BOOKS.map(([id, titleAr, titleEn, fileUrl]) =>
       db.prepare(`INSERT OR IGNORE INTO books (id, title_ar, title_en, author_ar, author_en, category, file_url, description) VALUES (?, ?, ?, 'البابا شنودة الثالث', 'Pope Shenouda III', 'shenouda', ?, '')`).bind(id, titleAr, titleEn, fileUrl)
     );
@@ -331,6 +338,11 @@ async function seedShenoudaBooks(db: D1Database): Promise<void> {
 // Real PDF + cover hosted on orthodoxconnect.live/public. INSERT OR IGNORE = idempotent.
 async function seedSaintsBook(db: D1Database): Promise<void> {
   try {
+    // Cold-start speed (2026-10-02): one-time seed + data fix; skip when present.
+    try {
+      const chk: any = await db.prepare(`SELECT 1 AS one FROM books WHERE id = 'saints-001' LIMIT 1`).all();
+      if ((((chk && chk.results) || [])[0] || {}).one) return;
+    } catch (e) { /* books table missing: fall through and seed */ }
     await db.prepare(`INSERT OR IGNORE INTO books (id, title_ar, title_en, author_ar, author_en, category, file_url, cover_image_url, description) VALUES ('saints-001', 'علم الآباء (الباترولوجي)', 'Patrology: The Science of the Fathers', 'إيبوذياكون حنا جاب الله أبوسيف', 'Deacon Hanna Gaballa Abouseif', 'patristics', 'https://orthodoxconnect.live/saints-biographies-ar.pdf', 'https://orthodoxconnect.live/saints-biographies-ar-cover.jpg', 'علم الآباء (الباترولوجي): دراسة في حياة آباء الكنيسة وتعاليمهم — البابا ديسقورس الأول، والقديس يوحنا ذهبي الفم، والقديس أثناسيوس الرسولي، والقديس ساويرس الأنطاكي. إعداد كنيسة السيدة العذراء مريم، الاجتماع العام، تحت إشراف القمص إبراهيم مجدي.')`).run();
     await db.prepare(`UPDATE books SET title_ar = 'علم الآباء (الباترولوجي)', title_en = 'Patrology: The Science of the Fathers', author_ar = 'إيبوذياكون حنا جاب الله أبوسيف', author_en = 'Deacon Hanna Gaballa Abouseif', category = 'patristics', cover_image_url = 'https://orthodoxconnect.live/saints-biographies-ar-cover.jpg' WHERE id = 'saints-001'`).run();
   } catch (seedErr) {
@@ -350,8 +362,17 @@ async function ensureReactionsTable(db: any) {
   try {
     await db.exec(`CREATE TABLE IF NOT EXISTS reactions ( target_type TEXT NOT NULL, target_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, user_avatar TEXT, emoji TEXT NOT NULL DEFAULT '\u2764\uFE0F', created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (target_type, target_id, user_id) )`);
     await db.exec(`CREATE INDEX IF NOT EXISTS idx_reactions_target ON reactions (target_type, target_id)`);
-    try { await db.exec(`INSERT OR IGNORE INTO reactions (target_type, target_id, user_id, user_name, user_avatar, emoji, created_at) SELECT 'post', post_id, user_id, user_name, user_avatar, '\u2764\uFE0F', created_at FROM post_likes`); } catch (e) { /* post_likes missing on fresh DBs */ }
-    try { await db.exec(`INSERT OR IGNORE INTO reactions (target_type, target_id, user_id, emoji, created_at) SELECT 'book', book_id, user_id, '\u2764\uFE0F', created_at FROM book_likes`); } catch (e) { /* book_likes missing on fresh DBs */ }
+    // Cold-start speed (2026-10-02): the old-likes backfill is one-time
+    // work. If the table already holds rows, it ran — skip the full scans.
+    let needBackfill = true;
+    try {
+      const chk: any = await db.prepare(`SELECT 1 AS one FROM reactions LIMIT 1`).all();
+      needBackfill = !((((chk && chk.results) || [])[0] || {}).one);
+    } catch (e) { /* table just created: backfill below */ }
+    if (needBackfill) {
+      try { await db.exec(`INSERT OR IGNORE INTO reactions (target_type, target_id, user_id, user_name, user_avatar, emoji, created_at) SELECT 'post', post_id, user_id, user_name, user_avatar, '\u2764\uFE0F', created_at FROM post_likes`); } catch (e) { /* post_likes missing on fresh DBs */ }
+      try { await db.exec(`INSERT OR IGNORE INTO reactions (target_type, target_id, user_id, emoji, created_at) SELECT 'book', book_id, user_id, '\u2764\uFE0F', created_at FROM book_likes`); } catch (e) { /* book_likes missing on fresh DBs */ }
+    }
   } catch (e) { console.warn('[ensureReactionsTable] notice:', (e as any)?.message || e); }
 }
 

@@ -375,6 +375,17 @@ async function ensureReactionsTable(db: any) {
     }
   } catch (e) { console.warn('[ensureReactionsTable] notice:', (e as any)?.message || e); }
 }
+// Book read/download counter (2026-10-02): reads_count on books. PRAGMA-gated
+// so the ALTER runs once. Called from BOTH the fast path and the slow path of
+// ensureD1Tables: the fast path returns early on fully-migrated databases, so a
+// migration placed only in the slow path would never run in production.
+async function ensureBooksReadsCount(db: any) {
+  try {
+    const info: any = await db.prepare(`PRAGMA table_info(books)`).all();
+    const cols = new Set((((info && info.results) || []) as any[]).map((r: any) => r.name));
+    if (!cols.has('reads_count')) { await db.exec(`ALTER TABLE books ADD COLUMN reads_count INTEGER NOT NULL DEFAULT 0`); }
+  } catch (e) { console.warn('[ensureBooksReadsCount] notice:', (e as any)?.message || e); }
+}
 
 export async function ensureD1Tables(db?: D1Database) {
   if (!db || d1TablesInitialized) return;
@@ -390,6 +401,7 @@ export async function ensureD1Tables(db?: D1Database) {
     await seedShenoudaBooks(db);
     await seedSaintsBook(db);
     await ensureReactionsTable(db);
+    await ensureBooksReadsCount(db);
     d1TablesInitialized = true;
     return;
   } catch (probeErr) {
@@ -506,6 +518,7 @@ export async function ensureD1Tables(db?: D1Database) {
       if (!mcCols.has('mentions')) { await db.exec(`ALTER TABLE post_comments ADD COLUMN mentions TEXT DEFAULT '[]'`); }
     } catch (e) { /* table missing: created by the batch below */ }
     await ensureReactionsTable(db);
+    await ensureBooksReadsCount(db);
   try {
     await db.exec(`CREATE TABLE IF NOT EXISTS profiles ( id TEXT PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT, full_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', parish TEXT NOT NULL DEFAULT 'Orthodox Church', bio TEXT DEFAULT 'Orthodox Christian seeking fellowship and spiritual growth.', avatar_url TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', role TEXT NOT NULL DEFAULT 'user', is_banned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS sessions ( id TEXT PRIMARY KEY, user_id TEXT NOT NULL, token TEXT UNIQUE NOT NULL, expires_at TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS posts ( id TEXT PRIMARY KEY, content TEXT NOT NULL DEFAULT '', video_id TEXT, author_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_parish TEXT DEFAULT 'Orthodox Church', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', image_url TEXT, group_id TEXT, likes_count INTEGER DEFAULT 0, comments_count INTEGER DEFAULT 0, reshares_count INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS post_likes ( post_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, user_avatar TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (post_id, user_id) ); CREATE TABLE IF NOT EXISTS post_comments ( id TEXT PRIMARY KEY, post_id TEXT NOT NULL, user_id TEXT, author_name TEXT DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS messages ( id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, sender_name TEXT, receiver_id TEXT NOT NULL, content TEXT NOT NULL DEFAULT '', image_url TEXT, video_url TEXT, audio_url TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS stories ( id TEXT PRIMARY KEY, author_id TEXT, author_name TEXT NOT NULL DEFAULT 'Orthodox Parishioner', author_avatar TEXT DEFAULT 'https://orthodoxconnect.live/launchericon-512x512.png', author_parish TEXT DEFAULT 'Orthodox Church', image_url TEXT NOT NULL, media_type TEXT DEFAULT 'image', caption TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS events ( id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', date TEXT NOT NULL, time TEXT DEFAULT '10:00 AM', location_type TEXT DEFAULT 'physical', location_address TEXT, virtual_link TEXT, category TEXT DEFAULT 'liturgy', parish TEXT DEFAULT 'Orthodox Parish', host_name TEXT DEFAULT 'Priest / Host', host_avatar TEXT, host_id TEXT, image_url TEXT, going_count INTEGER DEFAULT 1, interested_count INTEGER DEFAULT 0, rsvps TEXT DEFAULT '[]', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS live_streams ( id TEXT PRIMARY KEY, title TEXT NOT NULL, host_parish TEXT DEFAULT 'Orthodox Church', priest_name TEXT DEFAULT 'Priest / Host', media_url TEXT NOT NULL, is_live INTEGER DEFAULT 1, viewers_count INTEGER DEFAULT 1, ended_at TEXT, replay_guid TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS content_reports ( id TEXT PRIMARY KEY, target_type TEXT NOT NULL, target_id TEXT NOT NULL, target_content_preview TEXT, target_author_name TEXT, target_author_id TEXT, reporter_id TEXT, reporter_name TEXT, reason TEXT DEFAULT 'inappropriate', details TEXT, status TEXT DEFAULT 'pending', created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS notifications ( id TEXT PRIMARY KEY, recipient_id TEXT, actor_id TEXT, actor_name TEXT DEFAULT 'Orthodox Parishioner', actor_avatar TEXT, type TEXT NOT NULL DEFAULT 'system', title TEXT, body TEXT, post_id TEXT, link TEXT, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now')) ); CREATE TABLE IF NOT EXISTS call_signals ( id TEXT PRIMARY KEY, call_id TEXT, sig_type TEXT, caller_id TEXT, caller_name TEXT, caller_avatar TEXT, target_user_id TEXT, call_type TEXT, sdp TEXT, candidate TEXT, meta TEXT, created_at INTEGER ); CREATE INDEX IF NOT EXISTS idx_call_signals_target ON call_signals(target_user_id, created_at); CREATE TABLE IF NOT EXISTS group_calls ( id TEXT PRIMARY KEY, room_id TEXT, room_name TEXT, host_id TEXT, host_name TEXT, started_at TEXT ); CREATE INDEX IF NOT EXISTS idx_group_calls_room ON group_calls(room_id, started_at); CREATE TABLE IF NOT EXISTS push_subscriptions ( user_id TEXT, endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, created_at TEXT DEFAULT (datetime('now')) ); CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id); CREATE TABLE IF NOT EXISTS books ( id TEXT PRIMARY KEY, title_ar TEXT NOT NULL, title_en TEXT, author_ar TEXT NOT NULL, author_en TEXT, category TEXT NOT NULL DEFAULT 'patristics', cover_image_url TEXT, file_url TEXT NOT NULL, description TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) );`);
     // Self-healing migration: older D1 databases were created before newer
@@ -4845,6 +4858,24 @@ export default {
           await env.DB.prepare('DELETE FROM book_comments WHERE id = ?').bind(commentId).run();
           const cnt = await env.DB.prepare('SELECT COUNT(*) as c FROM book_comments WHERE book_id = ?').bind(comm.book_id).first<{ c: number }>();
           return jsonResponse({ success: true, comments_count: cnt ? Number(cnt.c) : 0 });
+        }
+      }
+
+      // 16d. Book read/download counter (POST /api/books/:id/read) — public, no auth.
+      if (url.pathname.match(/^\/api\/books\/[^/]+\/read\/?$/) && env.DB) {
+        const bookId = decodeURIComponent(url.pathname.replace('/api/books/', '').replace(/\/read\/?$/, ''));
+        if (request.method === 'POST') {
+          const book = await env.DB.prepare('SELECT id FROM books WHERE id = ?').bind(bookId).first();
+          if (!book) return jsonResponse({ success: false, error: 'Book not found' }, 404);
+          try {
+            await env.DB.prepare('UPDATE books SET reads_count = COALESCE(reads_count, 0) + 1 WHERE id = ?').bind(bookId).run();
+          } catch (e) {
+            // Self-healing: column missing if the startup migration has not run yet.
+            try { await env.DB.exec(`ALTER TABLE books ADD COLUMN reads_count INTEGER NOT NULL DEFAULT 0`); } catch (e2) { /* duplicate column */ }
+            await env.DB.prepare('UPDATE books SET reads_count = COALESCE(reads_count, 0) + 1 WHERE id = ?').bind(bookId).run();
+          }
+          const row = await env.DB.prepare('SELECT reads_count FROM books WHERE id = ?').bind(bookId).first<any>();
+          return jsonResponse({ success: true, book_id: bookId, reads_count: row ? Number(row.reads_count) || 0 : 1 });
         }
       }
 

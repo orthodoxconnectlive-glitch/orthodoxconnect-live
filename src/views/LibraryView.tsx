@@ -26,6 +26,7 @@ interface Book {
   file_url: string;
   likes_count?: number;
   comments_count?: number;
+  reads_count?: number;
   liked_by_me?: boolean;
 }
 
@@ -133,6 +134,22 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
   useEffect(() => {
     fetchBooks();
   }, [search, selectedCategory]);
+
+  // Book read/download counter — increments the server counter on every
+  // Read / Download / Listen tap and refreshes the displayed count.
+  const recordBookRead = (bookId: string) => {
+    fetch(`/api/books/${encodeURIComponent(bookId)}/read`, { method: 'POST' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const n = data && typeof data.reads_count === 'number' ? data.reads_count : null;
+        if (n === null) return;
+        const bump = (list: Book[]) => list.map((b) => (b.id === bookId ? { ...b, reads_count: n } : b));
+        setBooks((prev) => bump(prev));
+        setBibleBooks((prev) => bump(prev));
+        setSynaxariumBook((prev) => (prev && prev.id === bookId ? { ...prev, reads_count: n } : prev));
+      })
+      .catch(() => { /* counter is best-effort; the read/download still opens */ });
+  };
 
   // Special featured Bible section — always shows Bible-category books
   useEffect(() => {
@@ -532,6 +549,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                   href={bibleBooks[0].file_url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => recordBookRead(bibleBooks[0].id)}
                   className="px-5 py-2.5 rounded-full bg-[#d4a24e] hover:bg-[#e5b85c] text-[#1c1410] text-sm font-serif font-bold flex items-center gap-2 shadow-md transition-all"
                 >
                   <BookOpen className="w-4 h-4" />
@@ -539,6 +557,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                 </a>
                 <a
                   href={bibleBooks[0].file_url}
+                  onClick={() => recordBookRead(bibleBooks[0].id)}
                   download
                   className="px-5 py-2.5 rounded-full border border-[#d4a24e]/60 text-[#e8d5ae] text-sm font-serif font-bold flex items-center gap-2 hover:bg-[#d4a24e]/10 transition-all"
                 >
@@ -577,7 +596,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
               <div className="flex flex-wrap gap-2 justify-center sm:justify-start rtl:sm:justify-end">
                 <button
                   type="button"
-                  onClick={() => setSynaxariumOpen(true)}
+                  onClick={() => { recordBookRead(synaxariumBook.id); setSynaxariumOpen(true); }}
                   className="px-5 py-2.5 rounded-full bg-[#d4a24e] hover:bg-[#e5b85c] text-[#1c1410] text-sm font-serif font-bold flex items-center gap-2 shadow-md transition-all cursor-pointer"
                 >
                   <BookOpen className="w-4 h-4" />
@@ -720,12 +739,15 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                   <p className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif mt-1">
                     {language === 'ar' ? book.author_ar : book.author_en || book.author_ar}
                   </p>
+                  <p className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif mt-0.5">
+                    &#128065; {book.reads_count || 0} {language === 'ar' ? 'قراءة' : 'reads'}
+                  </p>
                 </div>
 
                 {book.file_url && book.file_url.startsWith('synaxarium://') ? (
                   <button
                     type="button"
-                    onClick={() => setSynaxariumOpen(true)}
+                    onClick={() => { recordBookRead(book.id); setSynaxariumOpen(true); }}
                     className="mt-4 w-full py-2 px-3 rounded-xl bg-(--ac-gold) text-white text-xs font-serif font-bold flex items-center justify-center gap-1.5 hover:bg-(--ac-gold-deep) transition-colors shadow-sm cursor-pointer"
                   >
                     <BookOpen className="w-3.5 h-3.5" />
@@ -734,7 +756,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                 ) : book.category === 'audiobook' ? (
                   <button
                     type="button"
-                    onClick={() => setPlayingBook(book)}
+                    onClick={() => { recordBookRead(book.id); setPlayingBook(book); }}
                     className="mt-4 w-full py-2 px-3 rounded-xl bg-(--ac-gold) text-white text-xs font-serif font-bold flex items-center justify-center gap-1.5 hover:bg-(--ac-gold-deep) transition-colors shadow-sm cursor-pointer"
                   >
                     <Play className="w-3.5 h-3.5" />
@@ -745,6 +767,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                     href={book.file_url}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={() => recordBookRead(book.id)}
                     className="mt-4 w-full py-2 px-3 rounded-xl bg-(--ac-gold) text-white text-xs font-serif font-bold flex items-center justify-center gap-1.5 hover:bg-(--ac-gold-deep) transition-colors shadow-sm"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -828,11 +851,14 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                     <div className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif mt-0.5 line-clamp-1">
                       {language === 'ar' ? book.author_ar : book.author_en || book.author_ar}
                     </div>
+                    <div className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif">
+                      &#128065; {book.reads_count || 0} {language === 'ar' ? 'قراءة' : 'reads'}
+                    </div>
                   </div>
                   {book.file_url && book.file_url.startsWith('synaxarium://') ? (
                     <button
                       type="button"
-                      onClick={() => { setShenoudaOpen(false); setSynaxariumOpen(true); }}
+                      onClick={() => { setShenoudaOpen(false); recordBookRead(book.id); setSynaxariumOpen(true); }}
                       className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0 cursor-pointer"
                     >
                       {language === 'ar' ? 'اقرأ الآن' : 'Read Now'}
@@ -840,7 +866,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                   ) : book.category === 'audiobook' ? (
                     <button
                       type="button"
-                      onClick={() => { setShenoudaOpen(false); setPlayingBook(book); }}
+                      onClick={() => { setShenoudaOpen(false); recordBookRead(book.id); setPlayingBook(book); }}
                       className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0 cursor-pointer"
                     >
                       {language === 'ar' ? 'استمع الآن' : 'Listen Now'}
@@ -850,6 +876,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                       href={book.file_url}
                       target="_blank"
                       rel="noreferrer"
+                      onClick={() => recordBookRead(book.id)}
                       className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0"
                     >
                       {language === 'ar' ? 'قراءة / تحميل' : 'Read / Download'}

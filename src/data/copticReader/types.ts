@@ -45,6 +45,8 @@ export interface CRSection {
   description?: CRText;
   /** documents can be lazy-loaded for large sections (e.g. Bible books) */
   documents: CRDocument[] | (() => Promise<CRDocument[]>);
+  /** when set, the section renders a custom embedded reader instead of documents */
+  custom?: 'kholagy-reader';
 }
 
 export interface CRBook {

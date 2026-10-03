@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -30,6 +30,10 @@ import type {
   CRSection,
   CRText,
 } from '../data/copticReader/types';
+
+const KholagyReader = lazy(() =>
+  import('../views/KholagyReader').then((m) => ({ default: m.KholagyReader })),
+);
 
 const ICONS: Record<string, React.ReactNode> = {
   Clock: <Clock size={22} />,
@@ -77,7 +81,8 @@ type Nav =
   | { level: 'shelf' }
   | { level: 'book'; book: CRBook }
   | { level: 'section'; book: CRBook; section: CRSection; docs: CRDocument[] }
-  | { level: 'reader'; book: CRBook; section: CRSection; doc: CRDocument };
+  | { level: 'reader'; book: CRBook; section: CRSection; doc: CRDocument }
+  | { level: 'kholagy'; book: CRBook; section: CRSection };
 
 const BOOKMARK_KEY = 'cr-bookmarks-v1';
 const LANG_KEY = 'cr-content-lang-v1';
@@ -207,7 +212,10 @@ const BlockView: React.FC<{ block: CRBlock; clang: ContentLang; fontSize: string
   );
 };
 
-export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+export const CopticReader: React.FC<{ onClose: () => void; initialBookId?: string | null }> = ({
+  onClose,
+  initialBookId,
+}) => {
   const { language } = useTheme();
   const lang: 'en' | 'ar' = language === 'ar' ? 'ar' : 'en';
   const [library, setLibrary] = useState<CRLibrary | null>(null);
@@ -277,6 +285,16 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   useEffect(() => {
     loadLibrary();
   }, []);
+
+  // Deep link: open straight into a book (e.g. the book card's Read button
+  // jumping into the hub's Liturgies section). Runs once per mount.
+  useEffect(() => {
+    if (library && initialBookId && nav.level === 'shelf') {
+      const book = library.books.find((b) => b.id === initialBookId);
+      if (book) setNav({ level: 'book', book });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [library, initialBookId]);
 
   useEffect(() => {
     localStorage.setItem(LANG_KEY, JSON.stringify(clang));
@@ -356,6 +374,10 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   };
 
   const openSection = async (book: CRBook, section: CRSection) => {
+    if (section.custom === 'kholagy-reader') {
+      setNav({ level: 'kholagy', book, section });
+      return;
+    }
     setLoadingDocs(true);
     setDocQuery('');
     try {
@@ -367,7 +389,9 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
   };
 
   const back = () => {
-    if (nav.level === 'reader') {
+    if (nav.level === 'kholagy') {
+      setNav({ level: 'book', book: nav.book });
+    } else if (nav.level === 'reader') {
       const { book, section } = nav;
       openSection(book, section);
     } else if (nav.level === 'section') setNav({ level: 'book', book: nav.book });
@@ -378,6 +402,7 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
     if (nav.level === 'shelf') return label(library?.title ?? { en: 'Books', ar: 'الكتب' }, lang);
     if (nav.level === 'book') return label(nav.book.title, lang);
     if (nav.level === 'section') return label(nav.section.title, lang);
+    if (nav.level === 'kholagy') return label(nav.section.title, lang);
     return label(nav.doc.title, lang);
   }, [nav, library, lang]);
 
@@ -764,6 +789,20 @@ export const CopticReader: React.FC<{ onClose: () => void }> = ({ onClose }) => 
           )}
         </div>
       </div>
+      {/* Embedded trilingual Kholagy reader — full-screen takeover, back returns to this hub */}
+      {nav.level === 'kholagy' && (
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#f5f0e6] dark:bg-[#1a1510]">
+              <div className="font-serif text-sm animate-pulse text-[#8b6b4a]">
+                {lang === 'ar' ? 'جاري فتح الخولاجي...' : 'Opening Kholagy...'}
+              </div>
+            </div>
+          }
+        >
+          <KholagyReader onClose={() => setNav({ level: 'book', book: nav.book })} />
+        </Suspense>
+      )}
       {toast && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-black/85 px-4 py-2 text-sm text-white shadow-lg">
           {toast}

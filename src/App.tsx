@@ -38,7 +38,6 @@ const MarketplaceView = lazy(() => import('./views/MarketplaceView').then((m) =>
 const RadioView = lazy(() => import('./views/RadioView').then((m) => ({ default: m.RadioView })));
 const NotificationsView = lazy(() => import('./views/NotificationsView').then((m) => ({ default: m.NotificationsView })));
 const LibraryView = lazy(() => import('./views/LibraryView').then((m) => ({ default: m.LibraryView })));
-const KholagyReader = lazy(() => import('./views/KholagyReader').then((m) => ({ default: m.KholagyReader })));
 import { updateSEOForView } from './utils/seo';
 
 // Lightweight fallback shown while a lazily-loaded view chunk downloads.
@@ -326,7 +325,7 @@ function AppContent() {
       case 'reels':
         return <VideosView onSelectUser={handleSelectUser} onOpenMessengerWithUser={handleOpenMessengerWithUser} />;
       case 'library':
-        return <LibraryView focusBookId={focusBookId} onFocusBookConsumed={() => setFocusBookId(null)} onOpenKholagy={() => setCurrentView('kholagy')} />;
+        return <LibraryView focusBookId={focusBookId} onFocusBookConsumed={() => setFocusBookId(null)} />;
       case 'live':
         return (
           <LiveBroadcastView
@@ -378,12 +377,6 @@ function AppContent() {
         return <MarketplaceView />;
       case 'radio':
         return <RadioView focusTrackId={focusTrackId} onFocusTrackConsumed={() => setFocusTrackId(null)} focusRadioLive={focusRadioLive} onFocusRadioLiveConsumed={() => setFocusRadioLive(false)} />;
-      case 'kholagy':
-        return (
-          <Suspense fallback={<ViewLoadingFallback />}>
-            <KholagyReader onClose={() => setCurrentView('library')} />
-          </Suspense>
-        );
       default:
         return <FeedView onSelectUser={handleSelectUser} />;
     }

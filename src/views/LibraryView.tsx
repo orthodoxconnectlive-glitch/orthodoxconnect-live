@@ -59,7 +59,7 @@ const getYouTubeEmbedUrl = (url: string): string | null => {
   return null;
 };
 
-export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookConsumed?: () => void; onOpenKholagy?: () => void }> = ({ focusBookId, onFocusBookConsumed, onOpenKholagy }) => {
+export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookConsumed?: () => void }> = ({ focusBookId, onFocusBookConsumed }) => {
   const { language } = useTheme();
   const authContext = useAuth() as any;
   const profile = authContext?.profile;
@@ -74,6 +74,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
   const [playingBook, setPlayingBook] = useState<Book | null>(null);
   const [synaxariumOpen, setSynaxariumOpen] = useState<boolean>(false);
   const [copticReaderOpen, setCopticReaderOpen] = useState<boolean>(false);
+  const [copticReaderInitialBook, setCopticReaderInitialBook] = useState<string | null>(null);
   // Pope Shenouda III collection modal — groups all his books in one spot.
   const [shenoudaOpen, setShenoudaOpen] = useState<boolean>(false);
   // Bumps to force a full remount of the reader if its error boundary retries.
@@ -510,7 +511,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
             <div className="flex flex-wrap gap-2 justify-center sm:justify-start rtl:sm:justify-end">
               <button
                 type="button"
-                onClick={() => setCopticReaderOpen(true)}
+                onClick={() => { setCopticReaderInitialBook(null); setCopticReaderOpen(true); }}
                 className="px-5 py-2.5 rounded-full bg-[#d4a24e] hover:bg-[#e5b85c] text-[#1c1410] text-sm font-serif font-bold flex items-center gap-2 shadow-md transition-all cursor-pointer"
               >
                 <BookOpen className="w-4 h-4" />
@@ -748,7 +749,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                   <div className="mt-4 flex gap-2">
                     <button
                       type="button"
-                      onClick={() => { recordBookRead(book.id); onOpenKholagy?.(); }}
+                      onClick={() => { recordBookRead(book.id); setCopticReaderInitialBook('liturgies'); setCopticReaderOpen(true); }}
                       className="flex-1 py-2 px-3 rounded-xl bg-(--ac-gold) text-white text-xs font-serif font-bold flex items-center justify-center gap-1.5 hover:bg-(--ac-gold-deep) transition-colors shadow-sm cursor-pointer"
                     >
                       <BookOpen className="w-3.5 h-3.5" />
@@ -1019,7 +1020,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
           lang={language}
           onRetry={() => setReaderAttempt((a) => a + 1)}
         >
-          <CopticReader onClose={() => setCopticReaderOpen(false)} />
+          <CopticReader onClose={() => setCopticReaderOpen(false)} initialBookId={copticReaderInitialBook} />
         </ErrorBoundary>
       )}
 

@@ -59,7 +59,7 @@ const getYouTubeEmbedUrl = (url: string): string | null => {
   return null;
 };
 
-export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookConsumed?: () => void }> = ({ focusBookId, onFocusBookConsumed }) => {
+export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookConsumed?: () => void; onOpenKholagy?: () => void }> = ({ focusBookId, onFocusBookConsumed, onOpenKholagy }) => {
   const { language } = useTheme();
   const authContext = useAuth() as any;
   const profile = authContext?.profile;
@@ -744,7 +744,28 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                   </p>
                 </div>
 
-                {book.file_url && book.file_url.startsWith('synaxarium://') ? (
+                {book.id === 'kholagy-001' ? (
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { recordBookRead(book.id); onOpenKholagy?.(); }}
+                      className="flex-1 py-2 px-3 rounded-xl bg-(--ac-gold) text-white text-xs font-serif font-bold flex items-center justify-center gap-1.5 hover:bg-(--ac-gold-deep) transition-colors shadow-sm cursor-pointer"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>{language === 'ar' ? 'اقرأ' : 'Read'}</span>
+                    </button>
+                    <a
+                      href={book.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => recordBookRead(book.id)}
+                      className="flex-1 py-2 px-3 rounded-xl bg-(--bg-card) dark:bg-[#1c1611] border border-(--ln-gold) text-(--tx-strong) dark:text-[#f5ebd9] text-xs font-serif font-bold flex items-center justify-center gap-1.5 hover:border-(--ln-bronze) transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{language === 'ar' ? 'تحميل' : 'Download'}</span>
+                    </a>
+                  </div>
+                ) : book.file_url && book.file_url.startsWith('synaxarium://') ? (
                   <button
                     type="button"
                     onClick={() => { recordBookRead(book.id); setSynaxariumOpen(true); }}

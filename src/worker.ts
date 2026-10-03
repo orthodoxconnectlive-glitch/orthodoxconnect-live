@@ -350,6 +350,20 @@ async function seedSaintsBook(db: D1Database): Promise<void> {
   }
 }
 
+
+async function seedKholagyBook(db: D1Database): Promise<void> {
+  try {
+    // Kholagy (2026-10-03): trilingual Holy Euchologion (Coptic/Arabic/English); skip when present.
+    try {
+      const chk: any = await db.prepare(`SELECT 1 AS one FROM books WHERE id = 'kholagy-001' LIMIT 1`).all();
+      if ((((chk && chk.results) || [])[0] || {}).one) return;
+    } catch (e) { /* books table missing: fall through and seed */ }
+    await db.prepare(`INSERT OR IGNORE INTO books (id, title_ar, title_en, author_ar, author_en, category, file_url, cover_image_url, description) VALUES ('kholagy-001', 'الخولاجي المقدس', 'The Holy Kholagy (Euchologion) — Trilingual', 'الكنيسة القبطية الأرثوذكسية', 'Coptic Orthodox Church', 'liturgy', 'https://orthodoxconnect.live/kholagy-trilingual.pdf', 'https://orthodoxconnect.live/kholagy-trilingual-cover.png', 'الخولاجي المقدس بثلاث لغات — قبطي وعربي وإنجليزي: صلوات القداسات الإلهية للقديس باسليوس والقديس غريغوريوس والقديس كيرلس (344 صفحة). The Holy Euchologion in Coptic, Arabic and English — the Divine Liturgies of St. Basil, St. Gregory and St. Cyril (344 pages).')`).run();
+  } catch (seedErr) {
+    console.warn('[seedKholagyBook] notice:', seedErr);
+  }
+}
+
 let d1TablesInitialized = false;
 // Unified emoji reactions (2026-10-01): one reactions table for posts,
 // books, stories and comments. Old single-emoji likes are backfilled as
@@ -400,6 +414,7 @@ export async function ensureD1Tables(db?: D1Database) {
     await db.prepare(`SELECT bunny_stream_id FROM live_streams LIMIT 0`).all();
     await seedShenoudaBooks(db);
     await seedSaintsBook(db);
+    await seedKholagyBook(db);
     await ensureReactionsTable(db);
     await ensureBooksReadsCount(db);
     d1TablesInitialized = true;
@@ -618,6 +633,7 @@ export async function ensureD1Tables(db?: D1Database) {
     }
     await seedShenoudaBooks(db);
     await seedSaintsBook(db);
+    await seedKholagyBook(db);
     d1TablesInitialized = true;
   } catch (e) {
     // Non-fatal if tables already exist

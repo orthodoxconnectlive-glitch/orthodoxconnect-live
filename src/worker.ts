@@ -3711,6 +3711,7 @@ export default {
               updates.push('rsvps = ?');
               params.push(typeof body.rsvps === 'string' ? body.rsvps : JSON.stringify(body.rsvps));
             }
+            if (body.image_url !== undefined) { updates.push('image_url = ?'); params.push(body.image_url); }
 
             if (updates.length > 0) {
               params.push(eventId);

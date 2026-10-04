@@ -4108,14 +4108,17 @@ export default {
                   const chunk = postIds.slice(i, i + 50);
                   const placeholders = chunk.map(() => '?').join(',');
 
-                  const commCountRows = await env.DB.prepare(
-                    `SELECT post_id, COUNT(*) as cnt FROM post_comments WHERE post_id IN (${placeholders}) GROUP BY post_id`
-                  ).bind(...chunk).all<any>();
+                  // Comment counts and likers are independent: fetch concurrently.
+                  const [commCountRows, likersRows] = await Promise.all([
+                    env.DB.prepare(
+                      `SELECT post_id, COUNT(*) as cnt FROM post_comments WHERE post_id IN (${placeholders}) GROUP BY post_id`
+                    ).bind(...chunk).all<any>(),
+                    env.DB.prepare(
+                      `SELECT target_id, user_id, user_name, user_avatar, emoji FROM reactions WHERE target_type = 'post' AND target_id IN (${placeholders}) ORDER BY created_at DESC`
+                    ).bind(...chunk).all<any>(),
+                  ]);
                   for (const r of (commCountRows?.results || [])) commentsCount.set(String(r.post_id), Number(r.cnt));
 
-                  const likersRows = await env.DB.prepare(
-                    `SELECT target_id, user_id, user_name, user_avatar, emoji FROM reactions WHERE target_type = 'post' AND target_id IN (${placeholders}) ORDER BY created_at DESC`
-                  ).bind(...chunk).all<any>();
                   for (const r of (likersRows?.results || [])) {
                     const key = String(r.target_id);
                     const arr = likersMap.get(key) || [];

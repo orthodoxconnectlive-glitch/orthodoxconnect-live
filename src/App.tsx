@@ -107,6 +107,8 @@ function AppContent() {
   const [focusTrackId, setFocusTrackId] = useState<string | null>(null);
   // Share-link deep link: ?radioLive=1 opens the radio on the live broadcast.
   const [focusRadioLive, setFocusRadioLive] = useState(false);
+  // Share-link deep link: ?event=<eventId> opens the calendar on that event.
+  const [focusEventId, setFocusEventId] = useState<string | null>(null);
 
 
   // Check URL params for referral invite link /invite?ref=xyz
@@ -178,6 +180,7 @@ function AppContent() {
     const sharedSynaxKey = searchParams.get('synax');
     const sharedTrackId = searchParams.get('track');
     const sharedRadioLive = searchParams.get('radioLive');
+    const sharedEventId = searchParams.get('event');
     if (sharedPostId) {
       setFocusPostId(sharedPostId);
       setCurrentView('feed');
@@ -208,7 +211,12 @@ function AppContent() {
       setCurrentView('radio');
       searchParams.delete('radioLive');
     }
-    if (readNotifId || sharedPostId || sharedLiveId || sharedBookId || sharedSynaxKey || sharedTrackId || sharedRadioLive) {
+    if (sharedEventId) {
+      setFocusEventId(sharedEventId);
+      setCurrentView('calendar');
+      searchParams.delete('event');
+    }
+    if (readNotifId || sharedPostId || sharedLiveId || sharedBookId || sharedSynaxKey || sharedTrackId || sharedRadioLive || sharedEventId) {
       const cleanUrl = window.location.pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '') + window.location.hash;
       window.history.replaceState(null, '', cleanUrl);
     }
@@ -364,7 +372,7 @@ function AppContent() {
       case 'admin':
         return <AdminPanelView onSelectUser={handleSelectUser} />;
       case 'calendar':
-        return <CalendarView />;
+        return <CalendarView focusEventId={focusEventId} onFocusEventConsumed={() => setFocusEventId(null)} />;
       case 'churches':
         return <ChurchesView onOpenChurch={handleOpenChurch} />;
       case 'churchProfile':

@@ -1318,6 +1318,40 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
           <h1>OrthodoxConnect Radio</h1>
           <p class="meta">Liturgy · Hymns · Songs</p>`;
       }
+    } else if (kind === 'event') {
+      // Public event share page: no login required. Shows title, date/time,
+      // location, description and image, with a CTA deep-linking into the app.
+      const e = await db.prepare(
+        'SELECT id, title, description, date, time, location_type, location_address, virtual_link, category, parish, host_name, image_url FROM events WHERE id = ?'
+      ).bind(id).first<any>();
+      if (e) {
+        found = true;
+        const eTitle = String(e.title || 'Parish Event');
+        const eDate = String(e.date || '');
+        const eTime = String(e.time || '');
+        const eLoc = String(e.location_address || e.virtual_link || '');
+        const eDesc = String(e.description || '');
+        const eImg = safeImgUrl(e.image_url, DEFAULT_IMG);
+        let dateLabel = eDate;
+        try {
+          const dd = new Date(eDate + 'T12:00:00');
+          if (!isNaN(dd.getTime())) dateLabel = dd.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        } catch (e2) {}
+        title = `${eTitle} — OrthodoxConnect`;
+        desc = [dateLabel, eTime, String(e.parish || ''), eLoc].filter(Boolean).join(' \u00b7 ');
+        if (eDesc) desc = (desc ? desc + ' \u2014 ' : '') + eDesc.slice(0, 160);
+        image = eImg;
+        if (eImg !== DEFAULT_IMG) { imageW = '1200'; imageH = '630'; }
+        appLink = APP_URL + '/?event=' + encodeURIComponent(String(e.id));
+        bodyHtml = `
+          <div class="badge">📅 Event</div>
+          <h1>${escHtml(eTitle)}</h1>
+          <p class="meta">${escHtml([dateLabel, eTime].filter(Boolean).join(' \u00b7 '))}</p>
+          <p class="meta">📍 ${escHtml(eLoc || String(e.parish || 'Orthodox Church'))}</p>
+          ${eImg !== DEFAULT_IMG ? `<img class="media" src="${escHtml(eImg)}" alt="Event" onerror="this.style.display='none'"/>` : ''}
+          ${eDesc ? `<p class="content">${escHtml(eDesc.length > 500 ? eDesc.slice(0, 500) + '\u2026' : eDesc)}</p>` : ''}
+          <p class="meta">Hosted by ${escHtml(String(e.host_name || e.parish || 'Orthodox Church'))}</p>`;
+      }
     } else if (kind === 'book') {
       const b = await db.prepare(
         'SELECT id, title_ar, title_en, author_ar, author_en, category, description, cover_image_url FROM books WHERE id = ?'
@@ -1450,7 +1484,7 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
     bodyHtml = `<h1>OrthodoxConnect</h1><p class="meta">This post is no longer available.</p>`;
   }
 
-  const pageUrl = APP_URL + (kind === 'live' ? '/live/' : kind === 'book' ? '/book/' : kind === 'synax' ? '/synax/' : kind === 'radio' ? '/radio/' : '/post/') + encodeURIComponent(id);
+  const pageUrl = APP_URL + (kind === 'live' ? '/live/' : kind === 'book' ? '/book/' : kind === 'synax' ? '/synax/' : kind === 'radio' ? '/radio/' : kind === 'event' ? '/event/' : '/post/') + encodeURIComponent(id);
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5689,19 +5723,20 @@ export default {
       }
 
       // Public share pages: /post/:id, /live/:id, /book/:id, /synax/:MM-DD,
-      // /radio/live, /radio/track/:id (OG tags + preview + app CTA).
+      // /radio/live, /radio/track/:id, /event/:id (OG tags + preview + app CTA).
       // HEAD is served too: several link-preview scrapers probe headers first.
       // NOTE: /synax/ is matched only for MM-DD keys so it can never swallow
       // the static /synaxarium/*.json data files.
       if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
           (url.pathname.startsWith('/post/') || url.pathname.startsWith('/live/') || url.pathname.startsWith('/book/') ||
-           url.pathname.startsWith('/radio/') ||
+           url.pathname.startsWith('/radio/') || url.pathname.startsWith('/event/') ||
            /^\/synax\/\d{1,2}-\d{1,2}\/?$/.test(url.pathname))) {
         let kind: string;
         let prefix: string;
         if (url.pathname.startsWith('/live/')) { kind = 'live'; prefix = '/live/'; }
         else if (url.pathname.startsWith('/book/')) { kind = 'book'; prefix = '/book/'; }
         else if (url.pathname.startsWith('/radio/')) { kind = 'radio'; prefix = '/radio/'; }
+        else if (url.pathname.startsWith('/event/')) { kind = 'event'; prefix = '/event/'; }
         else if (url.pathname.startsWith('/synax/')) { kind = 'synax'; prefix = '/synax/'; }
         else { kind = 'post'; prefix = '/post/'; }
         const shareId = decodeURIComponent(url.pathname.replace(prefix, '').split('/')[0].trim());

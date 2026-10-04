@@ -42,11 +42,26 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
     }
   };
 
-  const handleShare = () => {
-    const link = `${window.location.origin}/calendar?event=${event.id}`;
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+  const handleShare = async () => {
+    // Public shareable page (OG preview for social apps) — no login needed.
+    const link = `${window.location.origin}/event/${event.id}`;
+    const shareText = language === 'ar'
+      ? `${event.title} — ${event.date}`
+      : `${event.title} — ${event.date} · OrthodoxConnect`;
+    // Native share sheet on mobile when available, clipboard fallback otherwise.
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ title: event.title, text: shareText, url: link });
+        return;
+      } catch (e) {
+        // User cancelled or share failed — fall through to clipboard copy.
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (e) {}
   };
 
   const getCategoryLabel = (cat: string) => {

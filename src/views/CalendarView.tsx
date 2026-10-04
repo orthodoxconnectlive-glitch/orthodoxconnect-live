@@ -12,7 +12,12 @@ import { useTheme } from '../context/ThemeContext';
 import { gregorianToCoptic, formatCopticDate } from '../utils/copticDate';
 import { getFastingSchedule } from '../utils/liturgicalEngine';
 
-export const CalendarView: React.FC = () => {
+interface CalendarViewProps {
+  focusEventId?: string | null;
+  onFocusEventConsumed?: () => void;
+}
+
+export const CalendarView: React.FC<CalendarViewProps> = ({ focusEventId, onFocusEventConsumed }) => {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';
   const { t, language } = useTheme();
@@ -41,6 +46,18 @@ export const CalendarView: React.FC = () => {
   useEffect(() => {
     fetchEvents();
   }, []);
+
+  // Share-link deep link (?event=<id>): open the event detail once the list lands.
+  useEffect(() => {
+    if (focusEventId && eventsList.length > 0) {
+      const evt = eventsList.find((e) => e.id === focusEventId);
+      if (evt) {
+        setSelectedEvent(evt);
+        setIsDetailOpen(true);
+      }
+      onFocusEventConsumed?.();
+    }
+  }, [focusEventId, eventsList]);
 
   const handleDeleteEvent = async (e: React.MouseEvent, evt: EventItem) => {
     e.stopPropagation();

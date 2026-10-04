@@ -74,23 +74,22 @@ export async function saveEvent(newEventData: Partial<EventItem>): Promise<Event
     ],
   };
 
+  // Persist FIRST. If the server rejects, this throws and nothing is shown
+  // locally — previously a failed POST was silently cached, so the event
+  // appeared in the list but vanished on reload.
+  await eventsApi.create(created);
+
   localEventsCache = [created, ...localEventsCache];
 
-  try {
-    await eventsApi.create(created);
-
-    addNotification({
-      userId: 'all',
-      type: 'event_invite',
-      title: `New Parish Event: ${created.title}`,
-      body: `${created.date} at ${created.time} • ${created.parish}`,
-      senderName: created.hostName,
-      senderAvatar: created.hostAvatar,
-      link: 'calendar',
-    });
-  } catch (err) {
-    console.warn('Save event error:', err);
-  }
+  addNotification({
+    userId: 'all',
+    type: 'event_invite',
+    title: `New Parish Event: ${created.title}`,
+    body: `${created.date} at ${created.time} • ${created.parish}`,
+    senderName: created.hostName,
+    senderAvatar: created.hostAvatar,
+    link: 'calendar',
+  });
 
   return created;
 }

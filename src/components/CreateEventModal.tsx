@@ -36,6 +36,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [category, setCategory] = useState<EventItem['category']>('liturgy');
   const [imageUrl, setImageUrl] = useState(PRESET_IMAGES[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -44,31 +45,42 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     if (!title.trim() || !date) return;
 
     setIsSubmitting(true);
-    const created = await saveEvent({
-      title: title.trim(),
-      description: description.trim(),
-      date,
-      time,
-      locationType,
-      locationAddress: locationType === 'physical' ? locationAddress.trim() : undefined,
-      virtualLink: locationType === 'virtual' ? virtualLink.trim() : undefined,
-      category,
-      parish: profile?.parish || (language === 'ar' ? 'كاتدرائية الثالوث الأقدس' : 'Holy Trinity Cathedral'),
-      hostName: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Parish Member'),
-      hostAvatar: profile?.avatar_url,
-      hostId: profile?.id || 'me',
-      imageUrl,
-    });
+    setSubmitError(null);
+    try {
+      const created = await saveEvent({
+        title: title.trim(),
+        description: description.trim(),
+        date,
+        time,
+        locationType,
+        locationAddress: locationType === 'physical' ? locationAddress.trim() : undefined,
+        virtualLink: locationType === 'virtual' ? virtualLink.trim() : undefined,
+        category,
+        parish: profile?.parish || (language === 'ar' ? 'كاتدرائية الثالوث الأقدس' : 'Holy Trinity Cathedral'),
+        hostName: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Parish Member'),
+        hostAvatar: profile?.avatar_url,
+        hostId: profile?.id || 'me',
+        imageUrl,
+      });
 
-    setIsSubmitting(false);
-    onEventCreated(created);
-    onClose();
+      onEventCreated(created);
+      onClose();
 
-    // Reset fields
-    setTitle('');
-    setDescription('');
-    setLocationAddress('');
-    setVirtualLink('');
+      // Reset fields (only on success — keep the user's input if saving failed)
+      setTitle('');
+      setDescription('');
+      setLocationAddress('');
+      setVirtualLink('');
+    } catch (err: any) {
+      setSubmitError(
+        err?.message ||
+          (language === 'ar'
+            ? 'تعذر حفظ الفعالية. تحقق من الاتصال وحاول مرة أخرى.'
+            : 'Could not save the event. Check your connection and try again.')
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -283,6 +295,12 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
               ))}
             </div>
           </div>
+
+          {submitError && (
+            <p className="text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-xl px-3 py-2">
+              {submitError}
+            </p>
+          )}
 
           <div className="pt-3 border-t border-(--ln-bright)/20 flex items-center justify-end gap-3">
             <button

@@ -3597,13 +3597,24 @@ export default {
 
       // 7. Events Endpoints (/api/events and /api/events/:id)
       if (url.pathname === '/api/events' || url.pathname === '/api/events/') {
-        // Bulletproof: events can belong to a church (church_id), shown on the church page.
+        // Bulletproof the events schema: older databases may predate newer columns,
+        // which once made POST silently fail (the UI showed a local-only event that
+        // vanished on reload). CREATE is a no-op when the table exists; any missing
+        // columns are backfilled. All DDL below is single-line (D1 db.exec() rule).
         if (env.DB) {
           try {
-            await env.DB.exec(`ALTER TABLE events ADD COLUMN church_id TEXT DEFAULT ''`);
-          } catch (ctErr) {
-            /* column already exists */
-          }
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS events ( id TEXT PRIMARY KEY, title TEXT NOT NULL DEFAULT '', description TEXT DEFAULT '', date TEXT NOT NULL DEFAULT '', time TEXT DEFAULT '10:00 AM', location_type TEXT DEFAULT 'physical', location_address TEXT, virtual_link TEXT, category TEXT DEFAULT 'liturgy', parish TEXT DEFAULT 'Orthodox Parish', host_name TEXT DEFAULT 'Priest / Host', host_avatar TEXT, host_id TEXT, image_url TEXT, going_count INTEGER DEFAULT 1, interested_count INTEGER DEFAULT 0, rsvps TEXT DEFAULT '[]', church_id TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
+          } catch (ctErr) { /* table already exists */ }
+          try {
+            const colRows: any = await env.DB.prepare(`PRAGMA table_info(events)`).all();
+            const haveCols = new Set((((colRows as any) || {}).results || []).map((c: any) => String(c.name)));
+            const wantCols: Array<[string, string]> = [['title', `TEXT NOT NULL DEFAULT ''`], ['description', `TEXT DEFAULT ''`], ['date', `TEXT NOT NULL DEFAULT ''`], ['time', `TEXT DEFAULT '10:00 AM'`], ['location_type', `TEXT DEFAULT 'physical'`], ['location_address', `TEXT`], ['virtual_link', `TEXT`], ['category', `TEXT DEFAULT 'liturgy'`], ['parish', `TEXT DEFAULT 'Orthodox Parish'`], ['host_name', `TEXT DEFAULT 'Priest / Host'`], ['host_avatar', `TEXT`], ['host_id', `TEXT`], ['image_url', `TEXT`], ['going_count', `INTEGER DEFAULT 1`], ['interested_count', `INTEGER DEFAULT 0`], ['rsvps', `TEXT DEFAULT '[]'`], ['church_id', `TEXT DEFAULT ''`], ['created_at', `TEXT NOT NULL DEFAULT (datetime('now'))`]];
+            for (const [colName, colDef] of wantCols) {
+              if (!haveCols.has(colName)) {
+                try { await env.DB.exec(`ALTER TABLE events ADD COLUMN ${colName} ${colDef}`); } catch (acErr) { /* raced or already present */ }
+              }
+            }
+          } catch (pragmaErr) { /* best-effort schema check */ }
         }
         if (request.method === 'GET') {
           let events: any[] = [];
@@ -3662,10 +3673,16 @@ export default {
           const createdAt = body.created_at || new Date().toISOString();
 
           if (env.DB) {
-            await env.DB.prepare(`
+            try {
+              await env.DB.prepare(`
               INSERT INTO events (id, title, description, date, time, location_type, location_address, virtual_link, category, parish, host_name, host_avatar, host_id, image_url, going_count, interested_count, rsvps, church_id, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(id, title, description, date, time, locationType, locationAddress, virtualLink, category, parish, hostName, hostAvatar, hostId, imageUrl, goingCount, interestedCount, rsvps, eventChurchId, createdAt).run();
+            } catch (dbErr: any) {
+              return jsonResponse({ success: false, error: 'Could not save event: ' + (dbErr?.message || 'database error') }, 500);
+            }
+          } else {
+            return jsonResponse({ success: false, error: 'Database unavailable — event not saved.' }, 500);
           }
 
           return jsonResponse({

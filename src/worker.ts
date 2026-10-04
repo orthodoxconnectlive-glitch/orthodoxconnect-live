@@ -376,6 +376,7 @@ async function ensureReactionsTable(db: any) {
   try {
     await db.exec(`CREATE TABLE IF NOT EXISTS reactions ( target_type TEXT NOT NULL, target_id TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT, user_avatar TEXT, emoji TEXT NOT NULL DEFAULT '\u2764\uFE0F', created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (target_type, target_id, user_id) )`);
     await db.exec(`CREATE INDEX IF NOT EXISTS idx_reactions_target ON reactions (target_type, target_id)`);
+    await db.exec(`CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts (created_at)`);
     // Cold-start speed (2026-10-02): the old-likes backfill is one-time
     // work. If the table already holds rows, it ran — skip the full scans.
     let needBackfill = true;
@@ -978,9 +979,18 @@ async function getReactionSummaries(db: any, targetType: string, targetIds: stri
     for (let i = 0; i < targetIds.length; i += 50) {
       const chunk = targetIds.slice(i, i + 50).map(String);
       const placeholders = chunk.map(() => '?').join(',');
-      const countRows = await db.prepare(
-        `SELECT target_id, emoji, COUNT(*) as cnt FROM reactions WHERE target_type = ? AND target_id IN (${placeholders}) GROUP BY target_id, emoji`
-      ).bind(targetType, ...chunk).all<any>();
+      // The two per-chunk queries are independent: run them concurrently
+      // instead of as sequential D1 round-trips.
+      const [countRows, myRows] = await Promise.all([
+        db.prepare(
+          `SELECT target_id, emoji, COUNT(*) as cnt FROM reactions WHERE target_type = ? AND target_id IN (${placeholders}) GROUP BY target_id, emoji`
+        ).bind(targetType, ...chunk).all<any>(),
+        userId
+          ? db.prepare(
+              `SELECT target_id, emoji FROM reactions WHERE target_type = ? AND target_id IN (${placeholders}) AND user_id = ?`
+            ).bind(targetType, ...chunk, userId).all<any>()
+          : Promise.resolve(null),
+      ]);
       for (const r of (countRows?.results || [])) {
         const key = String(r.target_id);
         const s = out.get(key) || { counts: {}, total: 0, myEmoji: null };
@@ -989,16 +999,11 @@ async function getReactionSummaries(db: any, targetType: string, targetIds: stri
         s.total += n;
         out.set(key, s);
       }
-      if (userId) {
-        const myRows = await db.prepare(
-          `SELECT target_id, emoji FROM reactions WHERE target_type = ? AND target_id IN (${placeholders}) AND user_id = ?`
-        ).bind(targetType, ...chunk, userId).all<any>();
-        for (const r of (myRows?.results || [])) {
-          const key = String(r.target_id);
-          const s = out.get(key) || { counts: {}, total: 0, myEmoji: null };
-          s.myEmoji = String(r.emoji);
-          out.set(key, s);
-        }
+      for (const r of (myRows?.results || [])) {
+        const key = String(r.target_id);
+        const s = out.get(key) || { counts: {}, total: 0, myEmoji: null };
+        s.myEmoji = String(r.emoji);
+        out.set(key, s);
       }
     }
   } catch (e) { /* reactions table missing: summaries stay empty */ }
@@ -4091,7 +4096,10 @@ export default {
               // Batched enrichment: reactions (one table for every emoji),
               // comment counts, and top reactors. D1 bound-parameter limits
               // mean we chunk post IDs into groups of 50.
-              const reactionSummaries = await getReactionSummaries(env.DB, 'post', postIds, currentUserId);
+              // Fire the reaction summaries without awaiting: they run concurrently
+              // with the comment/liker queries below instead of stacking another
+              // sequential D1 round-trip onto the feed load.
+              const reactionSummariesPromise = getReactionSummaries(env.DB, 'post', postIds, currentUserId);
               const commentsCount = new Map<string, number>();
               const likersMap = new Map<string, any[]>();
 
@@ -4128,6 +4136,8 @@ export default {
               } catch (calcErr) {
                 // Fall back smoothly
               }
+
+              const reactionSummaries = await reactionSummariesPromise;
 
               for (const p of posts) {
                 const key = String(p.id);

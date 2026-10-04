@@ -35,7 +35,11 @@ export async function loadEvents(): Promise<EventItem[]> {
         if (!map.has(e.id)) map.set(e.id, e);
       });
 
-      return Array.from(map.values());
+      // Keep the cache mirroring what's displayed, so setEventRsvp can find
+      // server-loaded events (previously it only saw locally-created ones
+      // and returned null, making the RSVP buttons do nothing).
+      localEventsCache = Array.from(map.values());
+      return localEventsCache;
     }
   } catch (err) {
     console.warn('Cloudflare D1 loadEvents notice:', err);
@@ -144,10 +148,10 @@ export async function setEventRsvp(
   if (updatedEvent) {
     try {
       await eventsApi.update(eventId, {
-        goingCount: (updatedEvent as EventItem).goingCount,
-        interestedCount: (updatedEvent as EventItem).interestedCount,
+        going_count: (updatedEvent as EventItem).goingCount,
+        interested_count: (updatedEvent as EventItem).interestedCount,
         rsvps: (updatedEvent as EventItem).rsvps,
-      });
+      } as unknown as Partial<EventItem>);
     } catch (err) {
       console.warn('Update RSVP warning:', err);
     }

@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { apiFetch } from '../lib/api';
 
 type CandleMode = 'welcome' | 'pray';
 type CandleState = 'idle' | 'lighting' | 'lit';
+
+type CandleStats = {
+  total: number;
+  today: number;
+  recent: Array<{ user_name: string; created_at: string }>;
+};
 
 const litKey = () => `oc_candle_lit_${new Date().toISOString().slice(0, 10)}`;
 
@@ -19,6 +26,15 @@ export default function CandleModal({
   const { language } = useTheme();
   const ar = language === 'ar';
   const [state, setState] = useState<CandleState>('idle');
+  const [stats, setStats] = useState<CandleStats | null>(null);
+
+  const refreshStats = () => {
+    apiFetch<{ success: boolean; total: number; today: number; recent: CandleStats['recent'] }>('/api/candles')
+      .then((r) => {
+        if (r && r.success) setStats({ total: r.total || 0, today: r.today || 0, recent: r.recent || [] });
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -27,6 +43,7 @@ export default function CandleModal({
       } catch {
         setState('idle');
       }
+      refreshStats();
     }
   }, [isOpen]);
 
@@ -40,6 +57,11 @@ export default function CandleModal({
       try {
         localStorage.setItem(litKey(), '1');
       } catch {}
+      // Record the lighting on the server (count + who lit). Best-effort:
+      // the candle still lights locally even if the request fails.
+      apiFetch('/api/candles', { method: 'POST', body: JSON.stringify({}) })
+        .then(() => refreshStats())
+        .catch(() => {});
     }, 2100);
   };
 
@@ -112,7 +134,12 @@ export default function CandleModal({
         </button>
 
         <h2 className="font-serif font-bold text-2xl text-amber-100 mb-1">{title}</h2>
-        <p className="text-stone-400 text-sm mb-6">{subtitle}</p>
+        <p className="text-stone-400 text-sm mb-2">{subtitle}</p>
+        {stats && stats.total > 0 && (
+          <p className="text-amber-200/70 text-xs mb-4">
+            🕯 {stats.total.toLocaleString()} {ar ? 'شمعة مضيئة' : 'candles lit'}
+          </p>
+        )}
 
         {/* Candle scene */}
         <div className="mx-auto w-56 h-64 relative">
@@ -204,6 +231,16 @@ export default function CandleModal({
           {state === 'lit' && (
             <>
               <p className="text-amber-100 font-serif text-lg">{litMessage}</p>
+              {stats && stats.recent.length > 0 && (
+                <p className="text-stone-400 text-xs max-w-[280px] leading-relaxed">
+                  {ar ? 'أضاء مؤخراً: ' : 'Recently lit by: '}
+                  {stats.recent
+                    .slice(0, 6)
+                    .map((r) => r.user_name || (ar ? 'مؤمن' : 'A believer'))
+                    .filter(Boolean)
+                    .join(ar ? '، ' : ', ')}
+                </p>
+              )}
               <button
                 onClick={onClose}
                 className="px-8 py-2.5 rounded-2xl border border-amber-500/50 text-amber-200 hover:bg-amber-500/10 font-serif font-bold text-sm transition-all cursor-pointer"

@@ -390,6 +390,19 @@ async function ensureReactionsTable(db: any) {
     }
   } catch (e) { console.warn('[ensureReactionsTable] notice:', (e as any)?.message || e); }
 }
+// Prayer candle lights (2026-10-05): records who lit the virtual candle and
+// when, so the app can show a total count + recent names. One lighting per
+// user per day (UNIQUE on user_id + lit_day). Called from BOTH the fast path
+// and the slow path of ensureD1Tables: the fast path returns early on
+// fully-migrated databases, so a migration placed only in the slow path would
+// never run in production.
+async function ensureCandleLightsTable(db: any) {
+  try {
+    await db.exec(`CREATE TABLE IF NOT EXISTS candle_lights ( id TEXT PRIMARY KEY, user_id TEXT NOT NULL, user_name TEXT DEFAULT '', lit_day TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
+    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_candle_lights_user_day ON candle_lights ( user_id, lit_day )`);
+    await db.exec(`CREATE INDEX IF NOT EXISTS idx_candle_lights_created ON candle_lights ( created_at DESC )`);
+  } catch (e) { console.warn('[ensureCandleLightsTable] notice:', (e as any)?.message || e); }
+}
 // Book read/download counter (2026-10-02): reads_count on books. PRAGMA-gated
 // so the ALTER runs once. Called from BOTH the fast path and the slow path of
 // ensureD1Tables: the fast path returns early on fully-migrated databases, so a
@@ -418,6 +431,7 @@ export async function ensureD1Tables(db?: D1Database) {
     await seedKholagyBook(db);
     await ensureReactionsTable(db);
     await ensureBooksReadsCount(db);
+    await ensureCandleLightsTable(db);
     d1TablesInitialized = true;
     return;
   } catch (probeErr) {
@@ -3018,6 +3032,52 @@ export default {
             'UPDATE messages SET is_read = 1 WHERE (receiver_id = ? OR receiver_id = ?) AND (sender_id = ? OR sender_id = ?) AND is_read = 0'
           ).bind(rawReader, readerBare, rawPartner, partnerBare).run();
           return jsonResponse({ success: true });
+        }
+      }
+
+      // 5b. Prayer candle endpoints (/api/candles)
+      if (url.pathname === '/api/candles' || url.pathname === '/api/candles/') {
+        // Light the candle: POST /api/candles with { user_name? }.
+        // One lighting per user per day; repeats return lit:false.
+        if (request.method === 'POST' && env.DB) {
+          const authC = await getAuthIdentity(request, env);
+          if (!authC.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+          const body: any = await request.json().catch(() => ({}));
+          const uid = String(authC.id);
+          let uname = String(body.user_name || body.userName || '').slice(0, 80);
+          if (!uname) {
+            try {
+              const prof: any = await env.DB.prepare('SELECT full_name FROM profiles WHERE id = ?').bind(uid).first();
+              uname = String(prof?.full_name || '').slice(0, 80);
+            } catch (e) { /* keep blank */ }
+          }
+          const day = new Date().toISOString().slice(0, 10);
+          const id = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `candle_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+          let lit = false;
+          try {
+            const r: any = await env.DB.prepare(
+              'INSERT OR IGNORE INTO candle_lights (id, user_id, user_name, lit_day) VALUES (?, ?, ?, ?)'
+            ).bind(id, uid, uname, day).run();
+            lit = !!((r && r.meta && r.meta.changes) || (r && r.changes));
+          } catch (e) { /* table missing: fall through as not lit */ }
+          return jsonResponse({ success: true, lit });
+        }
+        // Candle stats: GET /api/candles -> { total, today, recent: [{user_name, created_at}] }
+        if (request.method === 'GET' && env.DB) {
+          let total = 0, today = 0;
+          let recent: any[] = [];
+          try {
+            const t: any = await env.DB.prepare('SELECT COUNT(*) AS c FROM candle_lights').first();
+            total = Number(t?.c || 0);
+            const day = new Date().toISOString().slice(0, 10);
+            const td: any = await env.DB.prepare('SELECT COUNT(*) AS c FROM candle_lights WHERE lit_day = ?').bind(day).first();
+            today = Number(td?.c || 0);
+            const rr: any = await env.DB.prepare('SELECT user_name, created_at FROM candle_lights ORDER BY created_at DESC LIMIT 12').all();
+            recent = (rr && rr.results) || [];
+          } catch (e) { /* table not yet created */ }
+          return jsonResponse({ success: true, total, today, recent });
         }
       }
 

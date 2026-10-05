@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Store, Plus, Search, X, MapPin, Phone, User, Upload, Loader2,
-  ChevronLeft, ChevronRight, Tag, Trash2, Check, Pencil,
+  ChevronLeft, ChevronRight, Tag, Trash2, Check, Pencil, Share2,
 } from 'lucide-react';
 import { marketplaceApi, churchesApi } from '../lib/api';
 import { MarketplaceListing, Church } from '../types';
@@ -27,7 +27,7 @@ const inputCls =
 const catLabel = (id: string | undefined, ar: boolean) =>
   CATEGORIES.find((c) => c.id === id)?.[ar ? 'ar' : 'en'] || (ar ? 'أخرى' : 'Other');
 
-export const MarketplaceView: React.FC = () => {
+export const MarketplaceView: React.FC<{ focusListingId?: string | null; onFocusListingConsumed?: () => void }> = ({ focusListingId, onFocusListingConsumed }) => {
   const { profile } = useAuth();
   const { language } = useTheme();
   const ar = language === 'ar';
@@ -173,6 +173,33 @@ export const MarketplaceView: React.FC = () => {
       alert((e?.message || (ar ? 'تعذر حذف الإعلان.' : 'Could not delete the listing.')) + diag);
     }
   };
+
+  const shareListing = async (listing: MarketplaceListing) => {
+    const url = `https://orthodoxconnect.live/marketplace/${encodeURIComponent(listing.id)}`;
+    const priceTxt = listing.price ? ` — ${listing.price}` : '';
+    const text = `${listing.title}${priceTxt} | OrthodoxConnect Marketplace`;
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ title: listing.title, text, url });
+        return;
+      } catch (e) { /* user dismissed */ }
+    }
+    try {
+      // Copy-link fallback carries the listing name too, not just the URL.
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      alert(ar ? 'تم نسخ رابط الإعلان — شاركه مع أحبائك' : 'Listing link copied — share it with your loved ones');
+    } catch (e) {
+      console.error('Share failed:', e);
+    }
+  };
+
+  // Deep link: ?listing=<id> opens that listing's detail modal.
+  useEffect(() => {
+    if (!focusListingId || listings.length === 0) return;
+    const target = listings.find((l) => l.id === focusListingId);
+    if (target) openDetail(target);
+    onFocusListingConsumed && onFocusListingConsumed();
+  }, [focusListingId, listings]);
 
   const canManage = (listing: MarketplaceListing) =>
     isAdmin || (profile?.id && listing.seller_id && profile.id === listing.seller_id);
@@ -325,9 +352,18 @@ export const MarketplaceView: React.FC = () => {
             <div className="p-4">
               <div className="flex items-start justify-between gap-2">
                 <h2 className="text-lg font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9]">{selected.title}</h2>
-                <span className="shrink-0 text-[11px] px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 font-bold">
-                  {catLabel(selected.category, ar)}
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => shareListing(selected)}
+                    title={ar ? 'مشاركة الإعلان' : 'Share this listing'}
+                    className="p-2 rounded-full border border-(--ln-gold) text-amber-700 dark:text-amber-300 hover:opacity-80"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
+                  <span className="text-[11px] px-2 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 font-bold">
+                    {catLabel(selected.category, ar)}
+                  </span>
+                </div>
               </div>
               <p className="text-xl font-bold text-amber-700 dark:text-amber-300 mt-1">
                 {selected.price || (ar ? 'السعر عند التواصل' : 'Ask for price')}

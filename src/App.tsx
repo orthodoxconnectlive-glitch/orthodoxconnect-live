@@ -109,6 +109,8 @@ function AppContent() {
   const [focusRadioLive, setFocusRadioLive] = useState(false);
   // Share-link deep link: ?event=<eventId> opens the calendar on that event.
   const [focusEventId, setFocusEventId] = useState<string | null>(null);
+  // Share-link deep link: ?listing=<listingId> opens the marketplace on that listing.
+  const [focusListingId, setFocusListingId] = useState<string | null>(null);
 
 
   // Check URL params for referral invite link /invite?ref=xyz
@@ -181,6 +183,7 @@ function AppContent() {
     const sharedTrackId = searchParams.get('track');
     const sharedRadioLive = searchParams.get('radioLive');
     const sharedEventId = searchParams.get('event');
+    const sharedListingId = searchParams.get('listing');
     if (sharedPostId) {
       setFocusPostId(sharedPostId);
       setCurrentView('feed');
@@ -216,7 +219,12 @@ function AppContent() {
       setCurrentView('calendar');
       searchParams.delete('event');
     }
-    if (readNotifId || sharedPostId || sharedLiveId || sharedBookId || sharedSynaxKey || sharedTrackId || sharedRadioLive || sharedEventId) {
+    if (sharedListingId) {
+      setFocusListingId(sharedListingId);
+      setCurrentView('marketplace');
+      searchParams.delete('listing');
+    }
+    if (readNotifId || sharedPostId || sharedLiveId || sharedBookId || sharedSynaxKey || sharedTrackId || sharedRadioLive || sharedEventId || sharedListingId) {
       const cleanUrl = window.location.pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '') + window.location.hash;
       window.history.replaceState(null, '', cleanUrl);
     }
@@ -382,7 +390,7 @@ function AppContent() {
           <ChurchesView onOpenChurch={handleOpenChurch} />
         );
       case 'marketplace':
-        return <MarketplaceView />;
+        return <MarketplaceView focusListingId={focusListingId} onFocusListingConsumed={() => setFocusListingId(null)} />;
       case 'radio':
         return <RadioView focusTrackId={focusTrackId} onFocusTrackConsumed={() => setFocusTrackId(null)} focusRadioLive={focusRadioLive} onFocusRadioLiveConsumed={() => setFocusRadioLive(false)} />;
       default:

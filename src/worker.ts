@@ -1453,6 +1453,40 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
           <div class="meta">📖 OrthodoxConnect Synaxarium</div>`;
         }
       }
+    } else if (kind === 'marketplace') {
+      // Marketplace listing share: public, no login. Shows title, price,
+      // seller, description and the cover photo with OG tags.
+      const l = await db.prepare(
+        'SELECT id, title, description, price, category, images, seller_name, church_name FROM marketplace_listings WHERE id = ?'
+      ).bind(id).first<any>();
+      if (l) {
+        found = true;
+        const lTitle = String(l.title || 'Marketplace listing');
+        const lDesc = String(l.description || '').slice(0, 200);
+        const lPrice = String(l.price || '').trim();
+        const priceLabel = lPrice ? (/^\$/.test(lPrice) ? lPrice : '$' + lPrice) : '';
+        let lImg = '';
+        try {
+          const imgs = JSON.parse(String(l.images || '[]'));
+          if (Array.isArray(imgs) && imgs.length) lImg = String(imgs[0] || '');
+        } catch (e) {}
+        const isDataImg = /^data:image\//i.test(lImg);
+        const dataImgUrl = APP_URL + '/marketplace-image/' + encodeURIComponent(String(l.id));
+        const cover = isDataImg ? dataImgUrl : safeImgUrl(lImg, '');
+        title = `${lTitle} — OrthodoxConnect Marketplace`;
+        desc = (priceLabel ? priceLabel + ' \u00b7 ' : '') + (lDesc || 'A listing on the OrthodoxConnect marketplace.');
+        image = cover || DEFAULT_IMG;
+        if (cover) { imageW = '1200'; imageH = '630'; }
+        appLink = APP_URL + '/?listing=' + encodeURIComponent(String(l.id));
+        bodyHtml = `
+          <div class="badge">\uD83C\uDFF7\uFE0F Marketplace</div>
+          <h1>${escHtml(lTitle)}</h1>
+          ${priceLabel ? `<p class="meta" style="font-size:18px;font-weight:bold;color:#7a5c2e">${escHtml(priceLabel)}</p>` : ''}
+          <p class="meta">${escHtml(String(l.seller_name || l.church_name || 'OrthodoxConnect member'))}</p>
+          ${cover ? `<img class="media" src="${escHtml(cover)}" alt="Listing photo" onerror="this.style.display='none'"/>` : ''}
+          ${lDesc ? `<p class="content">${escHtml(lDesc.length > 500 ? lDesc.slice(0, 500) + '\u2026' : lDesc)}</p>` : ''}
+          <div class="meta">\uD83C\uDFF7\uFE0F OrthodoxConnect Marketplace</div>`;
+      }
     } else {
       const p = await db.prepare(
         'SELECT id, content, video_id, author_name, author_parish, author_avatar, image_url, likes_count, comments_count, created_at FROM posts WHERE id = ?'
@@ -1503,7 +1537,7 @@ async function renderSharePage(db: D1Database, kind: string, id: string): Promis
     bodyHtml = `<h1>OrthodoxConnect</h1><p class="meta">This post is no longer available.</p>`;
   }
 
-  const pageUrl = APP_URL + (kind === 'live' ? '/live/' : kind === 'book' ? '/book/' : kind === 'synax' ? '/synax/' : kind === 'radio' ? '/radio/' : kind === 'event' ? '/event/' : '/post/') + encodeURIComponent(id);
+  const pageUrl = APP_URL + (kind === 'live' ? '/live/' : kind === 'book' ? '/book/' : kind === 'synax' ? '/synax/' : kind === 'radio' ? '/radio/' : kind === 'event' ? '/event/' : kind === 'marketplace' ? '/marketplace/' : '/post/') + encodeURIComponent(id);
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5704,6 +5738,37 @@ export default {
         return new Response('Not found', { status: 404 });
       }
 
+      // Public marketplace listing image: /marketplace-image/:id — decodes the
+      // inline base64 data-URI cover photo stored on the listing so link-preview
+      // scrapers (Facebook/WhatsApp) can fetch a real og:image. No login required.
+      if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
+          url.pathname.startsWith('/marketplace-image/')) {
+        const imgId = decodeURIComponent(url.pathname.replace('/marketplace-image/', '').split('/')[0].trim());
+        if (imgId) {
+          try {
+            const row = await env.DB.prepare('SELECT images FROM marketplace_listings WHERE id = ?').bind(imgId).first<any>();
+            let first = '';
+            try {
+              const imgs = JSON.parse(String(row?.images || '[]'));
+              if (Array.isArray(imgs) && imgs.length) first = String(imgs[0] || '');
+            } catch (e) {}
+            const m = /^data:(image\/[a-zA-Z0-9+.-]+);base64,([A-Za-z0-9+/=\s]+)$/.exec(first);
+            if (m) {
+              const bin = atob(m[2].replace(/\s+/g, ''));
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              const imgHeaders: Record<string, string> = {
+                'Content-Type': m[1],
+                'Cache-Control': 'public, max-age=31536000, immutable',
+                'Content-Length': String(bytes.length),
+              };
+              return new Response(request.method === 'HEAD' ? null : bytes, { status: 200, headers: imgHeaders });
+            }
+          } catch (e) {}
+        }
+        return new Response('Not found', { status: 404 });
+      }
+
       // Public post avatar: /post-avatar/:id — decodes the inline base64 data-URI
       // avatars stored on posts so list responses can stay tiny. No login required.
       if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
@@ -5821,13 +5886,14 @@ export default {
       }
 
       // Public share pages: /post/:id, /live/:id, /book/:id, /synax/:MM-DD,
-      // /radio/live, /radio/track/:id, /event/:id (OG tags + preview + app CTA).
+      // /radio/live, /radio/track/:id, /event/:id, /marketplace/:id
+      // (OG tags + preview + app CTA).
       // HEAD is served too: several link-preview scrapers probe headers first.
       // NOTE: /synax/ is matched only for MM-DD keys so it can never swallow
       // the static /synaxarium/*.json data files.
       if ((request.method === 'GET' || request.method === 'HEAD') && env.DB &&
           (url.pathname.startsWith('/post/') || url.pathname.startsWith('/live/') || url.pathname.startsWith('/book/') ||
-           url.pathname.startsWith('/radio/') || url.pathname.startsWith('/event/') ||
+           url.pathname.startsWith('/radio/') || url.pathname.startsWith('/event/') || url.pathname.startsWith('/marketplace/') ||
            /^\/synax\/\d{1,2}-\d{1,2}\/?$/.test(url.pathname))) {
         let kind: string;
         let prefix: string;
@@ -5835,6 +5901,7 @@ export default {
         else if (url.pathname.startsWith('/book/')) { kind = 'book'; prefix = '/book/'; }
         else if (url.pathname.startsWith('/radio/')) { kind = 'radio'; prefix = '/radio/'; }
         else if (url.pathname.startsWith('/event/')) { kind = 'event'; prefix = '/event/'; }
+        else if (url.pathname.startsWith('/marketplace/')) { kind = 'marketplace'; prefix = '/marketplace/'; }
         else if (url.pathname.startsWith('/synax/')) { kind = 'synax'; prefix = '/synax/'; }
         else { kind = 'post'; prefix = '/post/'; }
         const shareId = decodeURIComponent(url.pathname.replace(prefix, '').split('/')[0].trim());

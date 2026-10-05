@@ -38,6 +38,7 @@ export const MarketplaceView: React.FC = () => {
   const [selected, setSelected] = useState<MarketplaceListing | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [detailImgIdx, setDetailImgIdx] = useState(0);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // create form state
   const [title, setTitle] = useState('');
@@ -151,7 +152,12 @@ export const MarketplaceView: React.FC = () => {
   };
 
   const handleDelete = async (listing: MarketplaceListing) => {
-    if (!window.confirm(ar ? 'حذف هذا الإعلان نهائيًا؟' : 'Delete this listing permanently?')) return;
+    // Two-tap inline confirm: native window.confirm is unreliable in some webviews/automation
+    if (confirmDeleteId !== listing.id) {
+      setConfirmDeleteId(listing.id);
+      return;
+    }
+    setConfirmDeleteId(null);
     try {
       await marketplaceApi.remove(listing.id);
       setListings((prev) => prev.filter((l) => l.id !== listing.id));
@@ -173,6 +179,7 @@ export const MarketplaceView: React.FC = () => {
 
   const openDetail = (listing: MarketplaceListing) => {
     setDetailImgIdx(0);
+    setConfirmDeleteId(null);
     setSelected(listing);
   };
 
@@ -375,10 +382,12 @@ export const MarketplaceView: React.FC = () => {
                   </button>
                   <button
                     onClick={() => handleDelete(selected)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-700/10 border border-red-700/40 text-sm font-bold text-red-700 dark:text-red-300"
+                    className={confirmDeleteId === selected.id
+                      ? "flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-700 text-sm font-bold text-white"
+                      : "flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-700/10 border border-red-700/40 text-sm font-bold text-red-700 dark:text-red-300"}
                   >
                     <Trash2 className="w-4 h-4" />
-                    {ar ? 'حذف' : 'Delete'}
+                    {confirmDeleteId === selected.id ? (ar ? 'اضغط مرة أخرى للتأكيد' : 'Tap again to confirm') : (ar ? 'حذف' : 'Delete')}
                   </button>
                 </div>
               )}

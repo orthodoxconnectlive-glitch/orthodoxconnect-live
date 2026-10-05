@@ -3003,14 +3003,20 @@ export default {
           if (!authRd.id) {
             return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
           }
-          const readerId = authRd.id;
-          const partnerId = String(body.partner_id || body.partnerId || '').replace(/^auth-/, '');
-          if (!readerId || !partnerId) {
+          const rawReader = String(authRd.id || '');
+          const rawPartner = String(body.partner_id || body.partnerId || '');
+          const readerBare = rawReader.replace(/^auth-/, '');
+          const partnerBare = rawPartner.replace(/^auth-/, '');
+          if (!readerBare || !partnerBare) {
             return jsonResponse({ success: false, error: 'reader_id and partner_id required' }, 400);
           }
+          // Match both raw and auth--stripped ID formats: the client strips the
+          // auth- prefix before sending, but stored sender/receiver IDs may use
+          // either format. Without this, the UPDATE silently matched 0 rows and
+          // read receipts never flipped to Seen.
           await env.DB.prepare(
-            'UPDATE messages SET is_read = 1 WHERE receiver_id = ? AND sender_id = ? AND is_read = 0'
-          ).bind(readerId, partnerId).run();
+            'UPDATE messages SET is_read = 1 WHERE (receiver_id = ? OR receiver_id = ?) AND (sender_id = ? OR sender_id = ?) AND is_read = 0'
+          ).bind(rawReader, readerBare, rawPartner, partnerBare).run();
           return jsonResponse({ success: true });
         }
       }

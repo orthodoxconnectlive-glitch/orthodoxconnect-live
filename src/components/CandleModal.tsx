@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { apiFetch } from '../lib/api';
 
 type CandleMode = 'welcome' | 'pray';
 type CandleState = 'idle' | 'lighting' | 'lit';
+
+// How long a lit candle burns before it goes out (1 minute per person).
+const BURN_MS = 60000;
 
 type CandleStats = {
   total: number;
@@ -27,6 +30,30 @@ export default function CandleModal({
   const ar = language === 'ar';
   const [state, setState] = useState<CandleState>('idle');
   const [stats, setStats] = useState<CandleStats | null>(null);
+  const burnTimer = useRef<number | null>(null);
+
+  const clearBurnTimer = () => {
+    if (burnTimer.current) {
+      clearTimeout(burnTimer.current);
+      burnTimer.current = null;
+    }
+  };
+
+  // After lighting, the flame burns BURN_MS then goes out on its own.
+  const scheduleBurnout = (litAt: number) => {
+    clearBurnTimer();
+    const remaining = BURN_MS - (Date.now() - litAt);
+    if (remaining <= 0) {
+      setState('idle');
+      try { localStorage.removeItem(litKey()); } catch {}
+      return;
+    }
+    burnTimer.current = window.setTimeout(() => {
+      setState('idle');
+      try { localStorage.removeItem(litKey()); } catch {}
+      burnTimer.current = null;
+    }, remaining);
+  };
 
   const refreshStats = () => {
     apiFetch<{ success: boolean; total: number; today: number; recent: CandleStats['recent'] }>('/api/candles')
@@ -39,13 +66,25 @@ export default function CandleModal({
   useEffect(() => {
     if (isOpen) {
       try {
-        setState(localStorage.getItem(litKey()) === '1' ? 'lit' : 'idle');
+        // The stored value is the lighting timestamp; the flame is still
+        // alive only within BURN_MS of it (old '1' values read as idle).
+        const litAt = Number(localStorage.getItem(litKey()) || 0);
+        if (litAt && Date.now() - litAt < BURN_MS) {
+          setState('lit');
+          scheduleBurnout(litAt);
+        } else {
+          setState('idle');
+        }
       } catch {
         setState('idle');
       }
       refreshStats();
+    } else {
+      clearBurnTimer();
     }
   }, [isOpen]);
+
+  useEffect(() => () => clearBurnTimer(), []);
 
   if (!isOpen) return null;
 
@@ -53,15 +92,17 @@ export default function CandleModal({
     if (state !== 'idle') return;
     setState('lighting');
     setTimeout(() => {
+      const now = Date.now();
       setState('lit');
       try {
-        localStorage.setItem(litKey(), '1');
+        localStorage.setItem(litKey(), String(now));
       } catch {}
       // Record the lighting on the server (count + who lit). Best-effort:
       // the candle still lights locally even if the request fails.
       apiFetch('/api/candles', { method: 'POST', body: JSON.stringify({}) })
         .then(() => refreshStats())
         .catch(() => {});
+      scheduleBurnout(now);
     }, 2100);
   };
 

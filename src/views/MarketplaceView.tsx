@@ -174,6 +174,25 @@ export const MarketplaceView: React.FC<{ focusListingId?: string | null; onFocus
     }
   };
 
+  // Render URLs in listing descriptions as tappable links.
+  const renderDescription = (text: string) => {
+    const parts = text.split(/(https?:\/\/[^\s]+)/g);
+    return parts.map((part, i) =>
+      /^https?:\/\//.test(part) ? (
+        <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-amber-700 dark:text-amber-300 underline break-all">
+          {part}
+        </a>
+      ) : (
+        <span key={i}>{part}</span>
+      )
+    );
+  };
+
+  const amazonUrlOf = (text: string): string | null => {
+    const m = (text || '').match(/https?:\/\/(www\.)?(amazon\.|a\.co\/)[^\s]*/i);
+    return m ? m[0] : null;
+  };
+
   const shareListing = async (listing: MarketplaceListing) => {
     const url = `https://orthodoxconnect.live/marketplace/${encodeURIComponent(listing.id)}`;
     const priceTxt = listing.price ? ` — ${listing.price}` : '';
@@ -368,9 +387,20 @@ export const MarketplaceView: React.FC<{ focusListingId?: string | null; onFocus
               <p className="text-xl font-bold text-amber-700 dark:text-amber-300 mt-1">
                 {selected.price || (ar ? 'السعر عند التواصل' : 'Ask for price')}
               </p>
+              {amazonUrlOf(selected.description || '') && (
+                <a
+                  href={amazonUrlOf(selected.description || '') as string}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-amber-600 text-white font-bold text-sm hover:opacity-90"
+                >
+                  <span>🛒</span>
+                  {ar ? 'اشترِ من أمازون' : 'Buy on Amazon'}
+                </a>
+              )}
               {selected.description && (
                 <p className="text-sm text-(--tx-strong) dark:text-[#f5ebd9] mt-3 whitespace-pre-wrap font-serif leading-relaxed">
-                  {selected.description}
+                  {renderDescription(selected.description)}
                 </p>
               )}
 

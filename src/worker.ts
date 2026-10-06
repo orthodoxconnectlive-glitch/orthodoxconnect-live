@@ -2186,9 +2186,12 @@ async function upsertLiveFeedPost(db: D1Database, stream: any, live: boolean): P
     const mediaUrl = String(stream.media_url || '');
     const ytId = extractYouTubeId(mediaUrl);
     const watchUrl = 'https://orthodoxconnect.live/live/' + encodeURIComponent(sid);
+    // No link text when the video embeds directly (YouTube); the link is only
+    // included for non-YouTube streams where there is no in-feed player.
+    const linkLine = ytId ? '' : `\n\n${live ? 'Watch live' : 'Replay'}: ${watchUrl}`;
     const content = live
-      ? `\uD83D\uDD34 LIVE NOW: ${title}\n${parish}\n\nWatch live: ${watchUrl}`
-      : `\u23FA Broadcast ended: ${title}\n${parish}\n\nReplay: ${watchUrl}`;
+      ? `\uD83D\uDD34 LIVE NOW: ${title}\n${parish}${linkLine}`
+      : `\u23FA Broadcast ended: ${title}\n${parish}${linkLine}`;
     const now = new Date().toISOString();
     const existing = await db.prepare('SELECT id FROM posts WHERE id = ?').bind(postId).first();
     if (existing) {

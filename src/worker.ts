@@ -4985,6 +4985,82 @@ export default {
       }
 
       // 16a0. Radio — liturgy / hymns / songs station (YouTube playlist + live mode).
+      // Import all videos from a YouTube channel as sermons (like V-Kid's
+      // one-tap channel import). POST { channel_url, speaker?, topic? }.
+      if ((url.pathname === '/api/sermons/import' || url.pathname === '/api/sermons/import/') && request.method === 'POST') {
+        if (env.DB) { await ensureSermonsTable(env.DB); }
+        const body: any = await request.json().catch(() => ({}));
+        const channelUrl = (body.channel_url || '').trim();
+        const speakerOverride = (body.speaker || '').trim();
+        const topicDefault = (body.topic || '').trim();
+        if (!channelUrl) return jsonResponse({ success: false, error: 'Channel URL is required.' }, 400);
+        try {
+          // 1. Resolve the channel URL to a channel ID + title.
+          const pageRes = await fetch(channelUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36', 'Accept-Language': 'en-US,en;q=0.9', Cookie: 'CONSENT=YES+1' },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!pageRes.ok) throw new Error('Could not open channel page');
+          const html = await pageRes.text();
+          let channelId: string | null = null;
+          const rssM = /href="(https:\/\/www\.youtube\.com\/feeds\/videos\.xml\?channel_id=([a-zA-Z0-9_-]+))"/.exec(html);
+          if (rssM) channelId = rssM[2];
+          if (!channelId) {
+            const idM = /"channelId":"([a-zA-Z0-9_-]+)"/.exec(html);
+            if (idM) channelId = idM[1];
+          }
+          if (!channelId) {
+            const urlM = /youtube\.com\/(channel|@)\/([a-zA-Z0-9_.-]+)/.exec(channelUrl);
+            if (urlM && urlM[1] === 'channel') channelId = urlM[2];
+          }
+          if (!channelId) throw new Error('Could not find channel ID');
+          let channelTitle = '';
+          const titleM = /<title>([^<]+)<\/title>/.exec(html);
+          if (titleM) channelTitle = titleM[1].replace(/ - YouTube$/, '').trim();
+          const speaker = speakerOverride || channelTitle;
+          // 2. Fetch the channel's RSS feed (latest videos).
+          const rssRes = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`, {
+            headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(15000),
+          });
+          if (!rssRes.ok) throw new Error('Could not read channel feed');
+          const xml = await rssRes.text();
+          const entries: Array<{ id: string; title: string; published: string }> = [];
+          const entryRe = /<entry>([\s\S]*?)<\/entry>/g;
+          let em: RegExpExecArray | null;
+          while ((em = entryRe.exec(xml)) !== null) {
+            const block = em[1];
+            const idM2 = /<yt:videoId>([^<]+)<\/yt:videoId>/.exec(block);
+            const tM = /<title>([^<]*)<\/title>/.exec(block);
+            const pM = /<published>([^<]*)<\/published>/.exec(block);
+            if (idM2) entries.push({ id: idM2[1], title: tM ? tM[1] : '', published: pM ? pM[1] : '' });
+          }
+          // 3. Insert new ones (skip videos already imported).
+          let addedByUserId: string | null = null;
+          let addedByName: string | null = null;
+          try {
+            const iAuth = await getAuthIdentity(request, env);
+            if (iAuth && iAuth.id) {
+              addedByUserId = iAuth.id;
+              const ip = await env.DB.prepare('SELECT full_name FROM profiles WHERE id = ?').bind(iAuth.id).first<{ full_name: string | null }>();
+              addedByName = (ip && ip.full_name) || iAuth.email || null;
+            }
+          } catch (e) {}
+          let imported = 0; let skipped = 0;
+          for (const e of entries) {
+            const mediaUrl = `https://www.youtube.com/watch?v=${e.id}`;
+            const existing = await env.DB.prepare(`SELECT id FROM sermons WHERE media_url = ? LIMIT 1`).bind(mediaUrl).first();
+            if (existing) { skipped++; continue; }
+            const sid = `sermon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            await env.DB.prepare(
+              `INSERT INTO sermons (id, title, speaker, topic, description, media_url, media_type, thumbnail_url, duration, added_by_user_id, added_by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, 'youtube', ?, '', ?, ?, ?)`
+            ).bind(sid, e.title || 'Untitled', speaker, topicDefault, null, mediaUrl, `https://img.youtube.com/vi/${e.id}/hqdefault.jpg`, addedByUserId, addedByName, new Date().toISOString()).run();
+            imported++;
+          }
+          return jsonResponse({ success: true, imported, skipped, speaker, channel_id: channelId });
+        } catch (err: any) {
+          return jsonResponse({ success: false, error: err?.message || 'Import failed' }, 400);
+        }
+      }
       // Sermons library — organized sermon archive (YouTube links + uploads),
       // browsable by speaker and topic. GET is public; POST records the adder.
       if (url.pathname === '/api/sermons' || url.pathname === '/api/sermons/') {

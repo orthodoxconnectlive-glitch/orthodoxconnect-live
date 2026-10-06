@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Play, Plus, X, Upload, Link as LinkIcon, Mic, User, Tag, Clock } from 'lucide-react';
+import { Search, Play, Plus, X, Upload, Link as LinkIcon, Mic, User, Tag, Download } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -44,6 +44,12 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState<Sermon | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+  const [importSpeaker, setImportSpeaker] = useState('');
+  const [importTopic, setImportTopic] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState('');
 
   // Add form
   const [fTitle, setFTitle] = useState('');
@@ -135,6 +141,30 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
     }
   };
 
+  const doImport = async () => {
+    if (!importUrl.trim() || importing) return;
+    setImporting(true);
+    setImportMsg('');
+    try {
+      const res = await apiFetch<{ success: boolean; imported?: number; skipped?: number; error?: string }>('/api/sermons/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel_url: importUrl.trim(), speaker: importSpeaker.trim(), topic: importTopic.trim() }),
+      });
+      if (res && res.success) {
+        setImportMsg(ar ? `تم استيراد ${res.imported} عظة` : `Imported ${res.imported} sermons${res.skipped ? ` (${res.skipped} already here)` : ''}`);
+        setImportUrl(''); setImportSpeaker(''); setImportTopic('');
+        load();
+      } else {
+        setImportMsg(res?.error || (ar ? 'فشل الاستيراد' : 'Import failed'));
+      }
+    } catch (e) {
+      setImportMsg(ar ? 'فشل الاستيراد' : 'Import failed');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const renderPlayer = () => {
     if (!playing) return null;
     return (
@@ -186,13 +216,23 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
           />
         </form>
         {profile && (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="px-4 py-2.5 rounded-xl bg-(--ac-gold) text-white text-sm font-serif font-bold flex items-center gap-2 shrink-0 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            {ar ? 'أضف عظة' : 'Add'}
-          </button>
+          <>
+            <button
+              onClick={() => setShowImport(true)}
+              title={ar ? 'استيراد قناة يوتيوب' : 'Import YouTube channel'}
+              className="px-4 py-2.5 rounded-xl bg-(--bg-soft) dark:bg-[#282019] text-(--tx-strong) border border-(--ln-gold)/50 text-sm font-serif font-bold flex items-center gap-2 shrink-0 cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              {ar ? 'قناة' : 'Channel'}
+            </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="px-4 py-2.5 rounded-xl bg-(--ac-gold) text-white text-sm font-serif font-bold flex items-center gap-2 shrink-0 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              {ar ? 'أضف عظة' : 'Add'}
+            </button>
+          </>
         )}
       </div>
 
@@ -322,6 +362,36 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
               className="w-full py-3 rounded-xl bg-(--ac-gold) text-white font-serif font-bold disabled:opacity-50 cursor-pointer"
             >
               {saving ? (ar ? 'جاري الحفظ...' : 'Saving...') : (ar ? 'إضافة العظة' : 'Add sermon')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showImport && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setShowImport(false)}>
+          <div className="bg-(--bg-soft) dark:bg-[#18120e] w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif font-bold">{ar ? 'استيراد قناة يوتيوب' : 'Import YouTube channel'}</h3>
+              <button onClick={() => setShowImport(false)} aria-label={ar ? 'إغلاق' : 'Close'}><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-xs font-serif text-(--tx-mute) leading-relaxed">
+              {ar ? 'الصق رابط قناة يوتيوب وسيتم إضافة كل فيديوهاتها كعظات.' : 'Paste a YouTube channel link and all its videos will be added as sermons.'}
+            </p>
+            <input value={importUrl} onChange={(e) => setImportUrl(e.target.value)} placeholder="https://youtube.com/@..."
+              className="w-full px-3 py-2.5 rounded-xl bg-(--bg-card) border border-(--ln-gold)/40 text-sm" />
+            <div className="grid grid-cols-2 gap-2">
+              <input value={importSpeaker} onChange={(e) => setImportSpeaker(e.target.value)} placeholder={ar ? 'الواعظ (اختياري)' : 'Speaker (optional)'}
+                className="px-3 py-2.5 rounded-xl bg-(--bg-card) border border-(--ln-gold)/40 text-sm font-serif" />
+              <input value={importTopic} onChange={(e) => setImportTopic(e.target.value)} placeholder={ar ? 'الموضوع (اختياري)' : 'Topic (optional)'}
+                className="px-3 py-2.5 rounded-xl bg-(--bg-card) border border-(--ln-gold)/40 text-sm font-serif" />
+            </div>
+            {importMsg && <div className="text-xs font-serif text-(--tx-strong)">{importMsg}</div>}
+            <button
+              onClick={doImport}
+              disabled={importing || !importUrl.trim()}
+              className="w-full py-3 rounded-xl bg-(--ac-gold) text-white font-serif font-bold disabled:opacity-50 cursor-pointer"
+            >
+              {importing ? (ar ? 'جاري الاستيراد...' : 'Importing...') : (ar ? 'استيراد' : 'Import')}
             </button>
           </div>
         </div>

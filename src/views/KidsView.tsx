@@ -12,6 +12,7 @@ import {
   Video,
   Send,
   Trash2,
+  Shuffle,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -110,7 +111,17 @@ export const KidsView: React.FC = () => {
   const { language } = useTheme();
   const ar = language === 'ar';
 
-  const [videos, setVideos] = useState<Post[]>([]);
+  // Fisher-Yates shuffle — fresh random order for the Kids Corner each visit.
+const shuffleArray = <T,>(arr: T[]): T[] => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+
+const [videos, setVideos] = useState<Post[]>([]);
   const [books, setBooks] = useState<KidsBook[]>([]);
   const [groups, setGroups] = useState<GroupRoom[]>([]);
   const [joinedIds, setJoinedIds] = useState<string[]>([]);
@@ -224,7 +235,7 @@ export const KidsView: React.FC = () => {
         // Kids Corner videos: ONLY posts explicitly tagged #kidsonly (shared from
         // the Kids Corner share bar). Ordinary posts that merely mention kids
         // stay on the main feed.
-        setVideos((vids || []).filter((v) => KIDSONLY_RE.test(videoText(v))));
+        setVideos(shuffleArray((vids || []).filter((v) => KIDSONLY_RE.test(videoText(v)))));
 
         const bookList: KidsBook[] = Array.isArray(bookRes) ? bookRes : [];
         setBooks(
@@ -528,6 +539,15 @@ export const KidsView: React.FC = () => {
               }`}
             >
               عربي ({arabicVideos.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setVideos((prev) => shuffleArray(prev))}
+              title={ar ? 'ترتيب عشوائي' : 'Shuffle'}
+              aria-label={ar ? 'ترتيب عشوائي' : 'Shuffle videos'}
+              className="px-4 py-2.5 rounded-xl bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) border border-(--ln-gold)/50 hover:text-(--tx-strong) transition-all cursor-pointer shrink-0"
+            >
+              <Shuffle className="w-4 h-4" />
             </button>
           </div>
         )}

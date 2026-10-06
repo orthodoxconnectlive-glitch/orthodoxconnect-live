@@ -1,5 +1,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
-import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon, Pencil, Trash2, Headphones, Play, Heart, MessageCircle, Share2, Send } from 'lucide-react';
+import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText, Image as ImageIcon, Pencil, Trash2, Headphones, Play, Heart, MessageCircle, Share2, Send,
+  Mic,
+} from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -13,6 +15,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import CopticReader from '../components/CopticReader';
 
 const SynaxariumView = React.lazy(() => import('./SynaxariumView'));
+const SermonsView = React.lazy(() => import('./SermonsView').then((m) => ({ default: m.SermonsView })));
 
 interface Book {
   id: string;
@@ -77,6 +80,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
+  const [libTab, setLibTab] = useState<'books' | 'sermons'>('books');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   
   // Modal states
@@ -508,6 +512,40 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
         </p>
       </div>
 
+      {/* Books / Sermons tabs */}
+      <div className="flex gap-2 justify-center">
+        <button
+          type="button"
+          onClick={() => setLibTab('books')}
+          className={`px-6 py-2.5 rounded-xl font-serif font-bold text-sm transition-all cursor-pointer ${
+            libTab === 'books'
+              ? 'bg-(--ac-bronze) text-white shadow-md'
+              : 'bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) border border-(--ln-gold)/50'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4" />
+            {language === 'ar' ? 'الكتب' : 'Books'}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setLibTab('sermons')}
+          className={`px-6 py-2.5 rounded-xl font-serif font-bold text-sm transition-all cursor-pointer ${
+            libTab === 'sermons'
+              ? 'bg-(--ac-bronze) text-white shadow-md'
+              : 'bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) border border-(--ln-gold)/50'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <Mic className="w-4 h-4" />
+            {language === 'ar' ? 'العظات' : 'Sermons'}
+          </span>
+        </button>
+      </div>
+
+      {libTab === 'books' && (
+      <>
       {/* Coptic Library — bilingual liturgical library */}
       <div className="rounded-3xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg bg-gradient-to-br from-[#3a2a18] via-[#241a10] to-[#3a2a18]">
         <div className="flex flex-col sm:flex-row items-center gap-5 p-5 sm:p-6">
@@ -882,6 +920,15 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
             </div>
           ))}
         </div>
+      )}
+
+      </>
+      )}
+
+      {libTab === 'sermons' && (
+        <Suspense fallback={<div className="text-center py-12 font-serif text-sm animate-pulse">{language === 'ar' ? 'جاري التحميل...' : 'Loading...'}</div>}>
+          <SermonsView language={language} />
+        </Suspense>
       )}
 
       {/* Pope Shenouda III collection modal — full screen, all his books */}

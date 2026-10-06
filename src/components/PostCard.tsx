@@ -292,6 +292,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
   const [pickerRect, setPickerRect] = useState<DOMRect | null>(null);
   const [isVideoLoaded, setIsVideoLoaded] = useState<boolean>(false);
+  const [videoThumbFailed, setVideoThumbFailed] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
@@ -492,6 +493,17 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   const libraryId = BUNNY_LIBRARY_ID || '713265';
   const cdnHost = BUNNY_CDN_HOSTNAME || 'vz-840ad26e-6fe.b-cdn.net';
+
+  // A Bunny video whose thumbnail never generated and whose post is older
+  // than ~20 minutes is dead (upload failed/stalled) — show "unavailable"
+  // instead of an eternal black loading box.
+  const videoPostAgeMin = (() => {
+    const ts = (post as any).createdAt || rawPost.created_at;
+    if (!ts) return 0;
+    const t = new Date(ts).getTime();
+    return isNaN(t) ? 0 : (Date.now() - t) / 60000;
+  })();
+  const videoUnavailable = !!cleanVideoId && videoThumbFailed && videoPostAgeMin > 20;
 
   const isSuperAdminOrAuthor =
     currentProfile?.id === authorId ||
@@ -916,30 +928,42 @@ export const PostCard: React.FC<PostCardProps> = ({
         </div>
       ) : cleanVideoId ? (
         <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-(--ln-gold)/40 mb-3.5 flex items-center justify-center">
-          {!isVideoLoaded && (
+          {videoUnavailable ? (
             <div className="absolute inset-0 bg-stone-950 flex flex-col items-center justify-center z-10 p-4 text-center">
-              <img
-                src={`https://${cdnHost}/${cleanVideoId}/thumbnail.jpg`}
-                alt="Video thumbnail"
-                className="absolute inset-0 w-full h-full object-cover opacity-30 filter blur-xs"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-              <Sparkles className="w-7 h-7 text-(--ac-gold-tx) animate-spin mb-2 z-10" />
+              <p className="text-2xl mb-2">🎬</p>
               <p className="text-xs text-(--chip-light) font-serif z-10">
-                {language === 'ar' ? 'جارٍ تحميل الفيديو...' : 'Loading video stream...'}
+                {language === 'ar' ? 'هذا الفيديو غير متوفر حالياً' : 'This video is currently unavailable'}
               </p>
             </div>
+          ) : (
+            <>
+              {!isVideoLoaded && (
+                <div className="absolute inset-0 bg-stone-950 flex flex-col items-center justify-center z-10 p-4 text-center">
+                  <img
+                    src={`https://${cdnHost}/${cleanVideoId}/thumbnail.jpg`}
+                    alt="Video thumbnail"
+                    className="absolute inset-0 w-full h-full object-cover opacity-30 filter blur-xs"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                      setVideoThumbFailed(true);
+                    }}
+                  />
+                  <Sparkles className="w-7 h-7 text-(--ac-gold-tx) animate-spin mb-2 z-10" />
+                  <p className="text-xs text-(--chip-light) font-serif z-10">
+                    {language === 'ar' ? 'جارٍ تحميل الفيديو...' : 'Loading video stream...'}
+                  </p>
+                </div>
+              )}
+              <iframe
+                src={`https://iframe.mediadelivery.net/embed/${libraryId}/${cleanVideoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`}
+                onLoad={() => setIsVideoLoaded(true)}
+                className="w-full h-full border-0 relative z-10"
+                allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+                allowFullScreen={true}
+                title="Bunny Stream Video"
+              />
+            </>
           )}
-          <iframe
-            src={`https://iframe.mediadelivery.net/embed/${libraryId}/${cleanVideoId}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`}
-            onLoad={() => setIsVideoLoaded(true)}
-            className="w-full h-full border-0 relative z-10"
-            allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
-            allowFullScreen={true}
-            title="Bunny Stream Video"
-          />
         </div>
       ) : hasGenericVideo && genericVideoSource ? (
         <div className="mb-3.5">

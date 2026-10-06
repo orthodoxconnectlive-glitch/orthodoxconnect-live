@@ -2224,6 +2224,33 @@ async function deleteLiveFeedPost(db: D1Database, streamId: string): Promise<voi
 // Streams are checked a few at a time (oldest first): YouTube rate-limits
 // rapid bursts from one IP, so small sequential rounds stay under the limit
 // and each round naturally advances as flipped streams leave the is_live=1 set.
+// Live-stream feed posts auto-expire: 2 hours after a broadcast ends, its
+// feed card disappears so the feed never fills with stale "broadcast ended"
+// posts. The replay stays available in the Live section.
+async function cleanOldLiveFeedPosts(db: D1Database): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+    // Ended streams: drop the feed card 2h after the broadcast ended.
+    await db.prepare(
+      `DELETE FROM posts WHERE id LIKE 'livepost-%' AND EXISTS (
+         SELECT 1 FROM live_streams
+         WHERE 'livepost-' || live_streams.id = posts.id
+           AND live_streams.is_live = 0
+           AND live_streams.ended_at IS NOT NULL
+           AND live_streams.ended_at < ?
+       )`
+    ).bind(cutoff).run();
+    // Orphaned cards (stream row gone entirely): drop them too.
+    await db.prepare(
+      `DELETE FROM posts WHERE id LIKE 'livepost-%' AND NOT EXISTS (
+         SELECT 1 FROM live_streams WHERE 'livepost-' || live_streams.id = posts.id
+       )`
+    ).run();
+  } catch (e) {
+    console.warn('[cleanOldLiveFeedPosts] note:', (e as any)?.message || e);
+  }
+}
+
 async function checkYouTubeLiveStatus(db: D1Database): Promise<void> {
   try {
     const { results } = await db
@@ -5983,6 +6010,8 @@ export default {
       if (event.cron === '*/3 * * * *') {
         // Frequent check: flip YouTube live streams to "ended" once YouTube says the broadcast is over.
         await checkYouTubeLiveStatus(env.DB);
+        // Expire old live-stream feed cards (2h after broadcast end).
+        await cleanOldLiveFeedPosts(env.DB);
       } else {
         await runCommunityBots(env.DB, new Date(event.scheduledTime || Date.now()));
       }

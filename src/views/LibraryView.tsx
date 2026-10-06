@@ -544,8 +544,37 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
         </button>
       </div>
 
-      {libTab === 'books' && (
+            {libTab === 'books' && (
       <>
+            {/* Filter / Search Bar */}
+      <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
+        <div className="relative w-full md:w-80">
+          <Search className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-(--tx-mute) dark:text-[#a89379]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={language === 'ar' ? 'بحث عن اسم كتاب أو مؤلف...' : 'Search title or author...'}
+            className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 text-xs font-serif rounded-full bg-(--bg-card) dark:bg-[#1c1611] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute)/60 focus:outline-none focus:border-(--ln-bronze)"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-1.5 justify-center">
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-serif font-bold transition-all cursor-pointer border ${
+                selectedCategory === cat.id
+                  ? 'bg-(--ac-gold) text-white border-(--ln-gold) shadow-sm'
+                  : 'bg-(--bg-card) dark:bg-[#1c1611] text-(--tx-strong) dark:text-[#f5ebd9] border-(--ln-gold)/40 hover:border-(--ln-bronze)'
+              }`}
+            >
+              {language === 'ar' ? cat.ar : cat.en}
+            </button>
+          ))}
+        </div>
+      </div>
       {/* Coptic Library — bilingual liturgical library */}
       <div className="rounded-3xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg bg-gradient-to-br from-[#3a2a18] via-[#241a10] to-[#3a2a18]">
         <div className="flex flex-col sm:flex-row items-center gap-5 p-5 sm:p-6">
@@ -742,36 +771,6 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
           </div>
         </div>
       )}
-
-      {/* Filter / Search Bar */}
-      <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-(--tx-mute) dark:text-[#a89379]" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={language === 'ar' ? 'بحث عن اسم كتاب أو مؤلف...' : 'Search title or author...'}
-            className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2 text-xs font-serif rounded-full bg-(--bg-card) dark:bg-[#1c1611] border border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute)/60 focus:outline-none focus:border-(--ln-bronze)"
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-1.5 justify-center">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-serif font-bold transition-all cursor-pointer border ${
-                selectedCategory === cat.id
-                  ? 'bg-(--ac-gold) text-white border-(--ln-gold) shadow-sm'
-                  : 'bg-(--bg-card) dark:bg-[#1c1611] text-(--tx-strong) dark:text-[#f5ebd9] border-(--ln-gold)/40 hover:border-(--ln-bronze)'
-              }`}
-            >
-              {language === 'ar' ? cat.ar : cat.en}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Book Grid */}
       {loading ? (

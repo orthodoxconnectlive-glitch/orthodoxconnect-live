@@ -2173,6 +2173,46 @@ async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
   }
 }
 
+// Live streams auto-post to the main feed so everyone can see a broadcast is
+// live. The post id is deterministic (livepost-<streamId>) so the create,
+// start, end, delete and cron paths all stay in sync.
+async function upsertLiveFeedPost(db: D1Database, stream: any, live: boolean): Promise<void> {
+  try {
+    const sid = String(stream?.id || '').trim();
+    if (!sid) return;
+    const postId = 'livepost-' + sid;
+    const title = String(stream.title || 'Parish Live Service');
+    const parish = String(stream.host_parish || 'Orthodox Church');
+    const mediaUrl = String(stream.media_url || '');
+    const ytId = extractYouTubeId(mediaUrl);
+    const watchUrl = 'https://orthodoxconnect.live/live/' + encodeURIComponent(sid);
+    const content = live
+      ? `\uD83D\uDD34 LIVE NOW: ${title}\n${parish}\n\nWatch live: ${watchUrl}`
+      : `\u23FA Broadcast ended: ${title}\n${parish}\n\nReplay: ${watchUrl}`;
+    const now = new Date().toISOString();
+    const existing = await db.prepare('SELECT id FROM posts WHERE id = ?').bind(postId).first();
+    if (existing) {
+      await db.prepare('UPDATE posts SET content = ?, video_id = ? WHERE id = ?')
+        .bind(content, ytId || null, postId).run();
+    } else {
+      await db.prepare(
+        `INSERT INTO posts (id, content, video_id, author_id, author_name, author_parish, author_avatar, image_url, group_id, likes_count, comments_count, reshares_count, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0, 0, ?)`
+      ).bind(postId, content, ytId || null, 'livebot', 'Live Broadcast', parish, '', now).run();
+    }
+  } catch (e) {
+    console.warn('[livepost] upsert failed for stream ' + String(stream?.id || ''), e);
+  }
+}
+
+async function deleteLiveFeedPost(db: D1Database, streamId: string): Promise<void> {
+  try {
+    await db.prepare('DELETE FROM posts WHERE id = ?').bind('livepost-' + String(streamId)).run();
+  } catch (e) {
+    console.warn('[livepost] delete failed for stream ' + String(streamId), e);
+  }
+}
+
 // YouTube live-status check (runs on a frequent cron): for streams still flagged
 // as live whose media_url is a YouTube link, ask YouTube's watch page whether the
 // broadcast actually ended. YouTube embeds `"isLiveNow":false` in
@@ -2185,13 +2225,16 @@ async function checkYouTubeLiveStatus(db: D1Database): Promise<void> {
   try {
     const { results } = await db
       .prepare(
-        `SELECT id, media_url FROM live_streams WHERE is_live = 1 AND (media_url LIKE '%youtube%' OR media_url LIKE '%youtu.be%') ORDER BY created_at ASC LIMIT 3`
+        `SELECT id, title, host_parish, priest_name, media_url FROM live_streams WHERE is_live = 1 AND (media_url LIKE '%youtube%' OR media_url LIKE '%youtu.be%') ORDER BY created_at ASC LIMIT 3`
       )
       .all();
     const rows = ((results || []) as any[]).filter((r) => extractYouTubeId(r.media_url));
     for (const row of rows) {
       const videoId = extractYouTubeId(row.media_url);
       if (!videoId) continue;
+      // Self-heal: make sure every live YouTube broadcast has its feed post
+      // (also backfills streams that went live before this feature shipped).
+      await upsertLiveFeedPost(db, row, true);
       try {
         const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
           headers: {
@@ -2211,6 +2254,7 @@ async function checkYouTubeLiveStatus(db: D1Database): Promise<void> {
             .prepare(`UPDATE live_streams SET is_live = 0, ended_at = ?, status = 'ended' WHERE id = ?`)
             .bind(now, row.id)
             .run();
+          await upsertLiveFeedPost(db, row, false);
           console.log('[yt-live-check] marked ended: ' + row.id);
         }
       } catch (e) {
@@ -3948,6 +3992,7 @@ export default {
           return jsonResponse({ success: false, error: 'DB_UPDATE_FAILED', detail: String(e?.message || e).slice(0, 300) }, 500);
         }
         const row = await env.DB.prepare('SELECT * FROM live_streams WHERE id = ?').bind(streamId).first();
+        if (row) await upsertLiveFeedPost(env.DB, row, true);
         return jsonResponse({ success: true, stream: row });
       }
 
@@ -3966,6 +4011,7 @@ export default {
           return jsonResponse({ success: false, error: 'DB_UPDATE_FAILED', detail: String(e?.message || e).slice(0, 300) }, 500);
         }
         const row = await env.DB.prepare('SELECT * FROM live_streams WHERE id = ?').bind(streamId).first();
+        if (row) await upsertLiveFeedPost(env.DB, row, false);
         return jsonResponse({ success: true, stream: row });
       }
 
@@ -3990,6 +4036,9 @@ export default {
           await env.DB.prepare(`UPDATE live_streams SET ${updates.join(', ')} WHERE id = ?`).bind(...vals).run();
         }
         const row = await env.DB.prepare('SELECT * FROM live_streams WHERE id = ?').bind(streamId).first();
+        if (row && body.is_live !== undefined && env.DB) {
+          await upsertLiveFeedPost(env.DB, row, !!body.is_live);
+        }
         return jsonResponse({ success: true, stream: row });
       }
 
@@ -4004,6 +4053,7 @@ export default {
         const existing = await env.DB.prepare('SELECT id FROM live_streams WHERE id = ?').bind(streamId).first<{ id: string }>();
         if (!existing) return jsonResponse({ success: false, error: 'Live stream not found' }, 404);
         await env.DB.prepare('DELETE FROM live_streams WHERE id = ?').bind(streamId).run();
+        await deleteLiveFeedPost(env.DB, streamId);
         return jsonResponse({ success: true, deleted: streamId });
       }
 
@@ -4035,6 +4085,11 @@ export default {
               INSERT INTO live_streams (id, title, host_parish, priest_name, media_url, is_live, viewers_count, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(id, title, hostParish, priestName, mediaUrl, isLive, viewersCount, createdAt).run();
+          }
+
+          // New live broadcast -> announce it on the main feed.
+          if (isLive === 1 && env.DB) {
+            await upsertLiveFeedPost(env.DB, { id, title, host_parish: hostParish, priest_name: priestName, media_url: mediaUrl }, true);
           }
 
           return jsonResponse({

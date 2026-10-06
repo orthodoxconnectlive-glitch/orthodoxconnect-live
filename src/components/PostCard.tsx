@@ -326,6 +326,27 @@ export const PostCard: React.FC<PostCardProps> = ({
   // the user asked for the original), else the original post text.
   const displayedText = translatedText && !viewOriginal ? translatedText : postContent;
 
+  // Render URLs in post text as tappable links (e.g. live-stream watch links).
+  const renderLinkedText = (text: string) => {
+    const parts = text.split(/(https?:\/\/[^\s]+)/g);
+    return parts.map((part, i) =>
+      /^https?:\/\//.test(part) ? (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-amber-700 dark:text-amber-300 underline break-all"
+        >
+          {part}
+        </a>
+      ) : (
+        <span key={i}>{part}</span>
+      )
+    );
+  };
+
   // Automatically translate the post into the app's language the first time
   // the card scrolls into view (via /api/translate; the server caches each
   // post's translation in D1 so it is only ever translated once).
@@ -821,7 +842,7 @@ export const PostCard: React.FC<PostCardProps> = ({
       {postContent && (
         <div className="mb-3.5">
           <p className="text-xs sm:text-sm text-(--tx-strong) dark:text-[#f5ebd9] font-serif leading-relaxed whitespace-pre-wrap">
-            {displayedText}
+            {renderLinkedText(displayedText)}
           </p>
           {needsTranslation && (
             <div className="mt-1.5">

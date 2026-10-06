@@ -45,6 +45,14 @@ const CLOUDINARY_PRESET = 'orthodox_books';
 
 const HANNA_PHOTO_URL = 'https://eadn-wc05-6472364.nxedge.io/wp-content/uploads/2021/02/صورة-حنا-ابو-سيف.jpg';
 
+// Google Drive "uc?export=download" links force a file-save dialog on mobile.
+// Rewrite them to Drive's inline preview so books open in the reader instead.
+const getReadableFileUrl = (url: string): string => {
+  const m = /drive\.google\.com\/uc\?export=download&id=([a-zA-Z0-9_-]+)/.exec(url || '');
+  if (m) return `https://drive.google.com/file/d/${m[1]}/preview`;
+  return url;
+};
+
 const getYouTubeEmbedUrl = (url: string): string | null => {
   try {
     const u = new URL(url);
@@ -801,7 +809,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                       <span>{language === 'ar' ? 'اقرأ' : 'Read'}</span>
                     </button>
                     <a
-                      href={book.file_url}
+                      href={getReadableFileUrl(book.file_url)}
                       target="_blank"
                       rel="noreferrer"
                       onClick={() => recordBookRead(book.id)}
@@ -831,7 +839,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                   </button>
                 ) : (
                   <a
-                    href={book.file_url}
+                    href={getReadableFileUrl(book.file_url)}
                     target="_blank"
                     rel="noreferrer"
                     onClick={() => recordBookRead(book.id)}
@@ -940,7 +948,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                     </button>
                   ) : (
                     <a
-                      href={book.file_url}
+                      href={getReadableFileUrl(book.file_url)}
                       target="_blank"
                       rel="noreferrer"
                       onClick={() => recordBookRead(book.id)}
@@ -1050,7 +1058,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                     </button>
                   ) : (
                     <a
-                      href={book.file_url}
+                      href={getReadableFileUrl(book.file_url)}
                       target="_blank"
                       rel="noreferrer"
                       onClick={() => recordBookRead(book.id)}

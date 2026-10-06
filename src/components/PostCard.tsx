@@ -508,6 +508,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   const isSuperAdminOrAuthor =
     currentProfile?.id === authorId ||
+    (currentProfile as any)?.is_admin === true ||
     currentProfile?.role === 'admin' ||
     currentProfile?.role === 'owner' ||
     currentProfile?.role === 'super_admin' ||

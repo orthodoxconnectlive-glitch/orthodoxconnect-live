@@ -28,6 +28,7 @@ interface Book {
   comments_count?: number;
   reads_count?: number;
   liked_by_me?: boolean;
+  added_by_name?: string;
 }
 
 interface BookComment {
@@ -793,6 +794,11 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                   <p className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif mt-1">
                     {language === 'ar' ? book.author_ar : book.author_en || book.author_ar}
                   </p>
+                  {book.added_by_name && (
+                    <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif opacity-80">
+                      {language === 'ar' ? `أضافه: ${book.added_by_name}` : `Added by ${book.added_by_name}`}
+                    </p>
+                  )}
                   <p className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif mt-0.5">
                     &#128065; {book.reads_count || 0} {language === 'ar' ? 'قراءة' : 'reads'}
                   </p>

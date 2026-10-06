@@ -43,6 +43,8 @@ interface BookComment {
 const CLOUDINARY_CLOUD_NAME = 'z1ihehha';
 const CLOUDINARY_PRESET = 'orthodox_books';
 
+const HANNA_PHOTO_URL = 'https://eadn-wc05-6472364.nxedge.io/wp-content/uploads/2021/02/صورة-حنا-ابو-سيف.jpg';
+
 const getYouTubeEmbedUrl = (url: string): string | null => {
   try {
     const u = new URL(url);
@@ -77,6 +79,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
   const [copticReaderInitialBook, setCopticReaderInitialBook] = useState<string | null>(null);
   // Pope Shenouda III collection modal — groups all his books in one spot.
   const [shenoudaOpen, setShenoudaOpen] = useState<boolean>(false);
+  const [hannaOpen, setHannaOpen] = useState<boolean>(false);
   // Bumps to force a full remount of the reader if its error boundary retries.
   const [readerAttempt, setReaderAttempt] = useState(0);
   const [commentBook, setCommentBook] = useState<Book | null>(null);
@@ -180,7 +183,10 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
   const isShenoudaBook = (b: Book) =>
     /شنود[ةه]/.test(b.author_ar || '') || /shenouda/i.test(b.author_en || '');
   const shenoudaBooks = books.filter(isShenoudaBook);
-  const otherBooks = books.filter((b) => !isShenoudaBook(b));
+  const isHannaBook = (b: Book) =>
+    /حنا جاب الله/.test(b.author_ar || '');
+  const hannaBooks = books.filter((b) => !isShenoudaBook(b) && isHannaBook(b));
+  const otherBooks = books.filter((b) => !isShenoudaBook(b) && !isHannaBook(b));
 
   const openAddModal = () => {
     setEditingBookId(null);
@@ -382,6 +388,9 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
     } else if (isShenoudaBook(target)) {
       // Shenouda books live inside the collection card — open it instead.
       setShenoudaOpen(true);
+    } else if (isHannaBook(target)) {
+      // Hanna books live inside the collection card — open it instead.
+      setHannaOpen(true);
     } else {
       setHighlightBookId(target.id);
       setTimeout(() => {
@@ -651,6 +660,42 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
         </div>
       )}
 
+      {/* Deacon Hanna Gaballa Abouseif collection spotlight — all his books in one spot */}
+      {hannaBooks.length > 0 && (
+        <div className="rounded-3xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg bg-gradient-to-br from-[#2b1d12] via-[#1c1410] to-[#2b1d12]">
+          <div className="flex flex-col sm:flex-row items-center gap-5 p-5 sm:p-6">
+            <img
+              src={HANNA_PHOTO_URL}
+              alt={language === 'ar' ? 'الإيبوذياكون حنا جاب الله أبو سيف' : 'Deacon Hanna Gaballa Abouseif'}
+              className="w-28 sm:w-36 rounded-xl shadow-2xl border border-[#8b6b4a]/50 shrink-0"
+            />
+            <div className="flex-1 text-center sm:text-left rtl:sm:text-right">
+              <div className="text-[10px] font-serif uppercase tracking-[0.25em] text-[#d4a24e] mb-1">
+                ✦ {language === 'ar' ? 'مكتبة الإيبوذياكون حنا جاب الله أبو سيف' : 'Deacon Hanna Gaballa Abouseif Library'} ✦
+              </div>
+              <h2 className="font-serif-coptic font-bold text-xl sm:text-2xl text-[#f5ebd9] mb-1">
+                {language === 'ar' ? 'الإيبوذياكون حنا جاب الله أبو سيف' : 'Deacon Hanna Gaballa Abouseif'}
+              </h2>
+              <p className="text-xs text-[#c9b18c] font-serif leading-relaxed mb-4">
+                {language === 'ar'
+                  ? `كل كتبه في مكان واحد — ${hannaBooks.length} كتاب`
+                  : `All his books in one place — ${hannaBooks.length} books`}
+              </p>
+              <div className="flex flex-wrap gap-2 justify-center sm:justify-start rtl:sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setHannaOpen(true)}
+                  className="px-5 py-2.5 rounded-full bg-[#d4a24e] hover:bg-[#e5b85c] text-[#1c1410] text-sm font-serif font-bold flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  {language === 'ar' ? 'عرض كل الكتب' : 'View All Books'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filter / Search Bar */}
       <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
         <div className="relative w-full md:w-80">
@@ -889,6 +934,116 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                     <button
                       type="button"
                       onClick={() => { setShenoudaOpen(false); recordBookRead(book.id); setPlayingBook(book); }}
+                      className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0 cursor-pointer"
+                    >
+                      {language === 'ar' ? 'استمع الآن' : 'Listen Now'}
+                    </button>
+                  ) : (
+                    <a
+                      href={book.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => recordBookRead(book.id)}
+                      className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0"
+                    >
+                      {language === 'ar' ? 'قراءة / تحميل' : 'Read / Download'}
+                    </a>
+                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => shareBook(book)}
+                      className="p-1.5 text-(--tx-mute) hover:text-amber-500 transition-colors"
+                      title={language === 'ar' ? 'مشاركة' : 'Share'}
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => openEditModal(book)}
+                      className="p-1.5 text-(--tx-mute) hover:text-amber-500 transition-colors"
+                      title={language === 'ar' ? 'تعديل' : 'Edit'}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteBook(book.id)}
+                      className="p-1.5 text-(--tx-mute) hover:text-red-500 transition-colors"
+                      title={language === 'ar' ? 'حذف' : 'Delete'}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+{/* Deacon Hanna Gaballa Abouseif collection modal — full screen, all his books */}
+      {hannaOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" onClick={() => setHannaOpen(false)}>
+          <div
+            className="bg-(--bg-soft) dark:bg-[#18120e] w-full h-full relative text-(--tx-strong) dark:text-[#f5ebd9] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 pb-3 border-b border-(--ln-gold)/30 flex items-center gap-3">
+              {hannaBooks[0]?.cover_image_url && (
+                <img src={hannaBooks[0].cover_image_url} alt="" className="w-10 h-14 object-cover rounded-lg border border-[#8b6b4a]/50 shrink-0" />
+              )}
+              <div className="min-w-0 flex-1">
+                <h2 className="font-serif-coptic font-bold text-lg leading-snug">
+                  {language === 'ar' ? 'كتب الإيبوذياكون حنا جاب الله أبو سيف' : 'Deacon Hanna Gaballa Abouseif Books'}
+                </h2>
+                <p className="text-xs text-(--tx-mute) dark:text-[#a89379] font-serif mt-0.5">
+                  {language === 'ar' ? `${hannaBooks.length} كتاب` : `${hannaBooks.length} books`}
+                </p>
+              </div>
+              <button
+                onClick={() => setHannaOpen(false)}
+                className="text-(--tx-mute) hover:text-(--tx-strong) dark:hover:text-white shrink-0"
+                aria-label={language === 'ar' ? 'إغلاق' : 'Close'}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4 flex-1">
+              <div className="max-w-4xl mx-auto space-y-2">
+              {hannaBooks.map((book) => (
+                <div
+                  key={book.id}
+                  className="flex items-center gap-3 p-2.5 rounded-2xl bg-(--bg-card) dark:bg-[#1c1611] border border-(--ln-gold)/40"
+                >
+                  {book.cover_image_url ? (
+                    <img src={book.cover_image_url} alt={book.title_ar} className="w-10 h-14 object-cover rounded-lg shrink-0" />
+                  ) : (
+                    <div className="w-10 h-14 rounded-lg bg-(--bg-soft) dark:bg-[#282019] flex items-center justify-center shrink-0">
+                      <BookOpen className="w-5 h-5 text-(--ac-gold-tx)" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="font-serif-coptic font-bold text-sm line-clamp-2">
+                      {language === 'ar' ? book.title_ar : book.title_en || book.title_ar}
+                    </div>
+                    <div className="text-[11px] text-(--tx-mute) dark:text-[#a89379] font-serif mt-0.5 line-clamp-1">
+                      {language === 'ar' ? book.author_ar : book.author_en || book.author_ar}
+                    </div>
+                    <div className="text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif">
+                      &#128065; {book.reads_count || 0} {language === 'ar' ? 'قراءة' : 'reads'}
+                    </div>
+                  </div>
+                  {book.file_url && book.file_url.startsWith('synaxarium://') ? (
+                    <button
+                      type="button"
+                      onClick={() => { setHannaOpen(false); recordBookRead(book.id); setSynaxariumOpen(true); }}
+                      className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0 cursor-pointer"
+                    >
+                      {language === 'ar' ? 'اقرأ الآن' : 'Read Now'}
+                    </button>
+                  ) : book.category === 'audiobook' ? (
+                    <button
+                      type="button"
+                      onClick={() => { setHannaOpen(false); recordBookRead(book.id); setPlayingBook(book); }}
                       className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0 cursor-pointer"
                     >
                       {language === 'ar' ? 'استمع الآن' : 'Listen Now'}

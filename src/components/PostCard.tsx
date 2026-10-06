@@ -292,6 +292,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
   const [pickerRect, setPickerRect] = useState<DOMRect | null>(null);
   const [isVideoLoaded, setIsVideoLoaded] = useState<boolean>(false);
+  const [confirmDeletePost, setConfirmDeletePost] = useState<boolean>(false);
   const [videoThumbFailed, setVideoThumbFailed] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
@@ -840,11 +841,23 @@ export const PostCard: React.FC<PostCardProps> = ({
           {isSuperAdminOrAuthor && onDeletePost && (
             <button
               type="button"
-              onClick={() => { if (window.confirm(t('delete') + '?')) onDeletePost(post.id); }}
-              className="p-1.5 rounded-lg text-red-500 hover:text-white hover:bg-red-600 transition-colors cursor-pointer"
+              onClick={() => {
+                if (confirmDeletePost) {
+                  setConfirmDeletePost(false);
+                  onDeletePost(post.id);
+                } else {
+                  // Two-tap inline confirm (no native window.confirm — it can
+                  // be blocked in webviews, and admin delete must always work).
+                  setConfirmDeletePost(true);
+                  window.setTimeout(() => setConfirmDeletePost(false), 5000);
+                }
+              }}
+              className={confirmDeletePost
+                ? "px-2 py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-bold transition-colors cursor-pointer"
+                : "p-1.5 rounded-lg text-red-500 hover:text-white hover:bg-red-600 transition-colors cursor-pointer"}
               title={t('delete')}
             >
-              <Trash2 className="w-4 h-4" />
+              {confirmDeletePost ? (language === 'ar' ? 'تأكيد؟' : 'Sure?') : <Trash2 className="w-4 h-4" />}
             </button>
           )}
         </div>

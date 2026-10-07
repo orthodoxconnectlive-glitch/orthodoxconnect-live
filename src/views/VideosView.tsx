@@ -524,7 +524,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
   };
 
   return (
-    <div className="w-full flex flex-col items-center relative select-none pb-4">
+    <div className="w-full relative select-none">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-[#1c1611]/95 border-2 border-(--ln-gold) text-[#f5ebd9] text-xs font-serif uppercase tracking-wider font-bold shadow-2xl animate-fade-in flex items-center gap-2">
@@ -534,7 +534,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
       )}
 
       {/* Main TikTok Container Frame */}
-      <div className="relative w-full max-w-[420px] h-[calc(100vh-6.5rem)] min-h-[580px] max-h-[860px] bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-(--ln-gold)/40 flex flex-col">
+      <div className="relative w-full h-[calc(100dvh-6.5rem)] bg-black overflow-hidden flex flex-col">
         {/* TikTok Top Floating Header (Following | For You + Search & Upload buttons) */}
         <div className="absolute top-0 inset-x-0 z-40 px-4 py-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between text-white pointer-events-none">
           {/* Search Toggle */}

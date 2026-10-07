@@ -304,7 +304,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       />
 
       {/* Main 9:16 Video Player Surface */}
-      <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl">
+      <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
         {/* 1. Bunny Stream Player */}
         {cleanVideoId ? (
           isPlaying ? (

@@ -128,8 +128,19 @@ export default function CandleModal({
     : 'Your candle is lit. God hears you. 🤍';
   const amenLabel = ar ? 'آمين 🤍' : 'Amen 🤍';
 
+  const isLit = state === 'lit';
+  const titleColor = isLit ? 'text-[#3d3220]' : 'text-amber-100';
+  const subColor = isLit ? 'text-[#7a6a4d]' : 'text-stone-400';
+  const countColor = isLit ? 'text-[#8a7648]' : 'text-amber-200/70';
+  const closeColor = isLit
+    ? 'text-[#8a7a5c] hover:text-[#3d3220] hover:bg-black/5'
+    : 'text-stone-500 hover:text-amber-200 hover:bg-white/10';
+  const amenBtn = isLit
+    ? 'border-[#b89b5e] text-[#7a6428] hover:bg-[#b89b5e]/10 bg-white/60'
+    : 'border-amber-500/50 text-amber-200 hover:bg-amber-500/10';
+
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-[#0b0705]/95 backdrop-blur-sm animate-fade-in">
+    <div className={`fixed inset-0 z-[70] flex items-center justify-center p-6 ${isLit ? 'bg-[#fdf8ee]/95' : 'bg-[#0b0705]/95'} backdrop-blur-sm animate-fade-in`}>
       <style>{`
         @keyframes oc-match-move {
           0% { transform: translate(95px, 130px) rotate(38deg); opacity: 0; }
@@ -165,19 +176,27 @@ export default function CandleModal({
         .oc-glow { animation: oc-glow-pulse 2.4s ease-in-out infinite; transform-origin: 100px 92px; }
       `}</style>
 
-      <div className="relative w-full max-w-sm text-center">
+      <div className={`relative w-full max-w-sm text-center ${isLit ? 'rounded-3xl overflow-hidden shadow-2xl' : ''}`}>
+        {isLit && (
+          <>
+            <img src="/jesus-candle-bg.webp" alt="" aria-hidden
+              className="absolute inset-0 w-full h-full object-cover object-top" />
+            <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-white/75 to-[#fffdf8]/95" />
+          </>
+        )}
+        <div className={isLit ? 'relative px-6 pt-8 pb-8' : ''}>
         <button
           onClick={onClose}
-          className="absolute -top-2 right-0 p-2 rounded-full text-stone-500 hover:text-amber-200 hover:bg-white/10 transition-colors cursor-pointer"
+          className={`absolute ${isLit ? 'top-3 right-3' : '-top-2 right-0'} p-2 rounded-full ${closeColor} transition-colors cursor-pointer`}
           aria-label="Close"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <h2 className="font-serif font-bold text-2xl text-amber-100 mb-1">{title}</h2>
-        <p className="text-stone-400 text-sm mb-2">{subtitle}</p>
+        <h2 className={`font-serif font-bold text-2xl ${titleColor} mb-1`}>{title}</h2>
+        <p className={`${subColor} text-sm mb-2`}>{subtitle}</p>
         {stats && stats.total > 0 && (
-          <p className="text-amber-200/70 text-xs mb-4">
+          <p className={`${countColor} text-xs mb-4`}>
             🕯 {stats.total.toLocaleString()} {ar ? 'شمعة مضيئة' : 'candles lit'}
           </p>
         )}
@@ -271,9 +290,9 @@ export default function CandleModal({
           )}
           {state === 'lit' && (
             <>
-              <p className="text-amber-100 font-serif text-lg">{litMessage}</p>
+              <p className={`${titleColor} font-serif text-lg`}>{litMessage}</p>
               {stats && stats.recent.length > 0 && (
-                <p className="text-stone-400 text-xs max-w-[280px] leading-relaxed">
+                <p className={`${subColor} text-xs max-w-[280px] leading-relaxed`}>
                   {ar ? 'أضاء مؤخراً: ' : 'Recently lit by: '}
                   {stats.recent
                     .slice(0, 6)
@@ -284,12 +303,13 @@ export default function CandleModal({
               )}
               <button
                 onClick={onClose}
-                className="px-8 py-2.5 rounded-2xl border border-amber-500/50 text-amber-200 hover:bg-amber-500/10 font-serif font-bold text-sm transition-all cursor-pointer"
+                className={`px-8 py-2.5 rounded-2xl border ${amenBtn} font-serif font-bold text-sm transition-all cursor-pointer`}
               >
                 {amenLabel}
               </button>
             </>
           )}
+        </div>
         </div>
       </div>
     </div>

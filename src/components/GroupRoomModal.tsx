@@ -96,27 +96,27 @@ export const GroupRoomModal: React.FC<GroupRoomModalProps> = ({ room, isOpen, on
             </div>
           </div>
 
-          {/* Participant Grid */}
-          <div className="flex-1 grid grid-cols-2 gap-3 min-h-[260px] bg-stone-900/90 rounded-2xl p-3 border border-amber-900/30 overflow-y-auto">
+          {/* Participant Grid — tiles fill the stage, columns adapt to headcount */}
+          <div className={`flex-1 grid gap-3 bg-stone-900/90 rounded-2xl p-3 border border-amber-900/30 overflow-y-auto ${participants.length <= 1 ? 'grid-cols-1' : participants.length <= 4 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
             {participants.map((p, idx) => (
               <div
                 key={idx}
-                className="relative aspect-video rounded-xl bg-stone-950 border border-amber-900/30 overflow-hidden flex flex-col items-center justify-center p-3 text-center group"
+                className="relative rounded-xl bg-stone-950 border border-amber-900/30 overflow-hidden flex flex-col items-center justify-center p-4 text-center group min-h-[220px] h-full"
               >
                 {isVideoOn || idx !== 1 ? (
                   <img
                     src={p.avatar}
                     alt={p.name}
-                    className="w-16 h-16 rounded-full object-cover border-2 border-amber-500/40 mb-2 shadow-lg"
+                    className="w-20 h-20 rounded-full object-cover border-2 border-amber-500/40 mb-3 shadow-lg"
                   />
                 ) : (
-                  <div className="w-16 h-16 rounded-full bg-stone-800 border-2 border-stone-700 flex items-center justify-center mb-2">
-                    <VideoOff className="w-6 h-6 text-stone-500" />
+                  <div className="w-20 h-20 rounded-full bg-stone-800 border-2 border-stone-700 flex items-center justify-center mb-3">
+                    <VideoOff className="w-8 h-8 text-stone-500" />
                   </div>
                 )}
 
-                <span className="text-xs font-bold text-amber-100">{p.name}</span>
-                <span className="text-[10px] text-amber-400/80">{p.role}</span>
+                <span className="text-sm font-bold text-amber-100">{p.name}</span>
+                <span className="text-xs text-amber-400/80">{p.role}</span>
 
                 {idx === 1 && isHandRaised && (
                   <span className="absolute top-2 right-2 rtl:right-auto rtl:left-2 p-1 rounded-full bg-amber-500 text-stone-950 shadow-md">

@@ -52,6 +52,7 @@ const translations: Record<Language, Record<string, string>> = {
     language: 'Language',
     themeMode: 'Theme Mode',
     ancientGold: 'Ancient Gold',
+    facebookMode: 'Facebook',
     dark: 'Dark',
     light: 'Light',
     arabic: 'العربية',
@@ -252,6 +253,7 @@ const translations: Record<Language, Record<string, string>> = {
     language: 'اللغة',
     themeMode: 'المظهر',
     ancientGold: 'النمط الذهبي القديم',
+    facebookMode: 'فيسبوك',
     dark: 'الداكن',
     light: 'الفياتح',
     arabic: 'العربية',
@@ -435,11 +437,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.remove('theme-dark', 'theme-light', 'theme-ancient', 'dark', 'light');
+    root.classList.remove('theme-dark', 'theme-light', 'theme-ancient', 'theme-facebook', 'dark', 'light');
     if (theme === 'dark') {
       root.classList.add('dark', 'theme-dark');
     } else if (theme === 'ancient') {
       root.classList.add('theme-ancient');
+    } else if ((theme as string) === 'facebook') {
+      root.classList.add('theme-facebook');
     } else {
       root.classList.add('light', 'theme-light');
     }

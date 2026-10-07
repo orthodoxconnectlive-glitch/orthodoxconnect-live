@@ -56,6 +56,43 @@
   color: var(--tx-strong);
 }
 
+/* ---- Facebook: clean familiar blue/white ---- */
+.theme-facebook {
+  --bg-page: #F0F2F5;
+  --bg-soft: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-card-hi: #FFFFFF;
+  --bg-inset: #F0F2F5;
+  --bg-inset2: #E4E6EB;
+  --bg-deep: #E4E6EB;
+  --tx-strong: #050505;
+  --tx-head: #050505;
+  --tx-mute: #65676B;
+  --tx-soft: #65676B;
+  --tx-body: #050505;
+  --tx-ink: #050505;
+  --tx-faint: #65676B;
+  --tx-ph-dark: #B0B3B8;
+  --ln-gold: #CED0D4;
+  --ln-bright: #CED0D4;
+  --ln-bronze: #B0B3B8;
+  --ln-light: #E4E6EB;
+  --ln-soft: #CED0D4;
+  --ac-gold: #1877F2;
+  --ac-gold-tx: #1877F2;
+  --ac-bronze: #166FE5;
+  --ac-bronze-tx: #166FE5;
+  --ac-bright: #1877F2;
+  --ac-bright-tx: #1877F2;
+  --ac-bronze-dk: #1460CC;
+  --ac-gold-deep: #1460CC;
+  --ac-bright-dk: #1460CC;
+  --chip-dark: #050505;
+  --chip-light: #F0F2F5;
+  background-color: var(--bg-page);
+  color: var(--tx-strong);
+}
+
 /* ---- Dark: deep warm charcoal ---- */
 .theme-dark, .dark {
   --bg-page: #0f0c09;

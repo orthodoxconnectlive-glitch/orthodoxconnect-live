@@ -24,6 +24,7 @@ import {
   Church,
   Store,
   Baby,
+  ThumbsUp,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -621,6 +622,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                       title={t('light')}
                     >
                       <Sun className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setTheme('facebook' as any)}
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                        theme === 'facebook' ? 'bg-[#1877F2] text-white' : 'text-(--tx-mute)'
+                      }`}
+                      title={t('facebookMode')}
+                    >
+                      <ThumbsUp className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>

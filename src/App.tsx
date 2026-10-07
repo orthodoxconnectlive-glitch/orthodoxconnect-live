@@ -320,8 +320,32 @@ function AppContent() {
     }
     // Keep the target post only when heading to the feed; anything else clears it.
     setFocusPostId(view === 'feed' && postId ? postId : null);
+    // Push a history entry so the Android back button walks back through
+    // visited tabs instead of closing the app.
+    if (view !== currentView) {
+      try {
+        window.history.pushState({ view }, '', window.location.href);
+      } catch (e) {}
+    }
     setCurrentView(view);
   };
+
+  // Android / browser back button: restore the previous tab from history.
+  // Falls back to the feed when there is no recorded view.
+  useEffect(() => {
+    const onPopState = (e: PopStateEvent) => {
+      const view = (e.state as any)?.view;
+      if (view && typeof view === 'string') {
+        setViewedUserProfile(null);
+        setFocusPostId(null);
+        setCurrentView(view);
+      } else {
+        setCurrentView('feed');
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   const renderView = () => {
     switch (currentView) {

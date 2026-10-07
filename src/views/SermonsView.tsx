@@ -168,42 +168,52 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
   const renderPlayer = () => {
     if (!playing) return null;
     return (
-      <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setPlaying(null)}>
-        <div className="w-full max-w-3xl bg-(--bg-soft) dark:bg-[#18120e] rounded-3xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-          <div className="p-4 border-b border-(--ln-gold)/30 flex items-center justify-between">
-            <div className="min-w-0">
-              <div className="font-bold font-serif truncate">{playing.title}</div>
-              {playing.speaker && <div className="text-xs text-(--tx-mute) font-serif">{playing.speaker}</div>}
+      <div className="sticky top-0 z-20 rounded-3xl overflow-hidden border-2 border-(--ln-gold)/60 bg-(--bg-soft) dark:bg-[#18120e] shadow-lg">
+        <div className="p-3 border-b border-(--ln-gold)/30 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-bold font-serif text-sm line-clamp-2">{playing.title}</div>
+            {playing.speaker && <div className="text-xs text-(--tx-mute) font-serif">{playing.speaker}</div>}
+          </div>
+          <button onClick={() => setPlaying(null)} className="shrink-0 p-2 cursor-pointer" aria-label={ar ? 'إغلاق' : 'Close'}>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="aspect-video bg-black">
+          {playing.media_type === 'youtube' && extractYouTubeId(playing.media_url) ? (
+            <iframe
+              src={`https://www.youtube.com/embed/${extractYouTubeId(playing.media_url)}?autoplay=1`}
+              className="w-full h-full" allowFullScreen allow="autoplay; encrypted-media"
+              title={playing.title}
+            />
+          ) : playing.media_type === 'audio' ? (
+            <div className="w-full h-full flex items-center justify-center p-8">
+              <audio src={playing.media_url} controls autoPlay className="w-full" />
             </div>
-            <button onClick={() => setPlaying(null)} className="shrink-0 p-2" aria-label={ar ? 'إغلاق' : 'Close'}>
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="aspect-video bg-black">
-            {playing.media_type === 'youtube' && extractYouTubeId(playing.media_url) ? (
-              <iframe
-                src={`https://www.youtube.com/embed/${extractYouTubeId(playing.media_url)}?autoplay=1`}
-                className="w-full h-full" allowFullScreen allow="autoplay; encrypted-media"
-                title={playing.title}
-              />
-            ) : playing.media_type === 'audio' ? (
-              <div className="w-full h-full flex items-center justify-center p-8">
-                <audio src={playing.media_url} controls autoPlay className="w-full" />
-              </div>
-            ) : (
-              <video src={playing.media_url} controls autoPlay className="w-full h-full" />
-            )}
-          </div>
-          {playing.description && (
-            <div className="p-4 text-sm font-serif text-(--tx-mute) leading-relaxed">{playing.description}</div>
+          ) : (
+            <video src={playing.media_url} controls autoPlay className="w-full h-full" />
           )}
         </div>
+        {playing.description && (
+          <div className="p-3 text-xs font-serif text-(--tx-mute) leading-relaxed line-clamp-3">{playing.description}</div>
+        )}
       </div>
     );
   };
 
+  // While a sermon plays, the list below shows the others in its topic.
+  const visibleSermons = playing && playing.topic
+    ? sermons.filter((s) => s.id !== playing.id && s.topic === playing.topic)
+    : sermons.filter((s) => !playing || s.id !== playing.id);
+
   return (
     <div className="space-y-4">
+      {renderPlayer()}
+      {playing && playing.topic && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-serif text-(--tx-mute)">{ar ? 'المزيد في' : 'More in'}</span>
+          <span className="px-3 py-1 rounded-full text-xs font-serif bg-(--ac-bronze) text-white">{playing.topic}</span>
+        </div>
+      )}
       {/* Search + add */}
       <div className="flex gap-2">
         <form onSubmit={onSearch} className="relative flex-1">
@@ -285,13 +295,13 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
         <div className="text-center py-12 text-(--tx-mute) font-serif text-sm animate-pulse">
           {ar ? 'جاري التحميل...' : 'Loading...'}
         </div>
-      ) : sermons.length === 0 ? (
+      ) : visibleSermons.length === 0 ? (
         <div className="bg-(--bg-card) border border-(--ln-gold)/40 rounded-3xl p-12 text-center text-(--tx-mute) font-serif text-sm">
           {ar ? 'لا توجد عظات بعد — كن أول من يضيف.' : 'No sermons yet — be the first to add one.'}
         </div>
       ) : (
         <div className="space-y-2">
-          {sermons.map((s) => {
+          {visibleSermons.map((s) => {
             const thumb = s.thumbnail_url || ytThumb(s.media_url);
             return (
               <div key={s.id} className="flex items-center gap-3 p-2.5 rounded-2xl bg-(--bg-card) border border-(--ln-gold)/40">
@@ -397,7 +407,6 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
         </div>
       )}
 
-      {renderPlayer()}
     </div>
   );
 }

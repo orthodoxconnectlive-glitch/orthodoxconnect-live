@@ -514,7 +514,6 @@ const [videos, setVideos] = useState<Post[]>([]);
         <SectionHeader
           icon={<Film className="w-4 h-4" />}
           title={ar ? 'فيديوهات الأطفال' : 'Kids Videos'}
-          count={videos.length}
         />
         {videos.length > 0 && (
           <div className="flex gap-2 px-1">
@@ -527,7 +526,7 @@ const [videos, setVideos] = useState<Post[]>([]);
                   : 'bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) border border-(--ln-gold)/50'
               }`}
             >
-              English ({englishVideos.length})
+              English
             </button>
             <button
               type="button"
@@ -538,7 +537,7 @@ const [videos, setVideos] = useState<Post[]>([]);
                   : 'bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) border border-(--ln-gold)/50'
               }`}
             >
-              عربي ({arabicVideos.length})
+              عربي
             </button>
             <button
               type="button"

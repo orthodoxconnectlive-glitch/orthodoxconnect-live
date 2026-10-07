@@ -168,17 +168,8 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
   const renderPlayer = () => {
     if (!playing) return null;
     return (
-      <div className="sticky top-0 z-20 rounded-3xl overflow-hidden border-2 border-(--ln-gold)/60 bg-(--bg-soft) dark:bg-[#18120e] shadow-lg">
-        <div className="p-3 border-b border-(--ln-gold)/30 flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="font-bold font-serif text-sm line-clamp-2">{playing.title}</div>
-            {playing.speaker && <div className="text-xs text-(--tx-mute) font-serif">{playing.speaker}</div>}
-          </div>
-          <button onClick={() => setPlaying(null)} className="shrink-0 p-2 cursor-pointer" aria-label={ar ? 'إغلاق' : 'Close'}>
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="aspect-video bg-black">
+      <div className="sticky top-[66px] z-20 -mx-4 bg-(--bg-soft) dark:bg-[#18120e] shadow-lg">
+        <div className="w-full aspect-video bg-black">
           {playing.media_type === 'youtube' && extractYouTubeId(playing.media_url) ? (
             <iframe
               src={`https://www.youtube.com/embed/${extractYouTubeId(playing.media_url)}?autoplay=1`}
@@ -193,9 +184,18 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
             <video src={playing.media_url} controls autoPlay className="w-full h-full" />
           )}
         </div>
-        {playing.description && (
-          <div className="p-3 text-xs font-serif text-(--tx-mute) leading-relaxed line-clamp-3">{playing.description}</div>
-        )}
+        <div className="px-4 py-3 border-b border-(--ln-gold)/30 flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-bold font-serif text-sm line-clamp-2">{playing.title}</div>
+            {playing.speaker && <div className="text-xs text-(--tx-mute) font-serif mt-0.5">{playing.speaker}</div>}
+            {playing.description && (
+              <div className="text-xs font-serif text-(--tx-mute) leading-relaxed line-clamp-2 mt-1">{playing.description}</div>
+            )}
+          </div>
+          <button onClick={() => setPlaying(null)} className="shrink-0 p-2 cursor-pointer" aria-label={ar ? 'إغلاق' : 'Close'}>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
     );
   };

@@ -22,6 +22,7 @@
 /* ---- Light: clean, normal ---- */
 .theme-light {
   --bg-page: #f5f4f1;
+  --bg-tabbar: #f3e3be;
   --bg-soft: #ffffff;
   --bg-card: #ffffff;
   --bg-card-hi: #ffffff;
@@ -59,6 +60,7 @@
 /* ---- Facebook: clean familiar blue/white ---- */
 .theme-facebook {
   --bg-page: #F0F2F5;
+  --bg-tabbar: #E7F3FF;
   --bg-soft: #FFFFFF;
   --bg-card: #FFFFFF;
   --bg-card-hi: #FFFFFF;
@@ -96,6 +98,7 @@
 /* ---- Dark: deep warm charcoal ---- */
 .theme-dark, .dark {
   --bg-page: #0f0c09;
+  --bg-tabbar: #18120e;
   --bg-soft: #1c1611;
   --bg-card: #1c1611;
   --bg-card-hi: #241c15;
@@ -134,6 +137,7 @@
    Aged papyrus, burnt bronze, olive clay; inscriptional serif. */
 .theme-ancient {
   --bg-page: #c8a76f;
+  --bg-tabbar: #f3e3be;
   --bg-soft: #d9c08c;
   --bg-card: #dfc795;
   --bg-card-hi: #e6d1a1;

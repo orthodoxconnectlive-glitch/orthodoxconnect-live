@@ -335,7 +335,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
 
         {/* Sub-Navigation Tabs (all screens — desktop included) */}
-        <div className="border-t border-(--ln-gold)/40 bg-[#f3e3be]/90 dark:bg-[#18120e]/90 px-4">
+        <div className="border-t border-(--ln-gold)/40 bg-(--bg-tabbar)/90 px-4">
           <div className="max-w-2xl mx-auto flex items-center justify-around h-13">
             {subTabs.map((tab) => {
               const Icon = tab.icon;

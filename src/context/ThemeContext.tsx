@@ -418,7 +418,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
-    return (localStorage.getItem('oc_theme') as ThemeMode) || 'ancient';
+    return (localStorage.getItem('oc_theme') as ThemeMode) || 'facebook';
   });
 
   const [language, setLanguageState] = useState<Language>(() => {

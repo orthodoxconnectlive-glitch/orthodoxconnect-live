@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Play, Plus, X, Upload, Link as LinkIcon, Mic, User, Tag, Download } from 'lucide-react';
+import { Search, Play, Plus, X, Upload, Link as LinkIcon, Mic, User, Tag, Download, Trash2 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
@@ -50,6 +50,8 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
   const [importTopic, setImportTopic] = useState('');
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmDeleteSpeaker, setConfirmDeleteSpeaker] = useState<string | null>(null);
 
   // Add form
   const [fTitle, setFTitle] = useState('');
@@ -165,6 +167,26 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
     }
   };
 
+  const isAdmin = !!(profile as any)?.is_admin;
+
+  const deleteSermon = async (id: string) => {
+    try {
+      await apiFetch(`/api/sermons/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      setConfirmDeleteId(null);
+      if (playing?.id === id) setPlaying(null);
+      load();
+    } catch (e) { console.error('delete sermon error', e); }
+  };
+
+  const deleteSpeaker = async (speaker: string) => {
+    try {
+      await apiFetch(`/api/sermons?speaker=${encodeURIComponent(speaker)}`, { method: 'DELETE' });
+      setConfirmDeleteSpeaker(null);
+      if (speakerFilter === speaker) setSpeakerFilter('');
+      load();
+    } catch (e) { console.error('delete speaker error', e); }
+  };
+
   const renderPlayer = () => {
     if (!playing) return null;
     return (
@@ -258,13 +280,32 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
                 {ar ? 'كل الوعاظ' : 'All speakers'}
               </button>
               {speakers.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSpeakerFilter(speakerFilter === s ? '' : s)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-serif whitespace-nowrap cursor-pointer ${speakerFilter === s ? 'bg-(--ac-bronze) text-white' : 'bg-(--bg-soft) border border-(--ln-gold)/40'}`}
-                >
-                  {s}
-                </button>
+                <span key={s} className="inline-flex items-center shrink-0">
+                  <button
+                    onClick={() => setSpeakerFilter(speakerFilter === s ? '' : s)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-serif whitespace-nowrap cursor-pointer ${speakerFilter === s ? 'bg-(--ac-bronze) text-white' : 'bg-(--bg-soft) border border-(--ln-gold)/40'}`}
+                  >
+                    {s}
+                  </button>
+                  {isAdmin && (
+                    confirmDeleteSpeaker === s ? (
+                      <button
+                        onClick={() => deleteSpeaker(s)}
+                        className="ml-1 px-2 py-1 rounded-lg bg-red-600 text-white text-[10px] font-serif font-bold cursor-pointer"
+                      >
+                        {ar ? 'حذف الكل؟' : 'Del all?'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteSpeaker(s)}
+                        className="ml-0.5 p-1 text-(--tx-mute) hover:text-red-600 cursor-pointer"
+                        aria-label={ar ? 'حذف القناة' : 'Delete channel'}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )
+                  )}
+                </span>
               ))}
             </div>
           )}
@@ -304,7 +345,25 @@ export function SermonsView({ language }: { language: 'ar' | 'en' }) {
           {visibleSermons.map((s) => {
             const thumb = s.thumbnail_url || ytThumb(s.media_url);
             return (
-              <div key={s.id} className="flex items-center gap-3 p-2.5 rounded-2xl bg-(--bg-card) border border-(--ln-gold)/40">
+              <div key={s.id} className="relative flex items-center gap-3 p-2.5 rounded-2xl bg-(--bg-card) border border-(--ln-gold)/40">
+                {isAdmin && (
+                  confirmDeleteId === s.id ? (
+                    <button
+                      onClick={() => deleteSermon(s.id)}
+                      className="absolute top-1.5 right-1.5 px-2 py-1 rounded-lg bg-red-600 text-white text-[10px] font-serif font-bold cursor-pointer"
+                    >
+                      {ar ? 'تأكيد؟' : 'Sure?'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(s.id)}
+                      className="absolute top-1.5 right-1.5 p-1.5 rounded-lg text-(--tx-mute) hover:text-red-600 cursor-pointer"
+                      aria-label={ar ? 'حذف' : 'Delete'}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )
+                )}
                 <button onClick={() => setPlaying(s)} className="relative w-24 h-16 rounded-xl overflow-hidden shrink-0 bg-black/10 cursor-pointer">
                   {thumb ? (
                     <img src={thumb} alt={s.title} className="w-full h-full object-cover" />

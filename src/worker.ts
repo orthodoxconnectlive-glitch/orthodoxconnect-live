@@ -5061,6 +5061,27 @@ export default {
           return jsonResponse({ success: false, error: err?.message || 'Import failed' }, 400);
         }
       }
+      // Delete sermons — ADMIN ONLY. DELETE /api/sermons/<id> removes one;
+      // DELETE /api/sermons?speaker=<name> removes a whole channel/speaker.
+      if (request.method === 'DELETE' && (url.pathname === '/api/sermons' || url.pathname === '/api/sermons/' || url.pathname.startsWith('/api/sermons/'))) {
+        if (env.DB) { await ensureSermonsTable(env.DB); }
+        const dAuth = await getAuthIdentity(request, env);
+        if (!dAuth || !dAuth.isAdmin) {
+          return jsonResponse({ success: false, error: 'Admin only.' }, 403);
+        }
+        const speakerParam = (url.searchParams.get('speaker') || '').trim();
+        if (speakerParam && (url.pathname === '/api/sermons' || url.pathname === '/api/sermons/')) {
+          const del = await env.DB.prepare(`DELETE FROM sermons WHERE speaker = ?`).bind(speakerParam).run();
+          return jsonResponse({ success: true, deleted: del.meta?.changes || 0, speaker: speakerParam });
+        }
+        const parts = url.pathname.split('/').filter(Boolean);
+        const sermonId = parts.length >= 3 ? decodeURIComponent(parts[2]) : '';
+        if (!sermonId || sermonId === 'import') {
+          return jsonResponse({ success: false, error: 'Sermon id or speaker is required.' }, 400);
+        }
+        await env.DB.prepare(`DELETE FROM sermons WHERE id = ?`).bind(sermonId).run();
+        return jsonResponse({ success: true, id: sermonId });
+      }
       // Sermons library — organized sermon archive (YouTube links + uploads),
       // browsable by speaker and topic. GET is public; POST records the adder.
       if (url.pathname === '/api/sermons' || url.pathname === '/api/sermons/') {

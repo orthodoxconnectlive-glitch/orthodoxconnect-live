@@ -10,7 +10,12 @@ interface Book {
 
 const getReadableFileUrl = (url: string): string => {
   const m = /drive\.google\.com\/uc\?export=download&id=([a-zA-Z0-9_-]+)/.exec(url || '');
-  if (m) return `https://drive.google.com/file/d/${m[1]}/preview`;
+  if (m) {
+    // Google Docs viewer renders the PDF directly in the iframe,
+    // avoiding Drive's interstitial "Open" page that escapes the modal.
+    const direct = `https://drive.google.com/uc?export=download&id=${m[1]}`;
+    return `https://docs.google.com/viewer?url=${encodeURIComponent(direct)}&embedded=true`;
+  }
   return url;
 };
 

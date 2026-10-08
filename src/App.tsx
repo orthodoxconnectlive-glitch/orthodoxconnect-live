@@ -13,6 +13,7 @@ import { ActiveChatsPanel } from './components/ActiveChatsPanel';
 import { LiturgicalBanner } from './components/LiturgicalBanner';
 import { InviteModal } from './components/InviteModal';
 import CandleModal from './components/CandleModal';
+import ThemePickerModal from './components/ThemePickerModal';
 import { EditProfileModal } from './components/EditProfileModal';
 import { AuthModal } from './components/AuthModal';
 import { AuthPage } from './components/AuthPage';
@@ -62,6 +63,13 @@ function AppContent() {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
   const [candleOpen, setCandleOpen] = useState<boolean>(false);
   const [candleMode, setCandleMode] = useState<'welcome' | 'pray'>('pray');
+  const [showThemePicker, setShowThemePicker] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem('oc_theme_chosen');
+    } catch {
+      return false;
+    }
+  });
 
   // Candle: opened from the 🕯 button (oc:open-candle event), or once as a
   // welcome ritual right after a new user signs up.
@@ -479,6 +487,7 @@ function AppContent() {
       <InviteModal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
       <EditProfileModal isOpen={isEditProfileOpen} onClose={() => setIsEditProfileOpen(false)} />
       <CandleModal isOpen={candleOpen} onClose={() => setCandleOpen(false)} mode={candleMode} />
+      {showThemePicker && <ThemePickerModal onDone={() => setShowThemePicker(false)} />}
       <AuthModal />
     </div>
   );

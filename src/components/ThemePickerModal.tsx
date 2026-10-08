@@ -12,7 +12,7 @@ const THEMES: { id: ThemeId; nameKey: string; bg: string; card: string; text: st
 ];
 
 export default function ThemePickerModal({ onDone }: { onDone: () => void }) {
-  const { theme, setTheme, t, language } = useTheme();
+  const { theme, setTheme, setLanguage, t, language } = useTheme();
   const ar = language === 'ar';
   const [selected, setSelected] = useState<ThemeId>((theme as ThemeId) || 'facebook');
 
@@ -32,6 +32,24 @@ export default function ThemePickerModal({ onDone }: { onDone: () => void }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
       <div className="w-full max-w-md rounded-3xl bg-[#fffdf8] p-6 sm:p-8 text-center shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <button
+            onClick={() => setLanguage('en')}
+            className={`px-4 py-1 text-xs font-bold rounded-full transition-all cursor-pointer ${
+              !ar ? 'bg-[#b45309] text-white shadow-sm' : 'bg-black/5 text-[#7a6a4d] hover:bg-black/10'
+            }`}
+          >
+            English
+          </button>
+          <button
+            onClick={() => setLanguage('ar')}
+            className={`px-4 py-1 text-xs font-bold rounded-full transition-all cursor-pointer ${
+              ar ? 'bg-[#b45309] text-white shadow-sm' : 'bg-black/5 text-[#7a6a4d] hover:bg-black/10'
+            }`}
+          >
+            عربي
+          </button>
+        </div>
         <div className="mx-auto w-14 h-14 rounded-2xl bg-[#c5a059]/20 border border-[#c5a059]/40 flex items-center justify-center text-[#b45309] mb-3">
           <span className="font-bold text-2xl">☨</span>
         </div>

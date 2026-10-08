@@ -15,6 +15,7 @@ import {
   BookOpen,
   Church,
   ThumbsUp,
+  Palette,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -158,6 +159,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <ThumbsUp className="w-3.5 h-3.5" />
               </button>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('oc:open-theme-picker'))}
+              className="p-1 rounded-xl transition-all cursor-pointer text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong)"
+              title={language === 'ar' ? 'اختر المظهر' : 'Choose theme'}
+            >
+              <Palette className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 

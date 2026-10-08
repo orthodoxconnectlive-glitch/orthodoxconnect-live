@@ -63,6 +63,13 @@ function AppContent() {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
   const [candleOpen, setCandleOpen] = useState<boolean>(false);
   const [candleMode, setCandleMode] = useState<'welcome' | 'pray'>('pray');
+  // Re-open the theme picker from settings (palette button)
+  useEffect(() => {
+    const openPicker = () => setShowThemePicker(true);
+    window.addEventListener('oc:open-theme-picker', openPicker);
+    return () => window.removeEventListener('oc:open-theme-picker', openPicker);
+  }, []);
+
   const [showThemePicker, setShowThemePicker] = useState<boolean>(() => {
     try {
       return !localStorage.getItem('oc_theme_chosen');

@@ -25,6 +25,7 @@ import {
   Store,
   Baby,
   ThumbsUp,
+  Palette,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -631,6 +632,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       title={t('facebookMode')}
                     >
                       <ThumbsUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => window.dispatchEvent(new CustomEvent('oc:open-theme-picker'))}
+                      className="p-1.5 rounded-lg transition-colors cursor-pointer text-(--tx-mute) hover:text-(--tx-strong)"
+                      title={language === 'ar' ? 'اختر المظهر' : 'Choose theme'}
+                    >
+                      <Palette className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>

@@ -13,6 +13,7 @@ import {
 import { REACTION_HEART, reactionLabel } from '../utils/reactions';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import CopticReader from '../components/CopticReader';
+import PdfReaderModal from '../components/PdfReaderModal';
 
 const SynaxariumView = React.lazy(() => import('./SynaxariumView'));
 const SermonsView = React.lazy(() => import('./SermonsView').then((m) => ({ default: m.SermonsView })));
@@ -87,6 +88,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [playingBook, setPlayingBook] = useState<Book | null>(null);
+  const [readingBook, setReadingBook] = useState<Book | null>(null);
   const [synaxariumOpen, setSynaxariumOpen] = useState<boolean>(false);
   const [copticReaderOpen, setCopticReaderOpen] = useState<boolean>(false);
   const [copticReaderInitialBook, setCopticReaderInitialBook] = useState<string | null>(null);
@@ -881,16 +883,14 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                     <span>{language === 'ar' ? 'استمع الآن' : 'Listen Now'}</span>
                   </button>
                 ) : (
-                  <a
-                    href={getReadableFileUrl(book.file_url)}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => recordBookRead(book.id)}
-                    className="mt-4 w-full py-2 px-3 rounded-xl bg-(--ac-gold) text-white text-xs font-serif font-bold flex items-center justify-center gap-1.5 hover:bg-(--ac-gold-deep) transition-colors shadow-sm"
+                  <button
+                    type="button"
+                    onClick={() => { recordBookRead(book.id); setReadingBook(book); }}
+                    className="mt-4 w-full py-2 px-3 rounded-xl bg-(--ac-gold) text-white text-xs font-serif font-bold flex items-center justify-center gap-1.5 hover:bg-(--ac-gold-deep) transition-colors shadow-sm cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>{language === 'ar' ? 'قراءة / تحميل' : 'Read / Download'}</span>
-                  </a>
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>{language === 'ar' ? 'اقرأ' : 'Read'}</span>
+                  </button>
                 )}
 
                 {/* Like / Comment / Share */}
@@ -999,15 +999,13 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                       {language === 'ar' ? 'استمع الآن' : 'Listen Now'}
                     </button>
                   ) : (
-                    <a
-                      href={getReadableFileUrl(book.file_url)}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={() => recordBookRead(book.id)}
-                      className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0"
+                    <button
+                      type="button"
+                      onClick={() => { recordBookRead(book.id); setReadingBook(book); }}
+                      className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0 cursor-pointer"
                     >
-                      {language === 'ar' ? 'قراءة / تحميل' : 'Read / Download'}
-                    </a>
+                      {language === 'ar' ? 'اقرأ' : 'Read'}
+                    </button>
                   )}
                   <div className="flex items-center gap-1 shrink-0">
                     <button
@@ -1109,15 +1107,13 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                       {language === 'ar' ? 'استمع الآن' : 'Listen Now'}
                     </button>
                   ) : (
-                    <a
-                      href={getReadableFileUrl(book.file_url)}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={() => recordBookRead(book.id)}
-                      className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0"
+                    <button
+                      type="button"
+                      onClick={() => { recordBookRead(book.id); setReadingBook(book); }}
+                      className="px-3 py-1.5 rounded-xl bg-(--ac-gold) text-white text-[11px] font-serif font-bold hover:bg-(--ac-gold-deep) transition-colors shrink-0 cursor-pointer"
                     >
-                      {language === 'ar' ? 'قراءة / تحميل' : 'Read / Download'}
-                    </a>
+                      {language === 'ar' ? 'اقرأ' : 'Read'}
+                    </button>
                   )}
                   <div className="flex items-center gap-1 shrink-0">
                     <button
@@ -1226,6 +1222,14 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
         >
           <SynaxariumView onClose={() => setSynaxariumOpen(false)} />
         </Suspense>
+      )}
+
+      {readingBook && (
+        <PdfReaderModal
+          book={readingBook}
+          language={language}
+          onClose={() => setReadingBook(null)}
+        />
       )}
 
       {/* Coptic Library Overlay */}

@@ -212,7 +212,7 @@ const translations: Record<Language, Record<string, string>> = {
     saveChanges: 'Save Changes',
   },
   ar: {
-    appName: 'أورثوذكس كونكت',
+    appName: 'أرثوذكسى',
     tagline: 'شبكة التواصل والأخوة الأرثوذكسية',
     feed: 'المنشورات',
     videos: 'الفيديوهات',

@@ -422,7 +422,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [language, setLanguageState] = useState<Language>(() => {
-    return (localStorage.getItem('oc_lang') as Language) || 'en';
+    const saved = localStorage.getItem('oc_lang') as Language;
+    if (saved) return saved;
+    // First launch: match the device language so Arabic users get Arabic immediately
+    try {
+      const nav = (navigator.language || (navigator as any).userLanguage || 'en').toLowerCase();
+      if (nav.startsWith('ar')) {
+        localStorage.setItem('oc_lang', 'ar');
+        return 'ar';
+      }
+    } catch {}
+    return 'en';
   });
 
   const setTheme = (mode: ThemeMode) => {

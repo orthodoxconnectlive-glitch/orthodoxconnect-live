@@ -454,7 +454,7 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
 
   const shareTrack = async (t: RadioTrack) => {
     const url = `https://orthodoxconnect.live/radio/${encodeURIComponent(t.id)}`;
-    const text = `${t.title} | ${ar ? 'راديو أورثوذكس كونكت' : 'OrthodoxConnect Radio'} 🎧`;
+    const text = `${t.title} | ${ar ? 'راديو أرثوذكسى' : 'OrthodoxConnect Radio'} 🎧`;
     if (typeof navigator !== 'undefined' && (navigator as any).share) {
       try {
         await (navigator as any).share({ title: t.title, text, url });
@@ -472,7 +472,7 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
 
   const shareLive = async () => {
     const url = 'https://orthodoxconnect.live/radio/live';
-    const text = `${live.title || (ar ? 'بث مباشر' : 'Live broadcast')} | ${ar ? 'راديو أورثوذكس كونكت' : 'OrthodoxConnect Radio'} 🔴`;
+    const text = `${live.title || (ar ? 'بث مباشر' : 'Live broadcast')} | ${ar ? 'راديو أرثوذكسى' : 'OrthodoxConnect Radio'} 🔴`;
     if (typeof navigator !== 'undefined' && (navigator as any).share) {
       try {
         await (navigator as any).share({ title: live.title || 'Live', text, url });
@@ -537,7 +537,7 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
           </div>
           <div className="flex-1">
             <h1 className="font-serif font-bold text-lg text-(--tx-strong) dark:text-[#f5ebd9]">
-              {ar ? 'راديو أورثوذكس كونكت' : 'OrthodoxConnect Radio'}
+              {ar ? 'راديو أرثوذكسى' : 'OrthodoxConnect Radio'}
             </h1>
             <p className="text-xs text-(--tx-mute) dark:text-[#a89379]">
               {ar ? 'القداس والترانيم والأغاني على مدار الساعة' : 'Liturgy, hymns and songs around the clock'}

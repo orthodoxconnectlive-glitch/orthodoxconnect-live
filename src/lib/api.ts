@@ -99,12 +99,24 @@ export async function apiFetch<T = any>(
     // (Auth endpoints like signin are excluded: a 401 there just means a
     // wrong password, and the form shows that error itself.)
     if (res.status === 401 && token && !endpoint.startsWith('/api/auth/')) {
+      // Don't nuke the session on a single 401 — verify it's really dead
+      // first. A transient 401 (deploy, cold start, hiccup) shouldn't log
+      // the user out. Only bounce when the session endpoint itself rejects us.
+      let sessionDead = false;
       try {
-        localStorage.removeItem('orthodox_auth_token');
-        localStorage.removeItem('orthodox_user_profile');
-      } catch (e) {}
-      setMemoryAuthProfile(null);
-      try { window.dispatchEvent(new CustomEvent('oc:session-expired')); } catch (e) {}
+        const check = await fetch(`${API_BASE_URL}/api/auth/session?token=${encodeURIComponent(token)}`);
+        sessionDead = check.status === 401;
+      } catch (e) {
+        sessionDead = false; // network failed — don't punish the user
+      }
+      if (sessionDead) {
+        try {
+          localStorage.removeItem('orthodox_auth_token');
+          localStorage.removeItem('orthodox_user_profile');
+        } catch (e) {}
+        setMemoryAuthProfile(null);
+        try { window.dispatchEvent(new CustomEvent('oc:session-expired')); } catch (e) {}
+      }
     }
     let errMsg = `API error: ${res.statusText} (${res.status})`;
     try {

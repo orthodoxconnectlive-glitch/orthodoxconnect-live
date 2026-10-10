@@ -81,30 +81,42 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
     setChurchImportResult(null);
     try {
       const existing = await churchesApi.list();
-      const existingKeys = new Set(
-        existing.map((c: any) => `${(c.name || '').trim()}|${(c.city || '').trim()}`)
-      );
-      const toImport = US_COPTIC_CHURCHES.filter(
-        (c) => !existingKeys.has(`${c.name.trim()}|${c.city.trim()}`)
-      );
-      setChurchImportProgress({ done: 0, total: toImport.length });
+      const byName = new Map((existing as any[]).map((c: any) => [(c.name || '').trim(), c]));
+      type Op = { type: 'create' | 'update'; ch: (typeof US_COPTIC_CHURCHES)[number]; id?: string };
+      const ops: Op[] = [];
+      for (const ch of US_COPTIC_CHURCHES) {
+        const ex = byName.get(ch.name.trim());
+        if (!ex) {
+          ops.push({ type: 'create', ch });
+        } else if ((ex.city || '').trim() !== ch.city.trim()) {
+          // refresh city/description on already-imported rows (e.g. bilingual state names)
+          ops.push({ type: 'update', ch, id: ex.id });
+        }
+      }
+      setChurchImportProgress({ done: 0, total: ops.length });
       let ok = 0;
       // small parallel batches to keep the import fast
-      for (let i = 0; i < toImport.length; i += 5) {
-        const batch = toImport.slice(i, i + 5);
+      for (let i = 0; i < ops.length; i += 5) {
+        const batch = ops.slice(i, i + 5);
         const results = await Promise.all(
-          batch.map((ch) =>
-            churchesApi
-              .create({ name: ch.name, city: ch.city, country: ch.country, description: ch.description } as any)
+          batch.map((op) => {
+            if (op.type === 'create') {
+              return churchesApi
+                .create({ name: op.ch.name, city: op.ch.city, country: op.ch.country, description: op.ch.description } as any)
+                .then(() => true)
+                .catch(() => false);
+            }
+            return churchesApi
+              .update(op.id as string, { city: op.ch.city, description: op.ch.description } as any)
               .then(() => true)
-              .catch(() => false)
-          )
+              .catch(() => false);
+          })
         );
         ok += results.filter(Boolean).length;
-        setChurchImportProgress({ done: ok, total: toImport.length });
+        setChurchImportProgress({ done: ok, total: ops.length });
       }
-      setChurchImportResult(`${t('adminChurchImportDone')}: ${ok}/${toImport.length}`);
-      showToast(`${t('adminChurchImportDone')}: ${ok}/${toImport.length}`);
+      setChurchImportResult(`${t('adminChurchImportDone')}: ${ok}/${ops.length}`);
+      showToast(`${t('adminChurchImportDone')}: ${ok}/${ops.length}`);
     } catch {
       setChurchImportResult(t('adminChurchImportDone') + ' ✕');
     } finally {

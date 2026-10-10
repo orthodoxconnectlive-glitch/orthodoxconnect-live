@@ -36,7 +36,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
   const { profile } = useAuth();
   const { t } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<'users' | 'reports' | 'audit'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'clergy' | 'reports' | 'audit'>('users');
   const [reportsList, setReportsList] = useState<ContentReport[]>([]);
   const [auditLogs, setAuditLogs] = useState<ModerationAuditLog[]>([]);
   const [userStatuses, setUserStatuses] = useState<Record<string, { warningCount: number; isBanned: boolean }>>({});
@@ -131,10 +131,12 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
     try {
       await profilesApi.update(userId, { role: newRole });
-      showToast(`User role updated to ${newRole.toUpperCase()}`);
+      const _roleLabel = newRole === 'clergy' ? t('adminRoleClergy') : newRole === 'admin' ? t('adminRoleAdmin') : t('adminRoleMember');
+      showToast(t('adminRoleUpdated').replace('{role}', _roleLabel));
     } catch (err) {
       console.warn('Role update error:', err);
-      showToast(`Role updated locally to ${newRole.toUpperCase()}`);
+      const _roleLabel2 = newRole === 'clergy' ? t('adminRoleClergy') : newRole === 'admin' ? t('adminRoleAdmin') : t('adminRoleMember');
+        showToast(t('adminRoleUpdatedLocal').replace('{role}', _roleLabel2));
     }
   };
 
@@ -149,7 +151,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
     const isTargetAdmin = targetRole === 'admin' || targetRole === 'owner';
     if (isTargetAdmin && !isCurrentSuperAdmin) {
-      showToast('Permission Denied: Only the Super Admin (orthodoxconnect.live@gmail.com) can delete Admin accounts.');
+      showToast(t('adminDeleteDenied'));
       setUserToDelete(null);
       return;
     }
@@ -157,7 +159,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
     // 1. Call Cloudflare Worker API
     const apiResult = await deleteUserApi(targetId, targetEmail, targetRole, profile);
     if (!apiResult.success) {
-      showToast(`Error: ${apiResult.error || 'Failed to delete user account.'}`);
+      showToast(`${t('adminError')}: ${apiResult.error || t('adminDeleteFailed')}`);
       setUserToDelete(null);
       return;
     }
@@ -168,10 +170,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
     try {
       await profilesApi.delete(targetId);
-      showToast(`Removed ${targetName} from parish directory.`);
+      showToast(t('adminRemoved').replace('{name}', targetName));
     } catch (err) {
       console.warn('Delete profile error:', err);
-      showToast(`Removed ${targetName} from parish directory.`);
+      showToast(t('adminRemoved').replace('{name}', targetName));
     } finally {
       setUserToDelete(null);
     }
@@ -188,7 +190,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
     const role = newMemberForm.role;
 
     if (!name || !email) {
-      showToast('Please provide full name and email address.');
+      showToast(t('adminNeedNameEmail'));
       return;
     }
 
@@ -214,10 +216,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
         role,
         avatar_url: newMemberObj.avatar_url,
       });
-      showToast(`Added ${name} to parish directory.`);
+      showToast(t('adminAdded').replace('{name}', name));
     } catch (err) {
       console.warn('Add member DB notice:', err);
-      showToast(`Added ${name} to parish directory.`);
+      showToast(t('adminAdded').replace('{name}', name));
     } finally {
       setNewMemberForm({ fullName: '', email: '', parish: '', role: 'user' });
       setIsAddMemberOpen(false);
@@ -288,9 +290,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
     return (
       <div className="p-8 text-center bg-(--bg-card-hi) rounded-2xl border border-red-500/40 text-red-700 shadow-xl space-y-2">
         <AlertTriangle className="w-10 h-10 mx-auto text-red-600" />
-        <h3 className="font-serif font-bold text-lg">Access Restricted</h3>
+        <h3 className="font-serif font-bold text-lg">{t('adminAccessRestricted')}</h3>
         <p className="text-xs text-(--tx-soft)">
-          Super Admin, Admin, or Owner privileges are required to access the Moderation & Management Panel.
+          {t('adminAccessRestrictedMsg')}
         </p>
       </div>
     );
@@ -305,171 +307,38 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
       u.parish.toLowerCase().includes(userSearchQuery.toLowerCase())
   );
 
-  return (
-    <div className="space-y-6 relative">
-      {/* Toast Feedback Banner */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-2xl bg-[#1c1611] border border-(--ln-gold) text-[#f5ebd9] font-serif font-bold text-xs shadow-2xl flex items-center gap-2 animate-bounce">
-          <CheckCircle className="w-4 h-4 text-(--ac-gold-tx)" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+  const filteredClergy = usersList.filter(
+    (u) =>
+      u.role === 'clergy' &&
+      (u.full_name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+        u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+        u.parish.toLowerCase().includes(userSearchQuery.toLowerCase()))
+  );
 
-      {/* Top Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-(--bg-inset) via-(--bg-card-hi) to-(--bg-inset) border border-(--ln-bright)/30 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-(--ac-bright) text-white flex items-center justify-center shadow-md">
-            <ShieldAlert className="w-6 h-6" />
-          </div>
-          <div>
-            <h2 className="font-serif font-bold text-2xl text-(--tx-head)">
-              Admin & Content Moderation Panel
-            </h2>
-            <p className="text-xs text-(--tx-soft)">
-              Manage registered parishioners, assign clergy roles, review reports, and audit system activity
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-(--ac-bright)/20 border border-(--ln-bright)/40 flex items-center justify-center text-(--ac-bright-tx)">
-            <Users className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-[11px] text-(--tx-soft) uppercase font-bold tracking-wider">
-              Total Members
-            </p>
-            <h3 className="font-serif font-bold text-2xl text-(--tx-head)">
-              {totalMembers}
-            </h3>
-          </div>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-purple-100 border border-purple-300 flex items-center justify-center text-purple-700">
-            <Shield className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-[11px] text-(--tx-soft) uppercase font-bold tracking-wider">
-              Admins & Clergy
-            </p>
-            <h3 className="font-serif font-bold text-2xl text-(--tx-head)">
-              {usersList.filter((u) => u.role === 'admin' || u.role === 'clergy' || u.role === 'owner' || u.role === 'super_admin').length}
-            </h3>
-          </div>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-red-100 border border-red-300 flex items-center justify-center text-red-600">
-            <Flag className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-[11px] text-(--tx-soft) uppercase font-bold tracking-wider">
-              Pending Reports
-            </p>
-            <h3 className="font-serif font-bold text-2xl text-(--tx-head)">
-              {pendingCount}
-            </h3>
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="flex gap-2 border-b border-(--ln-bright)/20 pb-2">
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-            activeTab === 'users'
-              ? 'bg-(--ac-bright) text-white shadow-md'
-              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>User Directory & Roles ({usersList.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('reports')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-            activeTab === 'reports'
-              ? 'bg-(--ac-bright) text-white shadow-md'
-              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
-          }`}
-        >
-          <Flag className="w-4 h-4" />
-          <span>Content Reports Queue ({pendingCount})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('audit')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-            activeTab === 'audit'
-              ? 'bg-(--ac-bright) text-white shadow-md'
-              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
-          }`}
-        >
-          <Clock className="w-4 h-4" />
-          <span>Moderation Audit Log ({auditLogs.length})</span>
-        </button>
-      </div>
-
-      {/* TAB 1: USER DIRECTORY & USER MANAGEMENT */}
-      {activeTab === 'users' && (
-        <div className="bg-(--bg-card-hi) border border-(--ln-bright)/30 rounded-2xl p-5 shadow-xl space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <h3 className="font-serif font-bold text-lg text-(--tx-head) flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-(--ac-bright-tx)" />
-              <span>Parish User Directory & Management</span>
-            </h3>
-
-            {/* Add Member Button */}
-            <button
-              onClick={() => setIsAddMemberOpen(true)}
-              className="px-4 py-2 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Add Member</span>
-            </button>
-          </div>
-
-          {/* Search Filter Input */}
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3.5 top-3 text-(--tx-soft)" />
-            <input
-              type="text"
-              placeholder="Search members by name, email, or parish..."
-              value={userSearchQuery}
-              onChange={(e) => setUserSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-(--bg-inset2) border border-(--ln-bright)/30 text-xs text-(--tx-head) placeholder-(--tx-soft)/70 focus:outline-none focus:border-(--ln-bright)"
-            />
-          </div>
-
-          {/* Users Table */}
+  // Shared users table (used by Users tab and Clergy tab)
+  const renderUsersTable = (list: UserProfile[], emptyMessage: string) => (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-(--ln-bright)/30 text-(--tx-soft) uppercase font-bold text-[10px]">
-                  <th className="py-3 px-3">Member</th>
-                  <th className="py-3 px-3">Email</th>
-                  <th className="py-3 px-3">Parish</th>
-                  <th className="py-3 px-3">Role</th>
-                  <th className="py-3 px-3">Joined Date</th>
-                  <th className="py-3 px-3">Status</th>
-                  <th className="py-3 px-3 text-right">Actions</th>
+                  <th className="py-3 px-3">{t('adminThMember')}</th>
+                  <th className="py-3 px-3">{t('adminThEmail')}</th>
+                  <th className="py-3 px-3">{t('adminThParish')}</th>
+                  <th className="py-3 px-3">{t('adminThRole')}</th>
+                  <th className="py-3 px-3">{t('adminThJoined')}</th>
+                  <th className="py-3 px-3">{t('adminThStatus')}</th>
+                  <th className="py-3 px-3 text-right">{t('adminThActions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-(--ln-bright)/20">
-                {filteredUsers.length === 0 ? (
+                {list.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-6 text-center text-(--tx-soft)">
-                      No registered parishioners match your search query.
+                      {emptyMessage}
                     </td>
                   </tr>
                 ) : (
-                  filteredUsers.map((user) => {
+                  list.map((user) => {
                     const status = userStatuses[user.id] || { warningCount: 0, isBanned: false };
                     const isTargetSuperAdmin =
                       user.role === 'super_admin' ||
@@ -520,9 +389,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
                                   user.full_name
                                 )}
                                 {isNewMember && (
-                                  <span className="ml-2 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-green-600 text-white align-middle">
-                                    New
-                                  </span>
+                                  <span className="ml-2 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-green-600 text-white align-middle">{t('adminNew')}</span>
                                 )}
                               </p>
                             </div>
@@ -542,43 +409,37 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
                         {/* Role Badge & Change Role Dropdown */}
                         <td className="py-3 px-3">
                           {isTargetSuperAdmin ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-(--ac-gold) text-white border border-(--ln-bronze) shadow-sm">
-                              SUPER ADMIN
-                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-(--ac-gold) text-white border border-(--ln-bronze) shadow-sm">{t('adminSuperAdmin')}</span>
                           ) : isTargetAdmin && !isCurrentSuperAdmin ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#7c5f3d] text-white border border-[#5a4632] shadow-sm">
-                              ADMIN
-                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-[#7c5f3d] text-white border border-[#5a4632] shadow-sm">{t('adminAdminRole')}</span>
                           ) : (
                             <select
                               value={user.role}
                               onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
                               className="px-2 py-1 rounded-lg bg-white border border-(--ln-bright)/40 text-(--tx-head) font-bold text-[11px] focus:outline-none focus:border-(--ln-bright) cursor-pointer"
                             >
-                              <option value="user">Member</option>
-                              <option value="clergy">Clergy</option>
-                              <option value="admin">Admin</option>
+                              <option value="user">{t('adminRoleMember')}</option>
+                              <option value="clergy">{t('adminRoleClergy')}</option>
+                              <option value="admin">{t('adminRoleAdmin')}</option>
                             </select>
                           )}
                         </td>
 
                         {/* Joined Date */}
                         <td className="py-3 px-3 text-(--tx-soft) text-[11px]">
-                          {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Active'}
+                          {user.created_at ? new Date(user.created_at).toLocaleDateString() : t('adminActive')}
                         </td>
 
                         {/* Status */}
                         <td className="py-3 px-3">
                           {status.isBanned ? (
-                            <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold uppercase">
-                              Banned
-                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold uppercase">{t('adminBanned')}</span>
                           ) : (
                             <span className="text-xs text-(--tx-soft) font-semibold">
                               {status.warningCount > 0 ? (
-                                <span className="text-red-600 font-bold">{status.warningCount} Warnings</span>
+                                <span className="text-red-600 font-bold">{status.warningCount} {t('adminWarnings')}</span>
                               ) : (
-                                'Good Standing'
+                                t('adminGoodStanding')
                               )}
                             </span>
                           )}
@@ -588,7 +449,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
                         <td className="py-3 px-3 text-right flex items-center justify-end gap-2">
                           {isTargetSuperAdmin ? (
                             <span className="text-[10px] text-(--ac-bronze-tx) font-serif font-bold uppercase italic">
-                              Super Admin (Protected)
+                              {t('adminSuperAdminProtected')}
                             </span>
                           ) : (
                             <>
@@ -600,25 +461,23 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
                                     : 'bg-amber-600 text-white hover:bg-amber-700'
                                 }`}
                               >
-                                {status.isBanned ? 'Unban' : 'Ban'}
+                                {status.isBanned ? t('adminUnban') : t('adminBan')}
                               </button>
 
                               {canDeleteTarget ? (
                                 <button
                                   onClick={() => setUserToDelete(user)}
                                   className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] uppercase shadow-sm transition-all cursor-pointer flex items-center gap-1"
-                                  title="Remove / Delete User"
+                                  title={t('adminDeleteUserTitle')}
                                 >
                                   <Trash2 className="w-3 h-3" />
-                                  <span>Delete User</span>
+                                  <span>{t('adminDeleteUser')}</span>
                                 </button>
                               ) : isTargetAdmin ? (
                                 <span
                                   className="text-[10px] text-(--tx-soft) italic font-medium px-1.5 py-0.5 rounded bg-(--bg-inset2) border border-(--ln-bright)/20"
-                                  title="Admin accounts can only be deleted by the Super Admin (orthodoxconnect.live@gmail.com)"
-                                >
-                                  Admin (Protected)
-                                </span>
+                                  title={t('adminAdminProtectedTip')}
+                                >{t('adminAdminProtected')}</span>
                               ) : null}
                             </>
                           )}
@@ -630,6 +489,186 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
               </tbody>
             </table>
           </div>
+  );
+  return (
+    <div className="space-y-6 relative">
+      {/* Toast Feedback Banner */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-2xl bg-[#1c1611] border border-(--ln-gold) text-[#f5ebd9] font-serif font-bold text-xs shadow-2xl flex items-center gap-2 animate-bounce">
+          <CheckCircle className="w-4 h-4 text-(--ac-gold-tx)" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Top Banner */}
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-(--bg-inset) via-(--bg-card-hi) to-(--bg-inset) border border-(--ln-bright)/30 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-(--ac-bright) text-white flex items-center justify-center shadow-md">
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="font-serif font-bold text-2xl text-(--tx-head)">
+              {t('adminPanelTitle')}
+            </h2>
+            <p className="text-xs text-(--tx-soft)">
+              {t('adminPanelSubtitle')}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Metrics Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-(--ac-bright)/20 border border-(--ln-bright)/40 flex items-center justify-center text-(--ac-bright-tx)">
+            <Users className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[11px] text-(--tx-soft) uppercase font-bold tracking-wider">
+              {t('adminTotalMembers')}
+            </p>
+            <h3 className="font-serif font-bold text-2xl text-(--tx-head)">
+              {totalMembers}
+            </h3>
+          </div>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-purple-100 border border-purple-300 flex items-center justify-center text-purple-700">
+            <Shield className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[11px] text-(--tx-soft) uppercase font-bold tracking-wider">
+              {t('adminAdmins')}
+            </p>
+            <h3 className="font-serif font-bold text-2xl text-(--tx-head)">
+              {usersList.filter((u) => u.role === 'admin' || u.role === 'owner' || u.role === 'super_admin').length}
+            </h3>
+          </div>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700">
+            <UserCheck className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[11px] text-(--tx-soft) uppercase font-bold tracking-wider">
+              {t('adminClergy')}
+            </p>
+            <h3 className="font-serif font-bold text-2xl text-(--tx-head)">
+              {usersList.filter((u) => u.role === 'clergy').length}
+            </h3>
+          </div>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-red-100 border border-red-300 flex items-center justify-center text-red-600">
+            <Flag className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[11px] text-(--tx-soft) uppercase font-bold tracking-wider">
+              {t('adminPendingReports')}
+            </p>
+            <h3 className="font-serif font-bold text-2xl text-(--tx-head)">
+              {pendingCount}
+            </h3>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex gap-2 border-b border-(--ln-bright)/20 pb-2">
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === 'users'
+              ? 'bg-(--ac-bright) text-white shadow-md'
+              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>{t('adminTabUsers')} ({usersList.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('clergy')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === 'clergy'
+              ? 'bg-(--ac-bright) text-white shadow-md'
+              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          <span>{t('adminTabClergy')} ({usersList.filter((u) => u.role === 'clergy').length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('reports')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === 'reports'
+              ? 'bg-(--ac-bright) text-white shadow-md'
+              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
+          }`}
+        >
+          <Flag className="w-4 h-4" />
+          <span>{t('adminTabReports')} ({pendingCount})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('audit')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === 'audit'
+              ? 'bg-(--ac-bright) text-white shadow-md'
+              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          <span>{t('adminTabAudit')} ({auditLogs.length})</span>
+        </button>
+      </div>
+
+      {/* TAB 1: USER DIRECTORY & USER MANAGEMENT */}
+      {activeTab === 'users' && (
+        <div className="bg-(--bg-card-hi) border border-(--ln-bright)/30 rounded-2xl p-5 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <h3 className="font-serif font-bold text-lg text-(--tx-head) flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-(--ac-bright-tx)" />
+              <span>{t('adminUserDirTitle')}</span>
+            </h3>
+
+            {/* Add Member Button */}
+            <button
+              onClick={() => setIsAddMemberOpen(true)}
+              className="px-4 py-2 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>{t('adminAddMember')}</span>
+            </button>
+          </div>
+
+          {/* Search Filter Input */}
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3.5 top-3 text-(--tx-soft)" />
+            <input
+              type="text"
+              placeholder={t('adminSearchMembers')}
+              value={userSearchQuery}
+              onChange={(e) => setUserSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-(--bg-inset2) border border-(--ln-bright)/30 text-xs text-(--tx-head) placeholder-(--tx-soft)/70 focus:outline-none focus:border-(--ln-bright)"
+            />
+          </div>
+
+          {renderUsersTable(filteredUsers, t('adminNoMatch'))}
+        </div>
+      )}
+      {/* TAB: CLERGY DIRECTORY */}
+      {activeTab === 'clergy' && (
+        <div className="bg-(--bg-card-hi) border border-(--ln-bright)/30 rounded-2xl p-5 shadow-xl space-y-4">
+          <h3 className="font-serif font-bold text-lg text-(--tx-head) flex items-center gap-2">
+            <Shield className="w-5 h-5 text-(--ac-bright-tx)" />
+            <span>{t('adminClergyDirTitle')} ({filteredClergy.length})</span>
+          </h3>
+          {renderUsersTable(filteredClergy, t('adminNoClergy'))}
         </div>
       )}
 
@@ -638,12 +677,12 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
         <div className="bg-(--bg-card-hi) border border-(--ln-bright)/30 rounded-2xl p-5 shadow-xl space-y-4">
           <h3 className="font-serif font-bold text-lg text-(--tx-head) flex items-center gap-2">
             <Flag className="w-5 h-5 text-red-600" />
-            <span>Reported Content Review Queue</span>
+            <span>{t('adminReportsTitle')}</span>
           </h3>
 
           {reportsList.length === 0 ? (
             <div className="p-8 text-center text-xs text-(--tx-soft)">
-              No flagged content. Community feed is clean!
+              {t('adminNoFlagged')}
             </div>
           ) : (
             <div className="space-y-3">
@@ -662,11 +701,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
                         {report.targetType}
                       </span>
                       <span className="font-bold text-(--tx-head)">
-                        Reason: {report.reason.replace('_', ' ')}
+                        {t('adminReason')}: {report.reason.replace('_', ' ')}
                       </span>
                     </div>
                     <span className="text-[10px] text-(--tx-soft)">
-                      Reported by {report.reporterName} • {new Date(report.createdAt).toLocaleTimeString()}
+                      {t('adminReportedBy')} {report.reporterName} • {new Date(report.createdAt).toLocaleTimeString()}
                     </span>
                   </div>
 
@@ -678,14 +717,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
                   {report.details && (
                     <p className="text-xs text-(--tx-soft)">
-                      <span className="font-bold text-(--tx-head)">Reporter Note: </span>
+                      <span className="font-bold text-(--tx-head)">{t('adminReporterNote')} </span>
                       {report.details}
                     </p>
                   )}
 
                   <div className="pt-2 border-t border-(--ln-bright)/20 flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[11px] text-(--tx-soft)">
-                      Author: <span className="font-bold text-(--tx-head)">{report.targetAuthorName || 'Unknown User'}</span>
+                      {t('adminAuthor')} <span className="font-bold text-(--tx-head)">{report.targetAuthorName || t('adminUnknownUser')}</span>
                     </span>
 
                     {report.status === 'pending' ? (
@@ -693,16 +732,14 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
                         <button
                           onClick={() => handleDismissReport(report.id)}
                           className="px-3 py-1.5 rounded-xl bg-white border border-(--ln-bright)/30 text-(--tx-soft) hover:text-(--tx-head) font-bold text-xs shadow-sm transition-all cursor-pointer"
-                        >
-                          Dismiss
-                        </button>
+                        >{t('adminDismiss')}</button>
 
                         <button
                           onClick={() => handleRemoveContent(report)}
                           className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer flex items-center gap-1"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>Remove Content</span>
+                          <span>{t('adminRemoveContent')}</span>
                         </button>
 
                         <button
@@ -710,12 +747,12 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
                           className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer flex items-center gap-1"
                         >
                           <AlertOctagon className="w-3.5 h-3.5" />
-                          <span>Warn User</span>
+                          <span>{t('adminWarnUser')}</span>
                         </button>
                       </div>
                     ) : (
                       <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase">
-                        Status: {report.status.replace('_', ' ')}
+                        {t('adminStatus')} {report.status.replace('_', ' ')}
                       </span>
                     )}
                   </div>
@@ -731,13 +768,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
         <div className="bg-(--bg-card-hi) border border-(--ln-bright)/30 rounded-2xl p-5 shadow-xl space-y-4">
           <h3 className="font-serif font-bold text-lg text-(--tx-head) flex items-center gap-2">
             <Clock className="w-5 h-5 text-(--ac-bright-tx)" />
-            <span>Moderation Audit Trail Log</span>
+            <span>{t('adminAuditTitle')}</span>
           </h3>
 
           <div className="space-y-2">
             {auditLogs.length === 0 ? (
               <div className="p-6 text-center text-xs text-(--tx-soft)">
-                No moderation logs recorded yet.
+                {t('adminNoLogs')}
               </div>
             ) : (
               auditLogs.map((log) => (
@@ -747,7 +784,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
                 >
                   <div>
                     <span className="font-bold text-(--tx-head)">{log.adminName} </span>
-                    <span className="text-(--tx-soft)">performed </span>
+                    <span className="text-(--tx-soft)">{t('adminPerformed')} </span>
                     <span className="font-bold text-red-600 uppercase">[{log.action.replace('_', ' ')}] </span>
                     <p className="text-[11px] text-(--tx-faint) mt-0.5">{log.reason}</p>
                   </div>
@@ -768,7 +805,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
             <div className="flex items-center justify-between border-b border-(--ln-gold)/30 pb-3">
               <div className="flex items-center gap-2">
                 <UserPlus className="w-5 h-5 text-(--ac-gold-tx)" />
-                <h3 className="font-serif font-bold text-lg text-(--ac-gold-tx)">Add New Parish Member</h3>
+                <h3 className="font-serif font-bold text-lg text-(--ac-gold-tx)">{t('adminAddMemberTitle')}</h3>
               </div>
               <button
                 onClick={() => setIsAddMemberOpen(false)}
@@ -781,12 +818,12 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
             <form onSubmit={handleAddMemberSubmit} className="space-y-4 text-xs">
               <div>
                 <label className="block text-(--ac-gold-tx) font-bold mb-1 uppercase tracking-wider text-[10px]">
-                  Full Name *
+                  {t('adminFullName')}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Deacon Nicholas"
+                  placeholder={t('adminFullNamePh')}
                   value={newMemberForm.fullName}
                   onChange={(e) => setNewMemberForm({ ...newMemberForm, fullName: e.target.value })}
                   className="w-full p-2.5 rounded-xl bg-stone-900 border border-(--ln-gold)/30 text-[#f5ebd9] focus:outline-none focus:border-(--ln-gold)"
@@ -795,12 +832,12 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
               <div>
                 <label className="block text-(--ac-gold-tx) font-bold mb-1 uppercase tracking-wider text-[10px]">
-                  Email Address *
+                  {t('adminEmailAddress')}
                 </label>
                 <input
                   type="email"
                   required
-                  placeholder="e.g. nicholas@orthodoxparish.org"
+                  placeholder={t('adminEmailPh')}
                   value={newMemberForm.email}
                   onChange={(e) => setNewMemberForm({ ...newMemberForm, email: e.target.value })}
                   className="w-full p-2.5 rounded-xl bg-stone-900 border border-(--ln-gold)/30 text-[#f5ebd9] focus:outline-none focus:border-(--ln-gold)"
@@ -809,11 +846,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
               <div>
                 <label className="block text-(--ac-gold-tx) font-bold mb-1 uppercase tracking-wider text-[10px]">
-                  Parish / Monastery
+                  {t('adminParishLabel')}
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. St. George Cathedral"
+                  placeholder={t('adminParishPh')}
                   value={newMemberForm.parish}
                   onChange={(e) => setNewMemberForm({ ...newMemberForm, parish: e.target.value })}
                   className="w-full p-2.5 rounded-xl bg-stone-900 border border-(--ln-gold)/30 text-[#f5ebd9] focus:outline-none focus:border-(--ln-gold)"
@@ -822,16 +859,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
               <div>
                 <label className="block text-(--ac-gold-tx) font-bold mb-1 uppercase tracking-wider text-[10px]">
-                  Initial Role
+                  {t('adminInitialRole')}
                 </label>
                 <select
                   value={newMemberForm.role}
                   onChange={(e) => setNewMemberForm({ ...newMemberForm, role: e.target.value as UserRole })}
                   className="w-full p-2.5 rounded-xl bg-stone-900 border border-(--ln-gold)/30 text-[#f5ebd9] font-bold focus:outline-none focus:border-(--ln-gold) cursor-pointer"
                 >
-                  <option value="user">Member</option>
-                  <option value="clergy">Clergy</option>
-                  <option value="admin">Admin</option>
+                  <option value="user">{t('adminRoleMember')}</option>
+                  <option value="clergy">{t('adminRoleClergy')}</option>
+                  <option value="admin">{t('adminRoleAdmin')}</option>
                 </select>
               </div>
 
@@ -840,15 +877,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
                   type="button"
                   onClick={() => setIsAddMemberOpen(false)}
                   className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-[#f5ebd9] font-bold transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
+                >{t('adminCancel')}</button>
                 <button
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-(--tx-ink) font-serif font-bold uppercase tracking-wider shadow-lg transition-colors cursor-pointer"
-                >
-                  Create Member
-                </button>
+                >{t('adminCreateMember')}</button>
               </div>
             </form>
           </div>
@@ -862,22 +895,22 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
             <div className="flex items-center gap-3 text-red-500">
               <AlertOctagon className="w-7 h-7 shrink-0" />
               <div>
-                <h3 className="font-serif font-bold text-lg text-white">Confirm User Deletion</h3>
-                <p className="text-[11px] text-red-400">This action will remove the member profile from the parish network.</p>
+                <h3 className="font-serif font-bold text-lg text-white">{t('adminConfirmDelete')}</h3>
+                <p className="text-[11px] text-red-400">{t('adminConfirmDeleteMsg')}</p>
               </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-stone-900 border border-red-500/30 text-xs space-y-1">
               <p>
-                <span className="text-(--ac-gold-tx) font-bold">Name: </span>
+                <span className="text-(--ac-gold-tx) font-bold">{t('adminName')} </span>
                 {userToDelete.full_name}
               </p>
               <p>
-                <span className="text-(--ac-gold-tx) font-bold">Email: </span>
+                <span className="text-(--ac-gold-tx) font-bold">{t('adminEmail')} </span>
                 {userToDelete.email}
               </p>
               <p>
-                <span className="text-(--ac-gold-tx) font-bold">Parish: </span>
+                <span className="text-(--ac-gold-tx) font-bold">{t('adminParish')} </span>
                 {userToDelete.parish}
               </p>
             </div>
@@ -886,15 +919,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
               <button
                 onClick={() => setUserToDelete(null)}
                 className="px-4 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-[#f5ebd9] font-bold transition-colors cursor-pointer text-xs"
-              >
-                Cancel
-              </button>
+              >{t('adminCancel')}</button>
               <button
                 onClick={confirmDeleteUser}
                 className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-lg transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Trash2 className="w-4 h-4" />
-                <span>Remove Member</span>
+                <span>{t('adminRemoveMember')}</span>
               </button>
             </div>
           </div>

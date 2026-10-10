@@ -371,7 +371,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
               )}
               <button
                 onClick={handleSetAsParish}
-                disabled={joining || joined}
+                disabled={joining}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl whitespace-nowrap text-[11px] font-bold uppercase tracking-wider shadow cursor-pointer disabled:opacity-60 ${
                   joined ? 'bg-emerald-700 text-white' : 'bg-(--ac-gold) hover:bg-(--ac-bronze) text-white'
                 }`}

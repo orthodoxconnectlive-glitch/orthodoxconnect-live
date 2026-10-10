@@ -339,11 +339,11 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
                 <ChurchIcon className="w-9 h-9 text-(--ac-gold-tx)" />
               )}
             </div>
-            <div className="flex gap-2 pb-1">
+            <div className="flex flex-wrap gap-2 pb-1">
               {isOwner && (
                 <button
                   onClick={openEdit}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) text-[11px] font-bold uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] cursor-pointer hover:bg-(--ac-gold) hover:text-white transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl whitespace-nowrap bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) text-[11px] font-bold uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] cursor-pointer hover:bg-(--ac-gold) hover:text-white transition-colors"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                   {ar ? 'تعديل' : 'Edit'}
@@ -354,7 +354,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
                   onClick={handleDeleteChurch}
                   onBlur={() => setConfirmDelete(false)}
                   disabled={deleting}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider shadow cursor-pointer disabled:opacity-60 ${
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl whitespace-nowrap text-[11px] font-bold uppercase tracking-wider shadow cursor-pointer disabled:opacity-60 ${
                     confirmDelete ? 'bg-red-700 text-white' : 'bg-red-900/20 text-red-400 border border-red-800/50 hover:bg-red-800 hover:text-white'
                   }`}
                 >
@@ -365,7 +365,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
               <button
                 onClick={handleSetAsParish}
                 disabled={joining || joined}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider shadow cursor-pointer disabled:opacity-60 ${
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl whitespace-nowrap text-[11px] font-bold uppercase tracking-wider shadow cursor-pointer disabled:opacity-60 ${
                   joined ? 'bg-emerald-700 text-white' : 'bg-(--ac-gold) hover:bg-(--ac-bronze) text-white'
                 }`}
               >

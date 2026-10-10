@@ -11,6 +11,7 @@ import {
   Check,
   X,
   Upload,
+  ChevronRight,
 } from 'lucide-react';
 import { Post, PostComment } from '../types';
 import {
@@ -84,6 +85,8 @@ interface FeedViewProps {
   /** Share-link deep link: "MM-DD" Coptic key opens the Synaxarium reader. */
   focusSynaxKey?: string | null;
   onFocusSynaxConsumed?: () => void;
+  /** Open a church profile (used by the My Church card). */
+  onOpenChurch?: (churchId: string) => void;
 }
 
 const PAGE_SIZE = 50;
@@ -96,6 +99,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
   onFocusPostConsumed,
   focusSynaxKey,
   onFocusSynaxConsumed,
+  onOpenChurch,
 }) => {
   const authContext = useAuth() as any;
   const profile = authContext?.profile;
@@ -690,6 +694,42 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
       <LiturgicalBanner onOpenCalendar={onOpenCalendar} openSynaxKey={focusSynaxKey} onOpenSynaxConsumed={onFocusSynaxConsumed} />
       <StoriesBar onSelectUser={onSelectUser} />
+
+      {(() => {
+        const myChurch = (profile?.parish || '').trim();
+        const isDefault = !myChurch || myChurch === 'Orthodox Church' || myChurch === 'كنيسة أرثوذكسية';
+        if (isDefault || !onOpenChurch) return null;
+        const openMyChurch = async () => {
+          try {
+            const res = await fetch('/api/churches?q=' + encodeURIComponent(myChurch) + '&limit=5');
+            const data = await res.json().catch(() => ({}));
+            const list = data.churches || data || [];
+            const match = Array.isArray(list) ? list.find((c: any) => c && c.name === myChurch) || list[0] : null;
+            if (match && match.id) {
+              onOpenChurch(String(match.id));
+            }
+          } catch (e) { /* lookup best-effort */ }
+        };
+        return (
+          <button
+            onClick={openMyChurch}
+            className="w-full p-3.5 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg flex items-center gap-3 cursor-pointer text-left rtl:text-right"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-(--ac-gold)/15 flex items-center justify-center shrink-0">
+              <Church className="w-6 h-6 text-(--ac-gold-tx)" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-(--tx-mute)">
+                {language === 'ar' ? 'كنيستى' : 'My church'}
+              </p>
+              <p className="font-serif font-bold text-sm text-(--tx-strong) dark:text-[#f5ebd9] truncate">
+                {myChurch}
+              </p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-(--tx-mute) shrink-0 rtl:rotate-180" />
+          </button>
+        );
+      })()}
 
       <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg">
         <form onSubmit={handleCreatePost} className="space-y-3">

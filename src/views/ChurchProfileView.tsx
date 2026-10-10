@@ -377,7 +377,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
                 ) : (
                   <ChurchIcon className="w-3.5 h-3.5" />
                 )}
-                {joined ? (ar ? 'رعيتي' : 'My parish') : ar ? 'اجعلها رعيتي' : 'Set as my parish'}
+                {joined ? (ar ? 'كنيستى' : 'My church') : ar ? 'اجعلها كنيستى' : 'Set as my church'}
               </button>
             </div>
           <h2 className="font-serif-coptic font-bold text-xl text-(--tx-strong) dark:text-[#f5ebd9]">{dispName}</h2>

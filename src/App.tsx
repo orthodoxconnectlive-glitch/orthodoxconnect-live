@@ -330,6 +330,14 @@ function AppContent() {
   };
 
   const handleNavigate = (view: string, postId?: string) => {
+    // Deep link from a church-event notification: "church:<id>"
+    if (typeof view === 'string' && view.startsWith('church:')) {
+      const cid = view.slice('church:'.length).trim();
+      if (cid) {
+        handleOpenChurch(cid);
+        return;
+      }
+    }
     if (view === 'profile') {
       setViewedUserProfile(null); // Clicking "Profile" in nav resets to logged-in user profile
     }
@@ -370,6 +378,7 @@ function AppContent() {
             onSelectUser={handleSelectUser}
             onOpenMessengerWithUser={handleOpenMessengerWithUser}
             onOpenCalendar={() => handleNavigate('calendar')}
+            onOpenChurch={handleOpenChurch}
             focusPostId={focusPostId}
             onFocusPostConsumed={() => setFocusPostId(null)}
             focusSynaxKey={focusSynaxKey}

@@ -3889,6 +3889,46 @@ export default {
             return jsonResponse({ success: false, error: 'Database unavailable — event not saved.' }, 500);
           }
 
+          // Notify followers: users who set this church as their church get a
+          // phone notification when the church posts an event. Best-effort:
+          // never fail the event creation because a notification failed.
+          if (eventChurchId) {
+            try {
+              const chRow: any = await env.DB.prepare('SELECT name FROM churches WHERE id = ?').bind(eventChurchId).first();
+              const churchName = chRow && chRow.name ? String(chRow.name) : '';
+              if (churchName) {
+                const folRes: any = await env.DB.prepare('SELECT id FROM profiles WHERE parish = ? AND id != ?').bind(churchName, hostId).all();
+                const followers = (folRes && folRes.results) || [];
+                const notifTitle = 'New event at ' + churchName;
+                const notifBody = title + (date ? ' - ' + date : '');
+                const nowIso = new Date().toISOString();
+                for (const f of followers as any[]) {
+                  const fid = f && f.id ? String(f.id) : '';
+                  if (!fid) continue;
+                  const nid = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'notif-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+                  try {
+                    await env.DB.prepare('INSERT INTO notifications (id, recipient_id, actor_id, actor_name, type, title, body, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)').bind(nid, fid, hostId, hostName, 'church_event', notifTitle, notifBody, 'church:' + eventChurchId, nowIso).run();
+                  } catch (e) { /* one bad row never blocks the rest */ }
+                  try {
+                    const subRes: any = await env.DB.prepare('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?').bind(fid).all();
+                    const subs = (subRes && subRes.results) || [];
+                    for (const s of subs as any[]) {
+                      if (s && s.endpoint && s.p256dh && s.auth) {
+                        await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, {
+                          type: 'church_event',
+                          title: notifTitle,
+                          body: notifBody,
+                          icon: 'https://orthodoxconnect.live/launchericon-512x512.png',
+                          data: { url: '/', notifType: 'church_event', churchId: eventChurchId, notifId: nid },
+                        });
+                      }
+                    }
+                  } catch (e) { /* push best-effort */ }
+                }
+              }
+            } catch (e) { /* follower notify best-effort */ }
+          }
+
           return jsonResponse({
             success: true,
             event: { id, title, description, date, time, location_type: locationType, location_address: locationAddress, virtual_link: virtualLink, category, parish, host_name: hostName, host_avatar: hostAvatar, host_id: hostId, image_url: imageUrl, going_count: goingCount, interested_count: interestedCount, rsvps: JSON.parse(rsvps), church_id: eventChurchId, created_at: createdAt },

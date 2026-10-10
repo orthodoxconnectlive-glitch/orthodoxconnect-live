@@ -3365,7 +3365,7 @@ export default {
           if (env.DB) {
             await env.DB.prepare(`
               INSERT INTO churches (id, name, name_ar, avatar, cover, description, description_ar, address, city, city_ar, country, priest_name, phone, website, service_times, jurisdiction, owner_id, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `).bind(row.id, row.name, row.name_ar, row.avatar, row.cover, row.description, row.description_ar, row.address, row.city, row.city_ar, row.country, row.priest_name, row.phone, row.website, row.service_times, row.jurisdiction, row.owner_id, row.created_at).run();
           }
           return jsonResponse({ success: true, church: row }, 201);

@@ -131,7 +131,7 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={ar ? 'ابحث باسم الكنيسة أو المدينة...' : 'Search by church name or city...'}
+            placeholder={ar ? 'ابحث باسم الكنيسة أو المدينة أو الولاية...' : 'Search by church name, city, or state...'}
             className="w-full pl-9 rtl:pl-3 rtl:pr-9 pr-3 py-2.5 rounded-xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute) focus:outline-none text-sm"
           />
         </div>

@@ -3315,10 +3315,10 @@ export default {
             if (q) {
               const like = `%${q}%`;
               stmt = env.DB.prepare(
-                `SELECT * FROM churches WHERE name LIKE ? OR city LIKE ? OR country LIKE ? ORDER BY name ASC LIMIT 100`
+                `SELECT * FROM churches WHERE name LIKE ? OR city LIKE ? OR country LIKE ? ORDER BY name ASC LIMIT 500`
               ).bind(like, like, like);
             } else {
-              stmt = env.DB.prepare('SELECT * FROM churches ORDER BY name ASC LIMIT 100');
+              stmt = env.DB.prepare('SELECT * FROM churches ORDER BY name ASC LIMIT 500');
             }
             const { results } = await stmt.all();
             churches = results || [];

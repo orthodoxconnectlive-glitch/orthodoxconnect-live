@@ -81,16 +81,33 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
     setChurchImportResult(null);
     try {
       const existing = await churchesApi.list();
-      const byName = new Map((existing as any[]).map((c: any) => [(c.name || '').trim(), c]));
+      const byName = new Map<string, any>();
+      for (const c of existing as any[]) {
+        if (c.name) byName.set((c.name as string).trim(), c);
+        if ((c as any).name_ar) byName.set(((c as any).name_ar as string).trim(), c);
+      }
       type Op = { type: 'create' | 'update'; ch: (typeof US_COPTIC_CHURCHES)[number]; id?: string };
       const ops: Op[] = [];
+      const payload = (ch: (typeof US_COPTIC_CHURCHES)[number]) => ({
+        name: ch.name,
+        name_ar: ch.name_ar,
+        city: ch.city,
+        city_ar: ch.city_ar,
+        country: ch.country,
+        description: ch.description,
+        description_ar: ch.description_ar,
+      });
       for (const ch of US_COPTIC_CHURCHES) {
-        const ex = byName.get(ch.name.trim());
+        const ex = byName.get(ch.name.trim()) || byName.get(ch.name_ar.trim());
         if (!ex) {
           ops.push({ type: 'create', ch });
-        } else if ((ex.city || '').trim() !== ch.city.trim()) {
-          // refresh city/description on already-imported rows (e.g. bilingual state names)
-          ops.push({ type: 'update', ch, id: ex.id });
+        } else {
+          // refresh bilingual fields on already-imported rows (migrates old Arabic-only rows)
+          const needsUpdate =
+            (ex.name || '').trim() !== ch.name.trim() ||
+            ((ex as any).name_ar || '').trim() !== ch.name_ar.trim() ||
+            (ex.city || '').trim() !== ch.city.trim();
+          if (needsUpdate) ops.push({ type: 'update', ch, id: ex.id });
         }
       }
       setChurchImportProgress({ done: 0, total: ops.length });
@@ -102,12 +119,12 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
           batch.map((op) => {
             if (op.type === 'create') {
               return churchesApi
-                .create({ name: op.ch.name, city: op.ch.city, country: op.ch.country, description: op.ch.description } as any)
+                .create(payload(op.ch) as any)
                 .then(() => true)
                 .catch(() => false);
             }
             return churchesApi
-              .update(op.id as string, { city: op.ch.city, description: op.ch.description } as any)
+              .update(op.id as string, payload(op.ch) as any)
               .then(() => true)
               .catch(() => false);
           })

@@ -20,6 +20,9 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
   const { profile, updateProfile } = useAuth();
   const { language } = useTheme();
   const ar = language === 'ar';
+  const dispName = ar ? ((church as any).name_ar || church.name) : church.name;
+  const dispCity = ar ? ((church as any).city_ar || church.city) : church.city;
+  const dispDesc = ar ? ((church as any).description_ar || church.description) : church.description;
   const [church, setChurch] = useState<Church | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -377,16 +380,16 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
               </button>
             </div>
           </div>
-          <h2 className="font-serif-coptic font-bold text-xl text-(--tx-strong) dark:text-[#f5ebd9]">{church.name}</h2>
+          <h2 className="font-serif-coptic font-bold text-xl text-(--tx-strong) dark:text-[#f5ebd9]">{dispName}</h2>
           {(church.city || church.country) && (
             <p className="text-xs text-(--tx-mute) font-serif flex items-center gap-1 mt-1">
               <MapPin className="w-3.5 h-3.5" />
-              {[church.city, church.country].filter(Boolean).join(', ')}
+              {[dispCity, church.country].filter(Boolean).join(', ')}
             </p>
           )}
-          {church.description && (
+          {dispDesc && (
             <p className="text-sm text-(--tx-strong) dark:text-[#e8dcc4] font-serif leading-relaxed mt-3 whitespace-pre-line">
-              {church.description}
+              {dispDesc}
             </p>
           )}
         </div>

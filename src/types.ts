@@ -50,11 +50,14 @@ export interface Post {
 export interface Church {
   id: string;
   name: string;
+  name_ar?: string;
   avatar?: string;
   cover?: string;
   description?: string;
+  description_ar?: string;
   address?: string;
   city?: string;
+  city_ar?: string;
   country?: string;
   priest_name?: string;
   phone?: string;

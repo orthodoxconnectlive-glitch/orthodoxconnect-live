@@ -3302,10 +3302,13 @@ export default {
         // Bulletproof: ensure the table exists on the request path itself.
         if (env.DB) {
           try {
-            await env.DB.exec(`CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT DEFAULT '', avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', description_ar TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', city_ar TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
           } catch (ctErr) {
             console.warn('[churches] ensure table notice:', ctErr);
           }
+          try { await env.DB.exec("ALTER TABLE churches ADD COLUMN name_ar TEXT DEFAULT ''"); } catch {}
+          try { await env.DB.exec("ALTER TABLE churches ADD COLUMN city_ar TEXT DEFAULT ''"); } catch {}
+          try { await env.DB.exec("ALTER TABLE churches ADD COLUMN description_ar TEXT DEFAULT ''"); } catch {}
         }
         if (request.method === 'GET') {
           let churches: any[] = [];
@@ -3315,8 +3318,8 @@ export default {
             if (q) {
               const like = `%${q}%`;
               stmt = env.DB.prepare(
-                `SELECT * FROM churches WHERE name LIKE ? OR city LIKE ? OR country LIKE ? ORDER BY name ASC LIMIT 500`
-              ).bind(like, like, like);
+                `SELECT * FROM churches WHERE name LIKE ? OR name_ar LIKE ? OR city LIKE ? OR city_ar LIKE ? OR country LIKE ? ORDER BY name ASC LIMIT 500`
+              ).bind(like, like, like, like, like);
             } else {
               stmt = env.DB.prepare('SELECT * FROM churches ORDER BY name ASC LIMIT 500');
             }
@@ -3341,11 +3344,14 @@ export default {
           const row = {
             id,
             name,
+            name_ar: body.name_ar || '',
             avatar: body.avatar || '',
             cover: body.cover || '',
             description: body.description || '',
+            description_ar: body.description_ar || '',
             address: body.address || '',
             city: body.city || '',
+            city_ar: body.city_ar || '',
             country: body.country || '',
             priest_name: body.priest_name || '',
             phone: body.phone || '',
@@ -3356,9 +3362,9 @@ export default {
           };
           if (env.DB) {
             await env.DB.prepare(`
-              INSERT INTO churches (id, name, avatar, cover, description, address, city, country, priest_name, phone, website, service_times, owner_id, created_at)
+              INSERT INTO churches (id, name, name_ar, avatar, cover, description, description_ar, address, city, city_ar, country, priest_name, phone, website, service_times, owner_id, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(row.id, row.name, row.avatar, row.cover, row.description, row.address, row.city, row.country, row.priest_name, row.phone, row.website, row.service_times, row.owner_id, row.created_at).run();
+            `).bind(row.id, row.name, row.name_ar, row.avatar, row.cover, row.description, row.description_ar, row.address, row.city, row.city_ar, row.country, row.priest_name, row.phone, row.website, row.service_times, row.owner_id, row.created_at).run();
           }
           return jsonResponse({ success: true, church: row }, 201);
         }
@@ -3584,7 +3590,7 @@ export default {
             if (!isOwner && !auth.isAdmin) {
               return jsonResponse({ success: false, error: 'Not authorized to edit this church' }, 403);
             }
-            const fields = ['name', 'avatar', 'cover', 'description', 'address', 'city', 'country', 'priest_name', 'phone', 'website', 'service_times'];
+            const fields = ['name', 'name_ar', 'avatar', 'cover', 'description', 'description_ar', 'address', 'city', 'city_ar', 'country', 'priest_name', 'phone', 'website', 'service_times'];
             const sets: string[] = [];
             const vals: any[] = [];
             for (const f of fields) {

@@ -22,6 +22,10 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
   const [query, setQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
+  // Bilingual display: Arabic fields when the app is in Arabic mode
+  const dispName = (c: Church) => (ar ? ((c as any).name_ar || c.name) : c.name);
+  const dispCity = (c: Church) => (ar ? ((c as any).city_ar || c.city) : c.city);
+
   // form state
   const [name, setName] = useState('');
   const [avatar, setAvatar] = useState('');
@@ -159,19 +163,19 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
             >
               <div className="w-14 h-14 rounded-2xl overflow-hidden bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) shrink-0 flex items-center justify-center">
                 {c.avatar ? (
-                  <img src={c.avatar} alt={c.name} className="w-full h-full object-cover" />
+                  <img src={c.avatar} alt={dispName(c)} className="w-full h-full object-cover" />
                 ) : (
                   <ChurchIcon className="w-7 h-7 text-(--ac-gold-tx)" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-serif-coptic font-bold text-sm text-(--tx-strong) dark:text-[#f5ebd9] truncate">
-                  {c.name}
+                  {dispName(c)}
                 </h3>
                 {(c.city || c.country) && (
                   <p className="text-[11px] text-(--tx-mute) font-serif flex items-center gap-1 truncate">
                     <MapPin className="w-3 h-3 shrink-0" />
-                    {[c.city, c.country].filter(Boolean).join(', ')}
+                    {[dispCity(c), c.country].filter(Boolean).join(', ')}
                   </p>
                 )}
                 {c.priest_name && (

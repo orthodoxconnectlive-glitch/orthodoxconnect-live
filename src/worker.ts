@@ -2954,6 +2954,28 @@ export default {
           return jsonResponse({ success: true, profile });
         }
 
+        // Dedicated My Church endpoint: sets/unsets parish + parish_id atomically
+        if (url.pathname.endsWith('/my-church') && request.method === 'POST') {
+          const authProfile = await getAuthIdentity(request, env);
+          if (!authProfile.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+          const targetId = profileId.replace('/my-church', '');
+          if (authProfile.id !== targetId && !authProfile.isAdmin) {
+            return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
+          }
+          const body: any = await request.json().catch(() => ({}));
+          const now = new Date().toISOString();
+          if (env.DB) {
+            await ensureLastSeenColumn(env.DB);
+            await env.DB.prepare('UPDATE profiles SET parish = ?, parish_id = ?, updated_at = ? WHERE id = ?')
+              .bind(body.parish || '', body.parish_id || '', now, targetId).run();
+            const updated = await env.DB.prepare('SELECT id, parish, parish_id FROM profiles WHERE id = ?').bind(targetId).first();
+            return jsonResponse({ success: true, profile: updated });
+          }
+          return jsonResponse({ success: false, error: 'No database.' }, 500);
+        }
+
         if (request.method === 'PUT' || request.method === 'PATCH') {
           const authProfile = await getAuthIdentity(request, env);
           if (!authProfile.id) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Church as ChurchIcon, ArrowLeft, MapPin, User, Phone, Globe, Clock, Pencil, Loader2, Check, X, Upload, Trash2, Plus, CalendarDays } from 'lucide-react';
-import { churchesApi, eventsApi } from '../lib/api';
+import { churchesApi, eventsApi, apiFetch } from '../lib/api';
 import { Church } from '../types';
 import { compressImageToDataUrl } from '../utils/storage';
 import { useAuth } from '../context/AuthContext';
@@ -257,13 +257,17 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
     if (!church || joining) return;
     setJoining(true);
     try {
-      if (joined) {
-        // Unset: clear my church
-        const { error } = await updateProfile({ parish: '', parish_id: '' } as any);
-        if (!error) setJoined(false);
-      } else {
-        const { error } = await updateProfile({ parish: church.name, parish_id: church.id } as any);
-        if (!error) setJoined(true);
+      const target = joined
+        ? { parish: '', parish_id: '' }
+        : { parish: church.name, parish_id: church.id };
+      // Use dedicated endpoint — returns the saved profile so we know it stuck
+      const data = await apiFetch(`/api/profiles/${encodeURIComponent(profile?.id || '')}/my-church`, {
+        method: 'POST',
+        body: JSON.stringify(target),
+      }).catch(() => ({}));
+      if (data.success && data.profile) {
+        await updateProfile({ parish: data.profile.parish || '', parish_id: data.profile.parish_id || '' } as any);
+        setJoined(!joined);
       }
     } catch (e) {
       console.warn('Set parish failed:', e);

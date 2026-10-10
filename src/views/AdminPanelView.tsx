@@ -757,10 +757,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
       </div>
 
 {/* Navigation Tabs */}
-      <div className="flex gap-2 border-b border-(--ln-bright)/20 pb-2">
+      <div className="flex gap-2 border-b border-(--ln-bright)/20 pb-2 overflow-x-auto no-scrollbar flex-nowrap">
         <button
           onClick={() => setActiveTab('users')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 whitespace-nowrap ${
             activeTab === 'users'
               ? 'bg-(--ac-bright) text-white shadow-md'
               : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
@@ -772,7 +772,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
         <button
           onClick={() => setActiveTab('clergy')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 whitespace-nowrap ${
             activeTab === 'clergy'
               ? 'bg-(--ac-bright) text-white shadow-md'
               : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
@@ -784,7 +784,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
         <button
           onClick={() => setActiveTab('reports')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 whitespace-nowrap ${
             activeTab === 'reports'
               ? 'bg-(--ac-bright) text-white shadow-md'
               : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
@@ -796,7 +796,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
         <button
           onClick={() => setActiveTab('audit')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 whitespace-nowrap ${
             activeTab === 'audit'
               ? 'bg-(--ac-bright) text-white shadow-md'
               : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
@@ -808,7 +808,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
         <button
           onClick={() => setActiveTab('settings')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 whitespace-nowrap ${
             activeTab === 'settings'
               ? 'bg-(--ac-bright) text-white shadow-md'
               : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'

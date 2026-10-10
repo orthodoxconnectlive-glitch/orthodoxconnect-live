@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Church as ChurchIcon, Plus, Search, X, MapPin, User, Upload, Loader2, ChevronRight } from 'lucide-react';
-import { churchesApi } from '../lib/api';
+import { churchesApi, apiFetch } from '../lib/api';
 import { Church } from '../types';
 import { compressImageToDataUrl } from '../utils/storage';
 import { useAuth } from '../context/AuthContext';
@@ -19,6 +19,7 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
   const ar = language === 'ar';
   const [churches, setChurches] = useState<Church[]>([]);
   const [myChurch, setMyChurch] = useState<Church | null>(null);
+  const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -42,10 +43,18 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
   const [formError, setFormError] = useState('');
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
+  const loadBadges = async () => {
+    try {
+      const data = await apiFetch<any>('/api/notifications/church-counts').catch(() => ({}));
+      if (data.success) setBadgeCounts(data.counts || {});
+    } catch {}
+  };
+
   const load = async (q = '') => {
     setLoading(true);
     try {
       setChurches(await churchesApi.list(q));
+      loadBadges();
     } catch (e) {
       console.warn('Churches load notice:', e);
     } finally {
@@ -178,6 +187,11 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
               {dispCity(myChurch)}{(myChurch as any).country ? ', ' + (myChurch as any).country : ''}
             </p>
           </div>
+          {myChurch && badgeCounts[myChurch.id] > 0 && (
+            <span className="min-w-6 h-6 px-1.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center shrink-0">
+              {badgeCounts[myChurch.id] > 9 ? '9+' : badgeCounts[myChurch.id]}
+            </span>
+          )}
           <ChevronRight className="w-5 h-5 text-(--tx-mute) shrink-0 rtl:rotate-180" />
         </button>
       )}
@@ -226,6 +240,11 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
                   </p>
                 )}
               </div>
+              {badgeCounts[c.id] > 0 && (
+                <span className="min-w-6 h-6 px-1.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                  {badgeCounts[c.id] > 9 ? '9+' : badgeCounts[c.id]}
+                </span>
+              )}
               <ChevronRight className="w-5 h-5 text-(--tx-mute) rtl:rotate-180 shrink-0 group-hover:text-(--ac-gold-tx) group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-all" />
             </button>
           ))}

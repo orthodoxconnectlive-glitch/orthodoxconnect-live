@@ -3391,6 +3391,29 @@ export default {
         }
       }
 
+      // 6b-0e. Unread church event counts — for badges on church cards.
+      if (url.pathname === '/api/notifications/church-counts' && request.method === 'GET') {
+        const cAuth = await getAuthIdentity(request, env);
+        if (!cAuth.id) {
+          return jsonResponse({ success: false, error: 'Auth required.' }, 401);
+        }
+        try {
+          const res: any = await env.DB.prepare(
+            "SELECT link, COUNT(*) as cnt FROM notifications WHERE recipient_id = ? AND type = 'church_event' AND is_read = 0 GROUP BY link"
+          ).bind(cAuth.id).all();
+          const counts: Record<string, number> = {};
+          for (const r of (res.results || [])) {
+            const link = (r as any).link || '';
+            if (link.startsWith('church:')) {
+              counts[link.slice(7)] = (r as any).cnt;
+            }
+          }
+          return jsonResponse({ success: true, counts });
+        } catch (e: any) {
+          return jsonResponse({ success: false, error: e?.message || 'failed' }, 500);
+        }
+      }
+
       // 6b-0d. Delete ALL churches — admin only. Clean slate.
       if (url.pathname === '/api/churches/delete-all' && request.method === 'POST') {
         const wAuth = await getAuthIdentity(request, env);

@@ -935,18 +935,6 @@ async function ensureLastSeenColumn(db: D1Database): Promise<void> {
   } catch (e) {
     // duplicate column = already exists, fine
   }
-  // Assign sequential numbers to churches that don't have one
-  try {
-    const rows = await db.prepare('SELECT id FROM churches WHERE church_number IS NULL ORDER BY name').all();
-    let n = 1;
-    const maxRow = await db.prepare('SELECT MAX(church_number) as m FROM churches').first() as any;
-    if (maxRow && maxRow.m) n = maxRow.m + 1;
-    for (const r of (rows.results || [])) {
-      await db.prepare('UPDATE churches SET church_number = ? WHERE id = ?').bind(n++, (r as any).id).run();
-    }
-  } catch (e) {
-    // best effort
-  }
   lastSeenColumnReady = true;
 }
 // Throttle map: user id -> last touch timestamp (per Worker isolate).

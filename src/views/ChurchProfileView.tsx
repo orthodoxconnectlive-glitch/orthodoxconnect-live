@@ -257,8 +257,14 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
     if (!church || joining) return;
     setJoining(true);
     try {
-      const { error } = await updateProfile({ parish: church.name } as any);
-      if (!error) setJoined(true);
+      if (joined) {
+        // Unset: clear my church
+        const { error } = await updateProfile({ parish: '' } as any);
+        if (!error) setJoined(false);
+      } else {
+        const { error } = await updateProfile({ parish: church.name } as any);
+        if (!error) setJoined(true);
+      }
     } catch (e) {
       console.warn('Set parish failed:', e);
     } finally {

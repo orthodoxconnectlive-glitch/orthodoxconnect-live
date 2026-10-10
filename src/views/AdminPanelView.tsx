@@ -14,6 +14,7 @@ import {
   X,
   CheckCircle,
   Church,
+  Settings,
 } from 'lucide-react';
 import { UserProfile, UserRole, ContentReport, ModerationAuditLog } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -40,7 +41,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
   const { profile } = useAuth();
   const { t } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<'users' | 'clergy' | 'reports' | 'audit'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'clergy' | 'reports' | 'audit' | 'settings'>('users');
   const [reportsList, setReportsList] = useState<ContentReport[]>([]);
   const [auditLogs, setAuditLogs] = useState<ModerationAuditLog[]>([]);
   const [userStatuses, setUserStatuses] = useState<Record<string, { warningCount: number; isBanned: boolean }>>({});
@@ -755,120 +756,6 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
         </div>
       </div>
 
-      {/* US Churches one-tap import */}
-      <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="w-12 h-12 rounded-xl bg-(--ac-bright)/10 border border-(--ac-bright)/30 flex items-center justify-center text-(--ac-bright-tx) shrink-0">
-          <Church className="w-6 h-6" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-serif font-bold text-base text-(--tx-head)">
-            {t('adminChurchImportTitle')}
-          </p>
-          <p className="text-xs text-(--tx-soft) mt-0.5">
-            {t('adminChurchImportDesc')}
-          </p>
-          {churchImporting && (
-            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">
-              {t('adminChurchImporting')} {churchImportProgress.done}/{churchImportProgress.total}
-            </p>
-          )}
-          {churchImportResult && !churchImporting && (
-            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{churchImportResult}</p>
-          )}
-        </div>
-        <button
-          onClick={handleImportChurches}
-          disabled={churchImporting}
-          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
-        >
-          {churchImporting ? t('adminChurchImporting') : t('adminChurchImportBtn')}
-        </button>
-      </div>
-
-      {/* OCA parishes import */}
-      <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
-        <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/15 flex items-center justify-center shrink-0">
-          <Church className="w-6 h-6" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-serif font-bold text-base text-(--tx-head)">
-            Coptic Churches
-          </p>
-          <p className="text-xs text-(--tx-soft) mt-0.5">
-            Import {COPTIC_CHURCHES.length} Coptic Orthodox churches worldwide (St-Takla sources)
-          </p>
-          {ocaImporting && (
-            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">
-              Importing {ocaImportProgress.done}/{ocaImportProgress.total}
-            </p>
-          )}
-          {ocaImportResult && !ocaImporting && (
-            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{ocaImportResult}</p>
-          )}
-        </div>
-        <button
-          onClick={handleImportCoptic}
-          disabled={ocaImporting}
-          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
-        >
-          {ocaImporting ? 'Importing' : 'Import'}
-        </button>
-      </div>
-
-      {/* Delete all */}
-      <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-red-500/50 shadow-lg">
-        <div className="flex-1 min-w-0">
-          <p className="font-serif font-bold text-base text-(--tx-head)">Delete All Churches</p>
-          <p className="text-xs text-(--tx-soft) mt-0.5">Remove every church from the directory</p>
-          {wipeResult && !wiping && (
-            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{wipeResult}</p>
-          )}
-        </div>
-        <button
-          onClick={handleWipe}
-          disabled={wiping}
-          className="px-5 py-2.5 rounded-xl bg-red-600 hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
-        >
-          {wiping ? 'Working' : 'Delete All'}
-        </button>
-      </div>
-
-      {/* Translate to Arabic */}
-      <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
-        <div className="flex-1 min-w-0">
-          <p className="font-serif font-bold text-base text-(--tx-head)">Arabic Names</p>
-          <p className="text-xs text-(--tx-soft) mt-0.5">Generate Arabic translations for imported churches</p>
-          {translateResult && !translating && (
-            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{translateResult}</p>
-          )}
-        </div>
-        <button
-          onClick={handleTranslate}
-          disabled={translating}
-          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
-        >
-          {translating ? 'Working' : 'Translate'}
-        </button>
-      </div>
-
-      {/* Dedupe */}
-      <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
-        <div className="flex-1 min-w-0">
-          <p className="font-serif font-bold text-base text-(--tx-head)">Remove Duplicates</p>
-          <p className="text-xs text-(--tx-soft) mt-0.5">Find churches added more than once and keep the best record</p>
-          {dedupeResult && !deduping && (
-            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{dedupeResult}</p>
-          )}
-        </div>
-        <button
-          onClick={handleDedupe}
-          disabled={deduping}
-          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
-        >
-          {deduping ? 'Working' : 'Clean Up'}
-        </button>
-      </div>
-
 {/* Navigation Tabs */}
       <div className="flex gap-2 border-b border-(--ln-bright)/20 pb-2">
         <button
@@ -917,6 +804,18 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
         >
           <Clock className="w-4 h-4" />
           <span>{t('adminTabAudit')} ({auditLogs.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('settings')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            activeTab === 'settings'
+              ? 'bg-(--ac-bright) text-white shadow-md'
+              : 'bg-(--bg-card-hi) text-(--tx-soft) hover:bg-(--bg-inset)'
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          <span>Settings</span>
         </button>
       </div>
 
@@ -1088,6 +987,126 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
               ))
             )}
           </div>
+        </div>
+      )}
+
+      {/* TAB 5: SETTINGS - Church management & admin tools */}
+      {activeTab === 'settings' && (
+        <div className="space-y-4">
+      {/* US Churches one-tap import */}
+      <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-(--ac-bright)/10 border border-(--ac-bright)/30 flex items-center justify-center text-(--ac-bright-tx) shrink-0">
+          <Church className="w-6 h-6" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-serif font-bold text-base text-(--tx-head)">
+            {t('adminChurchImportTitle')}
+          </p>
+          <p className="text-xs text-(--tx-soft) mt-0.5">
+            {t('adminChurchImportDesc')}
+          </p>
+          {churchImporting && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">
+              {t('adminChurchImporting')} {churchImportProgress.done}/{churchImportProgress.total}
+            </p>
+          )}
+          {churchImportResult && !churchImporting && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{churchImportResult}</p>
+          )}
+        </div>
+        <button
+          onClick={handleImportChurches}
+          disabled={churchImporting}
+          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          {churchImporting ? t('adminChurchImporting') : t('adminChurchImportBtn')}
+        </button>
+      </div>
+
+      {/* OCA parishes import */}
+      <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
+        <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/15 flex items-center justify-center shrink-0">
+          <Church className="w-6 h-6" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-serif font-bold text-base text-(--tx-head)">
+            Coptic Churches
+          </p>
+          <p className="text-xs text-(--tx-soft) mt-0.5">
+            Import {COPTIC_CHURCHES.length} Coptic Orthodox churches worldwide (St-Takla sources)
+          </p>
+          {ocaImporting && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">
+              Importing {ocaImportProgress.done}/{ocaImportProgress.total}
+            </p>
+          )}
+          {ocaImportResult && !ocaImporting && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{ocaImportResult}</p>
+          )}
+        </div>
+        <button
+          onClick={handleImportCoptic}
+          disabled={ocaImporting}
+          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          {ocaImporting ? 'Importing' : 'Import'}
+        </button>
+      </div>
+
+      {/* Delete all */}
+      <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-red-500/50 shadow-lg">
+        <div className="flex-1 min-w-0">
+          <p className="font-serif font-bold text-base text-(--tx-head)">Delete All Churches</p>
+          <p className="text-xs text-(--tx-soft) mt-0.5">Remove every church from the directory</p>
+          {wipeResult && !wiping && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{wipeResult}</p>
+          )}
+        </div>
+        <button
+          onClick={handleWipe}
+          disabled={wiping}
+          className="px-5 py-2.5 rounded-xl bg-red-600 hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          {wiping ? 'Working' : 'Delete All'}
+        </button>
+      </div>
+
+      {/* Translate to Arabic */}
+      <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
+        <div className="flex-1 min-w-0">
+          <p className="font-serif font-bold text-base text-(--tx-head)">Arabic Names</p>
+          <p className="text-xs text-(--tx-soft) mt-0.5">Generate Arabic translations for imported churches</p>
+          {translateResult && !translating && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{translateResult}</p>
+          )}
+        </div>
+        <button
+          onClick={handleTranslate}
+          disabled={translating}
+          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          {translating ? 'Working' : 'Translate'}
+        </button>
+      </div>
+
+      {/* Dedupe */}
+      <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
+        <div className="flex-1 min-w-0">
+          <p className="font-serif font-bold text-base text-(--tx-head)">Remove Duplicates</p>
+          <p className="text-xs text-(--tx-soft) mt-0.5">Find churches added more than once and keep the best record</p>
+          {dedupeResult && !deduping && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{dedupeResult}</p>
+          )}
+        </div>
+        <button
+          onClick={handleDedupe}
+          disabled={deduping}
+          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          {deduping ? 'Working' : 'Clean Up'}
+        </button>
+      </div>
+
         </div>
       )}
 

@@ -6,8 +6,24 @@ interface ThemeContextType {
   setTheme: (mode: ThemeMode) => void;
   language: Language;
   setLanguage: (lang: Language) => void;
+  accentColor: string;
+  setAccentColor: (c: string) => void;
   t: (key: string) => string;
 }
+
+// amt -1..1: negative darkens, positive lightens a hex color
+const shadeHex = (hex: string, amt: number): string => {
+  const n = hex.replace('#', '');
+  const full = n.length === 3 ? n.split('').map((c) => c + c).join('') : n;
+  const num = parseInt(full, 16);
+  let r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+  if (amt >= 0) { r += (255 - r) * amt; g += (255 - g) * amt; b += (255 - b) * amt; }
+  else { r *= 1 + amt; g *= 1 + amt; b *= 1 + amt; }
+  const hx = (v: number) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0');
+  return `#${hx(r)}${hx(g)}${hx(b)}`;
+};
+
+const ACCENT_VARS = ['--ac-bright', '--ac-bright-tx', '--ac-bright-dk', '--ac-gold', '--ac-gold-tx', '--ac-gold-deep', '--ac-bronze', '--ac-bronze-tx', '--ac-bronze-dk', '--bg-tabbar'];
 
 const translations: Record<Language, Record<string, string>> = {
   en: {
@@ -290,6 +306,8 @@ const translations: Record<Language, Record<string, string>> = {
     adminDeleteDenied: 'Permission Denied: Only the Super Admin (orthodoxconnect.live@gmail.com) can delete Admin accounts.',
     adminDeleteFailed: 'Failed to delete user account.',
     adminError: 'Error',
+    colorsMode: 'My Colors',
+    chooseColor: 'Choose your color',
   },
   ar: {
     appName: 'أرثوذكسى',
@@ -571,6 +589,8 @@ const translations: Record<Language, Record<string, string>> = {
     adminDeleteFailed: 'فشل حذف حساب المستخدم.',
     adminError: 'خطأ',
     saveChanges: 'حفظ التعديلات',
+    colorsMode: 'ألواني',
+    chooseColor: 'اختر لونك',
   },
 };
 
@@ -605,19 +625,43 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('oc_lang', lang);
   };
 
+  const [accentColor, setAccentColorState] = useState<string>(() => {
+    try { return localStorage.getItem('oc_accent_color') || '#1877F2'; } catch { return '#1877F2'; }
+  });
+
+  const setAccentColor = (c: string) => {
+    setAccentColorState(c);
+    try { localStorage.setItem('oc_accent_color', c); } catch {}
+  };
+
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.remove('theme-dark', 'theme-light', 'theme-ancient', 'theme-facebook', 'dark', 'light');
+    root.classList.remove('theme-dark', 'theme-light', 'theme-ancient', 'theme-facebook', 'theme-colors', 'dark', 'light');
+    ACCENT_VARS.forEach((v) => root.style.removeProperty(v));
     if (theme === 'dark') {
       root.classList.add('dark', 'theme-dark');
     } else if (theme === 'ancient') {
       root.classList.add('theme-ancient');
+    } else if ((theme as string) === 'colors') {
+      root.classList.add('light', 'theme-facebook', 'theme-colors');
+      const c = accentColor;
+      const set = (k: string, v: string) => root.style.setProperty(k, v);
+      set('--ac-bright', c);
+      set('--ac-bright-tx', c);
+      set('--ac-bright-dk', shadeHex(c, -0.2));
+      set('--ac-gold', c);
+      set('--ac-gold-tx', c);
+      set('--ac-gold-deep', shadeHex(c, -0.25));
+      set('--ac-bronze', shadeHex(c, -0.08));
+      set('--ac-bronze-tx', shadeHex(c, -0.08));
+      set('--ac-bronze-dk', shadeHex(c, -0.3));
+      set('--bg-tabbar', shadeHex(c, 0.88));
     } else if ((theme as string) === 'facebook') {
       root.classList.add('theme-facebook');
     } else {
       root.classList.add('light', 'theme-light');
     }
-  }, [theme]);
+  }, [theme, accentColor]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -630,7 +674,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, language, setLanguage, t }}>
+    <ThemeContext.Provider value={{ theme, setTheme, language, setLanguage, accentColor, setAccentColor, t }}>
       {children}
     </ThemeContext.Provider>
   );

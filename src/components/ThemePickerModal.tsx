@@ -2,17 +2,20 @@ import React, { useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { Check } from 'lucide-react';
 
-type ThemeId = 'facebook' | 'ancient' | 'dark' | 'light';
+type ThemeId = 'facebook' | 'ancient' | 'dark' | 'light' | 'colors';
 
 const THEMES: { id: ThemeId; nameKey: string; bg: string; card: string; text: string; accent: string }[] = [
   { id: 'facebook', nameKey: 'facebookMode', bg: '#F0F2F5', card: '#FFFFFF', text: '#050505', accent: '#1877F2' },
   { id: 'ancient', nameKey: 'ancientGold', bg: '#c8a76f', card: '#dfc795', text: '#2a1c0d', accent: '#8a6a34' },
   { id: 'dark', nameKey: 'dark', bg: '#0f0c09', card: '#1c1611', text: '#f5ebd9', accent: '#c5a059' },
   { id: 'light', nameKey: 'light', bg: '#f5f4f1', card: '#ffffff', text: '#292524', accent: '#c5a059' },
+  { id: 'colors', nameKey: 'colorsMode', bg: '#F0F2F5', card: '#FFFFFF', text: '#050505', accent: '' },
 ];
 
+const COLOR_CHOICES = ['#1877F2', '#E5484D', '#2FA84F', '#8B5CF6', '#F97316', '#EC4899', '#14B8A6', '#C5A059'];
+
 export default function ThemePickerModal({ onDone }: { onDone: () => void }) {
-  const { theme, setTheme, setLanguage, t, language } = useTheme();
+  const { theme, setTheme, setLanguage, t, language, accentColor, setAccentColor } = useTheme();
   const ar = language === 'ar';
   const [selected, setSelected] = useState<ThemeId>((theme as ThemeId) || 'facebook');
 
@@ -20,6 +23,10 @@ export default function ThemePickerModal({ onDone }: { onDone: () => void }) {
     setSelected(id);
     setTheme(id);
   };
+
+  const themes = THEMES.map((th) =>
+    th.id === 'colors' ? { ...th, accent: accentColor } : th
+  );
 
   const confirm = () => {
     setTheme(selected);
@@ -63,7 +70,7 @@ export default function ThemePickerModal({ onDone }: { onDone: () => void }) {
         </p>
 
         <div className="grid grid-cols-2 gap-3 mb-6">
-          {THEMES.map((th) => {
+          {themes.map((th) => {
             const active = selected === th.id;
             return (
               <button
@@ -98,6 +105,30 @@ export default function ThemePickerModal({ onDone }: { onDone: () => void }) {
             );
           })}
         </div>
+
+        {selected === 'colors' && (
+          <div className="mb-6">
+            <p className="text-sm font-bold text-[#2a1c0d] mb-3">{t('chooseColor')}</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              {COLOR_CHOICES.map((c) => {
+                const active = accentColor.toLowerCase() === c.toLowerCase();
+                return (
+                  <button
+                    key={c}
+                    onClick={() => setAccentColor(c)}
+                    aria-label={c}
+                    className={`w-11 h-11 rounded-full cursor-pointer transition-all flex items-center justify-center ${
+                      active ? 'ring-2 ring-[#b45309] ring-offset-2 ring-offset-[#fffdf8] scale-110' : 'ring-1 ring-black/15 hover:scale-105'
+                    }`}
+                    style={{ background: c }}
+                  >
+                    {active && <Check className="w-5 h-5 text-white" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <button
           onClick={confirm}

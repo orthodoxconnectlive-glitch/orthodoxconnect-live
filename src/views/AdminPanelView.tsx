@@ -81,10 +81,13 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
     setChurchImportResult(null);
     try {
       const existing = await churchesApi.list();
-      const byName = new Map<string, any>();
+      // Match by name+city: several churches share a name (e.g. St. Mark) in
+      // different cities. Name-only matching skipped them as duplicates.
+      const keyOf = (n: any, c: any) => ((n || '').trim() + '|' + (c || '').trim()).toLowerCase();
+      const byNameCity = new Map<string, any>();
       for (const c of existing as any[]) {
-        if (c.name) byName.set((c.name as string).trim(), c);
-        if ((c as any).name_ar) byName.set(((c as any).name_ar as string).trim(), c);
+        if (c.name) byNameCity.set(keyOf(c.name, c.city), c);
+        if ((c as any).name_ar) byNameCity.set(keyOf((c as any).name_ar, (c as any).city_ar), c);
       }
       type Op = { type: 'create' | 'update'; ch: (typeof US_COPTIC_CHURCHES)[number]; id?: string };
       const ops: Op[] = [];
@@ -96,9 +99,11 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
         country: ch.country,
         description: ch.description,
         description_ar: ch.description_ar,
+        address: (ch as any).address || '',
+        website: (ch as any).website || '',
       });
       for (const ch of US_COPTIC_CHURCHES) {
-        const ex = byName.get(ch.name.trim()) || byName.get(ch.name_ar.trim());
+        const ex = byNameCity.get(keyOf(ch.name, ch.city)) || byNameCity.get(keyOf(ch.name_ar, ch.city_ar));
         if (!ex) {
           ops.push({ type: 'create', ch });
         } else {

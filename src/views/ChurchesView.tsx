@@ -181,8 +181,12 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
           onClick={() => onOpenChurch(myChurch.id)}
           className="w-full flex items-center gap-3 p-4 rounded-3xl bg-(--ac-gold)/10 dark:bg-[#2a2118] border-2 border-(--ac-gold) shadow-lg text-left cursor-pointer"
         >
-          <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/20 flex items-center justify-center shrink-0">
-            <ChurchIcon className="w-6 h-6 text-(--ac-gold-tx)" />
+          <div className="w-12 h-12 rounded-2xl overflow-hidden bg-(--ac-gold)/20 flex items-center justify-center shrink-0">
+            {(myChurch as any).avatar ? (
+              <img src={(myChurch as any).avatar} alt={dispName(myChurch)} className="w-full h-full object-cover" />
+            ) : (
+              <ChurchIcon className="w-6 h-6 text-(--ac-gold-tx)" />
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wider text-(--ac-gold-tx)">

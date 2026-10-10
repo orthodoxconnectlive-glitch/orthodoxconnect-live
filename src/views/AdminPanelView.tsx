@@ -18,7 +18,7 @@ import {
 import { UserProfile, UserRole, ContentReport, ModerationAuditLog } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { profilesApi, reportsApi, churchesApi } from '../lib/api';
+import { apiFetch, profilesApi, reportsApi, churchesApi } from '../lib/api';
 import { US_COPTIC_CHURCHES } from '../data/usCopticChurches';
 import { OCA_PARISHES } from '../data/ocaParishes';
 import {
@@ -84,37 +84,26 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
     setOcaImporting(true);
     setOcaImportResult(null);
     try {
-      const existing = await churchesApi.list();
-      const keyOf = (j: any, n: any, c: any) => ((j || '').trim() + '|' + (n || '').trim() + '|' + (c || '').trim()).toLowerCase();
-      const seen = new Map<string, any>();
-      for (const c of existing as any[]) {
-        seen.set(keyOf((c as any).jurisdiction, c.name, c.city), c);
+      setOcaImportProgress({ done: 0, total: OCA_PARISHES.length });
+      // Single bulk request — far lighter than 791 individual saves.
+      const payload = OCA_PARISHES.map((ch) => ({
+        name: ch.name,
+        city: ch.city,
+        country: ch.country,
+        jurisdiction: 'OCA',
+        description: ch.diocese || 'Orthodox Church in America',
+        website: ch.website || '',
+      }));
+      const data = await apiFetch<any>('/api/churches/bulk', {
+        method: 'POST',
+        body: JSON.stringify({ churches: payload }),
+      }).catch(() => ({}));
+      if (data.success) {
+        setOcaImportProgress({ done: data.inserted, total: OCA_PARISHES.length });
+        setOcaImportResult('OCA import done: ' + data.inserted + ' added, ' + data.skipped + ' skipped');
+      } else {
+        setOcaImportResult('OCA import failed: ' + (data.error || 'unknown error'));
       }
-      let ok = 0;
-      const total = OCA_PARISHES.length;
-      setOcaImportProgress({ done: 0, total });
-      for (let i = 0; i < OCA_PARISHES.length; i += 5) {
-        const batch = OCA_PARISHES.slice(i, i + 5);
-        const results = await Promise.all(
-          batch.map((ch) => {
-            if (seen.has(keyOf(ch.jurisdiction, ch.name, ch.city))) return Promise.resolve(false);
-            return churchesApi
-              .create({
-                name: ch.name,
-                city: ch.city,
-                country: ch.country,
-                jurisdiction: 'OCA',
-                description: ch.diocese || 'Orthodox Church in America',
-                website: ch.website || '',
-              } as any)
-              .then(() => true)
-              .catch(() => false);
-          })
-        );
-        ok += results.filter(Boolean).length;
-        setOcaImportProgress({ done: ok, total });
-      }
-      setOcaImportResult('OCA import done: ' + ok + '/' + total);
     } catch {
       setOcaImportResult('OCA import failed');
     } finally {

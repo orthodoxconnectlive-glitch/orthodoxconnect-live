@@ -3297,6 +3297,52 @@ export default {
         }
       }
 
+      // 6b-0. Bulk church import — one request imports hundreds of churches.
+      // Admin only. Far lighter than hundreds of individual POSTs.
+      if (url.pathname === '/api/churches/bulk' && request.method === 'POST') {
+        const bulkAuth = await getAuthIdentity(request, env);
+        if (!bulkAuth.id || !bulkAuth.isAdmin) {
+          return jsonResponse({ success: false, error: 'Admin required.' }, 403);
+        }
+        const bulkBody: any = await request.json().catch(() => ({}));
+        const list = Array.isArray(bulkBody.churches) ? bulkBody.churches : [];
+        if (!list.length || list.length > 2000) {
+          return jsonResponse({ success: false, error: 'Provide 1-2000 churches.' }, 400);
+        }
+        const nowIso = new Date().toISOString();
+        let inserted = 0;
+        let skipped = 0;
+        try {
+          const exRes: any = await env.DB.prepare('SELECT jurisdiction, name, city FROM churches').all();
+          const seen = new Set((((exRes && exRes.results) || []) as any[]).map((c: any) =>
+            ((c.jurisdiction || '') + '|' + (c.name || '') + '|' + (c.city || '')).toLowerCase().trim()
+          ));
+          const stmts: any[] = [];
+          for (const ch of list) {
+            const nm = (ch.name || '').trim();
+            if (!nm) { skipped++; continue; }
+            const key = ((ch.jurisdiction || '') + '|' + nm + '|' + ((ch.city || '').trim())).toLowerCase().trim();
+            if (seen.has(key)) { skipped++; continue; }
+            seen.add(key);
+            const cid = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'church_' + Date.now() + '_' + Math.random().toString(36).slice(2));
+            stmts.push(
+              env.DB.prepare('INSERT INTO churches (id, name, city, country, jurisdiction, description, website, owner_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
+                cid, nm, (ch.city || '').trim(), (ch.country || '').trim(), (ch.jurisdiction || '').trim(),
+                (ch.description || '').trim(), (ch.website || '').trim(), bulkAuth.id, nowIso
+              )
+            );
+          }
+          for (let bi = 0; bi < stmts.length; bi += 50) {
+            const batch = stmts.slice(bi, bi + 50);
+            await env.DB.batch(batch);
+            inserted += batch.length;
+          }
+        } catch (e: any) {
+          return jsonResponse({ success: false, error: 'Bulk import failed: ' + (e?.message || 'database error') }, 500);
+        }
+        return jsonResponse({ success: true, inserted, skipped, total: list.length }, 201);
+      }
+
       // 6b. Churches Endpoints (/api/churches)
       if (url.pathname === '/api/churches' || url.pathname === '/api/churches/') {
         // Bulletproof: ensure the table exists on the request path itself.

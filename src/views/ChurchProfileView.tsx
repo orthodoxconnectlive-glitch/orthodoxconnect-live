@@ -28,7 +28,6 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [joining, setJoining] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
   const [joined, setJoined] = useState(false);
   const [formError, setFormError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -269,11 +268,6 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
       if (data.success && data.profile) {
         await updateProfile({ parish: data.profile.parish || '', parish_id: data.profile.parish_id || '' } as any);
         setJoined(!joined);
-        setSaveMsg('Saved: ' + (data.profile.parish_id || 'no-id'));
-        setTimeout(() => setSaveMsg(''), 4000);
-      } else {
-        setSaveMsg('Failed: ' + (data.error || 'unknown'));
-        setTimeout(() => setSaveMsg(''), 4000);
       }
     } catch (e) {
       console.warn('Set parish failed:', e);
@@ -395,7 +389,6 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
                 )}
                 {joined ? (ar ? 'كنيستى' : 'My church') : ar ? 'اجعلها كنيستى' : 'Set as my church'}
               </button>
-              {saveMsg ? <div className="text-[10px] text-red-600 mt-1 px-1">{saveMsg}</div> : null}
             </div>
           <h2 className="font-serif-coptic font-bold text-xl text-(--tx-strong) dark:text-[#f5ebd9]">{dispName}</h2>
           {(church.city || church.country) && (

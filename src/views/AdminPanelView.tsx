@@ -77,9 +77,29 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
   const [ocaImportResult, setOcaImportResult] = useState<string | null>(null);
   const [deduping, setDeduping] = useState(false);
   const [dedupeResult, setDedupeResult] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [translateResult, setTranslateResult] = useState<string | null>(null);
   const [ocaImportProgress, setOcaImportProgress] = useState({ done: 0, total: 0 });
   const [churchImportProgress, setChurchImportProgress] = useState({ done: 0, total: 0 });
   const [churchImportResult, setChurchImportResult] = useState<string | null>(null);
+
+  const handleTranslate = async () => {
+    if (translating) return;
+    setTranslating(true);
+    setTranslateResult(null);
+    try {
+      const data = await apiFetch<any>('/api/churches/translate-ar', { method: 'POST' }).catch(() => ({}));
+      if (data.success) {
+        setTranslateResult('Translated ' + data.translated + ' church names to Arabic');
+      } else {
+        setTranslateResult('Failed: ' + (data.error || 'unknown error'));
+      }
+    } catch {
+      setTranslateResult('Failed');
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   const handleDedupe = async () => {
     if (deduping) return;
@@ -768,6 +788,24 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
           className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
         >
           {ocaImporting ? 'Importing' : 'Import'}
+        </button>
+      </div>
+
+      {/* Translate to Arabic */}
+      <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
+        <div className="flex-1 min-w-0">
+          <p className="font-serif font-bold text-base text-(--tx-head)">Arabic Names</p>
+          <p className="text-xs text-(--tx-soft) mt-0.5">Generate Arabic translations for imported churches</p>
+          {translateResult && !translating && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{translateResult}</p>
+          )}
+        </div>
+        <button
+          onClick={handleTranslate}
+          disabled={translating}
+          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          {translating ? 'Working' : 'Translate'}
         </button>
       </div>
 

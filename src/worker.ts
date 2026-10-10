@@ -3385,34 +3385,71 @@ export default {
         }
       }
 
-      // 6b-0c. Bulk set Arabic names — admin only. Accepts [{id, name_ar}].
-      if (url.pathname === '/api/churches/bulk-arabic' && request.method === 'POST') {
+      // 6b-0c. Auto-translate church names to Arabic — admin only.
+      // Generates Arabic names for churches missing name_ar (e.g. OCA imports).
+      if (url.pathname === '/api/churches/translate-ar' && request.method === 'POST') {
         const tAuth = await getAuthIdentity(request, env);
         if (!tAuth.id || !tAuth.isAdmin) {
           return jsonResponse({ success: false, error: 'Admin required.' }, 403);
         }
-        const tBody: any = await request.json().catch(() => ({}));
-        const list = Array.isArray(tBody.names) ? tBody.names : [];
-        if (!list.length || list.length > 2000) {
-          return jsonResponse({ success: false, error: 'Provide 1-2000 names.' }, 400);
-        }
-        let updated = 0;
+        const saints: Record<string, string> = {
+          'mary': 'مريم', 'theotokos': 'والدة الإله', 'nicholas': 'نيقولاوس', 'george': 'جرجس',
+          'john': 'يوحنا', 'peter': 'بطرس', 'paul': 'بولس', 'andrew': 'أندراوس',
+          'james': 'يعقوب', 'thomas': 'توما', 'philip': 'فيلبس', 'matthew': 'متى',
+          'mark': 'مرقس', 'luke': 'لوقا', 'stephen': 'استفانوس', 'anthony': 'أنطونيوس',
+          'athanasius': 'أثناسيوس', 'basil': 'باسيليوس', 'gregory': 'غريغوريوس',
+          'seraphim': 'سيرافيم', 'sergius': 'سرجيوس', 'herman': 'هيرمان',
+          'innocent': 'إينوسنت', 'tikhon': 'تيخون', 'vladimir': 'فلاديمير',
+          'olga': 'أولغا', 'elizabeth': 'إليزابيث', 'anna': 'حنة', 'catherine': 'كاثرين',
+          'barbara': 'بربارة', 'irene': 'إيريني', 'helen': 'هيلانة', 'constantine': 'قسطنطين',
+          'michael': 'ميخائيل', 'gabriel': 'غبريال', 'demetrius': 'ديمتريوس',
+          'cosmas': 'قزمان', 'damian': 'دميان', 'david': 'داود', 'elijah': 'إيليا',
+          'moses': 'موسى', 'daniel': 'دانيال', 'theodore': 'ثيودوروس',
+        };
+        const femaleNames = new Set(['mary', 'theotokos', 'olga', 'elizabeth', 'anna', 'catherine', 'barbara', 'irene', 'helen']);
+        const toArabic = (name: string): string => {
+          let n = (name || '').toLowerCase().trim();
+          let ctype = '';
+          if (n.includes('cathedral')) { ctype = 'كاتدرائية'; n = n.replace(/cathedral/g, '').trim(); }
+          else if (n.includes('monastery')) { ctype = 'دير'; n = n.replace(/monastery/g, '').trim(); }
+          else if (n.includes('chapel')) { ctype = 'مصلى'; n = n.replace(/chapel/g, '').trim(); }
+          else if (n.includes('mission')) { ctype = 'كنيسة'; n = n.replace(/mission station/g, '').replace(/mission/g, '').trim(); }
+          else if (n.includes('church')) { ctype = 'كنيسة'; n = n.replace(/church/g, '').trim(); }
+          if (n.includes('all saints')) {
+            n = n.replace(/all saints/g, '').trim();
+            if (n.includes('north america')) return (ctype + ' جميع القديسين في أمريكا الشمالية').trim();
+            if (n.includes('alaska')) return (ctype + ' جميع القديسين في ألاسكا').trim();
+            return (ctype + ' جميع القديسين').trim();
+          }
+          if (n.includes('holy trinity')) return (ctype + ' الثالوث القدوس').trim();
+          n = n.replace(/^st\.?\s+/, '').replace(/^saint\s+/, '');
+          const keys = Object.keys(saints).sort((a, b) => b.length - a.length);
+          for (const k of keys) {
+            if (n.includes(k)) {
+              const prefix = femaleNames.has(k) ? 'القديسة' : 'القديس';
+              return (ctype + ' ' + prefix + ' ' + saints[k]).trim();
+            }
+          }
+          return '';
+        };
         try {
+          const all: any = await env.DB.prepare("SELECT id, name FROM churches WHERE (name_ar IS NULL OR name_ar = '') AND jurisdiction = 'OCA'").all();
+          const rows = (all && all.results) || [];
           const stmts: any[] = [];
-          for (const item of list) {
-            if (!item.name || !item.name_ar) continue;
-            stmts.push(
-              env.DB.prepare('UPDATE churches SET name_ar = ? WHERE lower(trim(name)) = lower(trim(?)) AND lower(trim(city)) = lower(trim(?))').bind((item.name_ar || '').trim(), (item.name || '').trim(), (item.city || '').trim())
-            );
+          let translated = 0;
+          for (const c of rows) {
+            const ar = toArabic(c.name);
+            if (!ar) continue;
+            stmts.push(env.DB.prepare('UPDATE churches SET name_ar = ? WHERE id = ?').bind(ar, c.id));
+            translated++;
           }
           for (let bi = 0; bi < stmts.length; bi += 50) {
-            const r = await env.DB.batch(stmts.slice(bi, bi + 50));
-            updated += stmts.slice(bi, bi + 50).length;
+            await env.DB.batch(stmts.slice(bi, bi + 50));
           }
+          return jsonResponse({ success: true, translated, total: rows.length });
         } catch (e: any) {
-          return jsonResponse({ success: false, error: e?.message || 'update failed' }, 500);
+          return jsonResponse({ success: false, error: e?.message || 'translation failed' }, 500);
         }
-        return jsonResponse({ success: true, updated });
       }
 
       // 6b-0. Bulk church import — one request imports hundreds of churches.

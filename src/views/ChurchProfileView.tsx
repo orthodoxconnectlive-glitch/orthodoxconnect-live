@@ -260,7 +260,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
     try {
       const target = joined
         ? { parish: '', parish_id: '' }
-        : { parish: church.name, parish_id: church.id };
+        : { parish: church.name, parish_id: churchId };
       // Use dedicated endpoint — returns the saved profile so we know it stuck
       const data = await apiFetch(`/api/profiles/${encodeURIComponent(profile?.id || '')}/my-church`, {
         method: 'POST',

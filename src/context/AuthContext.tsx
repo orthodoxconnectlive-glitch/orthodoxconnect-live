@@ -201,7 +201,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await profilesApi.update(profile.id, updates);
     } catch (err: any) {
-      console.warn('Profile API update warning:', err);
+      console.warn('Profile API update failed:', err);
+      // Revert local state since server save failed
+      setProfile(profile);
+      try {
+        localStorage.setItem('orthodox_user_profile', JSON.stringify(profile));
+      } catch (e) {}
+      return { error: err instanceof Error ? err : new Error('Profile save failed') };
     }
 
     return { error: null };

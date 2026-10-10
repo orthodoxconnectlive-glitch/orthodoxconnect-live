@@ -75,9 +75,30 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
   const [churchImporting, setChurchImporting] = useState(false);
   const [ocaImporting, setOcaImporting] = useState(false);
   const [ocaImportResult, setOcaImportResult] = useState<string | null>(null);
+  const [deduping, setDeduping] = useState(false);
+  const [dedupeResult, setDedupeResult] = useState<string | null>(null);
   const [ocaImportProgress, setOcaImportProgress] = useState({ done: 0, total: 0 });
   const [churchImportProgress, setChurchImportProgress] = useState({ done: 0, total: 0 });
   const [churchImportResult, setChurchImportResult] = useState<string | null>(null);
+
+  const handleDedupe = async () => {
+    if (deduping) return;
+    if (!confirm('Remove duplicate churches? Keeps the most complete record per church.')) return;
+    setDeduping(true);
+    setDedupeResult(null);
+    try {
+      const data = await apiFetch<any>('/api/churches/dedupe', { method: 'POST' }).catch(() => ({}));
+      if (data.success) {
+        setDedupeResult('Done: merged ' + data.mergedGroups + ' groups, removed ' + data.deleted + ' duplicates');
+      } else {
+        setDedupeResult('Failed: ' + (data.error || 'unknown error'));
+      }
+    } catch {
+      setDedupeResult('Failed');
+    } finally {
+      setDeduping(false);
+    }
+  };
 
   const handleImportOca = async () => {
     if (ocaImporting) return;

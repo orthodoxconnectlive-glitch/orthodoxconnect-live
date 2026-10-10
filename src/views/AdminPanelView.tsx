@@ -20,6 +20,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { apiFetch, profilesApi, reportsApi, churchesApi } from '../lib/api';
 import { US_COPTIC_CHURCHES } from '../data/usCopticChurches';
+import { EGYPT_COPTIC_CHURCHES } from '../data/egyptCopticChurches';
 import { COPTIC_CHURCHES } from '../data/copticChurches';
 import {
   loadContentReports,
@@ -188,9 +189,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
         if (c.name) byNameCity.set(keyOf(c.name, c.city), c);
         if ((c as any).name_ar) byNameCity.set(keyOf((c as any).name_ar, (c as any).city_ar), c);
       }
-      type Op = { type: 'create' | 'update'; ch: (typeof US_COPTIC_CHURCHES)[number]; id?: string };
+      type Op = { type: 'create' | 'update'; ch: (typeof US_COPTIC_CHURCHES)[number] | (typeof EGYPT_COPTIC_CHURCHES)[number]; id?: string };
       const ops: Op[] = [];
-      const payload = (ch: (typeof US_COPTIC_CHURCHES)[number]) => ({
+      const payload = (ch: (typeof US_COPTIC_CHURCHES)[number] | (typeof EGYPT_COPTIC_CHURCHES)[number]) => ({
         name: ch.name,
         name_ar: ch.name_ar,
         city: ch.city,
@@ -201,15 +202,16 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
         address: (ch as any).address || '',
         website: (ch as any).website || '',
       });
-      for (const ch of US_COPTIC_CHURCHES) {
-        const ex = byNameCity.get(keyOf(ch.name, ch.city)) || byNameCity.get(keyOf(ch.name_ar, ch.city_ar));
+      const ALL_CHURCHES = [...US_COPTIC_CHURCHES, ...EGYPT_COPTIC_CHURCHES];
+      for (const ch of ALL_CHURCHES) {
+        const ex = byNameCity.get(keyOf(ch.name, ch.city)) || byNameCity.get(keyOf((ch as any).name_ar, (ch as any).city_ar));
         if (!ex) {
           ops.push({ type: 'create', ch });
         } else {
           // refresh bilingual fields on already-imported rows (migrates old Arabic-only rows)
           const needsUpdate =
             (ex.name || '').trim() !== ch.name.trim() ||
-            ((ex as any).name_ar || '').trim() !== ch.name_ar.trim() ||
+            ((ex as any).name_ar || '').trim() !== ((ch as any).name_ar || '').trim() ||
             (ex.city || '').trim() !== ch.city.trim();
           if (needsUpdate) ops.push({ type: 'update', ch, id: ex.id });
         }

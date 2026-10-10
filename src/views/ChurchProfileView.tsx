@@ -331,7 +331,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
           )}
         </div>
         <div className="p-4 pt-0">
-          <div className="-mt-6 mb-3 flex items-end justify-between">
+          <div className="-mt-6 mb-1 flex items-end">
             <div className="w-20 h-20 rounded-3xl overflow-hidden border-4 border-(--bg-card) dark:border-[#1c1611] bg-(--bg-soft) dark:bg-[#282019] shadow-lg flex items-center justify-center">
               {church.avatar ? (
                 <img src={church.avatar} alt={church.name} className="w-full h-full object-cover" />
@@ -339,7 +339,8 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
                 <ChurchIcon className="w-9 h-9 text-(--ac-gold-tx)" />
               )}
             </div>
-            <div className="flex flex-wrap gap-2 pb-1">
+          </div>
+          <div className="flex flex-wrap gap-2 mb-3">
               {isOwner && (
                 <button
                   onClick={openEdit}
@@ -379,7 +380,6 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
                 {joined ? (ar ? 'رعيتي' : 'My parish') : ar ? 'اجعلها رعيتي' : 'Set as my parish'}
               </button>
             </div>
-          </div>
           <h2 className="font-serif-coptic font-bold text-xl text-(--tx-strong) dark:text-[#f5ebd9]">{dispName}</h2>
           {(church.city || church.country) && (
             <p className="text-xs text-(--tx-mute) font-serif flex items-center gap-1 mt-1">

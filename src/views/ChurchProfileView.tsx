@@ -20,10 +20,10 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
   const { profile, updateProfile } = useAuth();
   const { language } = useTheme();
   const ar = language === 'ar';
-  const dispName = ar ? ((church as any).name_ar || church.name) : church.name;
-  const dispCity = ar ? ((church as any).city_ar || church.city) : church.city;
-  const dispDesc = ar ? ((church as any).description_ar || church.description) : church.description;
   const [church, setChurch] = useState<Church | null>(null);
+  const dispName = church ? (ar ? ((church as any).name_ar || church.name) : church.name) : '';
+  const dispCity = church ? (ar ? ((church as any).city_ar || church.city) : church.city) : '';
+  const dispDesc = church ? (ar ? ((church as any).description_ar || church.description) : church.description) : '';
   const [loading, setLoading] = useState(true);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);

@@ -215,12 +215,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const setLocalProfile = (updates: Partial<UserProfile>) => {
-    if (!profile) return;
-    const updated: UserProfile = { ...profile, ...updates };
-    setProfile(updated);
-    try {
-      localStorage.setItem('orthodox_user_profile', JSON.stringify(updated));
-    } catch (e) {}
+    setProfile(prev => {
+      if (!prev) return prev;
+      const updated: UserProfile = { ...prev, ...updates };
+      try {
+        localStorage.setItem('orthodox_user_profile', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
   };
 
   const updatePassword = async (newPassword: string) => {

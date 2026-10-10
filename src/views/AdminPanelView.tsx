@@ -79,9 +79,31 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
   const [dedupeResult, setDedupeResult] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
   const [translateResult, setTranslateResult] = useState<string | null>(null);
+  const [wiping, setWiping] = useState(false);
+  const [wipeResult, setWipeResult] = useState<string | null>(null);
   const [ocaImportProgress, setOcaImportProgress] = useState({ done: 0, total: 0 });
   const [churchImportProgress, setChurchImportProgress] = useState({ done: 0, total: 0 });
   const [churchImportResult, setChurchImportResult] = useState<string | null>(null);
+
+  const handleWipe = async () => {
+    if (wiping) return;
+    if (!confirm('Delete ALL churches? This cannot be undone.')) return;
+    if (!confirm('Really delete every church?')) return;
+    setWiping(true);
+    setWipeResult(null);
+    try {
+      const data = await apiFetch<any>('/api/churches/delete-all', { method: 'POST' }).catch(() => ({}));
+      if (data.success) {
+        setWipeResult('Deleted ' + data.deleted + ' churches');
+      } else {
+        setWipeResult('Failed: ' + (data.error || 'unknown error'));
+      }
+    } catch {
+      setWipeResult('Failed');
+    } finally {
+      setWiping(false);
+    }
+  };
 
   const handleTranslate = async () => {
     if (translating) return;
@@ -788,6 +810,24 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
           className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
         >
           {ocaImporting ? 'Importing' : 'Import'}
+        </button>
+      </div>
+
+      {/* Delete all */}
+      <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-red-500/50 shadow-lg">
+        <div className="flex-1 min-w-0">
+          <p className="font-serif font-bold text-base text-(--tx-head)">Delete All Churches</p>
+          <p className="text-xs text-(--tx-soft) mt-0.5">Remove every church from the directory</p>
+          {wipeResult && !wiping && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{wipeResult}</p>
+          )}
+        </div>
+        <button
+          onClick={handleWipe}
+          disabled={wiping}
+          className="px-5 py-2.5 rounded-xl bg-red-600 hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          {wiping ? 'Working' : 'Delete All'}
         </button>
       </div>
 

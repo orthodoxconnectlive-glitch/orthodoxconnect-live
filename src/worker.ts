@@ -3385,6 +3385,21 @@ export default {
         }
       }
 
+      // 6b-0d. Delete ALL churches — admin only. Clean slate.
+      if (url.pathname === '/api/churches/delete-all' && request.method === 'POST') {
+        const wAuth = await getAuthIdentity(request, env);
+        if (!wAuth.id || !wAuth.isAdmin) {
+          return jsonResponse({ success: false, error: 'Admin required.' }, 403);
+        }
+        try {
+          const cnt: any = await env.DB.prepare('SELECT COUNT(*) as n FROM churches').first();
+          await env.DB.exec('DELETE FROM churches');
+          return jsonResponse({ success: true, deleted: (cnt && cnt.n) || 0 });
+        } catch (e: any) {
+          return jsonResponse({ success: false, error: e?.message || 'delete failed' }, 500);
+        }
+      }
+
       // 6b-0c. Auto-translate church names to Arabic — admin only.
       // Generates Arabic names for churches missing name_ar (e.g. OCA imports).
       if (url.pathname === '/api/churches/translate-ar' && request.method === 'POST') {

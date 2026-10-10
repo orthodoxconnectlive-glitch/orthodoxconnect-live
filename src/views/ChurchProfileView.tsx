@@ -75,7 +75,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
       try {
         const c = await churchesApi.get(churchId);
         setChurch(c);
-        if (c && profile?.parish && profile.parish === c.name) setJoined(true);
+        if (c && (profile as any)?.parish_id ? (profile as any).parish_id === c.id : (profile?.parish && profile.parish === c.name)) setJoined(true);
       } catch (e) {
         console.warn('Church load notice:', e);
       } finally {
@@ -259,10 +259,10 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
     try {
       if (joined) {
         // Unset: clear my church
-        const { error } = await updateProfile({ parish: '' } as any);
+        const { error } = await updateProfile({ parish: '', parish_id: '' } as any);
         if (!error) setJoined(false);
       } else {
-        const { error } = await updateProfile({ parish: church.name } as any);
+        const { error } = await updateProfile({ parish: church.name, parish_id: church.id } as any);
         if (!error) setJoined(true);
       }
     } catch (e) {

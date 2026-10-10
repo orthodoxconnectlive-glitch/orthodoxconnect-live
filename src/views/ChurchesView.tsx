@@ -58,15 +58,20 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Pinned My Church: always on top when set
+  // Pinned My Church: always on top when set (by ID, falls back to name)
   useEffect(() => {
-    const parishName = (profile as any)?.parish;
-    if (!parishName) { setMyChurch(null); return; }
-    churchesApi.list(parishName).then((res) => {
-      const match = (res || []).find((c) => c.name === parishName) || (res || [])[0];
-      setMyChurch(match || null);
-    }).catch(() => setMyChurch(null));
-  }, [(profile as any)?.parish]);
+    const pid = (profile as any)?.parish_id;
+    const pname = (profile as any)?.parish;
+    if (!pid && !pname) { setMyChurch(null); return; }
+    if (pid) {
+      churchesApi.get(pid).then((c) => setMyChurch(c)).catch(() => setMyChurch(null));
+    } else {
+      churchesApi.list(pname).then((res) => {
+        const match = (res || []).find((c) => c.name === pname) || (res || [])[0];
+        setMyChurch(match || null);
+      }).catch(() => setMyChurch(null));
+    }
+  }, [(profile as any)?.parish_id, (profile as any)?.parish]);
 
   useEffect(() => {
     const t = setTimeout(() => load(query.trim()), 400);

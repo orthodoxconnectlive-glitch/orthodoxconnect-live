@@ -920,6 +920,11 @@ async function ensureLastSeenColumn(db: D1Database): Promise<void> {
     const msg = String((e as any)?.message || e || '');
     if (!/duplicate column/i.test(msg)) return; // e.g. table missing yet — retry on next request
   }
+  try {
+    await db.prepare('ALTER TABLE profiles ADD COLUMN parish_id TEXT').run();
+  } catch (e) {
+    // duplicate column = already exists, fine
+  }
   lastSeenColumnReady = true;
 }
 // Throttle map: user id -> last touch timestamp (per Worker isolate).
@@ -2941,7 +2946,7 @@ export default {
           let profile: D1ProfileRow | null = null;
           if (env.DB) {
             await ensureLastSeenColumn(env.DB);
-            profile = await env.DB.prepare('SELECT id, email, full_name, parish, bio, avatar_url, role, is_banned, created_at, updated_at, last_seen FROM profiles WHERE id = ?').bind(profileId).first<D1ProfileRow>();
+            profile = await env.DB.prepare('SELECT id, email, full_name, parish, parish_id, bio, avatar_url, role, is_banned, created_at, updated_at, last_seen FROM profiles WHERE id = ?').bind(profileId).first<D1ProfileRow>();
           }
           if (!profile) {
             return jsonResponse({ success: false, error: 'Profile not found.' }, 404);
@@ -2967,6 +2972,7 @@ export default {
 
             if (body.full_name !== undefined) { updates.push('full_name = ?'); params.push(body.full_name); }
             if (body.parish !== undefined) { updates.push('parish = ?'); params.push(body.parish); }
+            if (body.parish_id !== undefined) { updates.push('parish_id = ?'); params.push(body.parish_id); }
             if (body.bio !== undefined) { updates.push('bio = ?'); params.push(body.bio); }
             if (body.avatar_url !== undefined) { updates.push('avatar_url = ?'); params.push(body.avatar_url); }
             // Privileged fields: admin-only. A non-admin can never grant

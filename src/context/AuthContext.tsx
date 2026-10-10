@@ -11,6 +11,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, fullName: string, parish: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: Error | null }>;
+  setLocalProfile: (updates: Partial<UserProfile>) => void;
   updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
@@ -213,6 +214,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error: null };
   };
 
+  const setLocalProfile = (updates: Partial<UserProfile>) => {
+    if (!profile) return;
+    const updated: UserProfile = { ...profile, ...updates };
+    setProfile(updated);
+    try {
+      localStorage.setItem('orthodox_user_profile', JSON.stringify(updated));
+    } catch (e) {}
+  };
+
   const updatePassword = async (newPassword: string) => {
     try {
       if (!user) {
@@ -235,6 +245,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUp,
         signOut,
         updateProfile,
+        setLocalProfile,
         updatePassword,
         isAuthModalOpen,
         openAuthModal: () => setIsAuthModalOpen(true),

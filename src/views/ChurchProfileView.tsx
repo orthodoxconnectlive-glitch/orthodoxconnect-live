@@ -17,7 +17,7 @@ const inputClsLight =
   'w-full p-2.5 rounded-xl bg-white dark:bg-[#282019] border border-(--ln-gold) dark:border-(--ln-gold) text-(--tx-strong) dark:text-[#f5ebd9] placeholder:text-(--tx-mute) dark:placeholder-(--tx-ph-dark) focus:outline-none text-sm';
 
 export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, onBack }) => {
-  const { profile, updateProfile } = useAuth();
+  const { profile, setLocalProfile } = useAuth();
   const { language } = useTheme();
   const ar = language === 'ar';
   const [church, setChurch] = useState<Church | null>(null);
@@ -266,7 +266,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
         body: JSON.stringify(target),
       }).catch(() => ({}));
       if (data.success && data.profile) {
-        await updateProfile({ parish: data.profile.parish || '', parish_id: data.profile.parish_id || '' } as any);
+        setLocalProfile({ parish: data.profile.parish || '', parish_id: data.profile.parish_id || '' } as any);
         setJoined(!joined);
       }
     } catch (e) {

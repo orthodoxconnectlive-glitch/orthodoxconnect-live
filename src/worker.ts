@@ -914,11 +914,11 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
 let lastSeenColumnReady = false;
 async function ensureLastSeenColumn(db: D1Database): Promise<void> {
   if (lastSeenColumnReady || !db) return;
+  // Each migration independent — one failing must not block the other
   try {
     await db.prepare('ALTER TABLE profiles ADD COLUMN last_seen TEXT').run();
   } catch (e) {
-    const msg = String((e as any)?.message || e || '');
-    if (!/duplicate column/i.test(msg)) return; // e.g. table missing yet — retry on next request
+    // duplicate column = already exists, fine
   }
   try {
     await db.prepare('ALTER TABLE profiles ADD COLUMN parish_id TEXT').run();

@@ -104,13 +104,13 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
 
       <div
         ref={dropdownRef}
-        className="absolute right-0 rtl:right-auto rtl:left-0 top-12 w-80 sm:w-96 bg-[#fbf6ec] dark:bg-[#1a140e] border border-(--ln-gold)/40 dark:border-[#8b6b4a]/60 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fadeIn text-left rtl:text-right"
+        className="absolute right-0 rtl:right-auto rtl:left-0 top-12 w-80 sm:w-96 bg-(--bg-card) border border-(--ln-gold)/40 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fadeIn text-left rtl:text-right"
       >
         {/* Header */}
-        <div className="p-4 border-b border-(--ln-gold)/20 dark:border-[#8b6b4a]/30 bg-(--bg-page)/60 dark:bg-[#282019] flex items-center justify-between">
+        <div className="p-4 border-b border-(--ln-gold)/20 bg-(--bg-page)/60 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Bell className="w-4 h-4 text-(--ac-bronze-tx) dark:text-(--ac-gold-tx)" />
-            <h3 className="font-serif font-bold text-sm text-(--tx-strong) dark:text-[#f5ebd9]">
+            <Bell className="w-4 h-4 text-(--ac-bronze-tx)" />
+            <h3 className="font-serif font-bold text-sm text-(--tx-strong)">
               {t('notifications')}
             </h3>
             {unreadCount > 0 && (
@@ -128,7 +128,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                   e.stopPropagation();
                   onMarkAllRead();
                 }}
-                className="text-[11px] font-bold text-(--tx-mute) dark:text-(--ac-gold-tx) hover:text-(--tx-strong) flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-(--ac-gold)/10 transition-colors cursor-pointer"
+                className="text-[11px] font-bold text-(--tx-mute) hover:text-(--tx-strong) flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-(--ac-gold)/10 transition-colors cursor-pointer"
                 title={language === 'ar' ? 'تحديد الكل كمقروء' : 'Mark all as read'}
               >
                 <CheckCheck className="w-3.5 h-3.5" />
@@ -141,7 +141,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                 e.stopPropagation();
                 onClose();
               }}
-              className="p-1 text-(--tx-mute) dark:text-(--ac-gold-tx) hover:text-(--tx-strong) rounded-lg hover:bg-(--ac-gold)/10 transition-colors cursor-pointer"
+              className="p-1 text-(--tx-mute) hover:text-(--tx-strong) rounded-lg hover:bg-(--ac-gold)/10 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -149,9 +149,9 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         </div>
 
         {/* Notifications List */}
-        <div className="max-h-80 overflow-y-auto divide-y divide-(--ln-gold)/15 dark:divide-(--ln-soft)/20">
+        <div className="max-h-80 overflow-y-auto divide-y divide-(--ln-gold)/15">
           {notifications.length === 0 ? (
-            <div className="p-8 text-center text-xs text-(--tx-mute) dark:text-[#a89379] font-serif">
+            <div className="p-8 text-center text-xs text-(--tx-mute) font-serif">
               {language === 'ar' ? 'لا توجد إشعارات حالياً.' : 'No notifications yet.'}
             </div>
           ) : (
@@ -166,11 +166,11 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                 onClick={() => handleItemClick(notif)}
                 className={`p-3.5 flex items-start gap-3 transition-colors cursor-pointer ${
                   notif.isRead
-                    ? 'bg-[#fbf6ec] dark:bg-[#1a140e] opacity-75'
-                    : 'bg-(--bg-page)/40 dark:bg-[#282019]/60 font-medium'
-                } hover:bg-(--bg-page)/70 dark:hover:bg-[#282019]`}
+                    ? 'bg-(--bg-card) opacity-75'
+                    : 'bg-(--bg-page)/40 font-medium'
+                } hover:bg-(--bg-page)/70`}
               >
-                <div className="w-8 h-8 rounded-full bg-[#f4e8cf] dark:bg-[#342a20] border border-(--ln-gold)/40 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-full bg-(--bg-inset2) border border-(--ln-gold)/40 flex items-center justify-center shrink-0 mt-0.5">
                   {notif.senderAvatar ? (
                     <img
                       src={notif.senderAvatar}
@@ -183,11 +183,11 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-(--tx-strong) dark:text-[#f5ebd9] truncate">{notifTitle}</p>
-                  <p className="text-[11px] text-[#554029] dark:text-[#d3c2a9] leading-snug line-clamp-2 mt-0.5">
+                  <p className="text-xs font-bold text-(--tx-strong) truncate">{notifTitle}</p>
+                  <p className="text-[11px] text-(--tx-body) leading-snug line-clamp-2 mt-0.5">
                     {notifBody}
                   </p>
-                  <TimeAgo date={notif.createdAt} className="text-[9px] text-(--tx-mute) dark:text-[#a89379] block mt-1 uppercase font-bold" />
+                  <TimeAgo date={notif.createdAt} className="text-[9px] text-(--tx-mute) block mt-1 uppercase font-bold" />
                 </div>
 
                 {!notif.isRead && (
@@ -200,14 +200,14 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-(--ln-gold)/20 dark:border-[#8b6b4a]/30 bg-(--bg-page)/60 dark:bg-[#282019] text-center">
+        <div className="p-3 border-t border-(--ln-gold)/20 bg-(--bg-page)/60 text-center">
           <button
             type="button"
             onClick={() => {
               onClose();
               onNavigateToNotifications('notifications');
             }}
-            className="text-xs font-bold text-(--tx-mute) dark:text-(--ac-gold-tx) hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] flex items-center justify-center gap-1 w-full transition-colors cursor-pointer"
+            className="text-xs font-bold text-(--tx-mute) hover:text-(--tx-strong) flex items-center justify-center gap-1 w-full transition-colors cursor-pointer"
           >
             <span>{language === 'ar' ? 'عرض جميع الإشعارات' : 'View All Notifications'}</span>
             <ChevronRight className="w-3.5 h-3.5 rtl:rotate-180" />

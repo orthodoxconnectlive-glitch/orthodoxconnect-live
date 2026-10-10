@@ -20,7 +20,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { apiFetch, profilesApi, reportsApi, churchesApi } from '../lib/api';
 import { US_COPTIC_CHURCHES } from '../data/usCopticChurches';
-import { OCA_PARISHES } from '../data/ocaParishes';
+import { COPTIC_CHURCHES } from '../data/copticChurches';
 import {
   loadContentReports,
   updateReportStatus,
@@ -142,33 +142,33 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
     }
   };
 
-  const handleImportOca = async () => {
+  const handleImportCoptic = async () => {
     if (ocaImporting) return;
     setOcaImporting(true);
     setOcaImportResult(null);
     try {
-      setOcaImportProgress({ done: 0, total: OCA_PARISHES.length });
-      // Single bulk request — far lighter than 791 individual saves.
-      const payload = OCA_PARISHES.map((ch) => ({
+      setOcaImportProgress({ done: 0, total: COPTIC_CHURCHES.length });
+      const payload = COPTIC_CHURCHES.map((ch) => ({
         name: ch.name,
+        name_ar: ch.name_ar,
         city: ch.city,
+        city_ar: ch.city_ar || '',
         country: ch.country,
-        jurisdiction: 'OCA',
-        description: ch.diocese || 'Orthodox Church in America',
-        website: ch.website || '',
+        jurisdiction: 'Coptic Orthodox',
+        description: 'Coptic Orthodox Church',
       }));
       const data = await apiFetch<any>('/api/churches/bulk', {
         method: 'POST',
         body: JSON.stringify({ churches: payload }),
       }).catch(() => ({}));
       if (data.success) {
-        setOcaImportProgress({ done: data.inserted, total: OCA_PARISHES.length });
-        setOcaImportResult('OCA import done: ' + data.inserted + ' added, ' + data.skipped + ' skipped');
+        setOcaImportProgress({ done: data.inserted, total: COPTIC_CHURCHES.length });
+        setOcaImportResult('Coptic import done: ' + data.inserted + ' added, ' + data.skipped + ' skipped');
       } else {
-        setOcaImportResult('OCA import failed: ' + (data.error || 'unknown error'));
+        setOcaImportResult('Coptic import failed: ' + (data.error || 'unknown error'));
       }
     } catch {
-      setOcaImportResult('OCA import failed');
+      setOcaImportResult('Coptic import failed');
     } finally {
       setOcaImporting(false);
     }
@@ -790,10 +790,10 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-serif font-bold text-base text-(--tx-head)">
-            OCA Parishes
+            Coptic Churches
           </p>
           <p className="text-xs text-(--tx-soft) mt-0.5">
-            Import {OCA_PARISHES.length} Orthodox Church in America parishes (USA, Canada, Mexico)
+            Import {COPTIC_CHURCHES.length} Coptic Orthodox churches worldwide (St-Takla sources)
           </p>
           {ocaImporting && (
             <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">
@@ -805,7 +805,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
           )}
         </div>
         <button
-          onClick={handleImportOca}
+          onClick={handleImportCoptic}
           disabled={ocaImporting}
           className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
         >

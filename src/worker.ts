@@ -3496,8 +3496,9 @@ export default {
             seen.add(key);
             const cid = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'church_' + Date.now() + '_' + Math.random().toString(36).slice(2));
             stmts.push(
-              env.DB.prepare('INSERT INTO churches (id, name, city, country, jurisdiction, description, website, owner_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
-                cid, nm, (ch.city || '').trim(), (ch.country || '').trim(), (ch.jurisdiction || '').trim(),
+              env.DB.prepare('INSERT INTO churches (id, name, name_ar, city, city_ar, country, jurisdiction, description, website, owner_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(
+                cid, nm, (ch.name_ar || '').trim(), (ch.city || '').trim(), (ch.city_ar || '').trim(),
+                (ch.country || '').trim(), (ch.jurisdiction || '').trim(),
                 (ch.description || '').trim(), (ch.website || '').trim(), bulkAuth.id, nowIso
               )
             );

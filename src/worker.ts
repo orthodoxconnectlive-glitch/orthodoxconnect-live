@@ -3297,6 +3297,35 @@ export default {
         }
       }
 
+      // 6b-0a. Duplicate scanner — admin only. Finds likely duplicate churches
+      // by normalized name + fuzzy city match. Returns groups for review.
+      if (url.pathname === '/api/churches/duplicates' && request.method === 'GET') {
+        const dAuth = await getAuthIdentity(request, env);
+        if (!dAuth.id || !dAuth.isAdmin) {
+          return jsonResponse({ success: false, error: 'Admin required.' }, 403);
+        }
+        const norm = (s: any) => (s || '').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff ]/g, '').replace(/\s+/g, ' ').trim();
+        // Strip common transliteration noise for city comparison
+        const cityKey = (s: any) => norm(s).replace(/[aeiou]/g, '');
+        try {
+          const all: any = await env.DB.prepare('SELECT id, name, name_ar, city, city_ar, country, jurisdiction FROM churches').all();
+          const rows = (all && all.results) || [];
+          const groups: Record<string, any[]> = {};
+          for (const c of rows) {
+            const nk = norm(c.name) || norm(c.name_ar);
+            if (!nk) continue;
+            const ck = cityKey(c.city) || cityKey(c.city_ar);
+            const key = nk + '|' + ck;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push({ id: c.id, name: c.name, name_ar: c.name_ar, city: c.city, city_ar: c.city_ar, country: c.country, jurisdiction: c.jurisdiction });
+          }
+          const dups = Object.values(groups).filter((g: any) => g.length > 1);
+          return jsonResponse({ success: true, groups: dups, total: rows.length, dupGroups: dups.length });
+        } catch (e: any) {
+          return jsonResponse({ success: false, error: e?.message || 'scan failed' }, 500);
+        }
+      }
+
       // 6b-0. Bulk church import — one request imports hundreds of churches.
       // Admin only. Far lighter than hundreds of individual POSTs.
       if (url.pathname === '/api/churches/bulk' && request.method === 'POST') {

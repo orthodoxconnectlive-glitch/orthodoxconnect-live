@@ -1,0 +1,10 @@
+# HTML: never cache, always get fresh (so new chunk hashes are picked up)
+/*.html
+  Cache-Control: no-cache
+
+/
+  Cache-Control: no-cache
+
+# Hashed assets: cache forever (filename changes on new build)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

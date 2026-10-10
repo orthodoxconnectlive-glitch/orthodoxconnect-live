@@ -3385,6 +3385,36 @@ export default {
         }
       }
 
+      // 6b-0c. Bulk set Arabic names — admin only. Accepts [{id, name_ar}].
+      if (url.pathname === '/api/churches/bulk-arabic' && request.method === 'POST') {
+        const tAuth = await getAuthIdentity(request, env);
+        if (!tAuth.id || !tAuth.isAdmin) {
+          return jsonResponse({ success: false, error: 'Admin required.' }, 403);
+        }
+        const tBody: any = await request.json().catch(() => ({}));
+        const list = Array.isArray(tBody.names) ? tBody.names : [];
+        if (!list.length || list.length > 2000) {
+          return jsonResponse({ success: false, error: 'Provide 1-2000 names.' }, 400);
+        }
+        let updated = 0;
+        try {
+          const stmts: any[] = [];
+          for (const item of list) {
+            if (!item.name || !item.name_ar) continue;
+            stmts.push(
+              env.DB.prepare('UPDATE churches SET name_ar = ? WHERE lower(trim(name)) = lower(trim(?)) AND lower(trim(city)) = lower(trim(?))').bind((item.name_ar || '').trim(), (item.name || '').trim(), (item.city || '').trim())
+            );
+          }
+          for (let bi = 0; bi < stmts.length; bi += 50) {
+            const r = await env.DB.batch(stmts.slice(bi, bi + 50));
+            updated += stmts.slice(bi, bi + 50).length;
+          }
+        } catch (e: any) {
+          return jsonResponse({ success: false, error: e?.message || 'update failed' }, 500);
+        }
+        return jsonResponse({ success: true, updated });
+      }
+
       // 6b-0. Bulk church import — one request imports hundreds of churches.
       // Admin only. Far lighter than hundreds of individual POSTs.
       if (url.pathname === '/api/churches/bulk' && request.method === 'POST') {

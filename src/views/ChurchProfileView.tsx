@@ -266,7 +266,7 @@ export const ChurchProfileView: React.FC<ChurchProfileViewProps> = ({ churchId, 
         body: JSON.stringify(target),
       }).catch(() => ({}));
       if (data.success && data.profile) {
-        setLocalProfile({ parish: data.profile.parish || '', parish_id: data.profile.parish_id || '' } as any);
+        setLocalProfile({ parish: data.profile.parish || '', parish_id: data.profile.parish_id || '', my_church_number: data.profile.my_church_number || null } as any);
         setJoined(!joined);
       }
     } catch (e) {

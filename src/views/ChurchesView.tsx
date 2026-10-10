@@ -67,12 +67,21 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Pinned My Church: always on top when set (by ID, falls back to name)
+  // Pinned My Church: by church number (simple, no duplicates), falls back to ID then name
   useEffect(() => {
+    const cnum = (profile as any)?.my_church_number;
     const pid = (profile as any)?.parish_id;
     const pname = (profile as any)?.parish;
-    if (!pid && !pname) { setMyChurch(null); return; }
-    if (pid) {
+    if (!cnum && !pid && !pname) { setMyChurch(null); return; }
+    if (cnum) {
+      // Load all churches and find by number (simple and reliable)
+      churchesApi.list('').then((res) => {
+        const match = (res || []).find((c) => (c as any).church_number === cnum);
+        if (match) setMyChurch(match);
+        else if (pid) churchesApi.get(pid).then((c) => setMyChurch(c)).catch(() => setMyChurch(null));
+        else setMyChurch(null);
+      }).catch(() => setMyChurch(null));
+    } else if (pid) {
       churchesApi.get(pid).then((c) => setMyChurch(c)).catch(() => setMyChurch(null));
     } else {
       churchesApi.list(pname).then((res) => {
@@ -80,7 +89,7 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
         setMyChurch(match || null);
       }).catch(() => setMyChurch(null));
     }
-  }, [(profile as any)?.parish_id, (profile as any)?.parish]);
+  }, [(profile as any)?.my_church_number, (profile as any)?.parish_id, (profile as any)?.parish]);
 
   useEffect(() => {
     const t = setTimeout(() => load(query.trim()), 400);

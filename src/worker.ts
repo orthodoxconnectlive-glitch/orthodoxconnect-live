@@ -925,6 +925,28 @@ async function ensureLastSeenColumn(db: D1Database): Promise<void> {
   } catch (e) {
     // duplicate column = already exists, fine
   }
+  try {
+    await db.prepare('ALTER TABLE profiles ADD COLUMN my_church_number INTEGER').run();
+  } catch (e) {
+    // duplicate column = already exists, fine
+  }
+  try {
+    await db.prepare('ALTER TABLE churches ADD COLUMN church_number INTEGER').run();
+  } catch (e) {
+    // duplicate column = already exists, fine
+  }
+  // Assign sequential numbers to churches that don't have one
+  try {
+    const rows = await db.prepare('SELECT id FROM churches WHERE church_number IS NULL ORDER BY name').all();
+    let n = 1;
+    const maxRow = await db.prepare('SELECT MAX(church_number) as m FROM churches').first() as any;
+    if (maxRow && maxRow.m) n = maxRow.m + 1;
+    for (const r of (rows.results || [])) {
+      await db.prepare('UPDATE churches SET church_number = ? WHERE id = ?').bind(n++, (r as any).id).run();
+    }
+  } catch (e) {
+    // best effort
+  }
   lastSeenColumnReady = true;
 }
 // Throttle map: user id -> last touch timestamp (per Worker isolate).
@@ -2968,9 +2990,15 @@ export default {
           const now = new Date().toISOString();
           if (env.DB) {
             await ensureLastSeenColumn(env.DB);
-            await env.DB.prepare('UPDATE profiles SET parish = ?, parish_id = ?, updated_at = ? WHERE id = ?')
-              .bind(body.parish || '', body.parish_id || '', now, targetId).run();
-            const updated = await env.DB.prepare('SELECT id, parish, parish_id FROM profiles WHERE id = ?').bind(targetId).first();
+            // Look up the church number if parish_id was given
+            let churchNum = body.church_number;
+            if (!churchNum && body.parish_id) {
+              const ch = await env.DB.prepare('SELECT church_number FROM churches WHERE id = ?').bind(body.parish_id).first() as any;
+              if (ch) churchNum = ch.church_number;
+            }
+            await env.DB.prepare('UPDATE profiles SET parish = ?, parish_id = ?, my_church_number = ?, updated_at = ? WHERE id = ?')
+              .bind(body.parish || '', body.parish_id || '', churchNum || null, now, targetId).run();
+            const updated = await env.DB.prepare('SELECT id, parish, parish_id, my_church_number FROM profiles WHERE id = ?').bind(targetId).first();
             return jsonResponse({ success: true, profile: updated });
           }
           return jsonResponse({ success: false, error: 'No database.' }, 500);

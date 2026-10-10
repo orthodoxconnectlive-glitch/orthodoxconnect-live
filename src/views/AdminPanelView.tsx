@@ -13,11 +13,13 @@ import {
   UserPlus,
   X,
   CheckCircle,
+  Church,
 } from 'lucide-react';
 import { UserProfile, UserRole, ContentReport, ModerationAuditLog } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { profilesApi, reportsApi } from '../lib/api';
+import { profilesApi, reportsApi, churchesApi } from '../lib/api';
+import { US_COPTIC_CHURCHES } from '../data/usCopticChurches';
 import {
   loadContentReports,
   updateReportStatus,
@@ -66,6 +68,48 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // One-tap import of the US Coptic churches directory
+  const [churchImporting, setChurchImporting] = useState(false);
+  const [churchImportProgress, setChurchImportProgress] = useState({ done: 0, total: 0 });
+  const [churchImportResult, setChurchImportResult] = useState<string | null>(null);
+
+  const handleImportChurches = async () => {
+    if (churchImporting) return;
+    setChurchImporting(true);
+    setChurchImportResult(null);
+    try {
+      const existing = await churchesApi.list();
+      const existingKeys = new Set(
+        existing.map((c: any) => `${(c.name || '').trim()}|${(c.city || '').trim()}`)
+      );
+      const toImport = US_COPTIC_CHURCHES.filter(
+        (c) => !existingKeys.has(`${c.name.trim()}|${c.city.trim()}`)
+      );
+      setChurchImportProgress({ done: 0, total: toImport.length });
+      let ok = 0;
+      // small parallel batches to keep the import fast
+      for (let i = 0; i < toImport.length; i += 5) {
+        const batch = toImport.slice(i, i + 5);
+        const results = await Promise.all(
+          batch.map((ch) =>
+            churchesApi
+              .create({ name: ch.name, city: ch.city, country: ch.country, description: ch.description } as any)
+              .then(() => true)
+              .catch(() => false)
+          )
+        );
+        ok += results.filter(Boolean).length;
+        setChurchImportProgress({ done: ok, total: toImport.length });
+      }
+      setChurchImportResult(`${t('adminChurchImportDone')}: ${ok}/${toImport.length}`);
+      showToast(`${t('adminChurchImportDone')}: ${ok}/${toImport.length}`);
+    } catch {
+      setChurchImportResult(t('adminChurchImportDone') + ' ✕');
+    } finally {
+      setChurchImporting(false);
+    }
   };
 
   useEffect(() => {
@@ -574,6 +618,36 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
             </h3>
           </div>
         </div>
+      </div>
+
+      {/* US Churches one-tap import */}
+      <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-(--ac-bright)/10 border border-(--ac-bright)/30 flex items-center justify-center text-(--ac-bright-tx) shrink-0">
+          <Church className="w-6 h-6" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-serif font-bold text-base text-(--tx-head)">
+            {t('adminChurchImportTitle')}
+          </p>
+          <p className="text-xs text-(--tx-soft) mt-0.5">
+            {t('adminChurchImportDesc')}
+          </p>
+          {churchImporting && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">
+              {t('adminChurchImporting')} {churchImportProgress.done}/{churchImportProgress.total}
+            </p>
+          )}
+          {churchImportResult && !churchImporting && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{churchImportResult}</p>
+          )}
+        </div>
+        <button
+          onClick={handleImportChurches}
+          disabled={churchImporting}
+          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          {churchImporting ? t('adminChurchImporting') : t('adminChurchImportBtn')}
+        </button>
       </div>
 
       {/* Navigation Tabs */}

@@ -308,6 +308,11 @@ const translations: Record<Language, Record<string, string>> = {
     adminError: 'Error',
     colorsMode: 'My Colors',
     chooseColor: 'Choose your color',
+    adminChurchImportTitle: 'US Coptic Churches',
+    adminChurchImportDesc: 'Import the full directory of Coptic Orthodox churches in the USA with one tap. Existing churches are skipped.',
+    adminChurchImportBtn: 'Import Churches',
+    adminChurchImporting: 'Importing\u2026',
+    adminChurchImportDone: 'Imported',
   },
   ar: {
     appName: 'أرثوذكسى',
@@ -591,6 +596,11 @@ const translations: Record<Language, Record<string, string>> = {
     saveChanges: 'حفظ التعديلات',
     colorsMode: 'ألواني',
     chooseColor: 'اختر لونك',
+    adminChurchImportTitle: 'الكنائس القبطية الأمريكية',
+    adminChurchImportDesc: 'استيراد دليل الكنائس القبطية الأرثوذكسية في أمريكا بضغطة واحدة. الكنائس الموجودة لن تتكرر.',
+    adminChurchImportBtn: 'استيراد الكنائس',
+    adminChurchImporting: 'جارٍ الاستيراد\u2026',
+    adminChurchImportDone: 'تم الاستيراد',
   },
 };
 

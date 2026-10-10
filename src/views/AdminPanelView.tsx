@@ -20,6 +20,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { profilesApi, reportsApi, churchesApi } from '../lib/api';
 import { US_COPTIC_CHURCHES } from '../data/usCopticChurches';
+import { OCA_PARISHES } from '../data/ocaParishes';
 import {
   loadContentReports,
   updateReportStatus,
@@ -72,8 +73,54 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
   // One-tap import of the US Coptic churches directory
   const [churchImporting, setChurchImporting] = useState(false);
+  const [ocaImporting, setOcaImporting] = useState(false);
+  const [ocaImportResult, setOcaImportResult] = useState<string | null>(null);
+  const [ocaImportProgress, setOcaImportProgress] = useState({ done: 0, total: 0 });
   const [churchImportProgress, setChurchImportProgress] = useState({ done: 0, total: 0 });
   const [churchImportResult, setChurchImportResult] = useState<string | null>(null);
+
+  const handleImportOca = async () => {
+    if (ocaImporting) return;
+    setOcaImporting(true);
+    setOcaImportResult(null);
+    try {
+      const existing = await churchesApi.list();
+      const keyOf = (j: any, n: any, c: any) => ((j || '').trim() + '|' + (n || '').trim() + '|' + (c || '').trim()).toLowerCase();
+      const seen = new Map<string, any>();
+      for (const c of existing as any[]) {
+        seen.set(keyOf((c as any).jurisdiction, c.name, c.city), c);
+      }
+      let ok = 0;
+      const total = OCA_PARISHES.length;
+      setOcaImportProgress({ done: 0, total });
+      for (let i = 0; i < OCA_PARISHES.length; i += 5) {
+        const batch = OCA_PARISHES.slice(i, i + 5);
+        const results = await Promise.all(
+          batch.map((ch) => {
+            if (seen.has(keyOf(ch.jurisdiction, ch.name, ch.city))) return Promise.resolve(false);
+            return churchesApi
+              .create({
+                name: ch.name,
+                city: ch.city,
+                country: ch.country,
+                jurisdiction: 'OCA',
+                description: ch.diocese || 'Orthodox Church in America',
+                website: ch.website || '',
+              } as any)
+              .then(() => true)
+              .catch(() => false);
+          })
+        );
+        ok += results.filter(Boolean).length;
+        setOcaImportProgress({ done: ok, total });
+      }
+      setOcaImportResult('OCA import done: ' + ok + '/' + total);
+    } catch {
+      setOcaImportResult('OCA import failed');
+    } finally {
+      setOcaImporting(false);
+    }
+  };
 
   const handleImportChurches = async () => {
     if (churchImporting) return;
@@ -684,7 +731,37 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
         </button>
       </div>
 
-      {/* Navigation Tabs */}
+      {/* OCA parishes import */}
+      <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
+        <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/15 flex items-center justify-center shrink-0">
+          <Church className="w-6 h-6" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-serif font-bold text-base text-(--tx-head)">
+            OCA Parishes
+          </p>
+          <p className="text-xs text-(--tx-soft) mt-0.5">
+            Import {OCA_PARISHES.length} Orthodox Church in America parishes (USA, Canada, Mexico)
+          </p>
+          {ocaImporting && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">
+              Importing {ocaImportProgress.done}/{ocaImportProgress.total}
+            </p>
+          )}
+          {ocaImportResult && !ocaImporting && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{ocaImportResult}</p>
+          )}
+        </div>
+        <button
+          onClick={handleImportOca}
+          disabled={ocaImporting}
+          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          {ocaImporting ? 'Importing' : 'Import'}
+        </button>
+      </div>
+
+{/* Navigation Tabs */}
       <div className="flex gap-2 border-b border-(--ln-bright)/20 pb-2">
         <button
           onClick={() => setActiveTab('users')}

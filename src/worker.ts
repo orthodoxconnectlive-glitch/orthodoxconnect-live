@@ -3302,13 +3302,14 @@ export default {
         // Bulletproof: ensure the table exists on the request path itself.
         if (env.DB) {
           try {
-            await env.DB.exec(`CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT DEFAULT '', avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', description_ar TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', city_ar TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS churches ( id TEXT PRIMARY KEY, name TEXT NOT NULL, name_ar TEXT DEFAULT '', avatar TEXT DEFAULT '', cover TEXT DEFAULT '', description TEXT DEFAULT '', description_ar TEXT DEFAULT '', address TEXT DEFAULT '', city TEXT DEFAULT '', city_ar TEXT DEFAULT '', country TEXT DEFAULT '', priest_name TEXT DEFAULT '', phone TEXT DEFAULT '', website TEXT DEFAULT '', service_times TEXT DEFAULT '', jurisdiction TEXT DEFAULT '', owner_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`);
           } catch (ctErr) {
             console.warn('[churches] ensure table notice:', ctErr);
           }
           try { await env.DB.exec("ALTER TABLE churches ADD COLUMN name_ar TEXT DEFAULT ''"); } catch {}
           try { await env.DB.exec("ALTER TABLE churches ADD COLUMN city_ar TEXT DEFAULT ''"); } catch {}
           try { await env.DB.exec("ALTER TABLE churches ADD COLUMN description_ar TEXT DEFAULT ''"); } catch {}
+          try { await env.DB.exec("ALTER TABLE churches ADD COLUMN jurisdiction TEXT DEFAULT ''"); } catch {}
         }
         if (request.method === 'GET') {
           let churches: any[] = [];
@@ -3357,14 +3358,15 @@ export default {
             phone: body.phone || '',
             website: body.website || '',
             service_times: body.service_times || '',
+            jurisdiction: body.jurisdiction || '',
             owner_id: ownerId,
             created_at: new Date().toISOString(),
           };
           if (env.DB) {
             await env.DB.prepare(`
-              INSERT INTO churches (id, name, name_ar, avatar, cover, description, description_ar, address, city, city_ar, country, priest_name, phone, website, service_times, owner_id, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(row.id, row.name, row.name_ar, row.avatar, row.cover, row.description, row.description_ar, row.address, row.city, row.city_ar, row.country, row.priest_name, row.phone, row.website, row.service_times, row.owner_id, row.created_at).run();
+              INSERT INTO churches (id, name, name_ar, avatar, cover, description, description_ar, address, city, city_ar, country, priest_name, phone, website, service_times, jurisdiction, owner_id, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(row.id, row.name, row.name_ar, row.avatar, row.cover, row.description, row.description_ar, row.address, row.city, row.city_ar, row.country, row.priest_name, row.phone, row.website, row.service_times, row.jurisdiction, row.owner_id, row.created_at).run();
           }
           return jsonResponse({ success: true, church: row }, 201);
         }

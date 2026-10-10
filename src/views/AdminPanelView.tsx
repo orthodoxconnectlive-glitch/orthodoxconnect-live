@@ -750,6 +750,24 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
         </button>
       </div>
 
+      {/* Dedupe */}
+      <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
+        <div className="flex-1 min-w-0">
+          <p className="font-serif font-bold text-base text-(--tx-head)">Remove Duplicates</p>
+          <p className="text-xs text-(--tx-soft) mt-0.5">Find churches added more than once and keep the best record</p>
+          {dedupeResult && !deduping && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{dedupeResult}</p>
+          )}
+        </div>
+        <button
+          onClick={handleDedupe}
+          disabled={deduping}
+          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          {deduping ? 'Working' : 'Clean Up'}
+        </button>
+      </div>
+
 {/* Navigation Tabs */}
       <div className="flex gap-2 border-b border-(--ln-bright)/20 pb-2">
         <button

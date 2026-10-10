@@ -3326,6 +3326,65 @@ export default {
         }
       }
 
+      // 6b-0b. Dedupe merge — admin only. Finds duplicate churches (same name +
+      // fuzzy city) and merges each group, keeping the most complete record.
+      if (url.pathname === '/api/churches/dedupe' && request.method === 'POST') {
+        const mAuth = await getAuthIdentity(request, env);
+        if (!mAuth.id || !mAuth.isAdmin) {
+          return jsonResponse({ success: false, error: 'Admin required.' }, 403);
+        }
+        const norm = (s: any) => (s || '').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff ]/g, '').replace(/\s+/g, ' ').trim();
+        const cityKey = (s: any) => norm(s).replace(/[aeiou]/g, '');
+        const isEnglishCity = (s: any) => /^[A-Za-z][A-Za-z ,.'-]*$/.test((s || '').trim());
+        try {
+          const all: any = await env.DB.prepare('SELECT * FROM churches').all();
+          const rows = (all && all.results) || [];
+          const groups: Record<string, any[]> = {};
+          for (const c of rows) {
+            const nk = norm(c.name) || norm(c.name_ar);
+            if (!nk) continue;
+            const ck = cityKey(c.city) || cityKey(c.city_ar);
+            const key = nk + '|' + ck;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(c);
+          }
+          let mergedGroups = 0;
+          let deleted = 0;
+          const details: any[] = [];
+          for (const key of Object.keys(groups)) {
+            const g = groups[key];
+            if (g.length < 2) continue;
+            // Score: keep the most complete, English-named record
+            const score = (c: any) => {
+              let s = 0;
+              if (c.website) s += 2;
+              if (c.address) s += 2;
+              if (isEnglishCity(c.city)) s += 3;
+              if (c.jurisdiction) s += 1;
+              if (c.description) s += 1;
+              if (c.phone) s += 1;
+              return s;
+            };
+            g.sort((a: any, b: any) => score(b) - score(a));
+            const keep = g[0];
+            const remove = g.slice(1);
+            const delIds = remove.map((c: any) => c.id);
+            // Delete in batches
+            for (let di = 0; di < delIds.length; di += 50) {
+              const batch = delIds.slice(di, di + 50);
+              const placeholders = batch.map(() => '?').join(',');
+              await env.DB.prepare('DELETE FROM churches WHERE id IN (' + placeholders + ')').bind(...batch).run();
+            }
+            mergedGroups++;
+            deleted += remove.length;
+            details.push({ kept: keep.name + ' | ' + keep.city, removed: remove.length });
+          }
+          return jsonResponse({ success: true, mergedGroups, deleted, details: details.slice(0, 50) });
+        } catch (e: any) {
+          return jsonResponse({ success: false, error: e?.message || 'dedupe failed' }, 500);
+        }
+      }
+
       // 6b-0. Bulk church import — one request imports hundreds of churches.
       // Admin only. Far lighter than hundreds of individual POSTs.
       if (url.pathname === '/api/churches/bulk' && request.method === 'POST') {

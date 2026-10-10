@@ -18,6 +18,7 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
   const { language } = useTheme();
   const ar = language === 'ar';
   const [churches, setChurches] = useState<Church[]>([]);
+  const [myChurch, setMyChurch] = useState<Church | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -56,6 +57,16 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Pinned My Church: always on top when set
+  useEffect(() => {
+    const parishName = (profile as any)?.parish;
+    if (!parishName) { setMyChurch(null); return; }
+    churchesApi.list(parishName).then((res) => {
+      const match = (res || []).find((c) => c.name === parishName) || (res || [])[0];
+      setMyChurch(match || null);
+    }).catch(() => setMyChurch(null));
+  }, [(profile as any)?.parish]);
 
   useEffect(() => {
     const t = setTimeout(() => load(query.trim()), 400);
@@ -140,6 +151,31 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
           />
         </div>
       </div>
+
+      {/* Pinned My Church — always on top */}
+      {myChurch && (
+        <button
+          onClick={() => onOpenChurch(myChurch.id)}
+          className="w-full flex items-center gap-3 p-4 rounded-3xl bg-(--ac-gold)/10 dark:bg-[#2a2118] border-2 border-(--ac-gold) shadow-lg text-left cursor-pointer"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/20 flex items-center justify-center shrink-0">
+            <ChurchIcon className="w-6 h-6 text-(--ac-gold-tx)" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-(--ac-gold-tx)">
+              {ar ? 'كنيستى' : 'My Church'}
+            </p>
+            <p className="font-serif font-bold text-base text-(--tx-head) truncate">
+              {dispName(myChurch)}
+            </p>
+            <p className="text-xs text-(--tx-soft) flex items-center gap-1">
+              <MapPin className="w-3 h-3" />
+              {dispCity(myChurch)}{(myChurch as any).country ? ', ' + (myChurch as any).country : ''}
+            </p>
+          </div>
+          <ChevronRight className="w-5 h-5 text-(--tx-mute) shrink-0 rtl:rotate-180" />
+        </button>
+      )}
 
       {/* List */}
       {loading ? (

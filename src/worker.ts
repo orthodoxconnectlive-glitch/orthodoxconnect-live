@@ -429,6 +429,11 @@ async function ensureSermonsTable(db: any) {
     await db.exec(`CREATE TABLE IF NOT EXISTS sermons (id TEXT PRIMARY KEY, title TEXT NOT NULL, speaker TEXT NOT NULL DEFAULT '', topic TEXT NOT NULL DEFAULT '', description TEXT DEFAULT '', media_url TEXT NOT NULL, media_type TEXT NOT NULL DEFAULT 'youtube', thumbnail_url TEXT DEFAULT '', duration TEXT DEFAULT '', added_by_user_id TEXT DEFAULT '', added_by_name TEXT DEFAULT '', created_at TEXT NOT NULL)`);
   } catch (e) { console.warn('[ensureSermonsTable] notice:', (e as any)?.message || e); }
 }
+async function ensureJobsTable(db: any) {
+  try {
+    await db.exec(`CREATE TABLE IF NOT EXISTS jobs ( id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', address TEXT DEFAULT '', salary TEXT DEFAULT '', contact TEXT DEFAULT '', posted_by TEXT DEFAULT '', posted_by_name TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
+  } catch (e) { console.warn('[ensureJobsTable] notice:', (e as any)?.message || e); }
+}
 
 export async function ensureD1Tables(db?: D1Database) {
   if (!db || d1TablesInitialized) return;
@@ -448,6 +453,7 @@ export async function ensureD1Tables(db?: D1Database) {
     await ensureBooksReadsCount(db);
     await ensureBooksAddedBy(db);
     await ensureSermonsTable(db);
+    await ensureJobsTable(db);
     await ensureCandleLightsTable(db);
     d1TablesInitialized = true;
     return;
@@ -3580,6 +3586,8 @@ export default {
         }
         return jsonResponse({ success: true, inserted, skipped, total: list.length }, 201);
       }
+
+
 
       // 6b. Churches Endpoints (/api/churches)
       if (url.pathname === '/api/churches' || url.pathname === '/api/churches/') {

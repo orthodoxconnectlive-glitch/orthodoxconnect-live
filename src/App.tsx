@@ -36,6 +36,7 @@ const ChurchesView = lazy(() => import('./views/ChurchesView').then((m) => ({ de
 const ChurchProfileView = lazy(() => import('./views/ChurchProfileView').then((m) => ({ default: m.ChurchProfileView })));
 const KidsView = lazy(() => import('./views/KidsView').then((m) => ({ default: m.KidsView })));
 const MarketplaceView = lazy(() => import('./views/MarketplaceView').then((m) => ({ default: m.MarketplaceView })));
+const JobsView = lazy(() => import('./views/JobsView').then((m) => ({ default: m.JobsView })));
 const RadioView = lazy(() => import('./views/RadioView').then((m) => ({ default: m.RadioView })));
 const NotificationsView = lazy(() => import('./views/NotificationsView').then((m) => ({ default: m.NotificationsView })));
 const LibraryView = lazy(() => import('./views/LibraryView').then((m) => ({ default: m.LibraryView })));
@@ -440,6 +441,8 @@ function AppContent() {
         );
       case 'marketplace':
         return <MarketplaceView focusListingId={focusListingId} onFocusListingConsumed={() => setFocusListingId(null)} />;
+      case 'jobs':
+        return <JobsView />;
       case 'radio':
         return <RadioView focusTrackId={focusTrackId} onFocusTrackConsumed={() => setFocusTrackId(null)} focusRadioLive={focusRadioLive} onFocusRadioLiveConsumed={() => setFocusRadioLive(false)} />;
       default:

@@ -101,11 +101,13 @@ Create a `.env` file for your local environment (refer to `.env.example`):
 
 ## 👥 Default Demo & Admin Accounts
 
-| Role | Email | Password |
-| :--- | :--- | :--- |
-| 👑 **Super Admin** | `orthodoxconnect.live@gmail.com` | `admin123` |
-| ✝️ **Clergy / Priest** | `fr.anthony@orthodox.org` | `orthodox123` |
-| 🕊️ **Parish Servant** | `deacon.mark@orthodox.org` | `orthodox123` |
+| Role | Email |
+| :--- | :--- |
+| 👑 **Super Admin** | `orthodoxconnect.live@gmail.com` |
+| ✝️ **Clergy / Priest** | `fr.anthony@orthodox.org` |
+| 🕊️ **Parish Servant** | `deacon.mark@orthodox.org` |
+
+> Passwords are never published here. Change the seeded defaults in your local database after install.
 
 ---
 

@@ -87,6 +87,8 @@ interface FeedViewProps {
   onFocusSynaxConsumed?: () => void;
   /** Open a church profile (used by the My Church card). */
   onOpenChurch?: (churchId: string) => void;
+  /** Open the live broadcast view (tapped LIVE NOW on a live post). */
+  onOpenLive?: () => void;
 }
 
 const PAGE_SIZE = 50;
@@ -100,6 +102,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
   focusSynaxKey,
   onFocusSynaxConsumed,
   onOpenChurch,
+  onOpenLive,
 }) => {
   const authContext = useAuth() as any;
   const profile = authContext?.profile;
@@ -979,6 +982,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                     : null
                 }
                 onSelectUser={onSelectUser}
+                onOpenLive={onOpenLive}
                 onOpenMessengerWithUser={onOpenMessengerWithUser}
                 onToggleFollow={handleToggleFollowUser}
                 isFollowed={Boolean(followedMap[post.authorName])}

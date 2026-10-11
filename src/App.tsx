@@ -379,6 +379,7 @@ function AppContent() {
             onOpenMessengerWithUser={handleOpenMessengerWithUser}
             onOpenCalendar={() => handleNavigate('calendar')}
             onOpenChurch={handleOpenChurch}
+            onOpenLive={() => handleNavigate('live')}
             focusPostId={focusPostId}
             onFocusPostConsumed={() => setFocusPostId(null)}
             focusSynaxKey={focusSynaxKey}

@@ -37,6 +37,7 @@ interface PostCardProps {
   post: Post;
   currentProfile: UserProfile | null;
   onSelectUser?: (user: { id?: string; name: string; avatar: string; parish: string }) => void;
+  onOpenLive?: () => void;
   onOpenMessengerWithUser?: (userIdOrName: string) => void;
   onToggleFollow?: (authorName: string) => void;
   isFollowed?: boolean;
@@ -266,6 +267,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   post,
   currentProfile,
   onSelectUser,
+  onOpenLive,
   onOpenMessengerWithUser,
   onToggleFollow,
   isFollowed = false,
@@ -279,6 +281,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   onDeleteComment,
 }) => {
   const { t, language } = useTheme();
+  const isLiveBroadcast = (post.id || '').startsWith('livepost-') || (post.author_name || '').toLowerCase() === 'live broadcast';
   const [commentInput, setCommentInput] = useState<string>('');
   // @mention picker state for the comment composer
   const [mentionOpen, setMentionOpen] = useState<boolean>(false);
@@ -867,7 +870,11 @@ export const PostCard: React.FC<PostCardProps> = ({
       {/* Content Text */}
       {postContent && (
         <div className="mb-3.5">
-          <p className="text-xs sm:text-sm text-(--tx-strong) dark:text-[#f5ebd9] font-serif leading-relaxed whitespace-pre-wrap">
+          <p
+            className={`text-xs sm:text-sm text-(--tx-strong) dark:text-[#f5ebd9] font-serif leading-relaxed whitespace-pre-wrap ${isLiveBroadcast ? 'cursor-pointer hover:opacity-80' : ''}`}
+            onClick={isLiveBroadcast ? () => onOpenLive?.() : undefined}
+            title={isLiveBroadcast ? 'Tap to watch live' : undefined}
+          >
             {renderLinkedText(displayedText)}
           </p>
           {needsTranslation && (

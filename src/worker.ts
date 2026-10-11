@@ -593,6 +593,8 @@ export async function ensureD1Tables(db?: D1Database) {
         ['link', 'TEXT'],
         ['is_read', 'INTEGER DEFAULT 0'],
         ['created_at', "TEXT NOT NULL DEFAULT (datetime('now'))"],
+        ['media_url', 'TEXT'],
+        ['media_type', 'TEXT'],
       ];
       // Speed (2026-09-20): one PRAGMA round trip instead of up to 11 failing
       // ALTERs — only add columns that are actually missing.
@@ -6292,11 +6294,17 @@ export default {
           return jsonResponse({ success: false, error: 'Forbidden. Super admin only.' }, 403);
         }
         const bBody: any = await request.json().catch(() => ({}));
-        const bTitle = String(bBody.title || '').trim();
         const bMsg = String(bBody.body || '').trim();
-        if (!bTitle || !bMsg) {
-          return jsonResponse({ success: false, error: 'Title and message body are required.' }, 400);
+        if (!bMsg) {
+          return jsonResponse({ success: false, error: 'Message body is required.' }, 400);
         }
+        const bTitle = String(bBody.title || '').trim() || bMsg.slice(0, 50) || 'Announcement';
+        const bMediaUrl = String(bBody.media_url || bBody.mediaUrl || '').trim();
+        const bMediaTypeRaw = String(bBody.media_type || bBody.mediaType || '').trim().toLowerCase();
+        const bMediaType = bMediaUrl ? (bMediaTypeRaw === 'video' ? 'video' : 'photo') : '';
+        // Bulletproof: ensure media columns exist even if the startup migration hasn't run yet.
+        try { await env.DB.exec('ALTER TABLE notifications ADD COLUMN media_url TEXT'); } catch (e) {}
+        try { await env.DB.exec('ALTER TABLE notifications ADD COLUMN media_type TEXT'); } catch (e) {}
         const usersRes: any = await env.DB.prepare('SELECT id FROM profiles').all();
         const userIds: string[] = (((usersRes && usersRes.results) || []) as any[]).map((u: any) => u.id).filter(Boolean);
         const nowIso = new Date().toISOString();
@@ -6305,7 +6313,7 @@ export default {
         for (let i = 0; i < userIds.length; i += 50) {
           const batch = userIds.slice(i, i + 50);
           const stmts = batch.map((uid: string) =>
-            env.DB.prepare('INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(`${broadcastId}_${uid}`, uid, bAuth.id, 'OrthodoxConnect', '', 'broadcast', bTitle, bMsg, null, 'feed', 0, nowIso)
+            env.DB.prepare('INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at, media_url, media_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(`${broadcastId}_${uid}`, uid, bAuth.id, 'OrthodoxConnect', '', 'broadcast', bTitle, bMsg, null, 'feed', 0, nowIso, bMediaUrl || null, bMediaType || null)
           );
           try {
             await env.DB.batch(stmts);

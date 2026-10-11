@@ -23,6 +23,7 @@ import {
   BookOpen,
   Church,
   Store,
+  Briefcase,
   Baby,
   ThumbsUp,
   Palette,
@@ -156,6 +157,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'candle', label: language === 'ar' ? 'أضئ شمعة' : 'Light a Candle', emoji: '🕯', color: 'text-amber-600 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30', isCandle: true },
     { id: 'profile', label: t('profile'), icon: UserIcon, color: 'text-stone-700 dark:text-amber-200', bg: 'bg-stone-200 dark:bg-stone-800' },
     { id: 'churches', label: language === 'ar' ? 'الكنائس' : 'Churches', icon: Church, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
+    { id: 'jobs', label: language === 'ar' ? 'الوظائف' : 'Jobs', icon: Briefcase, color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/30' },
   ];
 
   const isSuperAdmin = profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Church,
   Settings as SettingsIcon,
@@ -14,6 +14,9 @@ import {
   ShieldAlert,
   Smartphone,
   Megaphone,
+  Camera,
+  Video,
+  X,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -57,18 +60,96 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
   const [dedupeResult, setDedupeResult] = useState<string | null>(null);
 
   // ---- Broadcast message state (super admin only) ----
-  const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastBody, setBroadcastBody] = useState('');
+  const [broadcastMedia, setBroadcastMedia] = useState<string | null>(null);
+  const [broadcastMediaType, setBroadcastMediaType] = useState<'photo' | 'video' | null>(null);
+  const [broadcastUploading, setBroadcastUploading] = useState(false);
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
   const isBroadcastAdmin = (profile?.email || '').toLowerCase() === 'orthodoxconnect.live@gmail.com';
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Compress a photo client-side (max 1200px, JPEG) so broadcasts stay light.
+  const compressPhoto = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        try {
+          const maxDim = 1200;
+          const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+          const w = Math.round(img.width * scale);
+          const h = Math.round(img.height * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('no canvas');
+          ctx.drawImage(img, 0, 0, w, h);
+          URL.revokeObjectURL(url);
+          resolve(canvas.toDataURL('image/jpeg', 0.72));
+        } catch (e) {
+          URL.revokeObjectURL(url);
+          reject(e);
+        }
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('bad image'));
+      };
+      img.src = url;
+    });
+
+  const handleBroadcastPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    setBroadcastUploading(true);
+    setBroadcastResult(null);
+    try {
+      const dataUrl = await compressPhoto(file);
+      setBroadcastMedia(dataUrl);
+      setBroadcastMediaType('photo');
+    } catch (err) {
+      setBroadcastResult(ar ? 'تعذر تحميل الصورة.' : 'Could not load the photo.');
+    } finally {
+      setBroadcastUploading(false);
+    }
+  };
+
+  const handleBroadcastVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    // Keep videos small: D1 stores one copy per recipient, so cap at 8MB.
+    if (file.size > 8 * 1024 * 1024) {
+      setBroadcastResult(ar ? 'الفيديو كبير جدًا (الحد 8MB).' : 'Video too large (8MB max).');
+      return;
+    }
+    setBroadcastUploading(true);
+    setBroadcastResult(null);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error('read failed'));
+        reader.readAsDataURL(file);
+      });
+      setBroadcastMedia(dataUrl);
+      setBroadcastMediaType('video');
+    } catch (err) {
+      setBroadcastResult(ar ? 'تعذر تحميل الفيديو.' : 'Could not load the video.');
+    } finally {
+      setBroadcastUploading(false);
+    }
+  };
 
   const handleBroadcast = async () => {
-    if (broadcasting) return;
-    const title = broadcastTitle.trim();
+    if (broadcasting || broadcastUploading) return;
     const body = broadcastBody.trim();
-    if (!title || !body) {
-      setBroadcastResult(ar ? 'العنوان والرسالة مطلوبان.' : 'Title and message are required.');
+    if (!body && !broadcastMedia) {
+      setBroadcastResult(ar ? 'اكتب رسالة أو أرفق صورة/فيديو.' : 'Write a message or attach a photo/video.');
       return;
     }
     if (!confirm(ar ? 'إرسال إلى جميع المستخدمين؟ لا يمكن التراجع.' : 'Send to ALL users? This cannot be undone.')) return;
@@ -77,12 +158,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
     try {
       const res = await apiFetch<{ success: boolean; sent?: number; error?: string }>('/api/admin/broadcast', {
         method: 'POST',
-        body: JSON.stringify({ title, body }),
+        body: JSON.stringify({ body, media_url: broadcastMedia, media_type: broadcastMediaType }),
       });
       if (res.success) {
         setBroadcastResult(ar ? `تم الإرسال إلى ${res.sent} مستخدم.` : `Sent to ${res.sent} users.`);
-        setBroadcastTitle('');
         setBroadcastBody('');
+        setBroadcastMedia(null);
+        setBroadcastMediaType(null);
       } else {
         setBroadcastResult(res.error || (ar ? 'فشل الإرسال.' : 'Send failed.'));
       }
@@ -503,28 +585,73 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
                       <p className="text-xs text-(--tx-soft) mt-0.5">{ar ? 'إرسال إشعار إلى جميع المستخدمين' : 'Send a notification to ALL users at once'}</p>
                     </div>
                   </div>
-                  <input
-                    type="text"
-                    value={broadcastTitle}
-                    onChange={(e) => setBroadcastTitle(e.target.value)}
-                    placeholder={ar ? 'عنوان الرسالة' : 'Message title'}
-                    className="w-full mb-2 px-4 py-2.5 rounded-xl border-2 border-(--ln-bright)/30 bg-(--bg-inset) text-sm font-bold text-(--tx-head) placeholder:text-(--tx-soft) focus:outline-none focus:border-(--ac-bright)"
-                    disabled={broadcasting}
-                  />
                   <textarea
                     value={broadcastBody}
                     onChange={(e) => setBroadcastBody(e.target.value)}
                     placeholder={ar ? 'نص الرسالة...' : 'Message text...'}
                     rows={3}
                     className="w-full mb-2 px-4 py-2.5 rounded-xl border-2 border-(--ln-bright)/30 bg-(--bg-inset) text-sm text-(--tx-head) placeholder:text-(--tx-soft) focus:outline-none focus:border-(--ac-bright) resize-y"
-                    disabled={broadcasting}
+                    disabled={broadcasting || broadcastUploading}
                   />
+                  {/* Media pickers */}
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleBroadcastPhoto}
+                  />
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    onChange={handleBroadcastVideo}
+                  />
+                  {broadcastMedia ? (
+                    <div className="relative mb-2 rounded-xl overflow-hidden border-2 border-(--ln-bright)/30">
+                      {broadcastMediaType === 'video' ? (
+                        <video src={broadcastMedia} className="w-full max-h-48 object-contain bg-black" controls />
+                      ) : (
+                        <img src={broadcastMedia} alt="attachment" className="w-full max-h-48 object-contain bg-black" />
+                      )}
+                      <button
+                        onClick={() => { setBroadcastMedia(null); setBroadcastMediaType(null); }}
+                        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center"
+                        aria-label={ar ? 'إزالة' : 'Remove'}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        onClick={() => photoInputRef.current?.click()}
+                        disabled={broadcasting || broadcastUploading}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl border-2 border-(--ln-bright)/30 text-xs font-bold text-(--tx-head) hover:bg-(--bg-inset) transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <Camera className="w-4 h-4" />
+                        {ar ? 'صورة' : 'Photo'}
+                      </button>
+                      <button
+                        onClick={() => videoInputRef.current?.click()}
+                        disabled={broadcasting || broadcastUploading}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl border-2 border-(--ln-bright)/30 text-xs font-bold text-(--tx-head) hover:bg-(--bg-inset) transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <Video className="w-4 h-4" />
+                        {ar ? 'فيديو' : 'Video'}
+                      </button>
+                    </div>
+                  )}
+                  {broadcastUploading && (
+                    <p className="text-xs font-bold text-(--ac-bright-tx) mb-2">{ar ? 'جارٍ تحميل الوسائط...' : 'Loading media...'}</p>
+                  )}
                   {broadcastResult && !broadcasting && (
                     <p className="text-xs font-bold text-(--ac-bright-tx) mb-2">{broadcastResult}</p>
                   )}
                   <button
                     onClick={handleBroadcast}
-                    disabled={broadcasting}
+                    disabled={broadcasting || broadcastUploading}
                     className="w-full px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50"
                   >
                     {broadcasting ? (ar ? 'جارٍ الإرسال...' : 'Sending...') : (ar ? 'إرسال للجميع' : 'Send to All')}

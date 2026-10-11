@@ -147,4 +147,6 @@ export interface NotificationItem {
   createdAt?: string;
   post_id?: string;
   postId?: string;
+  mediaUrl?: string;
+  mediaType?: string;
 }

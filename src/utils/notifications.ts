@@ -366,6 +366,10 @@ isRead,
 
               senderId: d . actor_id || d . sender_id || undefined ,
 
+              mediaUrl: d . media_url || undefined ,
+
+              mediaType: d . media_type || undefined ,
+
             } ;
 
           } ) ;

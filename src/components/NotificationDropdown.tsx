@@ -187,6 +187,15 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                   <p className="text-[11px] text-(--tx-body) leading-snug line-clamp-2 mt-0.5">
                     {notifBody}
                   </p>
+                  {notif.mediaUrl && (
+                    <div className="mt-1.5 rounded-lg overflow-hidden border border-(--ln-gold)/30 max-w-[220px]">
+                      {notif.mediaType === 'video' ? (
+                        <video src={notif.mediaUrl} className="w-full max-h-32 object-contain bg-black" controls playsInline />
+                      ) : (
+                        <img src={notif.mediaUrl} alt="" className="w-full max-h-32 object-cover" loading="lazy" />
+                      )}
+                    </div>
+                  )}
                   <TimeAgo date={notif.createdAt} className="text-[9px] text-(--tx-mute) block mt-1 uppercase font-bold" />
                 </div>
 

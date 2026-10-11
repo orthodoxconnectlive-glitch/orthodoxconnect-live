@@ -303,6 +303,15 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
                   <p className="text-xs text-(--tx-faint) dark:text-[#d3c2a9] mt-0.5 leading-relaxed">
                     {notifBody}
                   </p>
+                  {notif.mediaUrl && (
+                    <div className="mt-2 rounded-xl overflow-hidden border border-(--ln-gold)/30 max-w-sm">
+                      {notif.mediaType === 'video' ? (
+                        <video src={notif.mediaUrl} className="w-full max-h-64 object-contain bg-black" controls playsInline />
+                      ) : (
+                        <img src={notif.mediaUrl} alt="" className="w-full max-h-64 object-cover" loading="lazy" />
+                      )}
+                    </div>
+                  )}
                   <TimeAgo date={notif.createdAt} className="text-[10px] text-(--tx-soft) dark:text-[#a89379] block mt-1.5 font-bold uppercase" />
                 </div>
               </div>

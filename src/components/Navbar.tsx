@@ -23,7 +23,6 @@ import {
   BookOpen,
   Church,
   Store,
-  Briefcase,
   Baby,
   ThumbsUp,
   Palette,
@@ -148,7 +147,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'calendar', icon: Calendar, label: t('calendar') },
     { id: 'kids', icon: KidsTabIcon, label: language === 'ar' ? 'أطفال' : 'Kids' },
     { id: 'marketplace', icon: Store, label: language === 'ar' ? 'السوق' : 'Marketplace' },
-    { id: 'jobs', icon: Briefcase, label: language === 'ar' ? 'الوظائف' : 'Jobs' },
   ];
 
   // Sidebar only holds what ISN'T already on the main bars (tab row + top

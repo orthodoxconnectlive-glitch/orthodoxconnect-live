@@ -14,6 +14,7 @@ import {
   Utensils,
   BookOpen,
   Church,
+  Briefcase,
   ThumbsUp,
   Palette,
 } from 'lucide-react';
@@ -84,6 +85,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'notifications', label: t('notifications'), icon: Bell, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', count: activeUnreadNotifs },
     { id: 'profile', label: t('profile'), icon: User, color: 'text-stone-700 dark:text-amber-200', bg: 'bg-stone-200 dark:bg-stone-800' },
     { id: 'churches', label: language === 'ar' ? 'الكنائس' : 'Churches', icon: Church, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
+    { id: 'jobs', label: language === 'ar' ? 'الوظائف' : 'Jobs', icon: Briefcase, color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/30' },
   ];
 
   if (isAdminOrOwner) {

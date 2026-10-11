@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ShieldAlert,
   Smartphone,
+  Megaphone,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -54,6 +55,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
   const [translateResult, setTranslateResult] = useState<string | null>(null);
   const [deduping, setDeduping] = useState(false);
   const [dedupeResult, setDedupeResult] = useState<string | null>(null);
+
+  // ---- Broadcast message state (super admin only) ----
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [broadcastBody, setBroadcastBody] = useState('');
+  const [broadcasting, setBroadcasting] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
+  const isBroadcastAdmin = (profile?.email || '').toLowerCase() === 'orthodoxconnect.live@gmail.com';
+
+  const handleBroadcast = async () => {
+    if (broadcasting) return;
+    const title = broadcastTitle.trim();
+    const body = broadcastBody.trim();
+    if (!title || !body) {
+      setBroadcastResult(ar ? 'العنوان والرسالة مطلوبان.' : 'Title and message are required.');
+      return;
+    }
+    if (!confirm(ar ? 'إرسال إلى جميع المستخدمين؟ لا يمكن التراجع.' : 'Send to ALL users? This cannot be undone.')) return;
+    setBroadcasting(true);
+    setBroadcastResult(null);
+    try {
+      const res = await apiFetch<{ success: boolean; sent?: number; error?: string }>('/api/admin/broadcast', {
+        method: 'POST',
+        body: JSON.stringify({ title, body }),
+      });
+      if (res.success) {
+        setBroadcastResult(ar ? `تم الإرسال إلى ${res.sent} مستخدم.` : `Sent to ${res.sent} users.`);
+        setBroadcastTitle('');
+        setBroadcastBody('');
+      } else {
+        setBroadcastResult(res.error || (ar ? 'فشل الإرسال.' : 'Send failed.'));
+      }
+    } catch (e) {
+      setBroadcastResult(ar ? 'فشل الإرسال.' : 'Send failed.');
+    } finally {
+      setBroadcasting(false);
+    }
+  };
 
   const toggleSection = (id: SectionId) => setOpenSection((s) => (s === id ? null : id));
 
@@ -453,6 +491,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
                 }}
                 busy={false}
               />
+              {/* Broadcast Message — SUPER ADMIN ONLY */}
+              {isBroadcastAdmin && (
+                <div className="p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/15 flex items-center justify-center shrink-0">
+                      <Megaphone className="w-6 h-6 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="font-serif font-bold text-base text-(--tx-head)">{ar ? 'رسالة جماعية' : 'Broadcast Message'}</p>
+                      <p className="text-xs text-(--tx-soft) mt-0.5">{ar ? 'إرسال إشعار إلى جميع المستخدمين' : 'Send a notification to ALL users at once'}</p>
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value={broadcastTitle}
+                    onChange={(e) => setBroadcastTitle(e.target.value)}
+                    placeholder={ar ? 'عنوان الرسالة' : 'Message title'}
+                    className="w-full mb-2 px-4 py-2.5 rounded-xl border-2 border-(--ln-bright)/30 bg-(--bg-inset) text-sm font-bold text-(--tx-head) placeholder:text-(--tx-soft) focus:outline-none focus:border-(--ac-bright)"
+                    disabled={broadcasting}
+                  />
+                  <textarea
+                    value={broadcastBody}
+                    onChange={(e) => setBroadcastBody(e.target.value)}
+                    placeholder={ar ? 'نص الرسالة...' : 'Message text...'}
+                    rows={3}
+                    className="w-full mb-2 px-4 py-2.5 rounded-xl border-2 border-(--ln-bright)/30 bg-(--bg-inset) text-sm text-(--tx-head) placeholder:text-(--tx-soft) focus:outline-none focus:border-(--ac-bright) resize-y"
+                    disabled={broadcasting}
+                  />
+                  {broadcastResult && !broadcasting && (
+                    <p className="text-xs font-bold text-(--ac-bright-tx) mb-2">{broadcastResult}</p>
+                  )}
+                  <button
+                    onClick={handleBroadcast}
+                    disabled={broadcasting}
+                    className="w-full px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {broadcasting ? (ar ? 'جارٍ الإرسال...' : 'Sending...') : (ar ? 'إرسال للجميع' : 'Send to All')}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </>

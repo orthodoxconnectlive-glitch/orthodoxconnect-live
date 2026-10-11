@@ -3,7 +3,7 @@
  * 100% Cloudflare Workers + D1 SQLite Backend
  */
 
-import { User, UserProfile, Post, Message, EventItem, Story, NotificationItem, ContentReport, Church, MarketplaceListing } from '../types';
+import { User, UserProfile, Post, Message, EventItem, Story, NotificationItem, ContentReport, Church, MarketplaceListing, Job } from '../types';
 
 export const API_BASE_URL = '';
 
@@ -652,5 +652,25 @@ export const groupCallsApi = {
   },
   async heartbeat(callId: string): Promise<void> {
     await apiFetch(`/api/group-calls/${encodeURIComponent(callId)}/heartbeat`, { method: 'POST' });
+  },
+};
+
+export const jobsApi = {
+  async list(q?: string): Promise<Job[]> {
+    const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+    const res = await apiFetch<{ jobs: Job[] }>(`/api/jobs${qs}`);
+    return res.jobs || [];
+  },
+  async create(job: Partial<Job>): Promise<Job> {
+    const res = await apiFetch<{ job: Job }>('/api/jobs', {
+      method: 'POST',
+      body: JSON.stringify(job),
+    });
+    return res.job;
+  },
+  async remove(id: string): Promise<void> {
+    await apiFetch(`/api/jobs/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
   },
 };

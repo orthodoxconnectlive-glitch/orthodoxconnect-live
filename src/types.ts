@@ -86,6 +86,18 @@ export interface MarketplaceListing {
   created_at?: string;
 }
 
+export interface Job {
+  id: string;
+  title: string;
+  description?: string;
+  address?: string;
+  salary?: string;
+  contact?: string;
+  posted_by?: string;
+  posted_by_name?: string;
+  created_at?: string;
+}
+
 export interface GroupRoom {
   id: string;
   name: string;

@@ -6285,6 +6285,38 @@ export default {
         return jsonResponse({ success: true });
       }
 
+      // 17b1. Admin broadcast message — SUPER ADMIN ONLY (orthodoxconnect.live@gmail.com exact match)
+      if (url.pathname === '/api/admin/broadcast' && request.method === 'POST' && env.DB) {
+        const bAuth = await getAuthIdentity(request, env);
+        if (bAuth.email !== 'orthodoxconnect.live@gmail.com') {
+          return jsonResponse({ success: false, error: 'Forbidden. Super admin only.' }, 403);
+        }
+        const bBody: any = await request.json().catch(() => ({}));
+        const bTitle = String(bBody.title || '').trim();
+        const bMsg = String(bBody.body || '').trim();
+        if (!bTitle || !bMsg) {
+          return jsonResponse({ success: false, error: 'Title and message body are required.' }, 400);
+        }
+        const usersRes: any = await env.DB.prepare('SELECT id FROM profiles').all();
+        const userIds: string[] = (((usersRes && usersRes.results) || []) as any[]).map((u: any) => u.id).filter(Boolean);
+        const nowIso = new Date().toISOString();
+        const broadcastId = `broadcast_${Date.now()}`;
+        let sent = 0;
+        for (let i = 0; i < userIds.length; i += 50) {
+          const batch = userIds.slice(i, i + 50);
+          const stmts = batch.map((uid: string) =>
+            env.DB.prepare('INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(`${broadcastId}_${uid}`, uid, bAuth.id, 'OrthodoxConnect', '', 'broadcast', bTitle, bMsg, null, 'feed', 0, nowIso)
+          );
+          try {
+            await env.DB.batch(stmts);
+            sent += batch.length;
+          } catch (e) {
+            console.warn('[broadcast] batch failed:', (e as any)?.message || e);
+          }
+        }
+        return jsonResponse({ success: true, sent });
+      }
+
       // 17b2. Push debug log (temporary diagnostic)
       if (url.pathname === '/api/debug/push-log' && env.DB) {
         try {

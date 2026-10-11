@@ -75,6 +75,9 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
 
   // One-tap import of the US Coptic churches directory
   const [churchImporting, setChurchImporting] = useState(false);
+  const [egyptImporting, setEgyptImporting] = useState(false);
+  const [egyptImportResult, setEgyptImportResult] = useState<string | null>(null);
+  const [egyptImportProgress, setEgyptImportProgress] = useState({ done: 0, total: 0 });
   const [ocaImporting, setOcaImporting] = useState(false);
   const [ocaImportResult, setOcaImportResult] = useState<string | null>(null);
   const [deduping, setDeduping] = useState(false);
@@ -141,6 +144,46 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
       setDedupeResult('Failed');
     } finally {
       setDeduping(false);
+    }
+  };
+
+  const handleImportEgypt = async () => {
+    if (egyptImporting) return;
+    setEgyptImporting(true);
+    setEgyptImportResult(null);
+    try {
+      const existing = await churchesApi.list();
+      const keyOf = (n: any, c: any) => ((n || '').trim() + '|' + (c || '').trim()).toLowerCase();
+      const byNameCity = new Map<string, any>();
+      for (const c of existing as any[]) {
+        if (c.name) byNameCity.set(keyOf(c.name, c.city), c);
+      }
+      let ok = 0;
+      setEgyptImportProgress({ done: 0, total: EGYPT_COPTIC_CHURCHES.length });
+      for (let i = 0; i < EGYPT_COPTIC_CHURCHES.length; i += 5) {
+        const batch = EGYPT_COPTIC_CHURCHES.slice(i, i + 5);
+        const results = await Promise.all(
+          batch.map((ch) =>
+            churchesApi
+              .create({
+                name: ch.name,
+                city: ch.city,
+                country: 'Egypt',
+                address: (ch as any).address || '',
+                description: 'Coptic Orthodox Church',
+              } as any)
+              .then(() => true)
+              .catch(() => false)
+          )
+        );
+        ok += results.filter(Boolean).length;
+        setEgyptImportProgress({ done: Math.min(i + 5, EGYPT_COPTIC_CHURCHES.length), total: EGYPT_COPTIC_CHURCHES.length });
+      }
+      setEgyptImportResult(`Done: imported ${ok} Egypt churches`);
+    } catch (e) {
+      setEgyptImportResult('Import failed');
+    } finally {
+      setEgyptImporting(false);
     }
   };
 
@@ -1020,6 +1063,36 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) 
           className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
         >
           {churchImporting ? t('adminChurchImporting') : t('adminChurchImportBtn')}
+        </button>
+      </div>
+
+      {/* Egypt Churches import */}
+      <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-(--ac-bright)/10 border border-(--ac-bright)/30 flex items-center justify-center text-(--ac-bright-tx) shrink-0">
+          <Church className="w-6 h-6" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-serif font-bold text-base text-(--tx-head)">
+            Egypt Coptic Churches
+          </p>
+          <p className="text-xs text-(--tx-soft) mt-0.5">
+            Import {EGYPT_COPTIC_CHURCHES.length} Coptic Orthodox churches in Egypt with street addresses. Existing churches are skipped.
+          </p>
+          {egyptImporting && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">
+              Importing {egyptImportProgress.done}/{egyptImportProgress.total}
+            </p>
+          )}
+          {egyptImportResult && !egyptImporting && (
+            <p className="text-xs font-bold text-(--ac-bright-tx) mt-1">{egyptImportResult}</p>
+          )}
+        </div>
+        <button
+          onClick={handleImportEgypt}
+          disabled={egyptImporting}
+          className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50 shrink-0"
+        >
+          {egyptImporting ? 'Importing' : 'Import Egypt'}
         </button>
       </div>
 

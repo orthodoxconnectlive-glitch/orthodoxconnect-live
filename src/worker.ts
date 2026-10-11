@@ -3589,7 +3589,102 @@ export default {
 
 
 
-      // 6b. Churches Endpoints (/api/churches)
+
+
+      // 6a. Jobs Endpoints (/api/jobs)
+      if (url.pathname === '/api/jobs' || url.pathname === '/api/jobs/') {
+        // Bulletproof: ensure the table exists on the request path itself.
+        if (env.DB) {
+          try {
+            await env.DB.exec(`CREATE TABLE IF NOT EXISTS jobs ( id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', address TEXT DEFAULT '', salary TEXT DEFAULT '', contact TEXT DEFAULT '', posted_by TEXT DEFAULT '', posted_by_name TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
+          } catch (jErr) {
+            console.warn('[jobs] ensure table notice:', jErr);
+          }
+        }
+        if (request.method === 'GET') {
+          let jobs: any[] = [];
+          if (env.DB) {
+            const q = (url.searchParams.get('q') || '').trim();
+            let stmt;
+            if (q) {
+              const like = `%${q}%`;
+              stmt = env.DB.prepare(
+                `SELECT * FROM jobs WHERE title LIKE ? OR description LIKE ? OR address LIKE ? ORDER BY created_at DESC LIMIT 100`
+              ).bind(like, like, like);
+            } else {
+              stmt = env.DB.prepare('SELECT * FROM jobs ORDER BY created_at DESC LIMIT 100');
+            }
+            const { results } = await stmt.all();
+            jobs = results || [];
+          }
+          return jsonResponse({ success: true, jobs });
+        }
+
+        if (request.method === 'POST') {
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+          const body: any = await request.json().catch(() => ({}));
+          const title = (body.title || '').trim();
+          const address = (body.address || '').trim();
+          if (!title) {
+            return jsonResponse({ success: false, error: 'Job title is required.' }, 400);
+          }
+          if (!address) {
+            return jsonResponse({ success: false, error: 'Job address/location is required.' }, 400);
+          }
+          const id = body.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `job_${Date.now()}`);
+          const nowIso = new Date().toISOString();
+          const row = {
+            id,
+            title,
+            description: body.description || '',
+            address,
+            salary: body.salary || '',
+            contact: body.contact || '',
+            posted_by: auth.id,
+            posted_by_name: body.posted_by_name || '',
+            created_at: nowIso,
+          };
+          if (!env.DB) {
+            return jsonResponse({ success: false, error: 'Database unavailable.' }, 500);
+          }
+          await env.DB.prepare(
+            'INSERT INTO jobs (id, title, description, address, salary, contact, posted_by, posted_by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          ).bind(row.id, row.title, row.description, row.address, row.salary, row.contact, row.posted_by, row.posted_by_name, row.created_at).run();
+          return jsonResponse({ success: true, job: row }, 201);
+        }
+
+        return jsonResponse({ success: false, error: 'Method not allowed.' }, 405);
+      }
+
+      // DELETE /api/jobs/:id — only the poster or an admin
+      {
+        const jobDelMatch = url.pathname.match(/^\/api\/jobs\/([^/]+)\/?$/);
+        if (jobDelMatch && request.method === 'DELETE') {
+          const jobId = decodeURIComponent(jobDelMatch[1]);
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) {
+            return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          }
+          if (!env.DB) {
+            return jsonResponse({ success: false, error: 'Database unavailable.' }, 500);
+          }
+          const existing: any = await env.DB.prepare('SELECT posted_by FROM jobs WHERE id = ?').bind(jobId).first();
+          if (!existing) {
+            return jsonResponse({ success: false, error: 'Job not found.' }, 404);
+          }
+          const isOwner = existing.posted_by && existing.posted_by === auth.id;
+          if (!isOwner && !auth.isAdmin) {
+            return jsonResponse({ success: false, error: 'Not authorized to delete this job.' }, 403);
+          }
+          await env.DB.prepare('DELETE FROM jobs WHERE id = ?').bind(jobId).run();
+          return jsonResponse({ success: true });
+        }
+      }
+
+            // 6b. Churches Endpoints (/api/churches)
       if (url.pathname === '/api/churches' || url.pathname === '/api/churches/') {
         // Bulletproof: ensure the table exists on the request path itself.
         if (env.DB) {

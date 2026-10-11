@@ -871,7 +871,7 @@ export const PostCard: React.FC<PostCardProps> = ({
       {postContent && (
         <div className="mb-3.5">
           <p
-            className={`text-xs sm:text-sm text-(--tx-strong) dark:text-[#f5ebd9] font-serif leading-relaxed whitespace-pre-wrap ${isLiveBroadcast ? 'cursor-pointer hover:opacity-80' : ''}`}
+            className={`text-xs sm:text-sm font-serif leading-relaxed whitespace-pre-wrap ${isLiveBroadcast ? 'text-blue-600 dark:text-blue-400 font-bold cursor-pointer hover:underline' : 'text-(--tx-strong) dark:text-[#f5ebd9]'}`}
             onClick={isLiveBroadcast ? () => onOpenLive?.() : undefined}
             title={isLiveBroadcast ? 'Tap to watch live' : undefined}
           >

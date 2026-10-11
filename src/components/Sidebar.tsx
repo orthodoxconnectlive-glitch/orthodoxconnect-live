@@ -16,7 +16,7 @@ import {
   Church,
   Briefcase,
   ThumbsUp,
-  Palette,
+  Palette,  Settings,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -86,6 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'profile', label: t('profile'), icon: User, color: 'text-stone-700 dark:text-amber-200', bg: 'bg-stone-200 dark:bg-stone-800' },
     { id: 'churches', label: language === 'ar' ? 'الكنائس' : 'Churches', icon: Church, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'jobs', label: language === 'ar' ? 'الوظائف' : 'Jobs', icon: Briefcase, color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+    { id: 'settings', label: language === 'ar' ? 'الإعدادات' : 'Settings', icon: Settings, color: 'text-stone-600 dark:text-stone-300', bg: 'bg-stone-100 dark:bg-stone-800/40' },
   ];
 
   if (isAdminOrOwner) {

@@ -37,6 +37,7 @@ const ChurchProfileView = lazy(() => import('./views/ChurchProfileView').then((m
 const KidsView = lazy(() => import('./views/KidsView').then((m) => ({ default: m.KidsView })));
 const MarketplaceView = lazy(() => import('./views/MarketplaceView').then((m) => ({ default: m.MarketplaceView })));
 const JobsView = lazy(() => import('./views/JobsView').then((m) => ({ default: m.JobsView })));
+const SettingsView = lazy(() => import('./views/SettingsView').then((m) => ({ default: m.SettingsView })));
 const RadioView = lazy(() => import('./views/RadioView').then((m) => ({ default: m.RadioView })));
 const NotificationsView = lazy(() => import('./views/NotificationsView').then((m) => ({ default: m.NotificationsView })));
 const LibraryView = lazy(() => import('./views/LibraryView').then((m) => ({ default: m.LibraryView })));
@@ -117,6 +118,8 @@ function AppContent() {
   const [focusStreamId, setFocusStreamId] = useState<string | null>(null);
   // Share-link deep link: ?book=<bookId> opens the library focused on that book.
   const [focusBookId, setFocusBookId] = useState<string | null>(null);
+  // Settings -> Moderation deep link: which admin tab to open.
+  const [adminInitialTab, setAdminInitialTab] = useState<'reports' | 'audit' | undefined>(undefined);
   // Share-link deep link: ?synax=<MM-DD> opens the Synaxarium reader on that Coptic day.
   const [focusSynaxKey, setFocusSynaxKey] = useState<string | null>(null);
   // Share-link deep link: ?track=<radioTrackId> opens the radio on that track.
@@ -371,6 +374,15 @@ function AppContent() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
+  // Consume the Settings -> admin tab deep link after the admin view mounts,
+  // so later drawer taps open the default tab.
+  useEffect(() => {
+    if (currentView === 'admin' && adminInitialTab !== undefined) {
+      const timer = setTimeout(() => setAdminInitialTab(undefined), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [currentView, adminInitialTab]);
+
   const renderView = () => {
     switch (currentView) {
       case 'feed':
@@ -428,7 +440,7 @@ function AppContent() {
           />
         );
       case 'admin':
-        return <AdminPanelView onSelectUser={handleSelectUser} />;
+        return <AdminPanelView onSelectUser={handleSelectUser} initialTab={adminInitialTab} />;
       case 'calendar':
         return <CalendarView focusEventId={focusEventId} onFocusEventConsumed={() => setFocusEventId(null)} />;
       case 'churches':
@@ -443,6 +455,16 @@ function AppContent() {
         return <MarketplaceView focusListingId={focusListingId} onFocusListingConsumed={() => setFocusListingId(null)} />;
       case 'jobs':
         return <JobsView />;
+      case 'settings':
+        return (
+          <SettingsView
+            onNavigate={handleNavigate}
+            onOpenAdminTab={(tab) => {
+              setAdminInitialTab(tab);
+              handleNavigate('admin');
+            }}
+          />
+        );
       case 'radio':
         return <RadioView focusTrackId={focusTrackId} onFocusTrackConsumed={() => setFocusTrackId(null)} focusRadioLive={focusRadioLive} onFocusRadioLiveConsumed={() => setFocusRadioLive(false)} />;
       default:

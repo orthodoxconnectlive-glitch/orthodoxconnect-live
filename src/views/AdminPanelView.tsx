@@ -35,13 +35,14 @@ import { deletePost, deleteUserApi } from '../utils/posts';
 
 interface AdminPanelViewProps {
   onSelectUser?: (user: { id?: string; name: string; avatar?: string; parish?: string; role?: string }) => void;
+  initialTab?: 'users' | 'clergy' | 'reports' | 'audit' | 'settings';
 }
 
-export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser }) => {
+export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, initialTab }) => {
   const { profile } = useAuth();
   const { t } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<'users' | 'clergy' | 'reports' | 'audit' | 'settings'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'clergy' | 'reports' | 'audit' | 'settings'>(initialTab || 'users');
   const [reportsList, setReportsList] = useState<ContentReport[]>([]);
   const [auditLogs, setAuditLogs] = useState<ModerationAuditLog[]>([]);
   const [userStatuses, setUserStatuses] = useState<Record<string, { warningCount: number; isBanned: boolean }>>({});

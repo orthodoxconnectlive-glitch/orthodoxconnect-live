@@ -6352,6 +6352,26 @@ export default {
         return jsonResponse({ success: true, sent });
       }
 
+      // 17b1b. Admin broadcast history — SUPER ADMIN ONLY (same rule as broadcast).
+      // Derived from the per-recipient notification rows (type='broadcast'),
+      // so past broadcasts appear too — no separate log table needed.
+      if (url.pathname === '/api/admin/broadcast-log' && request.method === 'GET' && env.DB) {
+        const blAuth = await getAuthIdentity(request, env);
+        if (blAuth.email !== 'orthodoxconnect.live@gmail.com') {
+          return jsonResponse({ success: false, error: 'Forbidden. Super admin only.' }, 403);
+        }
+        let entries: any[] = [];
+        try {
+          const blRes: any = await env.DB.prepare(
+            "SELECT title, body, MIN(created_at) AS sent_at, COUNT(*) AS recipients FROM notifications WHERE type = 'broadcast' GROUP BY title, body, created_at ORDER BY sent_at DESC LIMIT 20"
+          ).all();
+          entries = blRes?.results || [];
+        } catch (e) {
+          entries = [];
+        }
+        return jsonResponse({ success: true, broadcasts: entries });
+      }
+
       // 17b2. Push debug log (temporary diagnostic)
       if (url.pathname === '/api/debug/push-log' && env.DB) {
         try {

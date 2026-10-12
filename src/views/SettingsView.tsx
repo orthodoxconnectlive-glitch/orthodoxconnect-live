@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Church,
   Settings as SettingsIcon,
@@ -67,9 +67,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
   const [broadcastUploading, setBroadcastUploading] = useState(false);
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastResult, setBroadcastResult] = useState<string | null>(null);
+  const [broadcastLog, setBroadcastLog] = useState<Array<{ title: string; body: string; sent_at: string; recipients: number }>>([]);
+  const [logLoading, setLogLoading] = useState(false);
   const isBroadcastAdmin = (profile?.email || '').toLowerCase() === 'orthodoxconnect.live@gmail.com';
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
+
+  const loadBroadcastLog = async () => {
+    if (!isBroadcastAdmin) return;
+    setLogLoading(true);
+    try {
+      const res = await apiFetch<{ success: boolean; broadcasts?: Array<{ title: string; body: string; sent_at: string; recipients: number }> }>('/api/admin/broadcast-log');
+      if (res.success && Array.isArray(res.broadcasts)) setBroadcastLog(res.broadcasts);
+    } catch (e) {
+      // History is a nice-to-have; never block the composer on it.
+    } finally {
+      setLogLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBroadcastLog();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBroadcastAdmin]);
 
   // Compress a photo client-side (max 1200px, JPEG) so broadcasts stay light.
   const compressPhoto = (file: File): Promise<string> =>
@@ -166,6 +186,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
         setBroadcastBody('');
         setBroadcastMedia(null);
         setBroadcastMediaType(null);
+        loadBroadcastLog();
       } else {
         setBroadcastResult(res.error || (ar ? 'فشل الإرسال.' : 'Send failed.'));
       }
@@ -657,6 +678,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
                   >
                     {broadcasting ? (ar ? 'جارٍ الإرسال...' : 'Sending...') : (ar ? 'إرسال للجميع' : 'Send to All')}
                   </button>
+                  {/* Broadcast history */}
+                  <div className="mt-3 pt-3 border-t border-(--ln-bright)/20">
+                    <p className="text-[10px] font-serif font-bold uppercase tracking-widest text-(--tx-soft) mb-2">
+                      {ar ? 'الرسائل المرسلة' : 'Sent messages'}
+                    </p>
+                    {logLoading && broadcastLog.length === 0 && (
+                      <p className="text-xs text-(--tx-soft)">{ar ? 'جارٍ التحميل...' : 'Loading...'}</p>
+                    )}
+                    {!logLoading && broadcastLog.length === 0 && (
+                      <p className="text-xs text-(--tx-soft)">{ar ? 'لا توجد رسائل مرسلة بعد.' : 'No broadcasts sent yet.'}</p>
+                    )}
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {broadcastLog.map((b, i) => (
+                        <div key={`${b.sent_at}-${i}`} className="px-3 py-2 rounded-xl bg-(--bg-inset) border border-(--ln-bright)/20">
+                          <div className="flex items-baseline justify-between gap-2 mb-0.5">
+                            <span className="text-[10px] font-bold text-(--ac-bright-tx)">
+                              {ar ? `إلى ${b.recipients} مستخدم` : `To ${b.recipients} users`}
+                            </span>
+                            <span className="text-[10px] text-(--tx-soft) shrink-0">
+                              {(() => { try { return new Date(b.sent_at).toLocaleString(ar ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch { return b.sent_at; } })()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-(--tx-head) leading-relaxed break-words line-clamp-3">{b.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
               {/* Group Messages — ADMIN ONLY */}

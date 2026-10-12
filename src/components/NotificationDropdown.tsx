@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Bell, CheckCheck, MessageSquare, AtSign, Calendar, Users, ShieldAlert, ChevronRight, X, Heart, MessageCircle } from 'lucide-react';
 import { NotificationItem } from '../types';
 import { TimeAgo } from './TimeAgo';
 import { useTheme } from '../context/ThemeContext';
 import { localizeNotification } from '../utils/notificationText';
+import { BroadcastModal } from './BroadcastModal';
 
 interface NotificationDropdownProps {
   notifications: NotificationItem[];
@@ -24,6 +25,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
 }) => {
   const { t, language } = useTheme();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [selectedBroadcast, setSelectedBroadcast] = useState<NotificationItem | null>(null);
 
   // Close on outside click
   useEffect(() => {
@@ -48,7 +50,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen && !selectedBroadcast) return null;
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -80,6 +82,12 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   const handleItemClick = (notif: NotificationItem) => {
     onMarkRead(notif.id);
     onClose();
+    // Broadcasts open a full reader modal — the complete message is never
+    // truncated and never lost behind a navigation.
+    if (notif.type === 'broadcast') {
+      setSelectedBroadcast(notif);
+      return;
+    }
     const postId = (notif as any).post_id || (notif as any).postId || undefined;
     if (notif.link) {
       onNavigateToNotifications(notif.link, postId);
@@ -96,6 +104,8 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
 
   return (
     <>
+      {isOpen && (
+      <>
       {/* Invisible backdrop for outside click handling */}
       <div
         className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[0.5px]"
@@ -223,6 +233,9 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           </button>
         </div>
       </div>
+      </>
+      )}
+      <BroadcastModal notif={selectedBroadcast} onClose={() => setSelectedBroadcast(null)} />
     </>
   );
 };

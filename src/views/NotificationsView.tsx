@@ -6,6 +6,7 @@ import { TimeAgo } from '../components/TimeAgo';
 import { UserProfileData } from './ProfileView';
 import { useTheme } from '../context/ThemeContext';
 import { localizeNotification } from '../utils/notificationText';
+import { BroadcastModal } from '../components/BroadcastModal';
 
 interface NotificationsViewProps {
   onNavigate?: (view: string, postId?: string) => void;
@@ -19,6 +20,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'messages' | 'events' | 'mentions'>('all');
   const [showPreferences, setShowPreferences] = useState(false);
   const [prefs, setPrefs] = useState<NotificationPreferences>(loadNotificationPreferences());
+  const [selectedBroadcast, setSelectedBroadcast] = useState<NotificationItem | null>(null);
 
   const fetchNotifs = async () => {
     const data = await loadNotifications();
@@ -53,6 +55,12 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     setNotifications((prev) =>
       prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
     );
+
+    // Broadcasts open the full reader modal instead of navigating away.
+    if (notif.type === 'broadcast') {
+      setSelectedBroadcast(notif);
+      return;
+    }
 
     if (notif.type === 'message' && onOpenMessengerWithUser) {
       onOpenMessengerWithUser((notif as any).senderId || notif.senderName || 'user-1');
@@ -350,6 +358,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
           })
         )}
       </div>
+      <BroadcastModal notif={selectedBroadcast} onClose={() => setSelectedBroadcast(null)} />
     </div>
   );
 };

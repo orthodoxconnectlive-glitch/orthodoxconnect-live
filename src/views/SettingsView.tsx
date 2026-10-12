@@ -21,6 +21,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, churchesApi } from '../lib/api';
+import { AdminGroupMessages } from '../components/AdminGroupMessages';
 import { US_COPTIC_CHURCHES } from '../data/usCopticChurches';
 import { EGYPT_COPTIC_CHURCHES } from '../data/egyptCopticChurches';
 import { COPTIC_CHURCHES } from '../data/copticChurches';
@@ -658,6 +659,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
                   </button>
                 </div>
               )}
+              {/* Group Messages — ADMIN ONLY */}
+              {isAdminOrOwner && <AdminGroupMessages />}
             </div>
           )}
         </>

@@ -6287,7 +6287,34 @@ export default {
         return jsonResponse({ success: true });
       }
 
-      // 17b1. Admin broadcast message — SUPER ADMIN ONLY (orthodoxconnect.live@gmail.com exact match)
+      // 17b1. Admin: read group messages (moderation oversight) — ADMIN ONLY.
+      // The receiver must be a real custom_groups id, so 1:1 private chats
+      // can never be pulled through this endpoint.
+      if (url.pathname === '/api/admin/group-messages' && request.method === 'GET' && env.DB) {
+        const gmAuth = await getAuthIdentity(request, env);
+        if (!gmAuth.isAdmin && !gmAuth.isSuperAdmin) {
+          return jsonResponse({ success: false, error: 'Forbidden. Admin only.' }, 403);
+        }
+        const groupId = String(url.searchParams.get('group_id') || '').trim();
+        const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 1), 100);
+        const before = String(url.searchParams.get('before') || '').trim();
+        const grp: any = groupId
+          ? await env.DB.prepare('SELECT id, name FROM custom_groups WHERE id = ?').bind(groupId).first()
+          : null;
+        if (!grp) {
+          return jsonResponse({ success: false, error: 'Group not found.' }, 404);
+        }
+        let gmQ = 'SELECT id, sender_id, sender_name, content, image_url, video_url, audio_url, created_at FROM messages WHERE receiver_id = ?';
+        const gmVals: any[] = [groupId];
+        if (before) { gmQ += ' AND created_at < ?'; gmVals.push(before); }
+        gmQ += ' ORDER BY created_at DESC LIMIT ?';
+        gmVals.push(limit);
+        const gmRes: any = await env.DB.prepare(gmQ).bind(...gmVals).all();
+        const gmMsgs = ((gmRes && gmRes.results) || []).reverse();
+        return jsonResponse({ success: true, group: { id: grp.id, name: grp.name }, messages: gmMsgs });
+      }
+
+      // 17b2. Admin broadcast message — SUPER ADMIN ONLY (orthodoxconnect.live@gmail.com exact match)
       if (url.pathname === '/api/admin/broadcast' && request.method === 'POST' && env.DB) {
         const bAuth = await getAuthIdentity(request, env);
         if (bAuth.email !== 'orthodoxconnect.live@gmail.com') {

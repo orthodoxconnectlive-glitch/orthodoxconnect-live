@@ -16,7 +16,7 @@ import CandleModal from './components/CandleModal';
 import ThemePickerModal from './components/ThemePickerModal';
 import { EditProfileModal } from './components/EditProfileModal';
 import { AuthModal } from './components/AuthModal';
-import { AuthPage } from './components/AuthPage';
+import { LandingPage } from './components/LandingPage';
 // NEW: notification auto-refresh (adjust path if your service lives elsewhere)
 import { loadNotifications, markNotificationAsRead } from './utils/notifications';
 import { syncFollowsFromServer } from './utils/follows';
@@ -560,7 +560,7 @@ function AppRoot() {
   }
 
   if (!user) {
-    return <AuthPage />;
+    return <LandingPage />;
   }
 
   return (

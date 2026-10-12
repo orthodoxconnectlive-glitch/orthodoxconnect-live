@@ -1,13 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mail, Lock, User, Church, Cross, LogIn, AlertCircle, Sparkles, Globe } from 'lucide-react';
+import { Mail, Lock, User, Church, Cross, LogIn, AlertCircle, Sparkles, Globe, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
-export const AuthPage: React.FC = () => {
+interface AuthPageProps {
+  initialMode?: 'signin' | 'signup';
+  onBack?: () => void;
+}
+
+export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBack }) => {
   const { signIn, signUp, sessionExpiredNotice, clearSessionExpiredNotice } = useAuth();
   const { t, language, setLanguage } = useTheme();
 
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -108,6 +113,17 @@ export const AuthPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-(--bg-page) dark:bg-[#0f0c09] text-(--tx-strong) dark:text-[#f5ebd9] flex items-center justify-center p-4 selection:bg-(--ac-gold) selection:text-white transition-colors text-left rtl:text-right">
       <div className="w-full max-w-md bg-(--bg-card) dark:bg-[#1a140e] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+        {/* Back to landing page */}
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label={language === 'ar' ? 'رجوع' : 'Back'}
+            className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-(--ln-gold)/50 bg-(--bg-soft)/80 dark:bg-[#282019]/80 text-xs font-bold text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] backdrop-blur-sm transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 rtl:rotate-180" />
+          </button>
+        )}
         {/* Language Toggle */}
         <button
           type="button"

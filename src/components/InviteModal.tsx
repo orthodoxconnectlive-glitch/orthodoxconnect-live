@@ -62,6 +62,22 @@ export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => 
     window.open(`sms:?body=${text}`, '_blank');
   };
 
+  const handleNativeShare = async () => {
+    const text =
+      language === 'ar'
+        ? `سلام الرب يكون معنا! ادعُ عائلتك الكنسية إلى أرثوذكس كونكت: ${referralUrl}`
+        : `May the Lord's peace be with us! Invite your church family to OrthodoxConnect: ${referralUrl}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'OrthodoxConnect', text, url: referralUrl });
+      } catch (e) {
+        // User cancelled the share sheet — nothing to do.
+      }
+    } else {
+      handleCopy();
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
       <div className="relative w-full max-w-md bg-stone-950 border border-amber-600/40 rounded-2xl p-6 shadow-2xl text-stone-100 text-left rtl:text-right">
@@ -96,6 +112,14 @@ export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => 
 
         {/* Action Buttons */}
         <div className="space-y-3">
+          <button
+            onClick={handleNativeShare}
+            className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-sm flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer"
+          >
+            <Share2 className="w-5 h-5" />
+            <span>{language === 'ar' ? 'مشاركة على فيسبوك / واتساب / انستجرام' : 'Share on Facebook / WhatsApp / Instagram'}</span>
+          </button>
+
           <button
             onClick={handleCopy}
             className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-stone-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"

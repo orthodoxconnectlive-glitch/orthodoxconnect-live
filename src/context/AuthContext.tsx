@@ -167,6 +167,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSessionExpiredNotice(false);
         // Welcome ritual: the app will show the candle modal once.
         try { localStorage.setItem('oc_welcome_candle', '1'); } catch {}
+        // Meta Pixel: signup conversion for ad campaigns.
+        try { (window as any).fbq?.('track', 'CompleteRegistration'); } catch {}
       }
       return { error: null };
     } catch (err: any) {

@@ -65,8 +65,8 @@ export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => 
   const handleNativeShare = async () => {
     const text =
       language === 'ar'
-        ? `سلام الرب يكون معنا! ادعُ عائلتك الكنسية إلى أرثوذكس كونكت: ${referralUrl}`
-        : `May the Lord's peace be with us! Invite your church family to OrthodoxConnect: ${referralUrl}`;
+        ? `🤝 سلام الرب يكون معنا! أدعوك للانضمام إلى أرثوذكس كونكت — بيت واحد لكل حياتك الروحية: قداسات بث مباشر، ترانيم وعظات، ٢٤٤ كتاب أرثوذكسي، دليل الكنائس، والتقويم الكنسي — مجاني للأبد! ${referralUrl}`
+        : `🤝 May the Lord's peace be with us! I invite you to join OrthodoxConnect — one home for your whole Orthodox life: live liturgies, hymns & sermons, 244 Orthodox books, church directory, and church calendar — free forever! ${referralUrl}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: 'OrthodoxConnect', text, url: referralUrl });

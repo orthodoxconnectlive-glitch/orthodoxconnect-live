@@ -53,6 +53,22 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, in
   // Search & Filter
   const [userSearchQuery, setUserSearchQuery] = useState('');
 
+  // User activity (last_seen) — admin-only visibility. last_seen arrives on each
+  // profile from /api/profiles and is the last time the user made an
+  // authenticated API call. Used to spot quiet accounts worth cleaning up.
+  const [activityFilter, setActivityFilter] = useState<'all' | 'active' | 'quiet' | 'never'>('all');
+  const [sortByLastSeen, setSortByLastSeen] = useState(false);
+  const daysSince = (iso?: string | null): number | null => {
+    if (!iso) return null;
+    const ms = new Date(iso).getTime();
+    if (isNaN(ms)) return null;
+    return Math.floor((Date.now() - ms) / (24 * 60 * 60 * 1000));
+  };
+  const lastSeenMs = (u: any): number => {
+    const ms = u?.last_seen ? new Date(u.last_seen).getTime() : NaN;
+    return isNaN(ms) ? -Infinity : ms;
+  };
+
   // Modals & Forms
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [newMemberForm, setNewMemberForm] = useState({
@@ -524,12 +540,21 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, in
 
   const pendingCount = reportsList.filter((r) => r.status === 'pending').length;
 
-  const filteredUsers = usersList.filter(
-    (u) =>
-      u.full_name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
-      u.parish.toLowerCase().includes(userSearchQuery.toLowerCase())
-  );
+  const filteredUsers = usersList
+    .filter(
+      (u) =>
+        u.full_name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+        u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+        u.parish.toLowerCase().includes(userSearchQuery.toLowerCase())
+    )
+    .filter((u) => {
+      if (activityFilter === 'all') return true;
+      const d = daysSince((u as any)?.last_seen);
+      if (activityFilter === 'never') return d === null;
+      if (activityFilter === 'active') return d !== null && d <= 7;
+      return d === null || d > 30; // quiet
+    });
+  if (sortByLastSeen) filteredUsers.sort((a, b) => lastSeenMs(a) - lastSeenMs(b));
 
   const filteredClergy = usersList.filter(
     (u) =>
@@ -550,6 +575,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, in
                   <th className="py-3 px-3">{t('adminThParish')}</th>
                   <th className="py-3 px-3">{t('adminThRole')}</th>
                   <th className="py-3 px-3">{t('adminThJoined')}</th>
+                  <th className="py-3 px-3">Last active</th>
                   <th className="py-3 px-3">{t('adminThStatus')}</th>
                   <th className="py-3 px-3 text-right">{t('adminThActions')}</th>
                 </tr>
@@ -557,7 +583,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, in
               <tbody className="divide-y divide-(--ln-bright)/20">
                 {list.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-(--tx-soft)">
+                    <td colSpan={8} className="py-6 text-center text-(--tx-soft)">
                       {emptyMessage}
                     </td>
                   </tr>
@@ -652,6 +678,26 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, in
                         {/* Joined Date */}
                         <td className="py-3 px-3 text-(--tx-soft) text-[11px]">
                           {user.created_at ? new Date(user.created_at).toLocaleDateString() : t('adminActive')}
+                        </td>
+
+                        {/* Last active (admin only) */}
+                        <td className="py-3 px-3">
+                          {(() => {
+                            const d = daysSince((user as any)?.last_seen);
+                            if (d === null)
+                              return (
+                                <span className="px-2 py-0.5 rounded-full bg-gray-500/20 text-(--tx-soft) text-[10px] font-bold uppercase">
+                                  Never
+                                </span>
+                              );
+                            const color = d <= 7 ? 'bg-green-600' : d <= 30 ? 'bg-amber-500' : 'bg-red-600';
+                            const label = d <= 0 ? 'Today' : d === 1 ? '1d ago' : `${d}d ago`;
+                            return (
+                              <span className={`px-2 py-0.5 rounded-full ${color} text-white text-[10px] font-bold uppercase`}>
+                                {label}
+                              </span>
+                            );
+                          })()}
                         </td>
 
                         {/* Status */}
@@ -892,6 +938,42 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, in
               onChange={(e) => setUserSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 rounded-xl bg-(--bg-inset2) border border-(--ln-bright)/30 text-xs text-(--tx-head) placeholder-(--tx-soft)/70 focus:outline-none focus:border-(--ln-bright)"
             />
+          </div>
+
+          {/* Activity filter — admin only */}
+          <div className="flex flex-wrap items-center gap-2">
+            {(
+              [
+                ['all', 'All members'],
+                ['active', 'Active this week'],
+                ['quiet', 'Quiet 30+ days'],
+                ['never', 'Never seen'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActivityFilter(key)}
+                className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors cursor-pointer ${
+                  activityFilter === key
+                    ? 'bg-(--ac-bright) text-white shadow'
+                    : 'bg-(--bg-inset2) text-(--tx-soft) hover:bg-(--bg-inset)'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setSortByLastSeen((v) => !v)}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors cursor-pointer ${
+                sortByLastSeen
+                  ? 'bg-(--ac-gold) text-white shadow'
+                  : 'bg-(--bg-inset2) text-(--tx-soft) hover:bg-(--bg-inset)'
+              }`}
+            >
+              {sortByLastSeen ? '✓ ' : ''}Quietest first
+            </button>
           </div>
 
           {renderUsersTable(filteredUsers, t('adminNoMatch'))}

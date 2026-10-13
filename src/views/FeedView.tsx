@@ -173,6 +173,12 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
   // New post input state
   const [newPostText, setNewPostText] = useState('');
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const autoGrowComposer = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 220) + 'px';
+  };
   const [imageUrl, setImageUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [showVideoUrlInput, setShowVideoUrlInput] = useState(false);
@@ -476,6 +482,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       });
 
       setNewPostText('');
+      autoGrowComposer(composerRef.current);
       setImageUrl('');
       setVideoUrl('');
       setShowVideoUrlInput(false);
@@ -741,12 +748,16 @@ export const FeedView: React.FC<FeedViewProps> = ({
               ☨
             </div>
             <div className="flex-1 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) dark:border-[#8b6b4a] p-2.5 flex items-center gap-2">
-              <input
-                type="text"
+              <textarea
+                ref={composerRef}
                 value={newPostText}
-                onChange={(e) => setNewPostText(e.target.value)}
+                onChange={(e) => {
+                  setNewPostText(e.target.value);
+                  autoGrowComposer(e.target);
+                }}
                 placeholder={t('sharePost')}
-                className="w-full bg-transparent text-xs font-serif uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute) dark:placeholder-(--tx-ph-dark) focus:outline-none"
+                rows={1}
+                className="w-full bg-transparent text-xs font-serif uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute) dark:placeholder-(--tx-ph-dark) focus:outline-none resize-none overflow-hidden"
               />
               <button
                 type="button"

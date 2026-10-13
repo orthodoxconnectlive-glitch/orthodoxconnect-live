@@ -948,6 +948,11 @@ async function ensureLastSeenColumn(db: D1Database): Promise<void> {
 // Throttle map: user id -> last touch timestamp (per Worker isolate).
 // Keeps presence writes to ~1 per user per 5 minutes.
 const presenceTouchedAt = new Map<string, number>();
+// Holds the ExecutionContext of the current fetch invocation so the
+// last_seen touch below can use ctx.waitUntil() — without it the runtime
+// may freeze the isolate after the response and the write silently dies.
+// Set on every fetch; cleared on scheduled (no ctx there).
+let activeCtx: ExecutionContext | null = null;
 
 // Verified identity: the ONLY trusted source of "who is calling".
 // Resolves the session token (query ?token= or Authorization: Bearer header)
@@ -990,17 +995,20 @@ export async function getAuthIdentity(request: Request, env: Env) {
     const role = (p.role || '').trim().toLowerCase();
     const isSuperAdmin = email === SUPER_ADMIN_EMAIL || role === 'super_admin';
     const isAdmin = isSuperAdmin || role === 'admin' || role === 'owner' || ADMIN_EMAILS.includes(email);
-    // Real presence: best-effort last_seen touch, throttled to one write
-    // per user per 5 minutes per isolate. Fire-and-forget so it never slows
-    // down the request; a lost write simply retries on the next call.
+    // Real presence: last_seen touch, throttled to one write per user
+    // per 5 minutes per isolate. Runs through ctx.waitUntil() so the write
+    // is guaranteed to finish after the response — never fire-and-forget,
+    // which the runtime could silently drop (the cause of "Never" showing
+    // for genuinely active users).
     try {
       const nowMs = Date.now();
       if (nowMs - (presenceTouchedAt.get(p.id) || 0) > 5 * 60 * 1000) {
         presenceTouchedAt.set(p.id, nowMs);
-        ensureLastSeenColumn(env.DB).then(() =>
+        const touch = ensureLastSeenColumn(env.DB).then(() =>
           env.DB.prepare('UPDATE profiles SET last_seen = ? WHERE id = ?')
             .bind(new Date(nowMs).toISOString(), p.id).run()
         ).catch(() => {});
+        if (activeCtx) activeCtx.waitUntil(touch);
       }
     } catch (e) {}
     return { email, role, id: p.id, bearerToken: token, isSuperAdmin, isAdmin };
@@ -2340,6 +2348,7 @@ async function checkYouTubeLiveStatus(db: D1Database): Promise<void> {
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    activeCtx = ctx;
     const url = new URL(request.url);
 
     // 1. CORS Preflight
@@ -6712,6 +6721,7 @@ export default {
 
   // Daily community bots: verse, saint, and calendar posts.
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
+    activeCtx = null;
     try {
       if (!env.DB) return;
       await ensureD1TablesOnce(env.DB);

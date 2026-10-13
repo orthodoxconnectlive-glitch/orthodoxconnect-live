@@ -659,6 +659,8 @@ export async function fetchPostComments(postId: string): Promise<any[]> {
           content: c.content,
           createdAt: c.created_at || new Date().toISOString(),
           created_at: c.created_at || new Date().toISOString(),
+          reaction_counts: c.reaction_counts || {},
+          my_emoji: c.my_emoji || null,
         }));
       }
     }

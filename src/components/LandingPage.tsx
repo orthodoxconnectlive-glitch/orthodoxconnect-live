@@ -208,7 +208,7 @@ export const LandingPage: React.FC = () => {
             onClick={() => openAuth('signup')}
             className="px-10 py-4 rounded-2xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white font-serif font-bold text-sm uppercase tracking-wider shadow-xl transition-all cursor-pointer"
           >
-            {ar ? 'ابدأ مجاناً الآن' : 'Start Free Now'}
+            {ar ? 'مجاني تماماً' : 'Completely Free'}
           </button>
         </div>
       </section>

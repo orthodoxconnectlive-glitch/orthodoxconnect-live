@@ -92,8 +92,8 @@ export const LandingPage: React.FC = () => {
       <header className="sticky top-0 z-20 bg-(--bg-page)/90 dark:bg-[#0f0c09]/90 backdrop-blur-md border-b border-(--ln-gold)/30">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-(--ac-gold)/20 border border-(--ln-gold) flex items-center justify-center text-(--ac-gold-tx)">
-              <Cross className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl overflow-hidden border border-(--ln-gold) shrink-0">
+              <img src="/launchericon-512x512.png" alt="OrthodoxConnect" className="w-full h-full object-cover" />
             </div>
             <span className="font-serif-coptic font-bold text-sm uppercase tracking-wider">
               OrthodoxConnect
@@ -124,8 +124,8 @@ export const LandingPage: React.FC = () => {
         <div className="absolute top-0 start-0 w-72 h-72 bg-(--ac-gold)/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 end-0 w-72 h-72 bg-(--ac-bronze)/10 rounded-full blur-3xl pointer-events-none" />
         <div className="max-w-3xl mx-auto px-4 pt-14 pb-10 text-center relative z-10">
-          <div className="w-20 h-20 mx-auto rounded-3xl bg-(--ac-gold)/20 border-2 border-(--ln-gold) flex items-center justify-center text-(--ac-gold-tx) shadow-xl mb-6">
-            <Cross className="w-10 h-10" />
+          <div className="w-20 h-20 mx-auto rounded-3xl overflow-hidden border-2 border-(--ln-gold) shadow-xl mb-6">
+            <img src="/launchericon-512x512.png" alt="OrthodoxConnect" className="w-full h-full object-cover" />
           </div>
           <h1 className="font-serif-coptic font-bold text-3xl sm:text-4xl uppercase tracking-wider mb-4">
             OrthodoxConnect
@@ -217,8 +217,8 @@ export const LandingPage: React.FC = () => {
       <footer className="border-t border-(--ln-gold)/30 mt-6">
         <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-(--ac-gold)/20 border border-(--ln-gold) flex items-center justify-center text-(--ac-gold-tx)">
-              <Cross className="w-4 h-4" />
+            <div className="w-7 h-7 rounded-lg overflow-hidden border border-(--ln-gold) shrink-0">
+              <img src="/launchericon-512x512.png" alt="OrthodoxConnect" className="w-full h-full object-cover" />
             </div>
             <span className="text-[10px] font-serif uppercase tracking-widest text-(--tx-mute) dark:text-[#a89379]">
               OrthodoxConnect · Fellowship in Faith

@@ -88,14 +88,13 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
         ))}
 
         <div className="relative z-10 flex flex-col items-center text-center gap-4">
-          {/* Golden Orthodox cross emblem */}
+          {/* App logo: golden Coptic cross */}
           <div className="pointer-events-none" aria-hidden="true">
-            <svg viewBox="0 0 40 80" className="w-9 h-[68px] text-[#e8c25a] drop-shadow-[0_0_16px_rgba(232,194,90,0.85)]" fill="currentColor">
-              <rect x="18" y="4" width="4" height="72" rx="1.5" />
-              <rect x="12" y="12" width="16" height="4" rx="1.5" />
-              <rect x="6" y="26" width="28" height="4" rx="1.5" />
-              <rect x="10" y="54" width="20" height="4" rx="1.5" transform="rotate(24 20 56)" />
-            </svg>
+            <img
+              src="/launchericon-512x512.png"
+              alt=""
+              className="w-20 h-20 rounded-full object-cover drop-shadow-[0_0_16px_rgba(232,194,90,0.85)]"
+            />
           </div>
 
           {/* Date, Coptic date & Fasting pills */}

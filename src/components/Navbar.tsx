@@ -207,11 +207,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="w-11 h-11 rounded-full bg-(--ac-gold) dark:bg-(--ac-bright) p-0.5 shadow-md flex items-center justify-center shrink-0 cursor-pointer"
                 title={t('profile')}
               >
-                <img
-                  src="/launchericon-512x512.png"
-                  alt="OrthodoxConnect"
-                  className="w-full h-full rounded-full object-cover"
-                />
+                {profile?.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt={profile.full_name || 'Profile'}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-(--chip-dark) dark:bg-[#120e0b] rounded-full flex items-center justify-center text-(--ac-gold-tx) font-bold text-base">
+                    ☨
+                  </div>
+                )}
               </button>
               <button
                 onClick={() => onNavigate('feed')}

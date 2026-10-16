@@ -741,13 +741,13 @@ export const FeedView: React.FC<FeedViewProps> = ({
         );
       })()}
 
-      <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-4 shadow-lg">
+      <div className="bg-gradient-to-b from-[#0e1c40] via-[#13264e] to-[#0a142e] border-2 border-[#c9a227]/40 rounded-3xl p-4 shadow-lg">
         <form onSubmit={handleCreatePost} className="space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full bg-(--chip-dark) text-(--ac-gold-tx) flex items-center justify-center font-bold text-lg shrink-0 shadow-md border-2 border-(--ln-gold)">
+            <div className="w-11 h-11 rounded-full bg-[#e8c25a]/15 text-[#e8c25a] flex items-center justify-center font-bold text-lg shrink-0 shadow-md border-2 border-[#c9a227]/60">
               ☨
             </div>
-            <div className="flex-1 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) dark:border-[#8b6b4a] p-2.5 flex items-center gap-2">
+            <div className="flex-1 rounded-2xl bg-white/5 border border-[#c9a227]/40 p-2.5 flex items-center gap-2">
               <textarea
                 ref={composerRef}
                 value={newPostText}
@@ -757,7 +757,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 }}
                 placeholder={t('sharePost')}
                 rows={1}
-                className="w-full bg-transparent text-xs font-serif uppercase tracking-wider text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute) dark:placeholder-(--tx-ph-dark) focus:outline-none resize-none overflow-hidden"
+                className="w-full bg-transparent text-xs font-serif uppercase tracking-wider text-[#f2e3b3] placeholder-[#a89379] focus:outline-none resize-none overflow-hidden"
               />
               <button
                 type="button"

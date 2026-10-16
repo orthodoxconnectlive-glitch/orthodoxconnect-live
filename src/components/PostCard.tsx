@@ -735,7 +735,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h4
-                className="font-serif-coptic font-bold text-xs sm:text-sm text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider cursor-pointer hover:underline hover:text-(--ac-gold-tx) transition-colors"
+                className="font-serif-coptic font-black text-xs sm:text-sm text-slate-900 dark:text-[#f5ebd9] uppercase tracking-wider cursor-pointer hover:underline hover:text-(--ac-gold-tx) transition-colors"
                 onClick={() =>
                   onSelectUser?.({
                     id: authorId,
@@ -1234,7 +1234,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                       <div className="p-3 rounded-2xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/20 shadow-xs inline-block max-w-full">
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <span
-                            className="font-bold text-xs text-(--tx-strong) dark:text-[#f5ebd9] hover:underline cursor-pointer font-serif"
+                            className="font-black text-xs text-slate-900 dark:text-[#f5ebd9] hover:underline cursor-pointer font-serif"
                             onClick={() =>
                               onSelectUser?.({
                                 id: comm.user_id || comm.userId,

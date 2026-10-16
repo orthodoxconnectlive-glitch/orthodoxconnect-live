@@ -379,9 +379,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="flex items-center justify-between pb-3 border-b border-(--ln-gold)/40">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-(--ac-gold) dark:bg-(--ac-bright) p-0.5 shadow-md flex items-center justify-center shrink-0">
-                    <div className="w-full h-full bg-(--chip-dark) dark:bg-[#120e0b] rounded-[10px] flex items-center justify-center text-(--ac-gold-tx) font-bold text-base">
-                      ☨
-                    </div>
+                    <img
+                      src="/launchericon-512x512.png"
+                      alt="OrthodoxConnect"
+                      className="w-full h-full rounded-[10px] object-cover"
+                    />
                   </div>
                   <div>
                     <h2 className="font-serif-coptic font-bold text-base text-(--tx-strong) dark:text-[#f5ebd9]">

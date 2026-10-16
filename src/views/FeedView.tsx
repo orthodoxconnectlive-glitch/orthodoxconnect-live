@@ -747,7 +747,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
             <div className="w-11 h-11 rounded-full bg-[#e8c25a]/15 text-[#e8c25a] flex items-center justify-center font-bold text-lg shrink-0 shadow-md border-2 border-[#c9a227]/60">
               ☨
             </div>
-            <div className="flex-1 rounded-2xl bg-white/5 border border-[#c9a227]/40 p-2.5 flex items-center gap-2">
+            <div className="flex-1 rounded-2xl bg-white border border-[#c9a227]/40 p-2.5 flex items-center gap-2">
               <textarea
                 ref={composerRef}
                 value={newPostText}
@@ -757,7 +757,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
                 }}
                 placeholder={t('sharePost')}
                 rows={1}
-                className="w-full bg-transparent text-xs font-serif uppercase tracking-wider text-[#f2e3b3] placeholder-[#a89379] focus:outline-none resize-none overflow-hidden"
+                className="w-full bg-transparent text-xs font-serif uppercase tracking-wider text-slate-800 placeholder-slate-400 focus:outline-none resize-none overflow-hidden"
               />
               <button
                 type="button"

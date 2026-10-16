@@ -754,15 +754,11 @@ export const PostCard: React.FC<PostCardProps> = ({
                     <button
                       type="button"
                       onClick={() => onToggleFollow(authorName)}
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
-                        isFollowed
-                          ? 'bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) border border-(--ln-gold)'
-                          : 'bg-(--ac-bronze) hover:bg-(--ac-bronze-dk) text-white shadow-sm'
-                      }`}
+                      className="px-2.5 py-0.5 rounded-full text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer bg-green-600 hover:bg-green-700 text-white border border-green-700 shadow-sm"
                     >
                       {isFollowed ? (
                         <>
-                          <UserCheck className="w-3 h-3 text-(--ac-bronze-tx)" />
+                          <UserCheck className="w-3 h-3" />
                           <span>{t('following')}</span>
                         </>
                       ) : (
@@ -778,7 +774,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                     <button
                       type="button"
                       onClick={() => onOpenMessengerWithUser(authorId || authorName)}
-                      className="px-2.5 py-0.5 rounded-full text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 bg-(--chip-dark) dark:bg-[#282019] text-(--ac-gold-tx) hover:bg-(--ac-bronze) hover:text-white border border-(--ln-gold) transition-all cursor-pointer shadow-sm"
+                      className="px-2.5 py-0.5 rounded-full text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white border border-green-700 transition-all cursor-pointer shadow-sm"
                       title={language === 'ar' ? 'إرسال رسالة خاصة' : 'Send message'}
                     >
                       <MessageSquare className="w-3 h-3" />

@@ -744,8 +744,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
       <div className="bg-gradient-to-b from-[#0e1c40] via-[#13264e] to-[#0a142e] border-2 border-[#c9a227]/40 rounded-3xl p-4 shadow-lg">
         <form onSubmit={handleCreatePost} className="space-y-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full bg-[#e8c25a]/15 text-[#e8c25a] flex items-center justify-center font-bold text-lg shrink-0 shadow-md border-2 border-[#c9a227]/60">
-              ☨
+            <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 shadow-md border-2 border-[#c9a227]/60">
+              <img src="/launchericon-512x512.png" alt="OrthodoxConnect" className="w-full h-full object-cover" />
             </div>
             <div className="flex-1 rounded-2xl bg-white border border-[#c9a227]/40 p-2.5 flex items-center gap-2">
               <textarea

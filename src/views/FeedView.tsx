@@ -723,7 +723,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         return (
           <button
             onClick={openMyChurch}
-            className="w-full p-3.5 rounded-3xl bg-gradient-to-r from-[#e8c25a] via-[#d4a843] to-[#c9a227] dark:from-[#e8c25a] dark:via-[#d4a843] dark:to-[#c9a227] border-2 border-[#a8821f] shadow-lg flex items-center gap-3 cursor-pointer text-left rtl:text-right"
+            className="w-full p-3.5 rounded-3xl bg-gradient-to-r from-[#ffe27a] via-[#ffd23f] to-[#f5b81f] border-2 border-[#d4a017] shadow-lg flex items-center gap-3 cursor-pointer text-left rtl:text-right"
           >
             <div className="w-11 h-11 rounded-2xl bg-black/15 flex items-center justify-center shrink-0">
               <Church className="w-6 h-6 text-[#3a2c10]" />

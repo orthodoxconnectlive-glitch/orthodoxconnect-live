@@ -166,7 +166,7 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
           {/* Open Full Liturgical Calendar View */}
           <button
             onClick={onOpenCalendar}
-            className="px-8 py-3 rounded-full bg-gradient-to-b from-[#f0cd6e] to-[#c9a227] hover:brightness-110 text-[#1a2340] font-serif font-black text-sm uppercase tracking-wider flex items-center gap-2 shadow-[0_4px_20px_rgba(201,162,39,0.45)] transition-all cursor-pointer"
+            className="px-8 py-3 rounded-full bg-gradient-to-b from-[#ffe27a] to-[#f5b81f] hover:brightness-110 text-[#1a2340] font-serif font-black text-sm uppercase tracking-wider flex items-center gap-2 shadow-[0_4px_20px_rgba(245,184,31,0.45)] transition-all cursor-pointer"
           >
             <Calendar className="w-4 h-4" />
             <span>{t('calendar')}</span>

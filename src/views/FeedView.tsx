@@ -723,20 +723,20 @@ export const FeedView: React.FC<FeedViewProps> = ({
         return (
           <button
             onClick={openMyChurch}
-            className="w-full p-3.5 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg flex items-center gap-3 cursor-pointer text-left rtl:text-right"
+            className="w-full p-3.5 rounded-3xl bg-gradient-to-r from-[#e8c25a] via-[#d4a843] to-[#c9a227] dark:from-[#e8c25a] dark:via-[#d4a843] dark:to-[#c9a227] border-2 border-[#a8821f] shadow-lg flex items-center gap-3 cursor-pointer text-left rtl:text-right"
           >
-            <div className="w-11 h-11 rounded-2xl bg-(--ac-gold)/15 flex items-center justify-center shrink-0">
-              <Church className="w-6 h-6 text-(--ac-gold-tx)" />
+            <div className="w-11 h-11 rounded-2xl bg-black/15 flex items-center justify-center shrink-0">
+              <Church className="w-6 h-6 text-[#3a2c10]" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-(--tx-mute)">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#5c4a1e]">
                 {language === 'ar' ? 'كنيستى' : 'My church'}
               </p>
-              <p className="font-serif font-bold text-sm text-(--tx-strong) dark:text-[#f5ebd9] truncate">
+              <p className="font-serif font-bold text-sm text-[#2a2110] truncate">
                 {myChurch}
               </p>
             </div>
-            <ChevronRight className="w-5 h-5 text-(--tx-mute) shrink-0 rtl:rotate-180" />
+            <ChevronRight className="w-5 h-5 text-[#5c4a1e] shrink-0 rtl:rotate-180" />
           </button>
         );
       })()}

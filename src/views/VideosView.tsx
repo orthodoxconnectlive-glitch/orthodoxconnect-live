@@ -21,6 +21,7 @@ import { uploadVideoToBunnyStream } from '../utils/storage';
 import { addNotification } from '../utils/notifications';
 import { VideoCard, VideoComment } from '../components/VideoCard';
 import { useAuth } from '../context/AuthContext';
+import { CinemaView } from './CinemaView';
 import { UserProfileData } from './ProfileView';
 
 interface VideosViewProps {
@@ -50,7 +51,7 @@ export const VideosView: React.FC<VideosViewProps> = ({
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedHashtag, setSelectedHashtag] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
+  const [activeTab, setActiveTab] = useState<'foryou' | 'following' | 'cinema'>('foryou');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
@@ -566,6 +567,20 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
             <button
               type="button"
+              onClick={() => setActiveTab('cinema')}
+              className={`text-sm font-bold tracking-wider uppercase transition-all cursor-pointer ${
+                activeTab === 'cinema'
+                  ? 'text-white border-b-2 border-(--ln-gold) pb-0.5 drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]'
+                  : 'text-white/60 hover:text-white/90'
+              }`}
+            >
+              Cinema
+            </button>
+
+            <span className="text-white/30 text-xs">|</span>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('foryou')}
               className={`text-sm font-bold tracking-wider uppercase transition-all cursor-pointer ${
                 activeTab === 'foryou'
@@ -645,6 +660,13 @@ export const VideosView: React.FC<VideosViewProps> = ({
           </div>
         )}
 
+        {/* Cinema tab: film library */}
+        {activeTab === 'cinema' ? (
+          <div className="w-full h-full overflow-y-auto bg-(--bg-page) dark:bg-[#0f0c09]">
+            <CinemaView />
+          </div>
+        ) : (
+        <>
         {/* Video Feed Snap-Scroll Container */}
         {loading ? (
           <div className="w-full h-full flex flex-col items-center justify-center text-[#f5ebd9] space-y-3 bg-[#1c1611]">
@@ -737,6 +759,8 @@ export const VideosView: React.FC<VideosViewProps> = ({
             </div>
           )}
           </>
+        )}
+        </>
         )}
       </div>
 

@@ -5678,6 +5678,54 @@ export default {
         }
       }
 
+      // 15c. Coptic Cinema (/api/cinema) — film library for Coptic history & movies.
+      if (url.pathname === '/api/cinema' || url.pathname === '/api/cinema/') {
+        if (env.DB) {
+          try { await env.DB.exec(`CREATE TABLE IF NOT EXISTS cinema_films ( id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', youtube_id TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'movie', sort_order INTEGER NOT NULL DEFAULT 0, added_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`); } catch (e) { /* table exists */ }
+        }
+        if (request.method === 'GET') {
+          let films: any[] = [];
+          if (env.DB) {
+            try {
+              const { results } = await env.DB.prepare(`SELECT id, title, description, youtube_id, category, sort_order, created_at FROM cinema_films ORDER BY sort_order ASC, datetime(created_at) DESC`).all();
+              films = results || [];
+            } catch (e) { /* empty library */ }
+          }
+          return jsonResponse({ success: true, films });
+        }
+        if (request.method === 'POST') {
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          if (!auth.isAdmin) return jsonResponse({ success: false, error: 'Admin only.' }, 403);
+          const body: any = await request.json().catch(() => ({}));
+          const title = String(body.title || '').trim();
+          const description = String(body.description || '').trim();
+          const youtubeId = extractYouTubeId(body.youtube_url || body.youtube_id || '');
+          const category = body.category === 'history' ? 'history' : 'movie';
+          if (!title || !youtubeId) return jsonResponse({ success: false, error: !title ? 'Please enter a title for the film.' : 'That YouTube link did not work. Open the video in the YouTube app, tap Share, copy the link, and paste it here.' }, 400);
+          const id = `film-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          let sortOrder = 0;
+          if (env.DB) {
+            try { const r = await env.DB.prepare(`SELECT COALESCE(MAX(sort_order), -1) AS m FROM cinema_films`).first<any>(); sortOrder = (r && typeof r.m === 'number' ? r.m : -1) + 1; } catch (e) {}
+            await env.DB.prepare(`INSERT INTO cinema_films (id, title, description, youtube_id, category, sort_order, added_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, title, description, youtubeId, category, sortOrder, auth.id, new Date().toISOString()).run();
+          }
+          return jsonResponse({ success: true, film: { id, title, description, youtube_id: youtubeId, category } }, 201);
+        }
+      }
+
+      // 15c-2. Cinema film delete (/api/cinema/:id) — admin only.
+      if (url.pathname.match(/^\/api\/cinema\/[^/]+\/?$/) && env.DB) {
+        if (request.method === 'DELETE') {
+          const auth = await getAuthIdentity(request, env);
+          if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          if (!auth.isAdmin) return jsonResponse({ success: false, error: 'Admin only.' }, 403);
+          try { await env.DB.exec(`CREATE TABLE IF NOT EXISTS cinema_films ( id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', youtube_id TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'movie', sort_order INTEGER NOT NULL DEFAULT 0, added_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')) )`); } catch (e) {}
+          const filmId = decodeURIComponent(url.pathname.split('/').filter(Boolean).pop() || '');
+          await env.DB.prepare(`DELETE FROM cinema_films WHERE id = ?`).bind(filmId).run();
+          return jsonResponse({ success: true });
+        }
+      }
+
       // 16a. Book like toggle (/api/books/:id/like)
       if (url.pathname.match(/^\/api\/books\/[^/]+\/like\/?$/) && env.DB) {
         const bookId = decodeURIComponent(url.pathname.replace('/api/books/', '').replace(/\/like\/?$/, ''));

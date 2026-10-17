@@ -74,9 +74,11 @@ export const CinemaView: React.FC = () => {
         body: JSON.stringify({ title: newTitle.trim(), youtube_url: newUrl.trim(), description: newDesc.trim(), category: newCat }),
       });
       if (d.success) {
-        setFilms((prev) => [d.film, ...prev]);
+        const added = d.films || (d.film ? [d.film] : []);
+        setFilms((prev) => [...added, ...prev]);
         setNewTitle(''); setNewUrl(''); setNewDesc(''); setNewCat('movie');
         setShowAdd(false);
+        if (d.count > 1) setMsg(ar ? `تمت إضافة ${d.count} فيلم من القائمة.` : `${d.count} films added from the playlist.`);
       } else {
         setMsg(d.error || (ar ? 'حدث خطأ.' : 'Something went wrong.'));
       }

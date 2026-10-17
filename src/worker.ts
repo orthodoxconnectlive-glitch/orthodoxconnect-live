@@ -5702,12 +5702,36 @@ export default {
           const description = String(body.description || '').trim();
           const rawUrl = String(body.youtube_url || body.youtube_id || '');
           let youtubeId = extractYouTubeId(rawUrl) || '';
-          if (!youtubeId) {
-            const lm = rawUrl.match(/[?&]list=([A-Za-z0-9_-]+)/);
-            if (lm) youtubeId = 'list:' + lm[1];
-          }
+          const lm = rawUrl.match(/[?&]list=([A-Za-z0-9_-]+)/);
           const category = body.category === 'history' ? 'history' : 'movie';
-          if (!title || !youtubeId) return jsonResponse({ success: false, error: !title ? 'Please enter a title for the film.' : 'That YouTube link did not work. Open the video or playlist in the YouTube app, tap Share, copy the link, and paste it here.' }, 400);
+          if (!title || (!youtubeId && !lm)) return jsonResponse({ success: false, error: !title ? 'Please enter a title for the film.' : 'That YouTube link did not work. Open the video or playlist in the YouTube app, tap Share, copy the link, and paste it here.' }, 400);
+          // Playlist: unpack every video into its own film.
+          if (!youtubeId && lm) {
+            const listId = lm[1];
+            let vids: string[] = [];
+            try {
+              const pr = await fetch(`https://www.youtube.com/playlist?list=${encodeURIComponent(listId)}`, { headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36', 'Accept-Language': 'en' } });
+              const html = await pr.text();
+              const seen = new Set<string>();
+              const re = /"videoId":"([A-Za-z0-9_-]{11})"/g;
+              let m: RegExpExecArray | null;
+              while ((m = re.exec(html)) && vids.length < 100) { if (!seen.has(m[1])) { seen.add(m[1]); vids.push(m[1]); } }
+            } catch (e) { /* fall through to single playlist entry */ }
+            if (vids.length > 0 && env.DB) {
+              let sortOrder = 0;
+              try { const r = await env.DB.prepare(`SELECT COALESCE(MAX(sort_order), -1) AS m FROM cinema_films`).first<any>(); sortOrder = (r && typeof r.m === 'number' ? r.m : -1) + 1; } catch (e) {}
+              const now = new Date().toISOString();
+              const films: any[] = [];
+              for (let i = 0; i < vids.length; i++) {
+                const id = `film-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                const vt = vids.length > 1 ? `${title} (${i + 1})` : title;
+                await env.DB.prepare(`INSERT INTO cinema_films (id, title, description, youtube_id, category, sort_order, added_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, vt, description, vids[i], category, sortOrder + i, auth.id, now).run();
+                films.push({ id, title: vt, description, youtube_id: vids[i], category });
+              }
+              return jsonResponse({ success: true, films, count: films.length }, 201);
+            }
+            youtubeId = 'list:' + listId;
+          }
           const id = `film-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           let sortOrder = 0;
           if (env.DB) {

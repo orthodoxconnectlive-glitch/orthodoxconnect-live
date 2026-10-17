@@ -5700,9 +5700,14 @@ export default {
           const body: any = await request.json().catch(() => ({}));
           const title = String(body.title || '').trim();
           const description = String(body.description || '').trim();
-          const youtubeId = extractYouTubeId(body.youtube_url || body.youtube_id || '');
+          const rawUrl = String(body.youtube_url || body.youtube_id || '');
+          let youtubeId = extractYouTubeId(rawUrl) || '';
+          if (!youtubeId) {
+            const lm = rawUrl.match(/[?&]list=([A-Za-z0-9_-]+)/);
+            if (lm) youtubeId = 'list:' + lm[1];
+          }
           const category = body.category === 'history' ? 'history' : 'movie';
-          if (!title || !youtubeId) return jsonResponse({ success: false, error: !title ? 'Please enter a title for the film.' : 'That YouTube link did not work. Open the video in the YouTube app, tap Share, copy the link, and paste it here.' }, 400);
+          if (!title || !youtubeId) return jsonResponse({ success: false, error: !title ? 'Please enter a title for the film.' : 'That YouTube link did not work. Open the video or playlist in the YouTube app, tap Share, copy the link, and paste it here.' }, 400);
           const id = `film-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           let sortOrder = 0;
           if (env.DB) {

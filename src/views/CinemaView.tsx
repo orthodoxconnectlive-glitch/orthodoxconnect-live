@@ -15,6 +15,13 @@ interface CinemaFilm {
 
 type CatFilter = 'all' | 'history' | 'movie';
 
+const isPlaylist = (f: CinemaFilm) => f.youtube_id.startsWith('list:');
+const playlistId = (f: CinemaFilm) => f.youtube_id.slice(5);
+const embedUrl = (f: CinemaFilm) =>
+  isPlaylist(f)
+    ? `https://www.youtube.com/embed/videoseries?list=${playlistId(f)}&autoplay=1`
+    : `https://www.youtube.com/embed/${f.youtube_id}?autoplay=1&rel=0`;
+
 export const CinemaView: React.FC = () => {
   const { profile } = useAuth();
   const { language } = useTheme();
@@ -201,12 +208,21 @@ export const CinemaView: React.FC = () => {
                 onClick={() => setPlaying(f)}
                 className="relative w-full aspect-video cursor-pointer group block"
               >
-                <img
-                  src={`https://img.youtube.com/vi/${f.youtube_id}/hqdefault.jpg`}
-                  alt={f.title}
-                  loading="lazy"
-                  className="w-full h-full object-cover"
-                />
+                {isPlaylist(f) ? (
+                  <span className="w-full h-full bg-gradient-to-br from-[#0e1c40] to-[#13264e] flex flex-col items-center justify-center gap-1.5">
+                    <Clapperboard className="w-8 h-8 text-[#e8c25a]" />
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#e8c25a]/80">
+                      {ar ? 'قائمة تشغيل' : 'Playlist'}
+                    </span>
+                  </span>
+                ) : (
+                  <img
+                    src={`https://img.youtube.com/vi/${f.youtube_id}/hqdefault.jpg`}
+                    alt={f.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover"
+                  />
+                )}
                 <span className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors flex items-center justify-center">
                   <span className="w-12 h-12 rounded-full bg-black/60 border-2 border-white/70 flex items-center justify-center">
                     <Play className="w-5 h-5 text-white fill-white ml-0.5" />
@@ -259,7 +275,7 @@ export const CinemaView: React.FC = () => {
             </div>
             <div className="aspect-video w-full">
               <iframe
-                src={`https://www.youtube.com/embed/${playing.youtube_id}?autoplay=1&rel=0`}
+                src={embedUrl(playing)}
                 title={playing.title}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen

@@ -5713,7 +5713,7 @@ export default {
               const pr = await fetch(`https://www.youtube.com/playlist?list=${encodeURIComponent(listId)}`, { headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36', 'Accept-Language': 'en' } });
               const html = await pr.text();
               const seen = new Set<string>();
-              const re = /"videoId":"([A-Za-z0-9_-]{11})"/g;
+              const re = /(?:"|\\x22)videoId(?:"|\\x22):(?:"|\\x22)([A-Za-z0-9_-]{11})/g;
               let m: RegExpExecArray | null;
               while ((m = re.exec(html)) && vids.length < 100) { if (!seen.has(m[1])) { seen.add(m[1]); vids.push(m[1]); } }
             } catch (e) { /* fall through to single playlist entry */ }

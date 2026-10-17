@@ -809,7 +809,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-serif font-bold transition-all cursor-pointer shadow-xs border ${
                 isSpeaking
                   ? 'bg-red-700 text-white border-red-800 animate-pulse'
-                  : 'bg-(--ac-gold) text-white border-[#b08b43] hover:bg-(--ac-gold-deep)'
+                  : 'bg-[#7A1C24] text-white border-[#5e141b] hover:bg-[#8f2230]'
               }`}
               title={isSpeaking ? (language === 'ar' ? 'إيقاف الصوت' : 'Stop Audio') : (language === 'ar' ? 'استمع إلى التأمل بصوت مسموع' : 'Listen to Reflection')}
             >

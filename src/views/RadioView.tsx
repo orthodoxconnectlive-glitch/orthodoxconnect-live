@@ -13,6 +13,7 @@ import {
   ChevronUp,
   Share2,
   X,
+  RadioTower,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -842,6 +843,20 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-(--bg-soft) dark:bg-[#282019] border border-(--ln-gold) text-(--tx-mute)">
                       {catLabel(t.category)}
                     </span>
+                    <button
+                      onClick={() => {
+                        setLiveUrl(`https://www.youtube.com/watch?v=${t.youtube_id}`);
+                        setLiveTitle(t.title);
+                        setLiveOn(true);
+                        setAdminMsg(ar ? 'تم ملء البث المباشر — اضغط حفظ البث.' : 'Live broadcast filled in — tap Save live.');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="p-1.5 rounded-lg text-red-600 hover:bg-red-100 dark:hover:bg-red-950 cursor-pointer"
+                      aria-label={ar ? 'استخدم كبث مباشر' : 'Use as live broadcast'}
+                      title={ar ? 'استخدم كبث مباشر' : 'Use as live broadcast'}
+                    >
+                      <RadioTower className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => adminDelete(t.id)}
                       className="p-1.5 rounded-lg text-red-600 hover:bg-red-100 dark:hover:bg-red-950 cursor-pointer"

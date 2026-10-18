@@ -5708,14 +5708,25 @@ export default {
           // Playlist: unpack every video into its own film.
           if (!youtubeId && lm) {
             const listId = lm[1];
-            let vids: string[] = [];
+            let vids: Array<{ id: string; title: string }> = [];
             try {
               const pr = await fetch(`https://www.youtube.com/playlist?list=${encodeURIComponent(listId)}`, { headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36', 'Accept-Language': 'en' } });
-              const html = await pr.text();
+              let html = await pr.text();
+              let prevHtml = '';
+              while (prevHtml !== html) { prevHtml = html; html = html.replace(/\\\\x([0-9a-fA-F]{2})/g, (_s, h) => String.fromCharCode(parseInt(h, 16))).replace(/\\x([0-9a-fA-F]{2})/g, (_s, h) => String.fromCharCode(parseInt(h, 16))); }
               const seen = new Set<string>();
-              const re = /(?:"|\\x22)videoId(?:"|\\x22):(?:"|\\x22)([A-Za-z0-9_-]{11})/g;
+              const re = /"videoId":"([A-Za-z0-9_-]{11})"/g;
               let m: RegExpExecArray | null;
-              while ((m = re.exec(html)) && vids.length < 100) { if (!seen.has(m[1])) { seen.add(m[1]); vids.push(m[1]); } }
+              while ((m = re.exec(html)) && vids.length < 100) {
+                if (seen.has(m[1])) continue;
+                seen.add(m[1]);
+                const seg = html.slice(m.index, m.index + 2500);
+                let tm = seg.match(/"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*?)"/);
+                if (!tm) tm = seg.match(/"title":\{"content":"((?:[^"\\]|\\.)*?)"/);
+                let vt = tm ? tm[1].replace(/\\"/g, '"').replace(/\\n/g, ' ') : '';
+                if (!vt) vt = `${title} (${vids.length + 1})`;
+                vids.push({ id: m[1], title: vt });
+              }
             } catch (e) { /* fall through to single playlist entry */ }
             if (vids.length > 0 && env.DB) {
               let sortOrder = 0;
@@ -5724,9 +5735,9 @@ export default {
               const films: any[] = [];
               for (let i = 0; i < vids.length; i++) {
                 const id = `film-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-                const vt = vids.length > 1 ? `${title} (${i + 1})` : title;
-                await env.DB.prepare(`INSERT INTO cinema_films (id, title, description, youtube_id, category, sort_order, added_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, vt, description, vids[i], category, sortOrder + i, auth.id, now).run();
-                films.push({ id, title: vt, description, youtube_id: vids[i], category });
+                const vt = vids[i].title;
+                await env.DB.prepare(`INSERT INTO cinema_films (id, title, description, youtube_id, category, sort_order, added_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, vt, description, vids[i].id, category, sortOrder + i, auth.id, now).run();
+                films.push({ id, title: vt, description, youtube_id: vids[i].id, category });
               }
               return jsonResponse({ success: true, films, count: films.length }, 201);
             }

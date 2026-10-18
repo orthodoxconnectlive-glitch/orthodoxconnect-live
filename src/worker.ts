@@ -2790,7 +2790,9 @@ export default {
         if ((authAction === 'session' || authAction === 'me') && request.method === 'GET') {
           const auth = await getAuthIdentity(request, env);
           if (!auth.id) {
-            return jsonResponse({ success: false, authenticated: false, user: null, profile: null });
+            // 401 (not 200): the app only forgets a saved login on an explicit
+            // rejection — never on a hiccup. See AuthContext.
+            return jsonResponse({ success: false, authenticated: false, user: null, profile: null }, 401);
           }
 
           let profileRow: D1ProfileRow | null = null;
@@ -2801,7 +2803,7 @@ export default {
           }
 
           if (!profileRow) {
-            return jsonResponse({ success: false, authenticated: false, user: null, profile: null });
+            return jsonResponse({ success: false, authenticated: false, user: null, profile: null }, 401);
           }
 
           const profileObj = {

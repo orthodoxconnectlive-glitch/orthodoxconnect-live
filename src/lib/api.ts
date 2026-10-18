@@ -123,7 +123,9 @@ export async function apiFetch<T = any>(
       const errJson = await res.json();
       if (errJson && errJson.error) errMsg = errJson.error;
     } catch (e) {}
-    throw new Error(errMsg);
+    const err: any = new Error(errMsg);
+    err.status = res.status;
+    throw err;
   }
 
   return res.json();
@@ -177,17 +179,19 @@ export const authApi = {
     return res;
   },
 
-  async getSession(): Promise<{ user: User | null; profile: UserProfile | null; unreachable?: boolean }> {
+  async getSession(): Promise<{ user: User | null; profile: UserProfile | null; unreachable?: boolean; sessionDead?: boolean }> {
     const token = getAuthToken();
     if (!token) return { user: null, profile: null };
 
     try {
       const res = await apiFetch(`/api/auth/session?token=${encodeURIComponent(token)}`);
       return { user: res.user || null, profile: res.profile || null };
-    } catch (e) {
-      // Network failure (or timeout) is NOT the same as "session invalid":
-      // callers use `unreachable` to decide whether to keep the cached
-      // profile or drop a dead session.
+    } catch (e: any) {
+      // 401 = the server positively rejected the token: the session is
+      // really dead and the cached login should be dropped. Anything else
+      // (network failure, timeout, 5xx) is NOT "session invalid" — the
+      // cached login is kept so a hiccup never logs the user out.
+      if (e && e.status === 401) return { user: null, profile: null, sessionDead: true };
       return { user: null, profile: null, unreachable: true };
     }
   },

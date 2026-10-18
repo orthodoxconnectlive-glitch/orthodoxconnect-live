@@ -81,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ]);
         if (cancelled) return;
         if (session !== timedOut) {
-          const { user: serverUser, profile: serverProfile, unreachable } = session;
+          const { user: serverUser, profile: serverProfile, unreachable, sessionDead } = session;
           if (serverUser && serverProfile) {
             setUser(serverUser);
             setProfile(serverProfile);
@@ -92,17 +92,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // keep the cached session so the app still opens offline. A
             // real 401 on any later request fires 'oc:session-expired' and
             // bounces to login by itself.
-          } else if (restoredFromCache) {
-            // The server positively rejected our session token
-            // (expired/invalid). Drop the dead cached session NOW so the
-            // user lands on the sign-in screen with a clear "session
-            // expired" message — instead of roaming the app as a ghost and
-            // hitting confusing errors on every write action.
+          } else if (sessionDead) {
+            // The server positively rejected our session token with a 401
+            // (expired/invalid). ONLY in this case do we drop the cached
+            // session — a hiccup (5xx, timeout, inconclusive check) must
+            // never log the user out.
             try { localStorage.removeItem('orthodox_user_profile'); } catch (e) {}
+            try { localStorage.removeItem('orthodox_auth_token'); } catch (e) {}
             setUser(null);
             setProfile(null);
             setCurrentUserId(null);
             setSessionExpiredNotice(true);
+          } else if (restoredFromCache) {
+            // Inconclusive (e.g. no token stored on this device): keep the
+            // cached profile instead of punishing the user for a check we
+            // couldn't complete.
           } else {
             // No usable local session and the server gave us nothing:
             // show the login screen.

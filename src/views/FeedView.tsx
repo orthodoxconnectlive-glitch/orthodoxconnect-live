@@ -33,6 +33,7 @@ import { ReportContentModal } from '../components/ReportContentModal';
 import { StoriesBar } from '../components/StoriesBar';
 import { PostCard } from '../components/PostCard';
 import { LiturgicalBanner } from '../components/LiturgicalBanner';
+import { WelcomeOverlay } from '../components/WelcomeOverlay';
 import { UserProfileData } from './ProfileView';
 
 export function parseVideoEmbed(url?: string | null): { type: 'youtube' | 'vimeo' | 'facebook' | 'direct'; embedUrl: string } | null {
@@ -668,6 +669,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
   return (
     <div className="space-y-6">
+      <WelcomeOverlay />
       {toastMessage && (
         <div className="fixed top-20 right-6 rtl:right-auto rtl:left-6 z-50 px-4 py-2.5 rounded-2xl bg-(--chip-dark) text-[#f5ebd9] border-2 border-(--ln-gold) shadow-2xl font-serif text-xs flex items-center gap-2 animate-bounce">
           <Check className="w-4 h-4 text-(--ac-gold-tx)" />

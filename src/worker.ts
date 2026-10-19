@@ -2064,12 +2064,45 @@ function botDayOfYear(d: Date): number {
   return Math.floor((d.getTime() - start) / 86400000);
 }
 
+// Discussion questions (Hany 2026-10-19): every daily bot post ends with one,
+// rotated by day of year so they never repeat two days in a row. Bilingual,
+// warm, and built to turn a broadcast into a conversation.
+const VERSE_QUESTIONS: Array<[string, string]> = [
+  ['What does this verse mean to you today?', 'ماذا تعني لك هذه الآية اليوم؟'],
+  ['How can you live this verse this week?', 'كيف تعيش هذه الآية هذا الأسبوع؟'],
+  ['When has this verse carried you through a hard time?', 'متى حملتك هذه الآية في وقت صعب؟'],
+  ['Who in your life needs to hear this verse today?', 'من في حياتك يحتاج أن يسمع هذه الآية اليوم؟'],
+  ['What is God saying to you through these words?', 'ماذا يقول لك الله من خلال هذه الكلمات؟'],
+  ['How does this verse change the way you see today?', 'كيف تغير هذه الآية نظرتك إلى اليوم؟'],
+  ['What would change if you truly believed this verse?', 'ماذا سيتغير لو آمنت بهذه الآية حقاً؟'],
+  ['Share a moment when this verse came alive for you.', 'شارك لحظة أصبحت فيها هذه الآية حية بالنسبة لك.'],
+  ['How do you hold onto this promise when you cannot feel it?', 'كيف تتمسك بهذا الوعد عندما لا تشعر به؟'],
+  ['What small step does this verse invite you to take?', 'ما الخطوة الصغيرة التي تدعوك إليها هذه الآية؟'],
+];
+const SAINT_QUESTIONS: Array<[string, string]> = [
+  ['What speaks to you most in this saint\'s story?', 'ما الذي يلمس قلبك أكثر في سيرة هذا القديس؟'],
+  ['Which virtue of this saint do you want to grow in?', 'أي فضيلة من فضائل هذا القديس تريد أن تنمو فيها؟'],
+  ['How does this saint\'s life challenge you today?', 'كيف تتحداك حياة هذا القديس اليوم؟'],
+  ['What would you ask this saint if you could?', 'ماذا كنت ستسأل هذا القديس لو استطعت؟'],
+];
+const CALENDAR_QUESTIONS: Array<[string, string]> = [
+  ['How does your family keep this feast?', 'كيف تحتفل أسرتك بهذا العيد؟'],
+  ['What does this day mean to you?', 'ماذا يعني لك هذا اليوم؟'],
+  ['How do you prepare your heart in this season?', 'كيف تهيئ قلبك في هذه الفترة؟'],
+  ['Share a memory tied to this day.', 'شارك ذكرى مرتبطة بهذا اليوم.'],
+];
+function discussionQuestion(pool: Array<[string, string]>, dayOfYear: number): string {
+  const q = pool[dayOfYear % pool.length];
+  return '\n\n💬 ' + q[0] + '\n' + q[1];
+}
+
 function versePostFor(dayOfYear: number): string {
   const v = DAILY_VERSES[dayOfYear % DAILY_VERSES.length];
   return (
     '📖 Daily Verse — آية اليوم\n\n' +
     '"' + v.en + '"\n— ' + v.refEn + '\n\n' +
-    '"' + v.ar + '"\n— ' + v.refAr
+    '"' + v.ar + '"\n— ' + v.refAr +
+    discussionQuestion(VERSE_QUESTIONS, dayOfYear)
   );
 }
 
@@ -2094,7 +2127,8 @@ function saintPostFor(d: Date): string {
       return (
         '☨ Saint of the Day — قديس اليوم · ' + cd.day + ' ' + cd.monthAr + ' ' + cd.year + '\n\n' +
         arTitles + teaserAr + '\n\n' + enTitles + teaserEn +
-        '\n\n📖 من سنكسار اليوم — From today\'s Synaxar:\nhttps://orthodoxconnect.live/?synax=' + key
+        '\n\n📖 من سنكسار اليوم — From today\'s Synaxar:\nhttps://orthodoxconnect.live/?synax=' + key +
+        discussionQuestion(SAINT_QUESTIONS, botDayOfYear(d))
       );
     }
   } catch (e) {
@@ -2103,7 +2137,8 @@ function saintPostFor(d: Date): string {
   // Fallback: the old rotating list.
   const doy = botDayOfYear(d);
   const s = SAINTS_OF_DAY[doy % SAINTS_OF_DAY.length];
-  return '☨ Saint of the Day — قديس اليوم\n\n' + s.en + '\n\n' + s.ar;
+  return '☨ Saint of the Day — قديس اليوم\n\n' + s.en + '\n\n' + s.ar +
+    discussionQuestion(SAINT_QUESTIONS, doy);
 }
 
 interface CalendarItem {
@@ -2131,7 +2166,8 @@ function calendarPostFor(d: Date): string {
         synax.ar.join('\n') + '\n' + synax.teaser_ar + '\n\n' +
         synax.en.join('\n') + '\n' + synax.teaser_en +
         fastingLine +
-        '\n\n📖 Read the full Synaxar — اقرأ السنكسار كاملاً:\nhttps://orthodoxconnect.live/?synax=' + key
+        '\n\n📖 Read the full Synaxar — اقرأ السنكسار كاملاً:\nhttps://orthodoxconnect.live/?synax=' + key +
+        discussionQuestion(CALENDAR_QUESTIONS, botDayOfYear(d))
       );
     }
   } catch (e) {
@@ -2147,7 +2183,8 @@ function calendarPostFor(d: Date): string {
       '"' + feast.textEn + '"\n— ' + feast.refEn + '\n\n' +
       feast.titleAr + ': ' + feast.nameAr + '\n' +
       '"' + feast.textAr + '"\n— ' + feast.refAr + '\n\n' +
-      '🕊️ ' + feast.fastingEn + ' — ' + feast.fastingAr
+      '🕊️ ' + feast.fastingEn + ' — ' + feast.fastingAr +
+      discussionQuestion(CALENDAR_QUESTIONS, botDayOfYear(d))
     );
   }
 
@@ -2158,7 +2195,8 @@ function calendarPostFor(d: Date): string {
     return (
       '⛪ Today in the Church — اليوم في الكنيسة\n\n' +
       '🙏 ' + fastEn.label + '\n' +
-      '🙏 ' + fastAr.label
+      '🙏 ' + fastAr.label +
+      discussionQuestion(CALENDAR_QUESTIONS, botDayOfYear(d))
     );
   }
 
@@ -2173,14 +2211,16 @@ function calendarPostFor(d: Date): string {
     return (
       '📅 Coming Up — قريباً\n\n' +
       nx.nameEn + ' — ' + whenEn + '\n' +
-      nx.nameAr + ' — ' + whenAr
+      nx.nameAr + ' — ' + whenAr +
+      discussionQuestion(CALENDAR_QUESTIONS, botDayOfYear(d))
     );
   }
 
   return (
     '⛪ Today in the Church — اليوم في الكنيسة\n\n' +
     'No fasting today — a good day to pray, read, and give thanks. 🙏\n' +
-    'لا يوجد صوم اليوم — يوم جميل للصلاة والقراءة والشكر. 🙏'
+    'لا يوجد صوم اليوم — يوم جميل للصلاة والقراءة والشكر. 🙏' +
+    discussionQuestion(CALENDAR_QUESTIONS, botDayOfYear(d))
   );
 }
 

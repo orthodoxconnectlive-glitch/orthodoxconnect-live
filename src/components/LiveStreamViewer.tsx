@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Radio, Eye, AlertCircle, Loader2 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { whepPlay, closePeerConnection } from '../lib/whip';
 
 declare global {
   interface Window {
@@ -49,6 +50,7 @@ export const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({
   const { language } = useTheme();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<any>(null);
+  const whepPcRef = useRef<RTCPeerConnection | null>(null);
   const [status, setStatus] = useState<'loading' | 'playing' | 'error'>('loading');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -59,6 +61,25 @@ export const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({
 
     const attach = async () => {
       try {
+        // Cloudflare one-tap live: WHEP (WebRTC) playback
+        if (playbackUrl.includes('/webRTC/play')) {
+          const pc = await whepPlay(playbackUrl, video);
+          whepPcRef.current = pc;
+          video.addEventListener('playing', () => !cancelled && setStatus('playing'));
+          try {
+            await video.play();
+          } catch {
+            try { video.muted = true; await video.play(); } catch {}
+          }
+          // If nothing plays within 12s, surface an error
+          setTimeout(() => {
+            if (!cancelled && video.readyState < 2) {
+              setStatus('error');
+              setErrorMsg(language === 'ar' ? 'تعذر الاتصال بالبث المباشر.' : 'Could not connect to the live stream.');
+            }
+          }, 12000);
+          return;
+        }
         // Safari / iOS plays HLS natively
         if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = playbackUrl;
@@ -132,6 +153,8 @@ export const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({
         hlsRef.current?.destroy();
       } catch {}
       hlsRef.current = null;
+      closePeerConnection(whepPcRef.current);
+      whepPcRef.current = null;
     };
   }, [playbackUrl, language]);
 

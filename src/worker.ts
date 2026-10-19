@@ -4526,6 +4526,129 @@ export default {
         return jsonResponse({ success: true, stream: row });
       }
 
+      // 8a2. Cloudflare Stream one-tap live (in-app camera via WHIP) — Hany 2026-10-19.
+      // The worker holds the API token as the CLOUDFLARE_STREAM_TOKEN secret;
+      // the browser never sees it. Only the WHIP publish URL (which embeds its
+      // own per-input secret) is handed to the admin broadcaster.
+      const getCfStreamToken = () => ((env as any).CLOUDFLARE_STREAM_TOKEN || '').trim();
+      const cfEnsureColumns = async () => {
+        if (!env.DB) return;
+        try { await env.DB.prepare('ALTER TABLE live_streams ADD COLUMN cf_live_input_uid TEXT').run(); } catch (e) {}
+        try { await env.DB.prepare('ALTER TABLE live_streams ADD COLUMN cf_playback_url TEXT').run(); } catch (e) {}
+      };
+      const cfResolveAccountId = async (token: string): Promise<string> => {
+        const direct = ((env as any).CLOUDFLARE_ACCOUNT_ID || '').trim();
+        if (direct) return direct;
+        try {
+          const r = await fetch('https://api.cloudflare.com/client/v4/accounts?per_page=10', {
+            headers: { 'Authorization': 'Bearer ' + token },
+          });
+          const j: any = await r.json().catch(() => null);
+          const arr = j && (j as any).result;
+          if (r.ok && Array.isArray(arr) && arr.length > 0 && arr[0].id) return String(arr[0].id);
+        } catch (e) {}
+        return '';
+      };
+
+      // GET /api/live/cloudflare/status — admin only. Reports whether the
+      // Stream token is set and the account resolves (never reveals values).
+      if ((url.pathname === '/api/live/cloudflare/status' || url.pathname === '/api/live/cloudflare/status/') && request.method === 'GET') {
+        const authCf = await getAuthIdentity(request, env);
+        if (!authCf.isAdmin) return jsonResponse({ success: false, error: 'Admin only' }, 403);
+        const token = getCfStreamToken();
+        let accountReady = false;
+        if (token) accountReady = !!(await cfResolveAccountId(token));
+        return jsonResponse({ success: true, tokenSet: !!token, accountReady });
+      }
+
+      // POST /api/live/cloudflare/create — admin only. Creates a Stream live
+      // input, stores the D1 row as live, and returns the WHIP publish URL to
+      // the broadcaster plus the WHEP playback URL for viewers.
+      if ((url.pathname === '/api/live/cloudflare/create' || url.pathname === '/api/live/cloudflare/create/') && request.method === 'POST') {
+        const authCf = await getAuthIdentity(request, env);
+        if (!authCf.isAdmin) return jsonResponse({ success: false, error: 'Admin only' }, 403);
+        const token = getCfStreamToken();
+        if (!token) {
+          return jsonResponse({ success: false, error: 'CF_NOT_CONFIGURED', message: 'Cloudflare Stream is not set up yet.' }, 503);
+        }
+        const accountId = await cfResolveAccountId(token);
+        if (!accountId) {
+          return jsonResponse({ success: false, error: 'CF_NO_ACCOUNT', message: 'Could not resolve the Cloudflare account.' }, 502);
+        }
+        const body: any = await request.json().catch(() => ({}));
+        const title = String(body.title || 'Parish Live Service').slice(0, 120);
+        const hostParish = String(body.host_parish || body.parish || 'Orthodox Church').slice(0, 120);
+        const priestName = String(body.priest_name || body.priestName || 'Priest / Host').slice(0, 120);
+        let input: any = null;
+        try {
+          const cr = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ meta: { name: title } }),
+          });
+          const cj: any = await cr.json().catch(() => null);
+          if (!cr.ok || !cj || !cj.success) {
+            const detail = JSON.stringify((cj && cj.errors) || []).slice(0, 500);
+            return jsonResponse({ success: false, error: 'CF_CREATE_FAILED', message: 'Cloudflare Stream rejected the request.', detail }, 502);
+          }
+          input = cj.result;
+        } catch (e: any) {
+          return jsonResponse({ success: false, error: 'CF_UNREACHABLE', message: 'Could not reach Cloudflare Stream.' }, 502);
+        }
+        const liveInputUid = input.uid || null;
+        const whipUrl = (input.webRTC && input.webRTC.url) || null;
+        const playbackUrl = (input.webRTCPlayback && input.webRTCPlayback.url) || null;
+        if (!whipUrl) {
+          return jsonResponse({ success: false, error: 'CF_NO_WHIP', message: 'Cloudflare did not return a broadcast URL.' }, 502);
+        }
+        const id = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `cflive_${Date.now()}`);
+        const createdAt = new Date().toISOString();
+        if (env.DB) {
+          await cfEnsureColumns();
+          await env.DB.prepare(`INSERT INTO live_streams (id, title, host_parish, priest_name, media_url, is_live, viewers_count, created_at, status, cf_live_input_uid, cf_playback_url, started_at) VALUES (?, ?, ?, ?, ?, 1, 1, ?, 'live', ?, ?, ?)`).bind(id, title, hostParish, priestName, 'cloudflare-live', createdAt, liveInputUid, playbackUrl, createdAt).run();
+        }
+        const row = env.DB ? await env.DB.prepare('SELECT * FROM live_streams WHERE id = ?').bind(id).first() : null;
+        if (row) { try { await upsertLiveFeedPost(env.DB, row, true); } catch (e) {} }
+        return jsonResponse({ success: true, stream: {
+          id, title, host_parish: hostParish, priest_name: priestName,
+          live_input_uid: liveInputUid, whip_url: whipUrl, playback_url: playbackUrl,
+          status: 'live', created_at: createdAt,
+        } }, 201);
+      }
+
+      // POST /api/live/cloudflare/:id/end — admin only. Deletes the live input
+      // (best-effort) and marks the D1 row ended so feed cards flip.
+      if (url.pathname.startsWith('/api/live/cloudflare/') && url.pathname.endsWith('/end') && request.method === 'POST') {
+        const authCf = await getAuthIdentity(request, env);
+        if (!authCf.isAdmin) return jsonResponse({ success: false, error: 'Admin only' }, 403);
+        const parts = url.pathname.split('/').filter(Boolean);
+        const streamId = decodeURIComponent(parts[3] || '');
+        if (!streamId) return jsonResponse({ success: false, error: 'Missing stream id' }, 400);
+        if (!env.DB) return jsonResponse({ success: false, error: 'Database unavailable' }, 500);
+        const now = new Date().toISOString();
+        try {
+          const token = getCfStreamToken();
+          const row0: any = await env.DB.prepare('SELECT cf_live_input_uid FROM live_streams WHERE id = ?').bind(streamId).first();
+          if (token && row0 && row0.cf_live_input_uid) {
+            const accountId = await cfResolveAccountId(token);
+            if (accountId) {
+              try {
+                await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/live_inputs/${row0.cf_live_input_uid}`, {
+                  method: 'DELETE',
+                  headers: { 'Authorization': 'Bearer ' + token },
+                });
+              } catch (e) {}
+            }
+          }
+          await env.DB.prepare(`UPDATE live_streams SET status = 'ended', ended_at = ?, is_live = 0 WHERE id = ?`).bind(now, streamId).run();
+        } catch (e: any) {
+          return jsonResponse({ success: false, error: 'DB_UPDATE_FAILED', detail: String(e?.message || e).slice(0, 300) }, 500);
+        }
+        const row = await env.DB.prepare('SELECT * FROM live_streams WHERE id = ?').bind(streamId).first();
+        if (row) { try { await upsertLiveFeedPost(env.DB, row, false); } catch (e) {} }
+        return jsonResponse({ success: true });
+      }
+
       // 8b. Live Stream item endpoint (PATCH /api/live-streams/:id)
       // Used to end a broadcast and attach the saved replay recording.
       if (url.pathname.startsWith('/api/live-streams/') && request.method === 'PATCH') {

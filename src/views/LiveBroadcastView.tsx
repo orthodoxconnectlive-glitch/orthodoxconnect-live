@@ -5,6 +5,7 @@ import { LiveStreamViewer } from '../components/LiveStreamViewer';
 import { ParishLiveChat } from '../components/ParishLiveChat';
 import { GoLiveModal, StreamData } from '../components/GoLiveModal';
 import { liveStreamsApi } from '../lib/api';
+import { closePeerConnection } from '../lib/whip';
 import { uploadVideoToBunnyStream, BUNNY_LIBRARY_ID } from '../utils/storage';
 import { savePost } from '../utils/posts';
 import { useTheme } from '../context/ThemeContext';
@@ -24,6 +25,10 @@ interface LiveStreamItem {
   isBunnyLive?: boolean;
   playbackUrlHls?: string | null;
   bunnyStreamId?: string | null;
+  // Cloudflare one-tap live fields
+  isCloudflareLive?: boolean;
+  playbackUrlWhep?: string | null;
+  cloudflareLiveInputUid?: string | null;
 }
 
 const INITIAL_STREAMS_EN: LiveStreamItem[] = [
@@ -172,6 +177,10 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
   const broadcastRecordIdRef = useRef<string | null>(null);
   const broadcastTitleRef = useRef<string>('');
   const broadcastBunnyIdRef = useRef<string | null>(null);
+  const cloudflarePcRef = useRef<RTCPeerConnection | null>(null);
+  const broadcastCloudflareIdRef = useRef<string | null>(null);
+  // Replay upload prompt (Cloudflare one-tap live): ask before uploading
+  const [cfReplayPrompt, setCfReplayPrompt] = useState<{ blob: Blob; title: string; streamId: string } | null>(null);
   // HLS viewer modal state (for watching a Bunny true-live stream)
   const [viewerStream, setViewerStream] = useState<LiveStreamItem | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -287,6 +296,9 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
               isBunnyLive: true,
               playbackUrlHls: row.playback_url_hls || null,
               bunnyStreamId: row.bunny_stream_id || null,
+              isCloudflareLive: !!(row as any).cf_playback_url,
+              playbackUrlWhep: (row as any).cf_playback_url || null,
+              cloudflareLiveInputUid: (row as any).cf_live_input_uid || null,
             }));
             setStreams((prev) => {
               const combined = [...prev];
@@ -334,6 +346,43 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
   };
 
   const handleStartStream = (data: StreamData, mediaStream?: MediaStream | null) => {
+    // Cloudflare one-tap live: in-app camera is already publishing via WHIP
+    // (PeerConnection handed over by GoLiveModal). Record locally for the
+    // replay prompt, exactly like the webcam path.
+    if ((data as any).isCloudflareLive) {
+      const newStreamId = data.recordId || ('cflive-' + Date.now());
+      broadcastLocalIdRef.current = newStreamId;
+      broadcastRecordIdRef.current = data.recordId || null;
+      broadcastTitleRef.current = data.title;
+      broadcastCloudflareIdRef.current = data.recordId || null;
+      cloudflarePcRef.current = (data as any).cloudflarePc || null;
+      const newStream: LiveStreamItem = {
+        id: newStreamId,
+        title: data.title,
+        parish: data.host_parish || data.parish || (language === 'ar' ? 'الرعية الأرثوذكسية' : 'Orthodox Parish'),
+        priestName: language === 'ar' ? 'أنت (الكاهن / المستضيف)' : 'You (Priest / Host)',
+        viewers: 1,
+        videoUrl: 'cloudflare-live',
+        isLive: true,
+        isCloudflareLive: true,
+        playbackUrlWhep: (data as any).cloudflarePlaybackUrl || null,
+        cloudflareLiveInputUid: (data as any).cloudflareLiveInputUid || null,
+      };
+      if (mediaStream) {
+        setActiveWebcamStream(mediaStream);
+        startRecording(mediaStream);
+      }
+      setIsUserBroadcasting(true);
+      const updated = [newStream, ...streams];
+      setStreams(updated);
+      setActiveStreamId(newStreamId);
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+      showToast(language === 'ar' ? 'أنت الآن في بث مباشر!' : "You're LIVE!");
+      return;
+    }
+
     // Bunny true-live path: no local recording — the encoder (OBS/Larix) sends
     // video to Bunny via RTMP; viewers watch via HLS.
     if (data.isBunnyLive) {
@@ -539,6 +588,58 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
     const endedTitle = broadcastTitleRef.current;
     const bunnyId = broadcastBunnyIdRef.current;
 
+    // Cloudflare one-tap live path: stop the WHIP publish, end the live input
+    // on the server, then ASK before uploading anything as a replay.
+    const cfId = broadcastCloudflareIdRef.current;
+    if (cfId) {
+      closePeerConnection(cloudflarePcRef.current);
+      cloudflarePcRef.current = null;
+      try {
+        await liveStreamsApi.endCloudflare(cfId);
+      } catch (err) {
+        console.warn('[LiveBroadcast] endCloudflare failed:', err);
+      }
+      const rec = recorderRef.current;
+      recorderRef.current = null;
+      setIsRecording(false);
+      if (rec) {
+        await new Promise<void>((resolve) => {
+          const done = () => resolve();
+          try {
+            rec.onstop = done;
+            rec.stop();
+          } catch (e) { done(); }
+          setTimeout(done, 3000);
+        });
+      }
+      if (activeWebcamStream) {
+        try {
+          activeWebcamStream.getTracks().forEach((t) => t.stop());
+        } catch (e) {}
+        setActiveWebcamStream(null);
+      }
+      setIsUserBroadcasting(false);
+      const chunks = recordedChunksRef.current;
+      recordedChunksRef.current = [];
+      broadcastCloudflareIdRef.current = null;
+      broadcastLocalIdRef.current = null;
+      broadcastRecordIdRef.current = null;
+      setStreams((prev) => {
+        const updated = prev.map((st) => (st.id === endedLocalId ? { ...st, isLive: false } : st));
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+      if (chunks.length > 0) {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        setCfReplayPrompt({ blob, title: endedTitle || '', streamId: cfId });
+      } else {
+        showToast(language === 'ar' ? 'تم إنهاء البث المباشر.' : 'Live broadcast ended.');
+      }
+      return;
+    }
+
     // Bunny true-live path: end the Bunny stream on the server, no local recording.
     if (bunnyId) {
       try {
@@ -661,6 +762,75 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
     });
 
     showToast(language === 'ar' ? 'تم إنهاء البث المباشر.' : 'Live broadcast ended.');
+  };
+
+  // Cloudflare replay prompt: Yes uploads the local recording as a replay video.
+  const handleCfReplayChoice = async (upload: boolean) => {
+    const prompt = cfReplayPrompt;
+    setCfReplayPrompt(null);
+    if (!prompt) return;
+    if (!upload) {
+      showToast(language === 'ar' ? 'تم إنهاء البث المباشر.' : 'Live broadcast ended.');
+      return;
+    }
+    let replayGuid: string | null = null;
+    try {
+      setIsSavingReplay(true);
+      setSaveProgress(0);
+      setSaveStatus(language === 'ar' ? 'جارٍ تجهيز التسجيل...' : 'Preparing recording...');
+      const file = new File([prompt.blob], `live-replay-${Date.now()}.webm`, { type: 'video/webm' });
+      const guid = await uploadVideoToBunnyStream(
+        file,
+        `📡 ${prompt.title || (language === 'ar' ? 'بث مباشر' : 'Live Broadcast')} (${language === 'ar' ? 'إعادة' : 'Replay'})`,
+        (percent) => {
+          setSaveProgress(percent);
+          setSaveStatus(
+            language === 'ar' ? `جارٍ رفع التسجيل (${percent}%)...` : `Uploading replay (${percent}%)...`
+          );
+        }
+      );
+      replayGuid = guid;
+      setSaveStatus(language === 'ar' ? 'جارٍ نشر الإعادة...' : 'Publishing replay...');
+      await savePost({
+        text: `📡 ${prompt.title || (language === 'ar' ? 'بث مباشر' : 'Live Broadcast')} — ${language === 'ar' ? 'إعادة البث المباشر' : 'Live stream replay'}`,
+        authorName: profile?.full_name || (language === 'ar' ? 'الكاهن / مقدم الخدمة' : 'Priest / Host'),
+        authorParish: profile?.parish || (language === 'ar' ? 'الرعية الأرثوذكسية' : 'Orthodox Parish'),
+        authorAvatar: profile?.avatar_url,
+        authorId: profile?.id,
+        video_id: guid,
+        video: guid,
+      });
+      showToast(language === 'ar' ? 'تم حفظ التسجيل في مقاطع الفيديو.' : 'Replay saved to Videos.');
+    } catch (err) {
+      console.warn('[LiveBroadcast] replay save failed:', err);
+      showToast(language === 'ar' ? 'تعذر حفظ التسجيل.' : 'Could not save the recording.');
+    } finally {
+      setIsSavingReplay(false);
+      setSaveProgress(0);
+      setSaveStatus('');
+    }
+    if (replayGuid) {
+      try {
+        await liveStreamsApi.update(prompt.streamId, { replay_guid: replayGuid });
+      } catch (err) {
+        console.warn('[LiveBroadcast] failed to attach replay guid:', err);
+      }
+      setStreams((prev) => {
+        const updated = prev.map((item) => {
+          if (item.id !== prompt.streamId) return item;
+          const libId = BUNNY_LIBRARY_ID || '713265';
+          return {
+            ...item,
+            replayGuid,
+            videoUrl: `https://iframe.mediadelivery.net/embed/${libId}/${replayGuid}?autoplay=false&loop=false&muted=false&preload=true&responsive=true`,
+          };
+        });
+        try {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+    }
   };
 
   const handleLikeToggle = () => {
@@ -974,6 +1144,11 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
                   setViewerStream(s);
                   return;
                 }
+                // Cloudflare one-tap live streams open the WHEP viewer modal
+                if ((s as any).isCloudflareLive && (s as any).playbackUrlWhep) {
+                  setViewerStream(s);
+                  return;
+                }
                 setActiveStreamId(s.id);
               }}
               className={`relative group p-4 rounded-2xl border text-left rtl:text-right transition-all cursor-pointer flex flex-col justify-between ${
@@ -1059,6 +1234,53 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
           viewerCount={viewerStream.viewers}
           onClose={() => setViewerStream(null)}
         />
+      )}
+
+      {/* Cloudflare WHEP viewer modal (true-live via in-app camera) */}
+      {viewerStream && (viewerStream as any).playbackUrlWhep && (
+        <LiveStreamViewer
+          playbackUrl={(viewerStream as any).playbackUrlWhep}
+          title={viewerStream.title}
+          parish={viewerStream.parish}
+          viewerCount={viewerStream.viewers}
+          onClose={() => setViewerStream(null)}
+        />
+      )}
+
+      {/* Replay upload prompt (Cloudflare one-tap live) */}
+      {cfReplayPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-(--bg-page) dark:bg-[#18120e] border-2 border-(--ln-gold) p-6 shadow-2xl text-center space-y-4">
+            <h3 className="font-serif font-bold text-lg text-(--tx-head) dark:text-[#f5ebd9]">
+              {language === 'ar' ? 'حفظ التسجيل كإعادة؟' : 'Upload this as a replay?'}
+            </h3>
+            <p className="text-xs text-(--tx-soft) dark:text-stone-400">
+              {language === 'ar'
+                ? 'يمكنك رفع تسجيل هذا البث ليبقى في قسم الفيديو، أو تجاهله.'
+                : 'You can upload this broadcast recording so it stays in the Videos section, or skip it.'}
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => handleCfReplayChoice(false)}
+                className="px-5 py-2.5 rounded-xl bg-stone-700 hover:bg-stone-600 text-stone-200 text-sm font-bold cursor-pointer"
+              >
+                {language === 'ar' ? 'لا' : 'No'}
+              </button>
+              <button
+                onClick={() => handleCfReplayChoice(true)}
+                disabled={isSavingReplay}
+                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold shadow-lg cursor-pointer disabled:opacity-50"
+              >
+                {isSavingReplay
+                  ? (language === 'ar' ? 'جارٍ الرفع...' : 'Uploading...')
+                  : (language === 'ar' ? 'نعم، ارفع' : 'Yes, upload')}
+              </button>
+            </div>
+            {isSavingReplay && saveStatus && (
+              <p className="text-[11px] text-(--tx-soft) dark:text-stone-400 font-semibold">{saveStatus}</p>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Share Live Stream Link Modal */}

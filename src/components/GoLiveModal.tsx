@@ -3,6 +3,7 @@ import { X, Radio, Camera, AlertCircle, RefreshCw, SwitchCamera } from 'lucide-r
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { liveStreamsApi } from '../lib/api';
+import { whipPublish, closePeerConnection } from '../lib/whip';
 import { addNotification } from '../utils/notifications';
 
 export interface StreamData {
@@ -20,6 +21,11 @@ export interface StreamData {
   playbackUrlHls?: string | null;
   rtmpUrl?: string | null;
   streamKey?: string | null;
+  // Cloudflare Stream one-tap live (in-app camera via WHIP) fields
+  isCloudflareLive?: boolean;
+  cloudflareLiveInputUid?: string | null;
+  cloudflarePlaybackUrl?: string | null;
+  cloudflarePc?: RTCPeerConnection | null;
 }
 
 interface GoLiveModalProps {
@@ -61,7 +67,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
   const [showRtmpDetails, setShowRtmpDetails] = useState(false);
 
   // Stream destination: Bunny true-live or YouTube Live (via encoder app)
-  const [destination, setDestination] = useState<'bunny' | 'youtube'>('bunny');
+  const [destination, setDestination] = useState<'bunny' | 'youtube' | 'cloudflare'>('cloudflare');
   const [youtubeUrl, setYoutubeUrl] = useState('');
 
   // Camera lens mode ('user' = front / selfie, 'environment' = back / world)
@@ -476,6 +482,75 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     onClose();
   };
 
+  // Cloudflare one-tap live state
+  const [cfStatus, setCfStatus] = useState<{ tokenSet: boolean; accountReady: boolean } | null>(null);
+  const [cfError, setCfError] = useState<string | null>(null);
+  const [isStartingCf, setIsStartingCf] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && isAdmin && destination === 'cloudflare' && !cfStatus) {
+      liveStreamsApi.cloudflareStatus()
+        .then((st) => setCfStatus(st))
+        .catch(() => setCfStatus({ tokenSet: false, accountReady: false }));
+    }
+  }, [isOpen, isAdmin, destination]);
+
+  // One-tap Cloudflare live: create the live input, publish the camera via WHIP.
+  const handleStartCloudflare = async () => {
+    if (isStartingCf || !mediaStream) return;
+    setCfError(null);
+    setIsStartingCf(true);
+    let pc: RTCPeerConnection | null = null;
+    try {
+      const created = await liveStreamsApi.createCloudflare({
+        title: title.trim() || (language === 'ar' ? 'بث مباشر' : 'Live Broadcast'),
+        host_parish: hostParish.trim(),
+        priest_name: profile?.full_name || undefined,
+      });
+      const whipUrl: string | null = created.whip_url || null;
+      if (!whipUrl) throw new Error('No broadcast URL returned.');
+      pc = await whipPublish(whipUrl, mediaStream);
+      isStreamTransferredRef.current = true;
+
+      const streamPayload: StreamData = {
+        title: created.title || title,
+        host_parish: created.host_parish || hostParish,
+        media_url: 'cloudflare-live',
+        parish: created.host_parish || hostParish,
+        videoUrl: 'cloudflare-live',
+        mediaStream,
+        isWebcam: true,
+        recordId: created.id || null,
+        isCloudflareLive: true,
+        cloudflareLiveInputUid: created.live_input_uid || null,
+        cloudflarePlaybackUrl: created.playback_url || null,
+        cloudflarePc: pc,
+      };
+
+      addNotification({
+        userId: 'all',
+        type: 'system',
+        title: `🔴 ${streamPayload.host_parish} ${language === 'ar' ? 'في بث مباشر' : 'is LIVE'}`,
+        body: streamPayload.title,
+        senderName: profile?.full_name || (language === 'ar' ? 'مسؤول البث' : 'Parish Host'),
+        senderAvatar: profile?.avatar_url,
+        link: 'live',
+      });
+
+      onStartStream(streamPayload, mediaStream);
+      setTitle('');
+      setHostParish('');
+      setCfError(null);
+      onClose();
+    } catch (err: any) {
+      closePeerConnection(pc);
+      console.warn('[GoLive] Cloudflare start failed:', err);
+      setCfError(err?.message || (language === 'ar' ? 'تعذر بدء البث. حاول مرة أخرى.' : 'Could not start the broadcast. Please try again.'));
+    } finally {
+      setIsStartingCf(false);
+    }
+  };
+
   // Start a Bunny true-live broadcast (marks D1 status='live' so viewers can watch)
   const handleStartBunnyBroadcast = async () => {
     if (!bunnyStream) return;
@@ -645,7 +720,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
         {isAdmin && (
         <>
         <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-stone-900 border border-amber-900/30 mb-2">
-          {(['bunny', 'youtube'] as const).map((d) => (
+          {(['cloudflare', 'bunny', 'youtube'] as const).map((d) => (
             <button
               key={d}
               type="button"
@@ -654,7 +729,9 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
                 destination === d ? 'bg-red-600 text-white shadow' : 'text-stone-400 hover:text-amber-200'
               }`}
             >
-              {d === 'bunny' ? 'Bunny Stream' : 'YouTube'}
+              {d === 'cloudflare'
+                ? (language === 'ar' ? 'بث مباشر بضغطة' : 'One-Tap Live')
+                : d === 'bunny' ? 'Bunny Stream' : 'YouTube'}
             </button>
           ))}
         </div>
@@ -663,6 +740,10 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
             ? (language === 'ar'
                 ? 'ستبث إلى يوتيوب عبر تطبيق Larix، وسيشاهد المتابعون البث داخل التطبيق.'
                 : 'You’ll stream to YouTube via the Larix app; viewers watch inside the app.')
+            : destination === 'cloudflare'
+            ? (language === 'ar'
+                ? 'بث مباشر فوري من كاميرا التطبيق عبر Cloudflare.'
+                : 'Instant live from the in-app camera via Cloudflare.')
             : (language === 'ar'
                 ? 'بث حقيقي عبر Bunny Stream (يتطلب موافقة Bunny).'
                 : 'True live via Bunny Stream (requires Bunny approval).')}
@@ -777,6 +858,72 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
             </button>
           </div>
         </form>
+        ) : destination === 'cloudflare' ? (
+        <div className="space-y-4 text-xs">
+          {cfStatus && (!cfStatus.tokenSet || !cfStatus.accountReady) && (
+            <div className="rounded-xl bg-amber-900/30 border border-amber-500/40 p-3 text-amber-200 text-[11px] font-semibold">
+              {language === 'ar'
+                ? 'بث Cloudflare غير مكتمل الإعداد بعد. أضف مفتاح CLOUDFLARE_STREAM_TOKEN في لوحة Cloudflare.'
+                : 'Cloudflare live is not fully set up yet. Add the CLOUDFLARE_STREAM_TOKEN secret in the Cloudflare dashboard.'}
+            </div>
+          )}
+          <div>
+            <label className="block text-amber-300 font-semibold mb-1">
+              {language === 'ar' ? 'عنوان البث المباشر' : 'Broadcast Title'}
+            </label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={language === 'ar' ? 'مثال: عظة الأحد' : 'e.g. Sunday Homily'}
+              className="w-full p-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
+            />
+          </div>
+          <div>
+            <label className="block text-amber-300 font-semibold mb-1">
+              {language === 'ar' ? 'الكنيسة / الدير المستضيف' : 'Host Parish / Monastery'}
+            </label>
+            <input
+              type="text"
+              required
+              value={hostParish}
+              onChange={(e) => setHostParish(e.target.value)}
+              placeholder={language === 'ar' ? 'مثال: كاتدرائية القديس جاورجيوس' : 'e.g. St. George Cathedral'}
+              className="w-full p-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
+            />
+          </div>
+          {cfError && (
+            <p className="text-red-300 text-[11px] font-semibold">{cfError}</p>
+          )}
+          <p className="text-[10px] text-stone-400">
+            {language === 'ar'
+              ? 'ضغطة واحدة: تُفتح الكاميرا أعلاه وتبدأ البث فوراً، ويُحفظ التسجيل على هاتفك.'
+              : 'One tap: the camera above goes live instantly, and the recording saves on your phone.'}
+          </p>
+          <div className="pt-3 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="px-4 py-2 rounded-xl bg-stone-800 text-stone-300 font-semibold cursor-pointer"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={handleStartCloudflare}
+              disabled={isStartingCf || !mediaStream}
+              className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold shadow-lg flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Radio className="w-4 h-4" />
+              <span>
+                {isStartingCf
+                  ? (language === 'ar' ? 'جارٍ بدء البث...' : 'Going Live...')
+                  : (language === 'ar' ? 'ابدأ البث المباشر' : 'Go Live')}
+              </span>
+            </button>
+          </div>
+        </div>
         ) : (
         <form onSubmit={handleGoLiveNow} className="space-y-4 text-xs">
           <div>

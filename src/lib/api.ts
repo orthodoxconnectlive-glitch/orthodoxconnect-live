@@ -606,6 +606,29 @@ export const liveStreamsApi = {
   async delete(id: string): Promise<void> {
     await apiFetch(`/api/live-streams/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
+
+  /* ---------- Cloudflare Stream one-tap live (in-app camera via WHIP) ---------- */
+  async cloudflareStatus(): Promise<{ tokenSet: boolean; accountReady: boolean }> {
+    const res = await apiFetch<{ success: boolean; tokenSet: boolean; accountReady: boolean }>('/api/live/cloudflare/status');
+    return { tokenSet: !!res.tokenSet, accountReady: !!res.accountReady };
+  },
+
+  async createCloudflare(opts: { title: string; host_parish?: string; priest_name?: string }): Promise<any> {
+    const res = await apiFetch<{ success: boolean; stream?: any; error?: string; message?: string }>('/api/live/cloudflare/create', {
+      method: 'POST',
+      body: JSON.stringify(opts),
+    });
+    if (!res.success) {
+      const err: any = new Error(res.message || 'Failed to start live stream');
+      err.code = res.error;
+      throw err;
+    }
+    return res.stream;
+  },
+
+  async endCloudflare(id: string): Promise<void> {
+    await apiFetch(`/api/live/cloudflare/${encodeURIComponent(id)}/end`, { method: 'POST' });
+  },
 };
 
 /* =========================================================

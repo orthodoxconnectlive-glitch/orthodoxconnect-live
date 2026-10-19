@@ -698,6 +698,9 @@ export const SUPER_ADMIN_EMAIL = 'orthodoxconnect.live@gmail.com';
 // All emails the server recognizes as admin (kept in sync with the app's admin
 // email fallback, so the buttons the app shows always work when tapped).
 export const ADMIN_EMAILS = ['orthodoxconnect.live@gmail.com', 'hsyz9625@gmail.com'];
+// Emails allowed to see the full member directory and member counts.
+// Admin accounts NOT on this list see clergy profiles only (no member list, no member counts).
+const FULL_DIRECTORY_EMAILS = ['orthodoxconnect.live@gmail.com', 'hanysabdo83@gmail.com', 'videokid.live@gmail.com'];
 
 /**
  * Edge-compatible password hashing using Web Crypto API SHA-256.
@@ -2895,15 +2898,26 @@ export default {
           const role = url.searchParams.get('role');
           const excludeId = url.searchParams.get('exclude_id');
 
+          // Directory visibility: full member list + counts only for the
+          // directory owners; other admins see clergy profiles only.
+          const auth = await getAuthIdentity(request, env);
+          const hasFullDirectory = auth.isSuperAdmin || FULL_DIRECTORY_EMAILS.includes((auth.email || '').toLowerCase());
+          let directoryScope = 'full';
+          let effectiveRole = role;
+          if (auth.isAdmin && !hasFullDirectory) {
+            effectiveRole = 'clergy';
+            directoryScope = 'clergy';
+          }
+
           if (env.DB) {
             await ensureLastSeenColumn(env.DB);
           let query = 'SELECT id, email, full_name, parish, bio, avatar_url, role, is_banned, created_at, updated_at, last_seen FROM profiles';
             const params: any[] = [];
             const where: string[] = [];
 
-            if (role) {
+            if (effectiveRole) {
               where.push('role = ?');
-              params.push(role);
+              params.push(effectiveRole);
             }
             if (excludeId) {
               where.push('id != ?');
@@ -2931,7 +2945,7 @@ export default {
               : p
           );
 
-          return jsonResponse({ success: true, profiles: slimProfiles, count: slimProfiles.length });
+          return jsonResponse({ success: true, profiles: slimProfiles, count: slimProfiles.length, directoryScope });
         }
 
         if (request.method === 'POST') {

@@ -49,6 +49,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, in
 
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [totalMembers, setTotalMembers] = useState<number>(0);
+  const [directoryScope, setDirectoryScope] = useState<string>('full');
 
   // Search & Filter
   const [userSearchQuery, setUserSearchQuery] = useState('');
@@ -320,10 +321,12 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, in
     // 1. Fetch registered profiles from Cloudflare D1
     let loadedUsers: UserProfile[] = [];
     try {
-      loadedUsers = await profilesApi.getAll();
+      const dir = await profilesApi.getDirectory();
+      loadedUsers = dir.profiles;
+      setDirectoryScope(dir.directoryScope);
       if (loadedUsers && loadedUsers.length > 0) {
         setUsersList(loadedUsers);
-        setTotalMembers(loadedUsers.length);
+        setTotalMembers(dir.directoryScope === 'full' ? dir.count : 0);
       } else {
         if (profile) {
           const defaultAdminUser: UserProfile = {
@@ -789,6 +792,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, in
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {directoryScope === 'full' && (
         <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-(--ac-bright)/20 border border-(--ln-bright)/40 flex items-center justify-center text-(--ac-bright-tx)">
             <Users className="w-6 h-6" />
@@ -802,6 +806,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, in
             </h3>
           </div>
         </div>
+        )}
 
         <div className="p-5 rounded-2xl bg-(--bg-card-hi) border border-(--ln-bright)/30 shadow-lg flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-purple-100 border border-purple-300 flex items-center justify-center text-purple-700">
@@ -857,7 +862,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, in
           }`}
         >
           <Users className="w-4 h-4" />
-          <span>{t('adminTabUsers')} ({usersList.length})</span>
+          <span>{t('adminTabUsers')}{directoryScope === 'full' ? ` (${usersList.length})` : ''}</span>
         </button>
 
         <button

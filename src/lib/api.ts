@@ -230,6 +230,13 @@ export const profilesApi = {
     const res = await apiFetch<{ profiles: UserProfile[] }>(`/api/profiles${qs}`);
     return res.profiles || [];
   },
+  // Full directory fetch that also reports the server's visibility scope:
+  // 'full' (member list + counts) or 'clergy' (clergy profiles only).
+  async getDirectory(): Promise<{ profiles: UserProfile[]; directoryScope: string; count: number }> {
+    const res = await apiFetch<{ profiles: UserProfile[]; directoryScope?: string; count?: number }>(`/api/profiles`);
+    const profiles = res.profiles || [];
+    return { profiles, directoryScope: res.directoryScope || 'full', count: res.count ?? profiles.length };
+  },
 
   async getById(id: string): Promise<UserProfile | null> {
     try {

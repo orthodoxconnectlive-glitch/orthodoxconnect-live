@@ -963,7 +963,11 @@ let activeCtx: ExecutionContext | null = null;
 // Client-supplied x-user-* headers are NEVER trusted: they are trivially
 // spoofable and previously allowed full account impersonation.
 export async function getAuthIdentity(request: Request, env: Env) {
-  const anon = { email: '', role: '', id: '', bearerToken: '', isSuperAdmin: false, isAdmin: false };
+  const anon = { email: '', role: '', id: '', bearerToken: '', isSuperAdmin: false, isAdmin: false, verifyError: false };
+  // Server-side verification failed (D1 hiccup, missing binding, unexpected
+  // exception). This is NOT "invalid token" — callers must NOT answer 401 for
+  // it, or a transient server error logs the user out.
+  const verifyFailed = { ...anon, verifyError: true };
   try {
     const url = new URL(request.url);
     let token = (url.searchParams.get('token') || '').trim();
@@ -971,10 +975,16 @@ export async function getAuthIdentity(request: Request, env: Env) {
       const h = request.headers.get('Authorization') || request.headers.get('authorization') || '';
       if (h.startsWith('Bearer ')) token = h.substring(7).trim();
     }
-    if (!token || !env || !env.DB) return anon;
-    const sess = await env.DB.prepare(
-      'SELECT user_id, expires_at FROM sessions WHERE token = ?'
-    ).bind(token).first<{ user_id: string; expires_at: string | null }>();
+    if (!token) return anon;
+    if (!env || !env.DB) return verifyFailed;
+    let sess: { user_id: string; expires_at: string | null } | null = null;
+    try {
+      sess = await env.DB.prepare(
+        'SELECT user_id, expires_at FROM sessions WHERE token = ?'
+      ).bind(token).first<{ user_id: string; expires_at: string | null }>();
+    } catch (e) {
+      return verifyFailed;
+    }
     if (!sess || !sess.user_id) return anon;
     // Long-lived login: sessions last a year and silently renew while the app
     // is used, so the app "just opens". A token expired up to 30 days ago is
@@ -990,9 +1000,14 @@ export async function getAuthIdentity(request: Request, env: Env) {
         await env.DB.prepare('UPDATE sessions SET expires_at = ? WHERE token = ?').bind(newExp, token).run();
       } catch (e) {}
     }
-    const p = await env.DB.prepare('SELECT id, email, role FROM profiles WHERE id = ?')
-      .bind(sess.user_id)
-      .first<{ id: string; email: string | null; role: string | null }>();
+    let p: { id: string; email: string | null; role: string | null } | null = null;
+    try {
+      p = await env.DB.prepare('SELECT id, email, role FROM profiles WHERE id = ?')
+        .bind(sess.user_id)
+        .first<{ id: string; email: string | null; role: string | null }>();
+    } catch (e) {
+      return verifyFailed;
+    }
     if (!p || !p.id) return anon;
     const email = (p.email || '').trim().toLowerCase();
     const role = (p.role || '').trim().toLowerCase();
@@ -1014,9 +1029,9 @@ export async function getAuthIdentity(request: Request, env: Env) {
         if (activeCtx) activeCtx.waitUntil(touch);
       }
     } catch (e) {}
-    return { email, role, id: p.id, bearerToken: token, isSuperAdmin, isAdmin };
+    return { email, role, id: p.id, bearerToken: token, isSuperAdmin, isAdmin, verifyError: false };
   } catch (e) {
-    return anon;
+    return verifyFailed;
   }
 }
 
@@ -2792,6 +2807,12 @@ export default {
         // Authorization: Bearer). No valid token -> not authenticated, period.
         if ((authAction === 'session' || authAction === 'me') && request.method === 'GET') {
           const auth = await getAuthIdentity(request, env);
+          if ((auth as any).verifyError) {
+            // The server couldn't verify the token (transient DB error etc.).
+            // 503 — never 401 — so the app keeps the cached login instead of
+            // logging the user out over a hiccup. See AuthContext.
+            return jsonResponse({ success: false, authenticated: false, user: null, profile: null, error: 'Verification temporarily unavailable' }, 503);
+          }
           if (!auth.id) {
             // 401 (not 200): the app only forgets a saved login on an explicit
             // rejection — never on a hiccup. See AuthContext.

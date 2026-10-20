@@ -14,6 +14,8 @@ import {
   Share2,
   X,
   RadioTower,
+  Shuffle,
+  Repeat,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -85,6 +87,12 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [started, setStarted] = useState(false);
+  // Playback mode: repeat loops the whole list forever (default ON);
+  // shuffle plays the tracks in random order. Both remembered per device.
+  const [shuffle, setShuffle] = useState(() => { try { return localStorage.getItem('oc-radio-shuffle') === '1'; } catch { return false; } });
+  const [repeat, setRepeat] = useState(() => { try { return localStorage.getItem('oc-radio-repeat') !== '0'; } catch { return true; } });
+  const shuffleRef = useRef(shuffle);
+  const repeatRef = useRef(repeat);
   const [playerError, setPlayerError] = useState('');
   const [liveLinkExpired, setLiveLinkExpired] = useState(false);
 
@@ -215,6 +223,17 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
         playStartRef.current = null;
       }
     };
+    // Under shuffle, getPlaylistIndex() is the position in the shuffled
+    // order, not our list — match the actually-playing video id instead so
+    // "Now playing" and the lineup highlight stay truthful.
+    const syncIndex = () => {
+      try {
+        const vid = player.getVideoData?.()?.video_id;
+        const list = playlistIds();
+        const byId = vid ? list.indexOf(vid) : -1;
+        setCurrentIndex(byId >= 0 ? byId : (player.getPlaylistIndex() ?? 0));
+      } catch {}
+    };
     player.addEventListener('onStateChange', (e: any) => {
       const YTNS = (window as any).YT;
       const state = e.data;
@@ -229,13 +248,13 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
         isPlayingRef.current = true;
         setStarted(true);
         playStartRef.current = Date.now();
-        try { setCurrentIndex(player.getPlaylistIndex() ?? 0); } catch {}
+        syncIndex();
       } else if (state === YTNS.PlayerState.PAUSED || state === YTNS.PlayerState.ENDED) {
         accumulate();
         setIsPlaying(false);
         isPlayingRef.current = false;
       } else if (state === YTNS.PlayerState.CUED) {
-        try { setCurrentIndex(player.getPlaylistIndex() ?? 0); } catch {}
+        syncIndex();
       }
     });
     player.addEventListener('onError', () => {
@@ -320,6 +339,7 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
       const begin = () => {
         // Array form is the documented loadPlaylist signature; only call once ready.
         player.loadPlaylist(ids, safeIndex);
+        applyPlayMode(player);
         setCurrentIndex(safeIndex);
         setStarted(true);
       };
@@ -353,6 +373,34 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
   const playNext = () => { try { playerRef.current?.nextVideo(); } catch {} };
   const playPrev = () => { try { playerRef.current?.previousVideo(); } catch {} };
 
+  // Push the current repeat/shuffle mode into the YouTube player. Called
+  // after every (re)load of the playlist and whenever a toggle flips.
+  const applyPlayMode = (player: any) => {
+    if (!player) return;
+    try { player.setLoop?.(repeatRef.current); } catch {}
+    try { player.setShuffle?.(shuffleRef.current); } catch {}
+  };
+
+  const toggleShuffle = () => {
+    setShuffle((prev) => {
+      const next = !prev;
+      shuffleRef.current = next;
+      try { localStorage.setItem('oc-radio-shuffle', next ? '1' : '0'); } catch {}
+      try { playerRef.current?.setShuffle?.(next); } catch {}
+      return next;
+    });
+  };
+
+  const toggleRepeat = () => {
+    setRepeat((prev) => {
+      const next = !prev;
+      repeatRef.current = next;
+      try { localStorage.setItem('oc-radio-repeat', next ? '1' : '0'); } catch {}
+      try { playerRef.current?.setLoop?.(next); } catch {}
+      return next;
+    });
+  };
+
   const changeFilter = (f: string) => {
     setFilter(f);
     filterRef.current = f;
@@ -361,7 +409,7 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
     if (playerRef.current && started) {
       const ids = tracksRef.current.filter((t) => f === 'all' || t.category === f).map((t) => t.youtube_id);
       if (ids.length) {
-        try { playerRef.current.loadPlaylist(ids, 0); } catch {}
+        try { playerRef.current.loadPlaylist(ids, 0); applyPlayMode(playerRef.current); } catch {}
       } else {
         try { playerRef.current.stopVideo(); } catch {}
         setIsPlaying(false);
@@ -692,6 +740,40 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
                 <Share2 className="w-5 h-5" />
               </button>
             )}
+          </div>
+
+          {/* Playback mode: order/shuffle + repeat */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={toggleShuffle}
+              aria-pressed={shuffle}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                shuffle
+                  ? 'bg-(--ac-gold) text-white border-transparent shadow'
+                  : 'bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) dark:text-[#a89379] border-(--ln-gold) dark:border-[#8b6b4a]'
+              }`}
+            >
+              <Shuffle className="w-3.5 h-3.5" />
+              {ar ? 'عشوائي' : 'Shuffle'}
+            </button>
+            <button
+              onClick={toggleRepeat}
+              aria-pressed={repeat}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                repeat
+                  ? 'bg-(--ac-gold) text-white border-transparent shadow'
+                  : 'bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) dark:text-[#a89379] border-(--ln-gold) dark:border-[#8b6b4a]'
+              }`}
+            >
+              <Repeat className="w-3.5 h-3.5" />
+              {ar ? 'تكرار' : 'Repeat'}
+            </button>
+            <span className="text-[11px] text-(--tx-mute) dark:text-[#a89379]">
+              {shuffle
+                ? (ar ? 'بتشتغل بترتيب عشوائي' : 'Playing in random order')
+                : (ar ? 'بتشتغل بالترتيب' : 'Playing in order')}
+              {repeat ? (ar ? ' — والقائمة بتتكرر' : ' — list repeats') : ''}
+            </span>
           </div>
           {playerError && <p className="text-xs text-red-600 dark:text-red-400">{playerError}</p>}
 

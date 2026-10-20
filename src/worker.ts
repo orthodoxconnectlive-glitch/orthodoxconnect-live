@@ -5848,9 +5848,6 @@ export default {
               : 'That doesn’t look like a YouTube video link. Open the video in the YouTube app, tap Share, copy the link, and paste it here.';
             return jsonResponse({ success: false, error: err }, 400);
           }
-          if (!(await youTubeVideoPlayable(youtubeId))) {
-            return jsonResponse({ success: false, error: 'This YouTube link does not work — the video was removed, is private, or the link is wrong. Open the video in the YouTube app, tap Share, copy the link, and try again.' }, 400);
-          }
           const id = `radio-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
           let sortOrder = 0;
           if (env.DB) {
@@ -5893,9 +5890,6 @@ export default {
           const isLive = body.is_live === true || body.is_live === '1' || body.is_live === 1;
           const youtubeId = extractYouTubeId(body.youtube_url || body.youtube_id || '') || '';
           const title = String(body.title || '').trim();
-          if (isLive && youtubeId && !(await youTubeVideoPlayable(youtubeId))) {
-            return jsonResponse({ success: false, error: 'This YouTube link does not work — the video was removed, is private, or the link is wrong. Open the video in the YouTube app, tap Share, copy the link, and try again.' }, 400);
-          }
           await env.DB.prepare(`INSERT INTO radio_state (key, value) VALUES ('is_live', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(isLive ? '1' : '0').run();
           await env.DB.prepare(`INSERT INTO radio_state (key, value) VALUES ('live_youtube_id', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(youtubeId).run();
           await env.DB.prepare(`INSERT INTO radio_state (key, value) VALUES ('live_title', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(title).run();

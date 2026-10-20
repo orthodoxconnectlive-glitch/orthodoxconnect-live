@@ -640,7 +640,7 @@ export const RadioView: React.FC<RadioViewProps> = ({ focusTrackId, onFocusTrack
             <iframe
               key={live.youtube_id}
               className="w-full h-full"
-              src={`https://www.youtube.com/embed/${live.youtube_id}?autoplay=1&rel=0`}
+              src={`https://www.youtube.com/embed/${live.youtube_id}?autoplay=1&rel=0&loop=1&playlist=${live.youtube_id}`}
               title={live.title || 'Live'}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen

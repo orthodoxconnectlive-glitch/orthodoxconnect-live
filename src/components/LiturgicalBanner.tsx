@@ -15,6 +15,7 @@ interface LiturgicalBannerProps {
 export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalendar, openSynaxKey, onOpenSynaxConsumed }) => {
   const { t, language } = useTheme();
   const [copied, setCopied] = useState(false);
+  const [cardShared, setCardShared] = useState(false);
   const [todayData, setTodayData] = useState<LiturgicalDay | null>(null);
   const [readerDate, setReaderDate] = useState<CopticDate | null>(null);
 
@@ -57,6 +58,136 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
     navigator.clipboard.writeText(textToShare);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Render the whole daily card as a PNG image so it can be shared to
+  // WhatsApp / groups as a picture (not just text).
+  const renderCardImage = async (): Promise<Blob | null> => {
+    if (!todayData) return null;
+    try {
+      const ct = getCopticDate(new Date());
+      const tt = todayData.synaxariumTitles ?? [];
+      const W = 1200;
+      const pad = 72;
+      const maxW = W - pad * 2;
+      const meas = document.createElement('canvas').getContext('2d');
+      if (!meas) return null;
+      const wrap = (text: string, font: string, width: number): string[] => {
+        meas.font = font;
+        const words = String(text).split(/\s+/);
+        const lines: string[] = [];
+        let line = '';
+        for (const w of words) {
+          const test = line ? line + ' ' + w : w;
+          if (meas.measureText(test).width > width && line) { lines.push(line); line = w; }
+          else line = test;
+        }
+        if (line) lines.push(line);
+        return lines.length ? lines : [''];
+      };
+      const F = {
+        brand: '700 40px Georgia, serif',
+        date: '700 42px Georgia, serif',
+        sub: '600 38px Georgia, serif',
+        head: '700 34px Georgia, serif',
+        title: '700 46px Georgia, serif',
+        verse: 'italic 46px Georgia, serif',
+        ref: '700 36px Georgia, serif',
+        foot: '700 44px Georgia, serif',
+      };
+      const synaxHead = language === 'ar' ? 'سنكسار اليوم' : "TODAY'S SYNAXARIUM";
+      const titleLines = tt.slice(0, 3).flatMap((x) => wrap(x, F.title, maxW));
+      const verseLines = wrap(`"${todayData.scriptureText}"`, F.verse, maxW);
+      const img = await new Promise<HTMLImageElement | null>((res) => {
+        const i = new Image();
+        i.onload = () => res(i);
+        i.onerror = () => res(null);
+        i.src = '/launchericon-512x512.png';
+      });
+      const imgSize = 210;
+      let H = 84 + (img ? imgSize + 34 : 130) + 62 + 54 + 54 + 58 + 46
+        + (titleLines.length ? 66 + titleLines.length * 60 : 0)
+        + verseLines.length * 62 + 8 + 78 + 84;
+      const canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, '#13264e'); grad.addColorStop(0.5, '#0e1c40'); grad.addColorStop(1, '#0a142e');
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 5;
+      ctx.strokeRect(26, 26, W - 52, H - 52);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      let y = 84;
+      if (img) {
+        ctx.save();
+        ctx.beginPath(); ctx.arc(W / 2, y + imgSize / 2, imgSize / 2, 0, Math.PI * 2); ctx.clip();
+        ctx.drawImage(img, W / 2 - imgSize / 2, y, imgSize, imgSize);
+        ctx.restore();
+        y += imgSize + 34;
+      } else {
+        ctx.fillStyle = '#e8c25a'; ctx.font = '110px Georgia, serif';
+        ctx.fillText('†', W / 2, y + 40); y += 130;
+      }
+      ctx.fillStyle = '#e8c25a'; ctx.font = F.brand;
+      ctx.fillText('O R T H O D O X C O N N E C T', W / 2, y); y += 62;
+      ctx.fillStyle = '#f2e3b3'; ctx.font = F.date;
+      ctx.fillText(String(todayData.date).toUpperCase(), W / 2, y); y += 54;
+      ctx.font = F.sub;
+      ctx.fillText(formatCopticDate(ct, language), W / 2, y); y += 54;
+      ctx.fillStyle = '#6ee7b7'; ctx.font = F.sub;
+      ctx.fillText(todayData.fastingInfo, W / 2, y); y += 58;
+      ctx.strokeStyle = 'rgba(201,162,39,0.6)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(W / 2 - 190, y); ctx.lineTo(W / 2 + 190, y); ctx.stroke(); y += 46;
+      if (titleLines.length) {
+        ctx.fillStyle = '#e8c25a'; ctx.font = F.head;
+        ctx.fillText(synaxHead, W / 2, y); y += 50;
+        ctx.fillStyle = '#fdf6e3'; ctx.font = F.title;
+        for (const ln of titleLines) { ctx.fillText(ln, W / 2, y); y += 60; }
+        y += 16;
+      }
+      ctx.fillStyle = '#fdf6e3'; ctx.font = F.verse;
+      for (const ln of verseLines) { ctx.fillText(ln, W / 2, y); y += 62; }
+      y += 8;
+      ctx.fillStyle = '#c9a227'; ctx.font = F.ref;
+      ctx.fillText(`— ${todayData.scriptureRef}`, W / 2, y); y += 78;
+      ctx.fillStyle = '#e8c25a'; ctx.font = F.foot;
+      ctx.fillText('orthodoxconnect.live', W / 2, y);
+      return await new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), 'image/png'));
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const handleShareCard = async () => {
+    if (!todayData) return;
+    const ct = getCopticDate(new Date());
+    const tt = todayData.synaxariumTitles ?? [];
+    const mm = String(ct.month).padStart(2, '0');
+    const dd = String(ct.day).padStart(2, '0');
+    const url = `https://orthodoxconnect.live/?synax=${mm}-${dd}`;
+    const synaxLine = tt.length
+      ? `\n\n${language === 'ar' ? 'سنكسار اليوم' : "Today's Synaxarium"}:\n${tt.slice(0, 3).join('\n')}`
+      : '';
+    const text = `✝ OrthodoxConnect\n${todayData.date} • ${formatCopticDate(ct, language)}\n${todayData.fastingInfo}${synaxLine}\n\n"${todayData.scriptureText}"\n— ${todayData.scriptureRef}\n\n${url}`;
+    const done = () => { setCardShared(true); setTimeout(() => setCardShared(false), 2000); };
+    try {
+      const blob = await renderCardImage();
+      if (blob) {
+        const file = new File([blob], 'orthodoxconnect-daily-card.png', { type: 'image/png' });
+        const nav: any = navigator;
+        if (nav.canShare && nav.canShare({ files: [file] })) {
+          await nav.share({ files: [file], text });
+          done();
+          return;
+        }
+      }
+    } catch (e) { /* fall through to text share */ }
+    const nav: any = navigator;
+    if (nav.share) {
+      try { await nav.share({ title: 'OrthodoxConnect', text, url }); done(); return; } catch (e) { /* fall through */ }
+    }
+    try { await navigator.clipboard.writeText(text); done(); } catch (e) { /* nothing left to try */ }
   };
 
   if (!todayData) return null;
@@ -163,14 +294,24 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
             </button>
           </div>
 
-          {/* Open Full Liturgical Calendar View */}
-          <button
-            onClick={onOpenCalendar}
-            className="px-8 py-3 rounded-full bg-gradient-to-b from-[#ffe27a] to-[#f5b81f] hover:brightness-110 text-[#1a2340] font-serif font-black text-sm uppercase tracking-wider flex items-center gap-2 shadow-[0_4px_20px_rgba(245,184,31,0.45)] transition-all cursor-pointer"
-          >
-            <Calendar className="w-4 h-4" />
-            <span>{t('calendar')}</span>
-          </button>
+          {/* Open Full Liturgical Calendar View + Share the whole card */}
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <button
+              onClick={onOpenCalendar}
+              className="px-8 py-3 rounded-full bg-gradient-to-b from-[#ffe27a] to-[#f5b81f] hover:brightness-110 text-[#1a2340] font-serif font-black text-sm uppercase tracking-wider flex items-center gap-2 shadow-[0_4px_20px_rgba(245,184,31,0.45)] transition-all cursor-pointer"
+            >
+              <Calendar className="w-4 h-4" />
+              <span>{t('calendar')}</span>
+            </button>
+            <button
+              onClick={handleShareCard}
+              title="Share today's card"
+              className="px-6 py-3 rounded-full bg-white/5 hover:bg-white/10 border border-[#e8c25a]/70 text-[#f2e3b3] font-serif font-black text-sm uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
+            >
+              {cardShared ? <Check className="w-4 h-4 text-emerald-300" /> : <Share2 className="w-4 h-4" />}
+              <span>{isAr ? 'مشاركة' : 'Share'}</span>
+            </button>
+          </div>
         </div>
       </div>
 

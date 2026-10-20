@@ -1281,6 +1281,8 @@ function extractYouTubeId(input: any): string | null {
 // Check a YouTube video is real and publicly playable (oEmbed 200).
 // Used before saving radio live links / tracks so Hany gets an instant
 // "this link is dead" instead of a broken embed in the player.
+// IMPORTANT: only a 404 blocks the save. Any check failure (network hiccup,
+// YouTube throttling the server) fails OPEN so a good link always saves.
 async function youTubeVideoPlayable(videoId: string): Promise<boolean> {
   if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) return false;
   try {
@@ -1288,9 +1290,10 @@ async function youTubeVideoPlayable(videoId: string): Promise<boolean> {
       headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36' },
       signal: AbortSignal.timeout(8000),
     });
-    return r.ok;
+    if (r.status === 404) return false; // video is gone -> block
+    return true; // 200 or unverifiable -> allow
   } catch (e) {
-    return false;
+    return true; // check failed -> allow, never block a good link
   }
 }
 

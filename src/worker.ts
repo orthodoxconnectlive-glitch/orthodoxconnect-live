@@ -48,6 +48,9 @@ export interface Env {
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
   GEMINI_API_KEY?: string;
+  // Service key letting the daily-verse mailer read member emails after the
+  // public profile endpoints stop exposing them. Set in the Worker dashboard.
+  MEMBER_LIST_KEY?: string;
 }
 
 export interface D1PostRow {
@@ -2994,6 +2997,17 @@ export default {
           // directory owners; other admins see clergy profiles only.
           const auth = await getAuthIdentity(request, env);
           const hasFullDirectory = auth.isSuperAdmin || FULL_DIRECTORY_EMAILS.includes((auth.email || '').toLowerCase());
+          // Member emails are private: directory owners, admins, and the
+          // daily-verse mailer (via ?service_key=MEMBER_LIST_KEY) may see them.
+          // Everyone else — including unauthenticated callers — gets the same
+          // list with email stripped, so @mentions and the directory keep working.
+          const listServiceKey = url.searchParams.get('service_key');
+          const maySeeMemberEmails =
+            hasFullDirectory ||
+            auth.isAdmin ||
+            (typeof env.MEMBER_LIST_KEY === 'string' &&
+              env.MEMBER_LIST_KEY.length > 0 &&
+              listServiceKey === env.MEMBER_LIST_KEY);
           let directoryScope = 'full';
           let effectiveRole = role;
           if (auth.isAdmin && !hasFullDirectory) {
@@ -3037,7 +3051,15 @@ export default {
               : p
           );
 
-          return jsonResponse({ success: true, profiles: slimProfiles, count: slimProfiles.length, directoryScope });
+          const emailSafeProfiles = maySeeMemberEmails
+            ? slimProfiles
+            : slimProfiles.map((p: any) => {
+                if (!p || typeof p !== 'object') return p;
+                const { email, ...rest } = p;
+                return rest;
+              });
+
+          return jsonResponse({ success: true, profiles: emailSafeProfiles, count: emailSafeProfiles.length, directoryScope });
         }
 
         if (request.method === 'POST') {
@@ -3085,6 +3107,21 @@ export default {
           }
           if (!profile) {
             return jsonResponse({ success: false, error: 'Profile not found.' }, 404);
+          }
+          // Emails are private on single profiles too: admins, the profile
+          // owner, and the daily-verse mailer (service key) see it; everyone
+          // else gets the profile without it.
+          const singleAuth = await getAuthIdentity(request, env);
+          const singleServiceKey = url.searchParams.get('service_key');
+          const maySeeSingleEmail =
+            singleAuth.isAdmin ||
+            (singleAuth.id !== '' && singleAuth.id === profile.id) ||
+            (typeof env.MEMBER_LIST_KEY === 'string' &&
+              env.MEMBER_LIST_KEY.length > 0 &&
+              singleServiceKey === env.MEMBER_LIST_KEY);
+          if (!maySeeSingleEmail) {
+            const { email, ...rest } = profile as any;
+            profile = rest as D1ProfileRow;
           }
           return jsonResponse({ success: true, profile });
         }

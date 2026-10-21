@@ -13,6 +13,7 @@ export interface Post {
   image?: string | null;
   imageUrl?: string | null;
   image_url?: string | null;
+  image_urls?: string[];
   video?: string | null;
   videoId?: string | null;
   video_id?: string | null;

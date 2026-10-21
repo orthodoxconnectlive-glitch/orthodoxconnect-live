@@ -182,7 +182,8 @@ export const FeedView: React.FC<FeedViewProps> = ({
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 220) + 'px';
   };
-  const [imageUrl, setImageUrl] = useState('');
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const imageUrl = imageUrls[0] || '';
   const [videoUrl, setVideoUrl] = useState('');
   const [showVideoUrlInput, setShowVideoUrlInput] = useState(false);
   const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
@@ -331,21 +332,34 @@ export const FeedView: React.FC<FeedViewProps> = ({
   };
 
   const handlePhotoFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      const room = 10 - imageUrls.length;
+      if (room <= 0) {
+        triggerToast(language === 'ar' ? 'الحد الأقصى ١٠ صور في المنشور.' : 'Up to 10 photos per post.');
+        e.target.value = '';
+        return;
+      }
+      const picked = files.filter((f) => f.type.startsWith('image/')).slice(0, room);
+      if (picked.length === 0) {
         triggerToast(language === 'ar' ? 'يرجى اختيار ملف صورة صالح.' : 'Please select a valid image file.');
+        e.target.value = '';
         return;
       }
       try {
-        triggerToast(language === 'ar' ? 'جارٍ تجهيز وضغط الصورة...' : 'Compressing photo...');
-        const compressedUrl = await compressImageToDataUrl(file, 800, 0.7);
-        setImageUrl(compressedUrl);
-        triggerToast(language === 'ar' ? 'تم إرفاق الصورة!' : 'Photo attached!');
+        triggerToast(language === 'ar' ? 'جارٍ تجهيز وضغط الصور...' : 'Compressing photos...');
+        const urls: string[] = [];
+        for (const file of picked) {
+          try {
+            urls.push(await compressImageToDataUrl(file, 800, 0.7));
+          } catch (err) {
+            urls.push(await uploadMediaFile(file, 'post-photos'));
+          }
+        }
+        setImageUrls((prev) => [...prev, ...urls].slice(0, 10));
+        triggerToast(language === 'ar' ? 'تم إرفاق الصور!' : 'Photos attached!');
       } catch (err) {
-        const url = await uploadMediaFile(file, 'post-photos');
-        setImageUrl(url);
-        triggerToast(language === 'ar' ? 'تم إرفاق الصورة!' : 'Photo attached!');
+        triggerToast(language === 'ar' ? 'تعذر إرفاق الصور.' : 'Could not attach those photos.');
       }
     }
     e.target.value = '';
@@ -443,6 +457,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         id: postId,
         content: newPostText.trim(),
         image_url: finalVideoId ? null : imageUrl || null,
+        image_urls: finalVideoId ? undefined : (imageUrls.length > 1 ? imageUrls : undefined),
         video_id: finalVideoId,
         author_id: profile?.id || null,
         author_name: profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner'),
@@ -477,6 +492,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         image: postPayload.image_url || undefined,
         imageUrl: postPayload.image_url || undefined,
         image_url: postPayload.image_url || undefined,
+        image_urls: imageUrls.length > 1 && !finalVideoId ? imageUrls : undefined,
         video: postPayload.video_id || undefined,
         videoId: postPayload.video_id || undefined,
         video_id: postPayload.video_id || undefined,
@@ -486,7 +502,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
 
       setNewPostText('');
       autoGrowComposer(composerRef.current);
-      setImageUrl('');
+      setImageUrls([]);
       setVideoUrl('');
       setShowVideoUrlInput(false);
       setSelectedVideoFile(null);
@@ -811,6 +827,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            multiple
             onChange={handlePhotoFileSelect}
             className="hidden"
           />
@@ -822,24 +839,41 @@ export const FeedView: React.FC<FeedViewProps> = ({
             className="hidden"
           />
 
-          {imageUrl && (
-            <div className="relative rounded-2xl overflow-hidden border-2 border-(--ln-gold) bg-(--chip-dark)/10 p-1">
-              <div className="relative max-h-80 overflow-hidden rounded-xl bg-black/20 flex items-center justify-center">
-                <img
-                  src={imageUrl}
-                  alt="Selected photo preview"
-                  className="w-full h-auto max-h-80 object-cover rounded-xl"
-                />
-                <div className="absolute top-2 right-2 rtl:right-auto rtl:left-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setImageUrl('')}
-                    className="p-1.5 rounded-full bg-(--chip-dark)/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-(--ln-gold)/50"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+          {imageUrls.length > 0 && (
+            <div className="relative rounded-2xl overflow-hidden border-2 border-(--ln-gold) bg-(--chip-dark)/10 p-1.5">
+              {imageUrls.length === 1 ? (
+                <div className="relative max-h-80 overflow-hidden rounded-xl bg-black/20 flex items-center justify-center">
+                  <img
+                    src={imageUrls[0]}
+                    alt="Selected photo preview"
+                    className="w-full h-auto max-h-80 object-cover rounded-xl"
+                  />
+                  <div className="absolute top-2 right-2 rtl:right-auto rtl:left-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setImageUrls([])}
+                      className="p-1.5 rounded-full bg-(--chip-dark)/90 text-[#f5ebd9] hover:bg-red-700 hover:text-white transition-all shadow-md cursor-pointer border border-(--ln-gold)/50"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-1.5">
+                  {imageUrls.map((u, i) => (
+                    <div key={i} className="relative h-20 rounded-lg overflow-hidden">
+                      <img src={u} alt={`Selected photo ${i + 1}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setImageUrls((prev) => prev.filter((_, j) => j !== i))}
+                        className="absolute top-1 right-1 p-1 rounded-full bg-black/70 text-white hover:bg-red-700 transition-all cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -899,7 +933,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
               >
                 <Image className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                 <span className="hidden sm:inline font-serif uppercase tracking-wider text-[11px]">
-                  {imageUrl ? (language === 'ar' ? 'تم إرفاق صورة' : 'Photo Attached') : (language === 'ar' ? 'صورة' : 'Photo')}
+                  {imageUrls.length > 1 ? (language === 'ar' ? `تم إرفاق ${imageUrls.length} صور` : `${imageUrls.length} Photos Attached`) : imageUrl ? (language === 'ar' ? 'تم إرفاق صورة' : 'Photo Attached') : (language === 'ar' ? 'صورة' : 'Photo')}
                 </span>
               </button>
 

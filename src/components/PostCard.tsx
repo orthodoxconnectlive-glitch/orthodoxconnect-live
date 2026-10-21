@@ -15,6 +15,8 @@ import {
   Sparkles,
   Volume2,
   Square,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Post, UserProfile, PostComment } from '../types';
 import { apiFetch } from '../lib/api';
@@ -282,6 +284,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 }) => {
   const { t, language } = useTheme();
   const isLiveBroadcast = (post.id || '').startsWith('livepost-') || (post.author_name || '').toLowerCase() === 'live broadcast';
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [commentInput, setCommentInput] = useState<string>('');
   // @mention picker state for the comment composer
   const [mentionOpen, setMentionOpen] = useState<boolean>(false);
@@ -490,6 +493,12 @@ export const PostCard: React.FC<PostCardProps> = ({
   const authorAvatar = post.authorAvatar || post.author_avatar || rawPost.profile?.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png';
   const authorId = post.authorId || post.author_id || rawPost.author_id;
   const postImage = post.imageUrl || post.image || post.image_url || null;
+  const galleryUrls: string[] =
+    Array.isArray(post.image_urls) && post.image_urls.length > 1
+      ? post.image_urls
+      : postImage
+        ? [postImage]
+        : [];
 
   const rawVideoSource = post.videoId || post.video_id || post.video || undefined;
   const parsedEmbed = parseVideoEmbed(rawVideoSource);
@@ -994,8 +1003,8 @@ export const PostCard: React.FC<PostCardProps> = ({
         </div>
       ) : null}
 
-      {/* Image Media */}
-      {postImage && (!cleanVideoId && !parsedEmbed || rawPost.show_image_with_video) && (
+      {/* Image Media (single photo) */}
+      {galleryUrls.length <= 1 && postImage && (!cleanVideoId && !parsedEmbed || rawPost.show_image_with_video) && (
         <div className="rounded-2xl overflow-hidden mb-3.5 border-2 border-(--ln-gold)/40 bg-(--chip-dark)/10 w-full max-h-[500px] flex items-center justify-center shadow-inner">
           <img
             src={postImage}
@@ -1006,6 +1015,89 @@ export const PostCard: React.FC<PostCardProps> = ({
               (e.target as HTMLElement).style.display = 'none';
             }}
           />
+        </div>
+      )}
+
+      {/* Photo Gallery (multi-photo posts) */}
+      {galleryUrls.length > 1 && (!cleanVideoId && !parsedEmbed || rawPost.show_image_with_video) && (
+        <div className="grid grid-cols-2 gap-1.5 mb-3.5">
+          {galleryUrls.slice(0, 4).map((src, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setLightboxIdx(i)}
+              className={`relative overflow-hidden rounded-2xl border-2 border-(--ln-gold)/40 bg-(--chip-dark)/10 cursor-pointer ${
+                galleryUrls.length === 3 && i === 0 ? 'col-span-2 h-64' : 'h-44'
+              }`}
+            >
+              <img
+                src={src}
+                alt="Post photo"
+                loading="lazy"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+              {i === 3 && galleryUrls.length > 4 && (
+                <span className="absolute inset-0 bg-black/60 text-white flex items-center justify-center font-serif font-bold text-3xl">
+                  +{galleryUrls.length - 4}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Gallery Lightbox */}
+      {lightboxIdx !== null && galleryUrls[lightboxIdx] && (
+        <div
+          className="fixed inset-0 z-[90] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setLightboxIdx(null)}
+        >
+          <img
+            src={galleryUrls[lightboxIdx]}
+            alt="Post photo"
+            className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            onClick={() => setLightboxIdx(null)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white hover:bg-white/25 transition-all cursor-pointer"
+            aria-label="Close"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          {lightboxIdx > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIdx(lightboxIdx - 1);
+              }}
+              className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 text-white hover:bg-white/25 transition-all cursor-pointer"
+              aria-label="Previous photo"
+            >
+              <ChevronLeft className="w-7 h-7" />
+            </button>
+          )}
+          {lightboxIdx < galleryUrls.length - 1 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIdx(lightboxIdx + 1);
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 text-white hover:bg-white/25 transition-all cursor-pointer"
+              aria-label="Next photo"
+            >
+              <ChevronRight className="w-7 h-7" />
+            </button>
+          )}
+          <span className="absolute bottom-5 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-white/10 text-white font-serif text-sm">
+            {lightboxIdx + 1} / {galleryUrls.length}
+          </span>
         </div>
       )}
 

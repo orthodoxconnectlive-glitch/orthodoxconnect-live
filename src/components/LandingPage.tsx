@@ -127,7 +127,7 @@ export const LandingPage: React.FC = () => {
           <div className="w-20 h-20 mx-auto rounded-3xl overflow-hidden border-2 border-(--ln-gold) shadow-xl mb-6">
             <img src="/launchericon-512x512.png" alt="OrthodoxConnect" className="w-full h-full object-cover" />
           </div>
-          <h1 className="font-serif-coptic font-bold text-3xl sm:text-4xl uppercase tracking-wider mb-4">
+          <h1 className="font-serif-coptic font-bold text-[clamp(1.5rem,7.8vw,1.875rem)] sm:text-4xl uppercase tracking-wide sm:tracking-wider mb-4">
             OrthodoxConnect
           </h1>
           <p className="font-serif text-xl sm:text-2xl font-bold text-(--ac-bronze-tx) mb-3 leading-relaxed">

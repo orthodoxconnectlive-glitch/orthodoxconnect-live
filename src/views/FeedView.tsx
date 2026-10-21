@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import {
   Image,
   Video,
@@ -30,10 +30,12 @@ import { apiFetch } from '../lib/api';
 import { useTheme } from '../context/ThemeContext';
 import { ReshareModal } from '../components/ReshareModal';
 import { ReportContentModal } from '../components/ReportContentModal';
-import { StoriesBar } from '../components/StoriesBar';
 import { PostCard } from '../components/PostCard';
-import { LiturgicalBanner } from '../components/LiturgicalBanner';
 import { WelcomeOverlay } from '../components/WelcomeOverlay';
+// Load slimming (2026-10-21): the daily banner (with its Synaxarium reader)
+// and the stories bar load right after the feed shell — not before it.
+const LiturgicalBanner = lazy(() => import('../components/LiturgicalBanner').then((m) => ({ default: m.LiturgicalBanner })));
+const StoriesBar = lazy(() => import('../components/StoriesBar').then((m) => ({ default: m.StoriesBar })));
 import { UserProfileData } from './ProfileView';
 
 export function parseVideoEmbed(url?: string | null): { type: 'youtube' | 'vimeo' | 'facebook' | 'direct'; embedUrl: string } | null {
@@ -704,8 +706,12 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </div>
       )}
 
-      <LiturgicalBanner onOpenCalendar={onOpenCalendar} openSynaxKey={focusSynaxKey} onOpenSynaxConsumed={onFocusSynaxConsumed} />
-      <StoriesBar onSelectUser={onSelectUser} />
+      <Suspense fallback={<div className="h-44 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold)/40 animate-pulse" />}>
+        <LiturgicalBanner onOpenCalendar={onOpenCalendar} openSynaxKey={focusSynaxKey} onOpenSynaxConsumed={onFocusSynaxConsumed} />
+      </Suspense>
+      <Suspense fallback={<div className="h-24" />}>
+        <StoriesBar onSelectUser={onSelectUser} />
+      </Suspense>
 
       {(() => {
         const myChurch = (profile?.parish || '').trim();

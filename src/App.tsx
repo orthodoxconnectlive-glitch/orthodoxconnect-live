@@ -4,19 +4,9 @@ import { ThemeProvider } from './context/ThemeContext';
 import { MediaProvider } from './context/MediaContext';
 import { CallProvider } from './context/CallContext';
 import { GroupCallProvider } from './context/GroupCallContext';
-import { GroupCallModal } from './components/GroupCallModal';
 import { GlobalNotificationToast } from './components/GlobalNotificationToast';
 import { Navbar } from './components/Navbar';
-import { Sidebar } from './components/Sidebar';
 import { NotificationPrompt } from './components/NotificationPrompt';
-import { ActiveChatsPanel } from './components/ActiveChatsPanel';
-import { LiturgicalBanner } from './components/LiturgicalBanner';
-import { InviteModal } from './components/InviteModal';
-import CandleModal from './components/CandleModal';
-import ThemePickerModal from './components/ThemePickerModal';
-import { EditProfileModal } from './components/EditProfileModal';
-import { AuthModal } from './components/AuthModal';
-import { LandingPage } from './components/LandingPage';
 // NEW: notification auto-refresh (adjust path if your service lives elsewhere)
 import { loadNotifications, markNotificationAsRead } from './utils/notifications';
 import { syncFollowsFromServer } from './utils/follows';
@@ -41,6 +31,17 @@ const SettingsView = lazy(() => import('./views/SettingsView').then((m) => ({ de
 const RadioView = lazy(() => import('./views/RadioView').then((m) => ({ default: m.RadioView })));
 const NotificationsView = lazy(() => import('./views/NotificationsView').then((m) => ({ default: m.NotificationsView })));
 const LibraryView = lazy(() => import('./views/LibraryView').then((m) => ({ default: m.LibraryView })));
+// Load slimming (2026-10-21): modals, the landing page and desktop-only
+// panels load on demand — none of them are needed for the first paint.
+const GroupCallModal = lazy(() => import('./components/GroupCallModal').then((m) => ({ default: m.GroupCallModal })));
+const Sidebar = lazy(() => import('./components/Sidebar').then((m) => ({ default: m.Sidebar })));
+const ActiveChatsPanel = lazy(() => import('./components/ActiveChatsPanel').then((m) => ({ default: m.ActiveChatsPanel })));
+const InviteModal = lazy(() => import('./components/InviteModal').then((m) => ({ default: m.InviteModal })));
+const CandleModal = lazy(() => import('./components/CandleModal'));
+const ThemePickerModal = lazy(() => import('./components/ThemePickerModal'));
+const EditProfileModal = lazy(() => import('./components/EditProfileModal').then((m) => ({ default: m.EditProfileModal })));
+const AuthModal = lazy(() => import('./components/AuthModal').then((m) => ({ default: m.AuthModal })));
+const LandingPage = lazy(() => import('./components/LandingPage').then((m) => ({ default: m.LandingPage })));
 import { updateSEOForView } from './utils/seo';
 
 // Lightweight fallback shown while a lazily-loaded view chunk downloads.
@@ -493,11 +494,13 @@ function AppContent() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left Sidebar */}
             <div className="hidden lg:block lg:col-span-4 xl:col-span-3">
-              <Sidebar
-                currentView={currentView}
-                onNavigate={handleNavigate}
-                onOpenInvite={() => setIsInviteOpen(true)}
-              />
+              <Suspense fallback={null}>
+                <Sidebar
+                  currentView={currentView}
+                  onNavigate={handleNavigate}
+                  onOpenInvite={() => setIsInviteOpen(true)}
+                />
+              </Suspense>
             </div>
 
             {/* Main Feed Column */}
@@ -507,10 +510,12 @@ function AppContent() {
 
             {/* Right Active Chats / Community Widgets Panel */}
             <div className="hidden xl:block xl:col-span-3">
-              <ActiveChatsPanel
-                onOpenMessenger={handleOpenMessengerWithUser}
-                onSelectUser={handleSelectUser}
-              />
+              <Suspense fallback={null}>
+                <ActiveChatsPanel
+                  onOpenMessenger={handleOpenMessengerWithUser}
+                  onSelectUser={handleSelectUser}
+                />
+              </Suspense>
             </div>
           </div>
         ) : (
@@ -526,11 +531,13 @@ function AppContent() {
         onNavigate={handleNavigate}
         onOpenMessengerWithUser={handleOpenMessengerWithUser}
       />
-      <InviteModal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
-      <EditProfileModal isOpen={isEditProfileOpen} onClose={() => setIsEditProfileOpen(false)} />
-      <CandleModal isOpen={candleOpen} onClose={() => setCandleOpen(false)} mode={candleMode} />
-      {showThemePicker && <ThemePickerModal onDone={() => setShowThemePicker(false)} />}
-      <AuthModal />
+      <Suspense fallback={null}>
+        <InviteModal isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
+        <EditProfileModal isOpen={isEditProfileOpen} onClose={() => setIsEditProfileOpen(false)} />
+        <CandleModal isOpen={candleOpen} onClose={() => setCandleOpen(false)} mode={candleMode} />
+        {showThemePicker && <ThemePickerModal onDone={() => setShowThemePicker(false)} />}
+        <AuthModal />
+      </Suspense>
     </div>
   );
 }
@@ -560,14 +567,20 @@ function AppRoot() {
   }
 
   if (!user) {
-    return <LandingPage />;
+    return (
+      <Suspense fallback={<ViewLoadingFallback />}>
+        <LandingPage />
+      </Suspense>
+    );
   }
 
   return (
     <CallProvider>
       <GroupCallProvider>
         <AppContent />
-        <GroupCallModal />
+        <Suspense fallback={null}>
+          <GroupCallModal />
+        </Suspense>
       </GroupCallProvider>
     </CallProvider>
   );

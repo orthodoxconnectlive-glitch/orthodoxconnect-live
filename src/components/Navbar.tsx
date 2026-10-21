@@ -74,6 +74,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isDonateOpen, setIsDonateOpen] = useState(false);
+
+  // Desktop sidebar Donate card asks Navbar to open the modal.
+  useEffect(() => {
+    const open = () => setIsDonateOpen(true);
+    window.addEventListener('oc:open-donate', open);
+    return () => window.removeEventListener('oc:open-donate', open);
+  }, []);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   const todayData = getTodayLiturgicalDay(language);
@@ -162,6 +169,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'churches', label: language === 'ar' ? 'الكنائس' : 'Churches', icon: Church, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'jobs', label: language === 'ar' ? 'الوظائف' : 'Jobs', icon: Briefcase, color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/30' },
     { id: 'settings', label: language === 'ar' ? 'الإعدادات' : 'Settings', icon: Settings, color: 'text-stone-600 dark:text-stone-300', bg: 'bg-stone-100 dark:bg-stone-800/40' },
+    { id: 'donate', label: language === 'ar' ? 'تبرع' : 'Donate', icon: Heart, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30', isDonate: true },
   ];
 
   const isSuperAdmin = profile?.role === 'super_admin' || profile?.email === 'orthodoxconnect.live@gmail.com';
@@ -293,18 +301,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {unreadMessageCount}
                 </span>
               )}
-            </button>
-
-            {/* Donate Button */}
-            <button
-              onClick={() => setIsDonateOpen(true)}
-              className="h-11 px-3 rounded-full bg-(--ac-gold) text-white border border-(--ac-gold) flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm shrink-0 hover:brightness-110"
-              title={language === 'ar' ? 'تبرع لدعم الخدمة' : 'Donate to support the ministry'}
-            >
-              <Heart className="w-5 h-5 fill-current" />
-              <span className="hidden sm:inline text-sm font-bold">
-                {language === 'ar' ? 'تبرع' : 'Donate'}
-              </span>
             </button>
 
             {/* Notifications Bell */}
@@ -489,6 +485,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onClick={() => {
                         if (item.isCandle) {
                           window.dispatchEvent(new CustomEvent('oc:open-candle'));
+                        } else if (item.isDonate) {
+                          setIsDonateOpen(true);
                         } else {
                           onNavigate(item.id);
                         }

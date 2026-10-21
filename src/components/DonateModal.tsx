@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Copy, Check, Heart } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -15,7 +15,17 @@ interface DonateModalProps {
 export const DonateModal: React.FC<DonateModalProps> = ({ isOpen, onClose }) => {
   const { language } = useTheme();
   const [copied, setCopied] = useState(false);
+  // Hany 2026-10-21: the Zelle number stays hidden until the donor taps
+  // "Donate with Zelle" — it only appears when someone is actually giving.
+  const [revealed, setRevealed] = useState(false);
   const ar = language === 'ar';
+
+  useEffect(() => {
+    if (!isOpen) {
+      setRevealed(false);
+      setCopied(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -63,32 +73,57 @@ export const DonateModal: React.FC<DonateModalProps> = ({ isOpen, onClose }) => 
           <span className="text-[11px] font-bold uppercase tracking-wider text-amber-300 mb-1">
             Zelle
           </span>
-          <span className="text-2xl font-mono font-bold text-amber-100 tracking-wide" dir="ltr">
-            {ZELLE_DONATE_PHONE}
-          </span>
-          <span className="text-[11px] text-stone-400 mt-2 text-center">
-            {ar
-              ? 'افتح تطبيق البنك ← Zelle ← إرسال ← اكتب الرقم ده'
-              : 'Open your bank app → Zelle → Send → enter this number'}
-          </span>
-        </div>
-
-        <button
-          onClick={handleCopy}
-          className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-sm flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer"
-        >
-          {copied ? (
+          {revealed ? (
             <>
-              <Check className="w-5 h-5" />
-              <span>{ar ? 'تم نسخ الرقم!' : 'Number Copied!'}</span>
+              <span className="text-2xl font-mono font-bold text-amber-100 tracking-wide" dir="ltr">
+                {ZELLE_DONATE_PHONE}
+              </span>
+              <span className="text-[11px] text-stone-400 mt-2 text-center">
+                {ar
+                  ? 'افتح تطبيق البنك ← Zelle ← إرسال ← اكتب الرقم ده'
+                  : 'Open your bank app → Zelle → Send → enter this number'}
+              </span>
             </>
           ) : (
             <>
-              <Copy className="w-5 h-5" />
-              <span>{ar ? 'انسخ الرقم' : 'Copy the Number'}</span>
+              <span className="text-2xl font-mono font-bold text-amber-100/70 tracking-wide" dir="ltr">
+                •••-•••-••••
+              </span>
+              <span className="text-[11px] text-stone-400 mt-2 text-center">
+                {ar
+                  ? 'الرقم مخفي — بيظهر بس لما تكون جاهز تتبرع فعلاً'
+                  : 'The number stays hidden — it appears only when you are ready to give'}
+              </span>
             </>
           )}
-        </button>
+        </div>
+
+        {revealed ? (
+          <button
+            onClick={handleCopy}
+            className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-sm flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer"
+          >
+            {copied ? (
+              <>
+                <Check className="w-5 h-5" />
+                <span>{ar ? 'تم نسخ الرقم!' : 'Number Copied!'}</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-5 h-5" />
+                <span>{ar ? 'انسخ الرقم' : 'Copy the Number'}</span>
+              </>
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={() => setRevealed(true)}
+            className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-sm flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer"
+          >
+            <Heart className="w-5 h-5 fill-current" />
+            <span>{ar ? 'تبرع عبر Zelle — إظهار الرقم' : 'Donate with Zelle — Show Number'}</span>
+          </button>
+        )}
 
         <p className="text-center text-xs text-stone-400 mt-4">
           {ar ? 'شكراً — ربنا يباركك ✝' : 'Thank you — God bless you ✝'}

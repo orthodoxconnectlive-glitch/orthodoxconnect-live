@@ -17,6 +17,7 @@ import {
   Briefcase,
   ThumbsUp,
   Palette,  Settings,
+  Heart,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -275,6 +276,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] leading-tight font-serif uppercase">
               {t('referralSub')}
+            </p>
+          </button>
+        </div>
+
+        {/* Donate Card — opens the Donate modal (Navbar listens) */}
+        <div className="mt-3">
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('oc:open-donate'))}
+            className="w-full p-3 rounded-2xl bg-gradient-to-b from-[#ffe27a] to-[#f5b81f] hover:brightness-105 transition-all text-left rtl:text-right group cursor-pointer shadow-sm"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Heart className="w-4 h-4 text-[#1a2340] fill-current group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-serif font-bold uppercase tracking-wider text-[#1a2340]">
+                {language === 'ar' ? 'تبرع' : 'Donate'}
+              </span>
+            </div>
+            <p className="text-[10px] text-[#5c4a12] leading-tight font-serif uppercase">
+              {language === 'ar' ? 'ادعم خدمة أرثوذكسى كونكت' : 'Support the OrthodoxConnect ministry'}
             </p>
           </button>
         </div>

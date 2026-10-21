@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { X, Calendar as CalendarIcon, Clock, MapPin, Video, Image as ImageIcon, Church, Sparkles } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, Calendar as CalendarIcon, Clock, MapPin, Video, Image as ImageIcon, Church, Sparkles, Upload } from 'lucide-react';
 import { EventItem } from '../types';
 import { saveEvent } from '../utils/events';
+import { compressImageToDataUrl } from '../utils/storage';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -35,10 +36,33 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [virtualLink, setVirtualLink] = useState('');
   const [category, setCategory] = useState<EventItem['category']>('liturgy');
   const [imageUrl, setImageUrl] = useState(PRESET_IMAGES[0]);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  const coverFileRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const handleCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setCoverError(language === 'ar' ? 'يرجى اختيار ملف صورة صالح.' : 'Please choose a valid image file.');
+      return;
+    }
+    setCoverBusy(true);
+    setCoverError(null);
+    try {
+      const dataUrl = await compressImageToDataUrl(file, 1100, 0.8);
+      setImageUrl(dataUrl);
+    } catch (err) {
+      setCoverError(language === 'ar' ? 'تعذر تحميل الصورة. حاول مرة أخرى.' : 'Could not load that photo. Please try again.');
+    } finally {
+      setCoverBusy(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -272,12 +296,43 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
 
           <div>
             <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-1.5">
-              {language === 'ar' ? 'رابط صورة الغلاف أو اختر نموذجاً' : 'Cover Image URL or Presets'}
+              {language === 'ar' ? 'صورة الغلاف' : 'Cover Photo'}
             </label>
+            {imageUrl && (
+              <div className="relative h-32 rounded-xl overflow-hidden border border-(--ln-bright)/30 mb-2">
+                <img src={imageUrl} alt="Event cover" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <input
+              ref={coverFileRef}
+              type="file"
+              accept="image/*"
+              onChange={handleCoverFile}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => coverFileRef.current?.click()}
+              disabled={coverBusy}
+              className="w-full mb-2 px-3.5 py-2.5 rounded-xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              <Upload className="w-4 h-4" />
+              {coverBusy
+                ? language === 'ar'
+                  ? 'جارٍ التحميل...'
+                  : 'Uploading...'
+                : language === 'ar'
+                  ? 'ارفع صورة من جهازك'
+                  : 'Upload a Photo'}
+            </button>
+            {coverError && (
+              <p className="text-xs font-bold text-red-600 dark:text-red-400 mb-2">{coverError}</p>
+            )}
             <input
               type="text"
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
+              placeholder={language === 'ar' ? '...أو الصق رابط صورة' : '...or paste an image link'}
               className="w-full px-3.5 py-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs text-(--tx-body) dark:text-[#f5ebd9] focus:outline-none focus:border-(--ln-bright) mb-2"
             />
             <div className="flex gap-2">

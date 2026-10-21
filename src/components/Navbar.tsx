@@ -27,11 +27,13 @@ import {
   Baby,
   ThumbsUp,
   Palette,  Settings,
+  Heart,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { NotificationItem } from '../types';
 import { NotificationDropdown } from './NotificationDropdown';
+import { DonateModal } from './DonateModal';
 import { GlobalSearchBox } from './GlobalSearch';
 import type { SearchProfile } from './GlobalSearch';
 import type { UserProfileData } from '../views/ProfileView';
@@ -71,6 +73,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isDonateOpen, setIsDonateOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   const todayData = getTodayLiturgicalDay(language);
@@ -290,6 +293,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {unreadMessageCount}
                 </span>
               )}
+            </button>
+
+            {/* Donate Button */}
+            <button
+              onClick={() => setIsDonateOpen(true)}
+              className="h-11 px-3 rounded-full bg-(--ac-gold) text-white border border-(--ac-gold) flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm shrink-0 hover:brightness-110"
+              title={language === 'ar' ? 'تبرع لدعم الخدمة' : 'Donate to support the ministry'}
+            >
+              <Heart className="w-5 h-5 fill-current" />
+              <span className="hidden sm:inline text-sm font-bold">
+                {language === 'ar' ? 'تبرع' : 'Donate'}
+              </span>
             </button>
 
             {/* Notifications Bell */}
@@ -670,6 +685,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       )}
+
+      <DonateModal isOpen={isDonateOpen} onClose={() => setIsDonateOpen(false)} />
     </>
   );
 };

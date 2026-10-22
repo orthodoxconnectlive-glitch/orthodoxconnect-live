@@ -2493,26 +2493,10 @@ async function sectionBotJobs(
     console.warn('[bots] sermon of the day failed', e);
   }
 
-  // Orthodox News digest (top 3 fresh headlines, links never repeated)
-  try {
-    const items = await fetchNewsItems('https://orthodoxtimes.com/feed/', 'Orthodox Times', 10);
-    if (items.length) {
-      const { results } = await db
-        .prepare("SELECT content FROM posts WHERE author_id = 'bot-orthodox-news' ORDER BY datetime(created_at) DESC LIMIT 30")
-        .all();
-      const seen = new Set<string>();
-      for (const r of (results || []) as any[]) {
-        const urls = String(r.content || '').match(/https?:\/\/\S+/g) || [];
-        for (const u of urls) seen.add(u.replace(/[)\].,]+$/, ''));
-      }
-      const fresh = items.filter((it) => !seen.has(it.link)).slice(0, 3);
-      if (fresh.length) {
-        out.push({ bot: COMMUNITY_BOTS[6], content: newsPostFor(fresh), videoId: null });
-      }
-    }
-  } catch (e) {
-    console.warn('[bots] news digest failed', e);
-  }
+  // Orthodox News: NOT fetched here. The news sites (and Google News) block
+  // fetches from Worker egress IPs (verified 2026-10-22: 403/503), so the
+  // digest is composed by an off-Worker morning job and delivered through
+  // POST /api/bots/news-post below, keeping the same dated-id idempotency.
 
   // Job of the Day (newest job, posted once, max 45 days old)
   try {
@@ -2767,6 +2751,57 @@ export default {
         }
         await runCommunityBots(env.DB, new Date());
         return jsonResponse({ success: true, ran_at: new Date().toISOString() });
+      }
+
+      // News digest intake: POST /api/bots/news-post?service_key=<key>
+      // Body { content }. The morning news job composes the digest off-Worker
+      // (the sources block Worker egress) and posts it here as the News bot.
+      // Idempotent per UTC day via the standard botpost dated id.
+      if (url.pathname === '/api/bots/news-post' && request.method === 'POST') {
+        if (!memberListKeyMatches(env, url.searchParams.get('service_key'))) {
+          return jsonResponse({ success: false, error: 'forbidden' }, 403);
+        }
+        if (!env.DB) {
+          return jsonResponse({ success: false, error: 'no_db' }, 500);
+        }
+        const body: any = await request.json().catch(() => ({}));
+        const content = typeof body.content === 'string' ? body.content.trim() : '';
+        if (!content || content.length > 4000) {
+          return jsonResponse({ success: false, error: 'bad_content' }, 400);
+        }
+        const bot = COMMUNITY_BOTS.find((b) => b.id === 'bot-orthodox-news');
+        if (!bot) {
+          return jsonResponse({ success: false, error: 'no_bot' }, 500);
+        }
+        const nowIso = new Date().toISOString();
+        const postId = 'botpost-' + bot.id + '-' + nowIso.slice(0, 10);
+        const existing = await env.DB.prepare('SELECT id FROM posts WHERE id = ?').bind(postId).first();
+        if (existing) {
+          return jsonResponse({ success: true, already: true, post_id: postId });
+        }
+        try {
+          await env.DB
+            .prepare(
+              `INSERT INTO profiles (id, email, full_name, parish, bio, avatar_url, role, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, 'user', datetime('now'), datetime('now'))
+               ON CONFLICT(id) DO UPDATE SET
+                 full_name = excluded.full_name,
+                 parish = excluded.parish,
+                 bio = excluded.bio,
+                 avatar_url = excluded.avatar_url,
+                 updated_at = datetime('now')`
+            )
+            .bind(bot.id, bot.id + '@orthodoxconnect.bot', bot.name, bot.parish, bot.bio, bot.avatar)
+            .run();
+        } catch (e) { /* profile ensure is best-effort */ }
+        await env.DB
+          .prepare(
+            `INSERT INTO posts (id, content, video_id, author_id, author_name, author_parish, author_avatar, image_url, group_id, likes_count, comments_count, reshares_count, created_at)
+             VALUES (?, ?, NULL, ?, ?, ?, ?, NULL, NULL, 0, 0, 0, ?)`
+          )
+          .bind(postId, content, bot.id, bot.name, bot.parish, bot.avatar, nowIso)
+          .run();
+        return jsonResponse({ success: true, post_id: postId });
       }
 
       // News source health check: GET /api/bots/news-preview?service_key=<key>

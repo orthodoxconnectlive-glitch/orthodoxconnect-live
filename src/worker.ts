@@ -2384,6 +2384,33 @@ function decodeFeedText(t: string): string {
     .trim();
 }
 
+function parseNewsXml(
+  xml: string,
+  source: string,
+  maxItems: number
+): Array<{ title: string; link: string; source: string }> {
+  const out: Array<{ title: string; link: string; source: string }> = [];
+  const blocks = xml.split('<item>').slice(1);
+  for (const b of blocks) {
+    const tm = b.match(/<title>([\s\S]*?)<\/title>/);
+    const lm = b.match(/<link>([\s\S]*?)<\/link>/);
+    if (!tm || !lm) continue;
+    let title = decodeFeedText(tm[1]);
+    const link = decodeFeedText(lm[1]);
+    let src = source;
+    const sm = b.match(/<source[^>]*>([\s\S]*?)<\/source>/);
+    if (sm) {
+      src = decodeFeedText(sm[1]) || source;
+      // Aggregator titles end with " - <source>": drop the suffix.
+      const suffix = ' - ' + src;
+      if (title.endsWith(suffix)) title = title.slice(0, title.length - suffix.length).trim();
+    }
+    if (title && /^https?:\/\//.test(link)) out.push({ title, link, source: src });
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
 async function fetchNewsItems(
   feedUrl: string,
   source: string,
@@ -2397,19 +2424,7 @@ async function fetchNewsItems(
       headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', accept: 'application/rss+xml, application/xml, text/xml, */*' },
     });
     if (!res.ok) return [];
-    const xml = await res.text();
-    const out: Array<{ title: string; link: string; source: string }> = [];
-    const blocks = xml.split('<item>').slice(1);
-    for (const b of blocks) {
-      const tm = b.match(/<title>([\s\S]*?)<\/title>/);
-      const lm = b.match(/<link>([\s\S]*?)<\/link>/);
-      if (!tm || !lm) continue;
-      const title = decodeFeedText(tm[1]);
-      const link = decodeFeedText(lm[1]);
-      if (title && /^https?:\/\//.test(link)) out.push({ title, link, source });
-      if (out.length >= maxItems) break;
-    }
-    return out;
+    return parseNewsXml(await res.text(), source, maxItems);
   } catch (e) {
     return [];
   } finally {
@@ -2760,8 +2775,22 @@ export default {
         if (!memberListKeyMatches(env, url.searchParams.get('service_key'))) {
           return jsonResponse({ success: false, error: 'forbidden' }, 403);
         }
-        const items = await fetchNewsItems('https://orthodoxtimes.com/feed/', 'Orthodox Times', 10);
-        return jsonResponse({ success: true, count: items.length, items });
+        const feedUrl = url.searchParams.get('u') || 'https://orthodoxtimes.com/feed/';
+        let status = 0;
+        let bytes = 0;
+        let items: Array<{ title: string; link: string; source: string }> = [];
+        try {
+          const r = await fetch(feedUrl, {
+            headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', accept: 'application/rss+xml, application/xml, text/xml, */*' },
+          });
+          status = r.status;
+          const xml = await r.text();
+          bytes = xml.length;
+          items = parseNewsXml(xml, url.searchParams.get('label') || 'Feed', 6);
+        } catch (e) {
+          return jsonResponse({ success: false, error: 'fetch_failed', detail: String(e).slice(0, 160) });
+        }
+        return jsonResponse({ success: true, status, bytes, count: items.length, items });
       }
 
       // V-Kid AI Storybook: POST /api/vkid/generate-story

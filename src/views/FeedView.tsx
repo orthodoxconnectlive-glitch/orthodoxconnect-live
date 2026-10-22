@@ -36,6 +36,7 @@ import { WelcomeOverlay } from '../components/WelcomeOverlay';
 // and the stories bar load right after the feed shell — not before it.
 const LiturgicalBanner = lazy(() => import('../components/LiturgicalBanner').then((m) => ({ default: m.LiturgicalBanner })));
 const StoriesBar = lazy(() => import('../components/StoriesBar').then((m) => ({ default: m.StoriesBar })));
+const HighlightsRail = lazy(() => import('../components/HighlightsRail').then((m) => ({ default: m.HighlightsRail })));
 import { UserProfileData } from './ProfileView';
 
 export function parseVideoEmbed(url?: string | null): { type: 'youtube' | 'vimeo' | 'facebook' | 'direct'; embedUrl: string } | null {
@@ -727,6 +728,9 @@ export const FeedView: React.FC<FeedViewProps> = ({
       </Suspense>
       <Suspense fallback={<div className="h-24" />}>
         <StoriesBar onSelectUser={onSelectUser} />
+      </Suspense>
+      <Suspense fallback={<div className="h-24" />}>
+        <HighlightsRail posts={posts} />
       </Suspense>
 
       {(() => {

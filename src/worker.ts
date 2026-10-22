@@ -2394,7 +2394,7 @@ async function fetchNewsItems(
   try {
     const res = await fetch(feedUrl, {
       signal: ctrl.signal,
-      headers: { 'user-agent': 'Mozilla/5.0 (compatible; OrthodoxConnectBot/1.0)', accept: 'application/rss+xml, application/xml, text/xml' },
+      headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', accept: 'application/rss+xml, application/xml, text/xml, */*' },
     });
     if (!res.ok) return [];
     const xml = await res.text();
@@ -2752,6 +2752,16 @@ export default {
         }
         await runCommunityBots(env.DB, new Date());
         return jsonResponse({ success: true, ran_at: new Date().toISOString() });
+      }
+
+      // News source health check: GET /api/bots/news-preview?service_key=<key>
+      // returns what the News bot's feed fetch currently parses (no posting).
+      if (url.pathname === '/api/bots/news-preview' && request.method === 'GET') {
+        if (!memberListKeyMatches(env, url.searchParams.get('service_key'))) {
+          return jsonResponse({ success: false, error: 'forbidden' }, 403);
+        }
+        const items = await fetchNewsItems('https://orthodoxtimes.com/feed/', 'Orthodox Times', 10);
+        return jsonResponse({ success: true, count: items.length, items });
       }
 
       // V-Kid AI Storybook: POST /api/vkid/generate-story

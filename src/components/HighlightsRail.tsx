@@ -65,7 +65,13 @@ export const HighlightsRail: React.FC<{ posts: Post[] }> = ({ posts }) => {
     const byAuthor = (id: string) =>
       posts.find((p: any) => (p.authorId || p.author_id) === id) as any;
     const contentOf = (p: any) => (p?.content || p?.text || '') as string;
+    const photoOf = (p: any) => (p?.imageUrl || p?.image_url || null) as string | null;
+    const isMember = (p: any) => {
+      const authorId = p.authorId || p.author_id || '';
+      return !String(authorId).startsWith('bot-') && !String(p.id).startsWith('livepost-');
+    };
 
+    // 1. Movie of the Day
     const movie = byAuthor('bot-movie-of-day');
     if (movie) {
       out.push({
@@ -79,11 +85,13 @@ export const HighlightsRail: React.FC<{ posts: Post[] }> = ({ posts }) => {
       });
     }
 
-    const reel = posts.find((p: any) => {
-      const authorId = p.authorId || p.author_id || '';
-      const hasVideo = !!(p.videoId || p.video_id);
-      return hasVideo && !String(authorId).startsWith('bot-') && !String(p.id).startsWith('livepost-');
-    }) as any;
+    // Member video posts (newest first, as loaded) feed both Reel slots.
+    const memberVideos = posts.filter(
+      (p: any) => isMember(p) && !!(p.videoId || p.video_id)
+    ) as any[];
+
+    // 2. Newest Reel
+    const reel = memberVideos[0];
     if (reel) {
       out.push({
         key: 'reel',
@@ -96,6 +104,7 @@ export const HighlightsRail: React.FC<{ posts: Post[] }> = ({ posts }) => {
       });
     }
 
+    // 3. Sermon of the Day
     const sermon = byAuthor('bot-sermon-of-day');
     if (sermon) {
       out.push({
@@ -109,6 +118,7 @@ export const HighlightsRail: React.FC<{ posts: Post[] }> = ({ posts }) => {
       });
     }
 
+    // 4. News
     const news = byAuthor('bot-orthodox-news');
     if (news) {
       out.push({
@@ -116,9 +126,95 @@ export const HighlightsRail: React.FC<{ posts: Post[] }> = ({ posts }) => {
         postId: news.id,
         chip: ar ? '📰 الأخبار' : '📰 News',
         title: newsHeadline(contentOf(news)),
-        image: news.imageUrl || news.image_url || null,
+        image: photoOf(news),
         isVideo: false,
         fallbackEmoji: '📰',
+      });
+    }
+
+    // 5. Daily Verse
+    const verse = byAuthor('bot-daily-verse');
+    if (verse) {
+      out.push({
+        key: 'verse',
+        postId: verse.id,
+        chip: ar ? '📖 آية اليوم' : '📖 Verse',
+        title: firstContentLine(contentOf(verse), true),
+        image: photoOf(verse),
+        isVideo: false,
+        fallbackEmoji: '📖',
+      });
+    }
+
+    // 6. Saint of the Day
+    const saint = byAuthor('bot-saint-of-day');
+    if (saint) {
+      out.push({
+        key: 'saint',
+        postId: saint.id,
+        chip: ar ? '☨ قديس اليوم' : '☨ Saint',
+        title: firstContentLine(contentOf(saint), true),
+        image: photoOf(saint),
+        isVideo: false,
+        fallbackEmoji: '☨',
+      });
+    }
+
+    // 7. Church Calendar
+    const calendar = byAuthor('bot-church-calendar');
+    if (calendar) {
+      out.push({
+        key: 'calendar',
+        postId: calendar.id,
+        chip: ar ? '📅 السنكسار' : '📅 Calendar',
+        title: firstContentLine(contentOf(calendar), true),
+        image: photoOf(calendar),
+        isVideo: false,
+        fallbackEmoji: '📅',
+      });
+    }
+
+    // 8. Job of the Day (only on days the bot actually posted)
+    const job = byAuthor('bot-job-of-day');
+    if (job) {
+      out.push({
+        key: 'job',
+        postId: job.id,
+        chip: ar ? '💼 وظيفة' : '💼 Job',
+        title: firstContentLine(contentOf(job), true),
+        image: photoOf(job),
+        isVideo: false,
+        fallbackEmoji: '💼',
+      });
+    }
+
+    // 9. Second Reel
+    const reel2 = memberVideos[1];
+    if (reel2) {
+      out.push({
+        key: 'reel2',
+        postId: reel2.id,
+        chip: ar ? '🎞 ريل آخر' : '🎞 More Reels',
+        title: firstContentLine(contentOf(reel2), false) || (reel2.authorName || reel2.author_name || ''),
+        image: videoThumb(reel2),
+        isVideo: true,
+        fallbackEmoji: '🎞',
+      });
+    }
+
+    // 10. Newest community photo (member photo post without video)
+    const photo = posts.find(
+      (p: any) => isMember(p) && !(p.videoId || p.video_id) && photoOf(p)
+    ) as any;
+    if (photo) {
+      out.push({
+        key: 'photo',
+        postId: photo.id,
+        chip: ar ? '📸 من المجتمع' : '📸 Community',
+        title: firstContentLine(contentOf(photo), false) || (photo.authorName || photo.author_name || ''),
+        image: photoOf(photo),
+        isVideo: false,
+        fallbackEmoji: '📸',
       });
     }
 

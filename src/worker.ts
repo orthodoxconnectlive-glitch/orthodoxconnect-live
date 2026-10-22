@@ -2617,14 +2617,17 @@ async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
     }
   }
 
-  // Backfill: a post that already went out today without a photo (e.g. the
-  // run that shipped before photos existed) gets today's photo in place.
-  for (const job of jobs) {
-    if (!job.imageUrl) continue;
+  // Backfill: any of today's bot posts that exists without a photo gets
+  // today's rotated photo in place. Iterates the photo pools directly (not
+  // the jobs array) because the Job bot queues no entry on days when it
+  // correctly stays silent — its earlier post still deserves the photo.
+  for (const botId of Object.keys(BOT_IMAGES)) {
+    const img = botImageFor(botId, doy);
+    if (!img) continue;
     try {
       await db
         .prepare("UPDATE posts SET image_url = ? WHERE id = ? AND (image_url IS NULL OR image_url = '')")
-        .bind(job.imageUrl, 'botpost-' + job.bot.id + '-' + dayStr)
+        .bind(img, 'botpost-' + botId + '-' + dayStr)
         .run();
     } catch (e) { /* best-effort */ }
   }

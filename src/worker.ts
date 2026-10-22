@@ -1810,6 +1810,14 @@ const COMMUNITY_BOTS: CommunityBotDef[] = [
     avatar:
       'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&q=80&w=200',
   },
+  {
+    id: 'bot-orthodox-news',
+    name: 'Orthodox News 🤖',
+    parish: 'OrthodoxConnect',
+    bio: 'Official OrthodoxConnect bot 🤖 — I share the morning\'s top Orthodox headlines with links to the full stories at their sources. I am not a human.',
+    avatar:
+      'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&q=80&w=200',
+  },
 ];
 
 interface VerseItem {
@@ -2359,6 +2367,71 @@ function jobPostFor(job: any): string {
   return out;
 }
 
+// Headlines for the News bot: RSS in, clean {title, link, source} out.
+// Headlines + links only — article text is never copied into a post.
+function decodeFeedText(t: string): string {
+  return t
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_m, n) => String.fromCodePoint(parseInt(n, 10)))
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+async function fetchNewsItems(
+  feedUrl: string,
+  source: string,
+  maxItems: number
+): Promise<Array<{ title: string; link: string; source: string }>> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 9000);
+  try {
+    const res = await fetch(feedUrl, {
+      signal: ctrl.signal,
+      headers: { 'user-agent': 'Mozilla/5.0 (compatible; OrthodoxConnectBot/1.0)', accept: 'application/rss+xml, application/xml, text/xml' },
+    });
+    if (!res.ok) return [];
+    const xml = await res.text();
+    const out: Array<{ title: string; link: string; source: string }> = [];
+    const blocks = xml.split('<item>').slice(1);
+    for (const b of blocks) {
+      const tm = b.match(/<title>([\s\S]*?)<\/title>/);
+      const lm = b.match(/<link>([\s\S]*?)<\/link>/);
+      if (!tm || !lm) continue;
+      const title = decodeFeedText(tm[1]);
+      const link = decodeFeedText(lm[1]);
+      if (title && /^https?:\/\//.test(link)) out.push({ title, link, source });
+      if (out.length >= maxItems) break;
+    }
+    return out;
+  } catch (e) {
+    return [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function newsPostFor(items: Array<{ title: string; link: string; source: string }>): string {
+  const nums = ['1️⃣', '2️⃣', '3️⃣'];
+  let out = '📰 Orthodox News — أخبار أرثوذكسية\n\nWhat is new in the Orthodox world today:';
+  items.forEach((it, i) => {
+    out +=
+      '\n\n' + (nums[i] || '•') + ' ' + truncateText(it.title, 150) +
+      '\n🔗 ' + it.link +
+      '\n— ' + it.source;
+  });
+  out +=
+    '\n\n📰 Fresh headlines every morning — full stories at the source.' +
+    '\n📰 عناوين جديدة كل صباح — القصص الكاملة عند المصدر.';
+  return out;
+}
+
 // Section bots (Hany 2026-10-22): every morning the Cinema, Sermons and Jobs
 // sections each surface ONE item as a feed post, so members discover what is
 // inside the app without hunting through tabs. Movie + sermon rotate
@@ -2403,6 +2476,27 @@ async function sectionBotJobs(
     }
   } catch (e) {
     console.warn('[bots] sermon of the day failed', e);
+  }
+
+  // Orthodox News digest (top 3 fresh headlines, links never repeated)
+  try {
+    const items = await fetchNewsItems('https://orthodoxtimes.com/feed/', 'Orthodox Times', 10);
+    if (items.length) {
+      const { results } = await db
+        .prepare("SELECT content FROM posts WHERE author_id = 'bot-orthodox-news' ORDER BY datetime(created_at) DESC LIMIT 30")
+        .all();
+      const seen = new Set<string>();
+      for (const r of (results || []) as any[]) {
+        const urls = String(r.content || '').match(/https?:\/\/\S+/g) || [];
+        for (const u of urls) seen.add(u.replace(/[)\].,]+$/, ''));
+      }
+      const fresh = items.filter((it) => !seen.has(it.link)).slice(0, 3);
+      if (fresh.length) {
+        out.push({ bot: COMMUNITY_BOTS[6], content: newsPostFor(fresh), videoId: null });
+      }
+    }
+  } catch (e) {
+    console.warn('[bots] news digest failed', e);
   }
 
   // Job of the Day (newest job, posted once, max 45 days old)

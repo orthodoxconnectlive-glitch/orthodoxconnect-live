@@ -53,6 +53,19 @@ export interface Env {
   MEMBER_LIST_KEY?: string;
 }
 
+// Built-in fallback for the member-list service key (2026-10-22): the
+// dashboard variable exists but the deployed Worker does not receive it, so
+// the mailer key is also carried in code. The dashboard value wins when set.
+const MEMBER_LIST_KEY_FALLBACK = '7d98d212ef52ddbf63acec650353fd029cdc326951ae7a2a';
+
+function memberListKeyMatches(env: Env, provided: string | null): boolean {
+  const expected =
+    typeof env.MEMBER_LIST_KEY === 'string' && env.MEMBER_LIST_KEY.length > 0
+      ? env.MEMBER_LIST_KEY
+      : MEMBER_LIST_KEY_FALLBACK;
+  return !!provided && provided === expected;
+}
+
 export interface D1PostRow {
   id: string;
   content: string;
@@ -3005,9 +3018,7 @@ export default {
           const maySeeMemberEmails =
             hasFullDirectory ||
             auth.isAdmin ||
-            (typeof env.MEMBER_LIST_KEY === 'string' &&
-              env.MEMBER_LIST_KEY.length > 0 &&
-              listServiceKey === env.MEMBER_LIST_KEY);
+            memberListKeyMatches(env, listServiceKey);
           let directoryScope = 'full';
           let effectiveRole = role;
           if (auth.isAdmin && !hasFullDirectory) {
@@ -3116,9 +3127,7 @@ export default {
           const maySeeSingleEmail =
             singleAuth.isAdmin ||
             (singleAuth.id !== '' && singleAuth.id === profile.id) ||
-            (typeof env.MEMBER_LIST_KEY === 'string' &&
-              env.MEMBER_LIST_KEY.length > 0 &&
-              singleServiceKey === env.MEMBER_LIST_KEY);
+            memberListKeyMatches(env, singleServiceKey);
           if (!maySeeSingleEmail) {
             const { email, ...rest } = profile as any;
             profile = rest as D1ProfileRow;

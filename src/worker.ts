@@ -2316,7 +2316,7 @@ function moviePostFor(film: any, dayOfYear: number): string {
     '🎬 Movie of the Day — فيلم اليوم\n\n' +
     truncateText(String(film.title || ''), 160);
   const desc = truncateText(String(film.description || ''), 220);
-  if (desc) out += '\n\n' + desc;
+  if (desc && desc !== truncateText(String(film.title || ''), 160)) out += '\n\n' + desc;
   out +=
     '\n\n▶ Press play — it plays right here in the feed!' +
     '\n▶ اضغط تشغيل — الفيلم يعمل هنا مباشرة في الصفحة الرئيسية!' +
@@ -2334,7 +2334,7 @@ function sermonPostFor(sermon: any, dayOfYear: number): string {
   if (sermon.topic) meta.push('📚 ' + truncateText(String(sermon.topic), 60));
   if (meta.length) out += '\n' + meta.join('  ·  ');
   const desc = truncateText(String(sermon.description || ''), 200);
-  if (desc) out += '\n\n' + desc;
+  if (desc && desc !== truncateText(String(sermon.title || ''), 160)) out += '\n\n' + desc;
   out +=
     '\n\n▶ Press play — listen right here in the feed.' +
     '\n▶ اضغط تشغيل — استمع هنا مباشرة.' +

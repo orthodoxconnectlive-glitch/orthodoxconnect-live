@@ -305,6 +305,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [translateFailed, setTranslateFailed] = useState<boolean>(false);
   const [viewOriginal, setViewOriginal] = useState<boolean>(false);
+  const [textExpanded, setTextExpanded] = useState<boolean>(false);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const autoTranslateStarted = useRef<boolean>(false);
 
@@ -333,6 +334,21 @@ export const PostCard: React.FC<PostCardProps> = ({
   // Whatever is currently displayed: the translation when available (unless
   // the user asked for the original), else the original post text.
   const displayedText = translatedText && !viewOriginal ? translatedText : postContent;
+
+  // Read more (Hany 2026-10-22): a long post collapses to a ~500-character
+  // preview cut at a word/line boundary, so one post cannot eat the whole
+  // feed; a gold "Read more" at the end of the preview expands it in place.
+  const TEXT_LIMIT = 500;
+  const isLongText = !isLiveBroadcast && displayedText.length > TEXT_LIMIT;
+  let previewText = displayedText;
+  if (isLongText) {
+    const boundary = Math.max(
+      displayedText.lastIndexOf(' ', TEXT_LIMIT),
+      displayedText.lastIndexOf('\n', TEXT_LIMIT)
+    );
+    previewText = displayedText.slice(0, boundary > TEXT_LIMIT * 0.5 ? boundary : TEXT_LIMIT).trimEnd();
+  }
+  const shownText = isLongText && !textExpanded ? previewText : displayedText;
 
   // Render URLs in post text as tappable links (e.g. live-stream watch links).
   const renderLinkedText = (text: string) => {
@@ -880,7 +896,25 @@ export const PostCard: React.FC<PostCardProps> = ({
             onClick={isLiveBroadcast ? () => onOpenLive?.() : undefined}
             title={isLiveBroadcast ? 'Tap to watch live' : undefined}
           >
-            {renderLinkedText(displayedText)}
+            {renderLinkedText(shownText)}
+            {isLongText && !textExpanded && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setTextExpanded(true); }}
+                className="font-bold text-amber-700 dark:text-amber-300 cursor-pointer"
+              >
+                {' … '}{language === 'ar' ? 'اقرأ المزيد' : 'Read more'}
+              </button>
+            )}
+            {isLongText && textExpanded && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setTextExpanded(false); }}
+                className="font-bold text-amber-700 dark:text-amber-300 cursor-pointer"
+              >
+                {'  '}{language === 'ar' ? 'عرض أقل' : 'Show less'}
+              </button>
+            )}
           </p>
           {needsTranslation && (
             <div className="mt-1.5">

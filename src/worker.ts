@@ -1786,6 +1786,30 @@ const COMMUNITY_BOTS: CommunityBotDef[] = [
     avatar:
       'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&q=80&w=200',
   },
+  {
+    id: 'bot-movie-of-day',
+    name: 'Movie of the Day 🤖',
+    parish: 'OrthodoxConnect',
+    bio: 'Official OrthodoxConnect bot 🤖 — I share one film from the Coptic Cinema every morning. Press play, it plays right in the feed. I am not a human.',
+    avatar:
+      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&q=80&w=200',
+  },
+  {
+    id: 'bot-sermon-of-day',
+    name: 'Sermon of the Day 🤖',
+    parish: 'OrthodoxConnect',
+    bio: 'Official OrthodoxConnect bot 🤖 — I share one sermon from the library every morning. I am not a human.',
+    avatar:
+      'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&q=80&w=200',
+  },
+  {
+    id: 'bot-job-of-day',
+    name: 'Job of the Day 🤖',
+    parish: 'OrthodoxConnect',
+    bio: 'Official OrthodoxConnect bot 🤖 — I spotlight the newest opening from the Jobs board. I never post the same job twice. I am not a human.',
+    avatar:
+      'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&q=80&w=200',
+  },
 ];
 
 interface VerseItem {
@@ -2271,6 +2295,139 @@ function calendarPostFor(d: Date): string {
   );
 }
 
+const MOVIE_QUESTIONS: Array<[string, string]> = [
+  ['Have you seen this film before? What stayed with you?', 'هل شاهدت هذا الفيلم من قبل؟ ما الذي بقى معك منه؟'],
+  ['Which saint\'s film should we show next?', 'فيلم أي قديس نعرضه بعد ذلك؟'],
+  ['Who would you watch this with tonight?', 'مع من تحب أن تشاهد هذا الفيلم الليلة؟'],
+];
+const SERMON_QUESTIONS: Array<[string, string]> = [
+  ['What one line from this sermon stayed with you?', 'ما الجملة الواحدة التي بقيت معك من هذه العظة؟'],
+  ['Who needs to hear this sermon today?', 'من يحتاج أن يسمع هذه العظة اليوم؟'],
+  ['What will you do differently after hearing this?', 'ماذا ستفعل بشكل مختلف بعد سماع هذه العظة؟'],
+];
+
+function truncateText(t: string, max: number): string {
+  const clean = (t || '').replace(/\s+/g, ' ').trim();
+  return clean.length > max ? clean.slice(0, max - 1).trimEnd() + '…' : clean;
+}
+
+function moviePostFor(film: any, dayOfYear: number): string {
+  let out =
+    '🎬 Movie of the Day — فيلم اليوم\n\n' +
+    truncateText(String(film.title || ''), 160);
+  const desc = truncateText(String(film.description || ''), 220);
+  if (desc) out += '\n\n' + desc;
+  out +=
+    '\n\n▶ Press play — it plays right here in the feed!' +
+    '\n▶ اضغط تشغيل — الفيلم يعمل هنا مباشرة في الصفحة الرئيسية!' +
+    '\n\n🎬 More films are waiting in the Cinema tab.' +
+    '\n🎬 أفلام أكثر بانتظارك في قسم السينما.';
+  return out + discussionQuestion(MOVIE_QUESTIONS, dayOfYear);
+}
+
+function sermonPostFor(sermon: any, dayOfYear: number): string {
+  let out =
+    '🎙 Sermon of the Day — عظة اليوم\n\n' +
+    truncateText(String(sermon.title || ''), 160);
+  const meta: string[] = [];
+  if (sermon.speaker) meta.push('🎤 ' + truncateText(String(sermon.speaker), 60));
+  if (sermon.topic) meta.push('📚 ' + truncateText(String(sermon.topic), 60));
+  if (meta.length) out += '\n' + meta.join('  ·  ');
+  const desc = truncateText(String(sermon.description || ''), 200);
+  if (desc) out += '\n\n' + desc;
+  out +=
+    '\n\n▶ Press play — listen right here in the feed.' +
+    '\n▶ اضغط تشغيل — استمع هنا مباشرة.' +
+    '\n\n🎙 More sermons are waiting in the Sermons tab.' +
+    '\n🎙 عظات أكثر بانتظارك في قسم العظات.';
+  return out + discussionQuestion(SERMON_QUESTIONS, dayOfYear);
+}
+
+function jobPostFor(job: any): string {
+  let out =
+    '💼 From the Jobs Board — من لوحة الوظائف\n\n' +
+    truncateText(String(job.title || ''), 160);
+  if (job.address) out += '\n📍 ' + truncateText(String(job.address), 120);
+  if (job.salary) out += '\n💰 ' + truncateText(String(job.salary), 80);
+  const desc = truncateText(String(job.description || ''), 240);
+  if (desc) out += '\n\n' + desc;
+  out +=
+    '\n\n👉 Full details and how to apply are in the Jobs tab.' +
+    '\n👈 التفاصيل الكاملة وطريقة التقديم في قسم الوظائف.' +
+    '\n\nKnow someone looking for work? Tag them below 👇' +
+    '\nتعرف حد بيدور على شغل؟ اعمل له منشن تحت 👇';
+  return out;
+}
+
+// Section bots (Hany 2026-10-22): every morning the Cinema, Sermons and Jobs
+// sections each surface ONE item as a feed post, so members discover what is
+// inside the app without hunting through tabs. Movie + sermon rotate
+// deterministically by day of year through their pools and carry the YouTube
+// id, so they PLAY in the feed. The job bot spotlights the newest job once —
+// it stays silent until a newer job exists, and ignores jobs older than 45
+// days, so the same opening is never posted twice.
+async function sectionBotJobs(
+  db: D1Database,
+  now: Date,
+  dayOfYear: number
+): Promise<Array<{ bot: CommunityBotDef; content: string; videoId?: string | null }>> {
+  const out: Array<{ bot: CommunityBotDef; content: string; videoId?: string | null }> = [];
+
+  // Movie of the Day
+  try {
+    const { results } = await db
+      .prepare('SELECT title, description, youtube_id FROM cinema_films ORDER BY sort_order ASC, datetime(created_at) DESC')
+      .all();
+    const films = (results || []) as any[];
+    if (films.length) {
+      const film = films[dayOfYear % films.length];
+      if (film && film.youtube_id) {
+        out.push({ bot: COMMUNITY_BOTS[3], content: moviePostFor(film, dayOfYear), videoId: String(film.youtube_id) });
+      }
+    }
+  } catch (e) {
+    console.warn('[bots] movie of the day failed', e);
+  }
+
+  // Sermon of the Day (playable YouTube sermons only)
+  try {
+    const { results } = await db
+      .prepare('SELECT title, speaker, topic, description, media_url, media_type FROM sermons ORDER BY datetime(created_at) ASC, id ASC')
+      .all();
+    const playable = ((results || []) as any[])
+      .map((r: any) => ({ row: r, yt: r && r.media_type === 'youtube' ? extractYouTubeId(String(r.media_url || '')) : null }))
+      .filter((x: any) => !!x.yt);
+    if (playable.length) {
+      const pick = playable[dayOfYear % playable.length];
+      out.push({ bot: COMMUNITY_BOTS[4], content: sermonPostFor(pick.row, dayOfYear), videoId: pick.yt });
+    }
+  } catch (e) {
+    console.warn('[bots] sermon of the day failed', e);
+  }
+
+  // Job of the Day (newest job, posted once, max 45 days old)
+  try {
+    const newest = await db
+      .prepare('SELECT title, description, address, salary, created_at FROM jobs ORDER BY datetime(created_at) DESC LIMIT 1')
+      .first<any>();
+    if (newest && newest.created_at) {
+      const ageDays = (now.getTime() - new Date(String(newest.created_at)).getTime()) / 86400000;
+      const lastBotPost = await db
+        .prepare("SELECT created_at FROM posts WHERE author_id = 'bot-job-of-day' ORDER BY datetime(created_at) DESC LIMIT 1")
+        .first<any>();
+      const alreadyPosted =
+        !!lastBotPost && new Date(String(lastBotPost.created_at)) >= new Date(String(newest.created_at));
+      if (ageDays <= 45 && !alreadyPosted) {
+        out.push({ bot: COMMUNITY_BOTS[5], content: jobPostFor(newest), videoId: null });
+      }
+    }
+  } catch (e) {
+    console.warn('[bots] job of the day failed', e);
+  }
+
+  return out;
+}
+
 async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
   // 1. Make sure the bot profiles exist (idempotent).
   for (const bot of COMMUNITY_BOTS) {
@@ -2296,11 +2453,17 @@ async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
   // 2. One post per bot per day (idempotent by dated post id).
   const dayStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
   const doy = botDayOfYear(now);
-  const jobs: Array<{ bot: CommunityBotDef; content: string }> = [
+  const jobs: Array<{ bot: CommunityBotDef; content: string; videoId?: string | null }> = [
     { bot: COMMUNITY_BOTS[0], content: versePostFor(doy) },
     { bot: COMMUNITY_BOTS[1], content: saintPostFor(now) },
     { bot: COMMUNITY_BOTS[2], content: calendarPostFor(now) },
   ];
+  try {
+    const sectionJobs = await sectionBotJobs(db, now, doy);
+    for (const sj of sectionJobs) jobs.push(sj);
+  } catch (e) {
+    console.warn('[bots] section jobs failed', e);
+  }
 
   for (const job of jobs) {
     const postId = 'botpost-' + job.bot.id + '-' + dayStr;
@@ -2310,11 +2473,12 @@ async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
       await db
         .prepare(
           `INSERT INTO posts (id, content, video_id, author_id, author_name, author_parish, author_avatar, image_url, group_id, likes_count, comments_count, reshares_count, created_at)
-           VALUES (?, ?, NULL, ?, ?, ?, ?, NULL, NULL, 0, 0, 0, ?)`
+           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0, 0, ?)`
         )
         .bind(
           postId,
           job.content,
+          job.videoId ?? null,
           job.bot.id,
           job.bot.name,
           job.bot.parish,
@@ -2480,6 +2644,20 @@ export default {
           d1_connected: Boolean(env.DB),
           timestamp: new Date().toISOString(),
         });
+      }
+
+      // Manual community-bot trigger: POST /api/bots/run?service_key=<key>.
+      // Idempotent (dated post ids) — the daily cron remains the normal path;
+      // this exists so a run can be verified on demand.
+      if (url.pathname === '/api/bots/run' && request.method === 'POST') {
+        if (!memberListKeyMatches(env, url.searchParams.get('service_key'))) {
+          return jsonResponse({ success: false, error: 'forbidden' }, 403);
+        }
+        if (!env.DB) {
+          return jsonResponse({ success: false, error: 'no_db' }, 500);
+        }
+        await runCommunityBots(env.DB, new Date());
+        return jsonResponse({ success: true, ran_at: new Date().toISOString() });
       }
 
       // V-Kid AI Storybook: POST /api/vkid/generate-story

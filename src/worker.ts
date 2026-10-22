@@ -2143,6 +2143,38 @@ function botDayOfYear(d: Date): number {
   return Math.floor((d.getTime() - start) / 86400000);
 }
 
+// Bot post photos (Hany 2026-10-22: "people like photos"): every text bot
+// post carries a themed photo, rotated daily so the feed never looks
+// copy-pasted. Every id below was visually verified. Movie + Sermon posts
+// carry playable video instead, so they get no photo.
+const BOT_IMAGES: Record<string, string[]> = {
+  'bot-daily-verse': [
+    'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1548407260-da850faa41e3?auto=format&fit=crop&q=80&w=800',
+  ],
+  'bot-saint-of-day': [
+    'https://images.unsplash.com/photo-1438032005730-c779502df39b?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1473177104440-ffee2f376098?auto=format&fit=crop&q=80&w=800',
+  ],
+  'bot-church-calendar': [
+    'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1438032005730-c779502df39b?auto=format&fit=crop&q=80&w=800',
+  ],
+  'bot-orthodox-news': [
+    'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&q=80&w=800',
+  ],
+  'bot-job-of-day': [
+    'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800',
+    'https://images.unsplash.com/photo-1470075801209-17f9ec0cada6?auto=format&fit=crop&q=80&w=800',
+  ],
+};
+
+function botImageFor(botId: string, dayOfYear: number): string | null {
+  const pool = BOT_IMAGES[botId];
+  return pool && pool.length ? pool[dayOfYear % pool.length] : null;
+}
+
 // Discussion questions (Hany 2026-10-19): every daily bot post ends with one,
 // rotated by day of year so they never repeat two days in a row. Bilingual,
 // warm, and built to turn a broadcast into a conversation.
@@ -2459,7 +2491,7 @@ async function sectionBotJobs(
   now: Date,
   dayOfYear: number
 ): Promise<Array<{ bot: CommunityBotDef; content: string; videoId?: string | null }>> {
-  const out: Array<{ bot: CommunityBotDef; content: string; videoId?: string | null }> = [];
+  const out: Array<{ bot: CommunityBotDef; content: string; videoId?: string | null; imageUrl?: string | null }> = [];
 
   // Movie of the Day
   try {
@@ -2511,7 +2543,7 @@ async function sectionBotJobs(
       const alreadyPosted =
         !!lastBotPost && new Date(String(lastBotPost.created_at)) >= new Date(String(newest.created_at));
       if (ageDays <= 45 && !alreadyPosted) {
-        out.push({ bot: COMMUNITY_BOTS[5], content: jobPostFor(newest), videoId: null });
+        out.push({ bot: COMMUNITY_BOTS[5], content: jobPostFor(newest), videoId: null, imageUrl: botImageFor('bot-job-of-day', dayOfYear) });
       }
     }
   } catch (e) {
@@ -2546,10 +2578,10 @@ async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
   // 2. One post per bot per day (idempotent by dated post id).
   const dayStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
   const doy = botDayOfYear(now);
-  const jobs: Array<{ bot: CommunityBotDef; content: string; videoId?: string | null }> = [
-    { bot: COMMUNITY_BOTS[0], content: versePostFor(doy) },
-    { bot: COMMUNITY_BOTS[1], content: saintPostFor(now) },
-    { bot: COMMUNITY_BOTS[2], content: calendarPostFor(now) },
+  const jobs: Array<{ bot: CommunityBotDef; content: string; videoId?: string | null; imageUrl?: string | null }> = [
+    { bot: COMMUNITY_BOTS[0], content: versePostFor(doy), imageUrl: botImageFor('bot-daily-verse', doy) },
+    { bot: COMMUNITY_BOTS[1], content: saintPostFor(now), imageUrl: botImageFor('bot-saint-of-day', doy) },
+    { bot: COMMUNITY_BOTS[2], content: calendarPostFor(now), imageUrl: botImageFor('bot-church-calendar', doy) },
   ];
   try {
     const sectionJobs = await sectionBotJobs(db, now, doy);
@@ -2566,7 +2598,7 @@ async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
       await db
         .prepare(
           `INSERT INTO posts (id, content, video_id, author_id, author_name, author_parish, author_avatar, image_url, group_id, likes_count, comments_count, reshares_count, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, 0, 0, ?)`
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, 0, ?)`
         )
         .bind(
           postId,
@@ -2576,12 +2608,25 @@ async function runCommunityBots(db: D1Database, now: Date): Promise<void> {
           job.bot.name,
           job.bot.parish,
           job.bot.avatar,
+          job.imageUrl ?? null,
           now.toISOString()
         )
         .run();
     } catch (e) {
       console.warn('[bots] post failed for ' + job.bot.id, e);
     }
+  }
+
+  // Backfill: a post that already went out today without a photo (e.g. the
+  // run that shipped before photos existed) gets today's photo in place.
+  for (const job of jobs) {
+    if (!job.imageUrl) continue;
+    try {
+      await db
+        .prepare("UPDATE posts SET image_url = ? WHERE id = ? AND (image_url IS NULL OR image_url = '')")
+        .bind(job.imageUrl, 'botpost-' + job.bot.id + '-' + dayStr)
+        .run();
+    } catch (e) { /* best-effort */ }
   }
 }
 
@@ -2773,10 +2818,18 @@ export default {
         if (!bot) {
           return jsonResponse({ success: false, error: 'no_bot' }, 500);
         }
-        const nowIso = new Date().toISOString();
+        const nowDate = new Date();
+        const nowIso = nowDate.toISOString();
         const postId = 'botpost-' + bot.id + '-' + nowIso.slice(0, 10);
-        const existing = await env.DB.prepare('SELECT id FROM posts WHERE id = ?').bind(postId).first();
+        const bodyImage = typeof body.image_url === 'string' && /^https:\/\//.test(body.image_url) && body.image_url.length <= 500 ? body.image_url : null;
+        const newsImage = bodyImage || botImageFor('bot-orthodox-news', botDayOfYear(nowDate));
+        const existing = await env.DB.prepare('SELECT id, image_url FROM posts WHERE id = ?').bind(postId).first<any>();
         if (existing) {
+          if (newsImage && !existing.image_url) {
+            try {
+              await env.DB.prepare('UPDATE posts SET image_url = ? WHERE id = ?').bind(newsImage, postId).run();
+            } catch (e) { /* best-effort */ }
+          }
           return jsonResponse({ success: true, already: true, post_id: postId });
         }
         try {
@@ -2797,9 +2850,9 @@ export default {
         await env.DB
           .prepare(
             `INSERT INTO posts (id, content, video_id, author_id, author_name, author_parish, author_avatar, image_url, group_id, likes_count, comments_count, reshares_count, created_at)
-             VALUES (?, ?, NULL, ?, ?, ?, ?, NULL, NULL, 0, 0, 0, ?)`
+             VALUES (?, ?, NULL, ?, ?, ?, ?, ?, NULL, 0, 0, 0, ?)`
           )
-          .bind(postId, content, bot.id, bot.name, bot.parish, bot.avatar, nowIso)
+          .bind(postId, content, bot.id, bot.name, bot.parish, bot.avatar, newsImage, nowIso)
           .run();
         return jsonResponse({ success: true, post_id: postId });
       }

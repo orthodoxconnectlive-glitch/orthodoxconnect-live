@@ -3511,6 +3511,42 @@ export default {
       // Single Profile (/api/profiles/:id)
       if (url.pathname.startsWith('/api/profiles/')) {
         const profileId = decodeURIComponent(url.pathname.replace('/api/profiles/', '').trim());
+        // My Church History helpers (Mina Karam request 2026-10-23): when a
+        // member's My Church changes, the outgoing church is kept in a
+        // history list instead of vanishing.
+        const ensureHistoryTable = async () => {
+          try { await env.DB.exec("CREATE TABLE IF NOT EXISTS my_church_history (user_id TEXT NOT NULL, church_id TEXT NOT NULL, parish TEXT DEFAULT '', church_number INTEGER, changed_at TEXT NOT NULL, PRIMARY KEY (user_id, church_id))"); } catch {}
+        };
+        const readChurchHistory = async (uid: string) => {
+          try {
+            const { results } = await env.DB.prepare("SELECT h.church_id, h.parish, h.church_number, h.changed_at, c.name AS church_name, c.name_ar AS church_name_ar, c.avatar AS church_avatar, c.city AS church_city, c.city_ar AS church_city_ar, c.country AS church_country FROM my_church_history h LEFT JOIN churches c ON c.id = h.church_id WHERE h.user_id = ? ORDER BY h.changed_at DESC LIMIT 12").bind(uid).all();
+            return results || [];
+          } catch { return []; }
+        };
+        if (request.method === 'GET' && url.pathname.endsWith('/my-church-history')) {
+          const histAuth = await getAuthIdentity(request, env);
+          const targetId = profileId.replace('/my-church-history', '');
+          if (!histAuth.id || (histAuth.id !== targetId && !histAuth.isAdmin)) {
+            return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
+          }
+          if (!env.DB) return jsonResponse({ success: false, error: 'No database.' }, 500);
+          await ensureHistoryTable();
+          return jsonResponse({ success: true, history: await readChurchHistory(targetId) });
+        }
+        if (request.method === 'POST' && url.pathname.endsWith('/my-church-history/remove')) {
+          const histAuth = await getAuthIdentity(request, env);
+          const targetId = profileId.replace('/my-church-history/remove', '');
+          if (!histAuth.id || (histAuth.id !== targetId && !histAuth.isAdmin)) {
+            return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
+          }
+          if (!env.DB) return jsonResponse({ success: false, error: 'No database.' }, 500);
+          await ensureHistoryTable();
+          const histBody: any = await request.json().catch(() => ({}));
+          if (histBody.church_id) {
+            await env.DB.prepare('DELETE FROM my_church_history WHERE user_id = ? AND church_id = ?').bind(targetId, histBody.church_id).run();
+          }
+          return jsonResponse({ success: true, history: await readChurchHistory(targetId) });
+        }
 
         if (request.method === 'GET') {
           let profile: D1ProfileRow | null = null;
@@ -3551,6 +3587,21 @@ export default {
           const now = new Date().toISOString();
           if (env.DB) {
             await ensureLastSeenColumn(env.DB);
+            // My Church History: keep the outgoing church before it is
+            // replaced or unset, and drop the new church from history
+            // (it is current again). Capped at the 12 most recent.
+            try {
+              await ensureHistoryTable();
+              const cur: any = await env.DB.prepare('SELECT parish, parish_id, my_church_number FROM profiles WHERE id = ?').bind(targetId).first();
+              const newPid = body.parish_id || '';
+              if (cur && cur.parish_id && cur.parish_id !== newPid) {
+                await env.DB.prepare('INSERT OR REPLACE INTO my_church_history (user_id, church_id, parish, church_number, changed_at) VALUES (?, ?, ?, ?, ?)').bind(targetId, cur.parish_id, cur.parish || '', cur.my_church_number || null, now).run();
+                await env.DB.prepare('DELETE FROM my_church_history WHERE user_id = ? AND church_id NOT IN (SELECT church_id FROM my_church_history WHERE user_id = ? ORDER BY changed_at DESC LIMIT 12)').bind(targetId, targetId).run();
+              }
+              if (newPid) {
+                await env.DB.prepare('DELETE FROM my_church_history WHERE user_id = ? AND church_id = ?').bind(targetId, newPid).run();
+              }
+            } catch (histErr) { console.warn('[my-church] history notice:', histErr); }
             // Look up the church number if parish_id was given
             let churchNum = body.church_number;
             if (!churchNum && body.parish_id) {
@@ -3560,7 +3611,7 @@ export default {
             await env.DB.prepare('UPDATE profiles SET parish = ?, parish_id = ?, my_church_number = ?, updated_at = ? WHERE id = ?')
               .bind(body.parish || '', body.parish_id || '', churchNum || null, now, targetId).run();
             const updated = await env.DB.prepare('SELECT id, parish, parish_id, my_church_number FROM profiles WHERE id = ?').bind(targetId).first();
-            return jsonResponse({ success: true, profile: updated });
+            return jsonResponse({ success: true, profile: updated, history: await readChurchHistory(targetId) });
           }
           return jsonResponse({ success: false, error: 'No database.' }, 500);
         }

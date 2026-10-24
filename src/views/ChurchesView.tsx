@@ -19,6 +19,8 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
   const ar = language === 'ar';
   const [churches, setChurches] = useState<Church[]>([]);
   const [myChurch, setMyChurch] = useState<Church | null>(null);
+  const [churchHistory, setChurchHistory] = useState<any[]>([]);
+  const [historyBusy, setHistoryBusy] = useState('');
   const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -90,6 +92,51 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
       }).catch(() => setMyChurch(null));
     }
   }, [(profile as any)?.my_church_number, (profile as any)?.parish_id, (profile as any)?.parish]);
+
+  // My Church History (Mina Karam request 2026-10-23): churches this member
+  // had as My Church before — tap one to switch back.
+  useEffect(() => {
+    const pid = (profile as any)?.id;
+    if (!pid) { setChurchHistory([]); return; }
+    apiFetch<any>(`/api/profiles/${encodeURIComponent(pid)}/my-church-history`)
+      .then((d) => { if (d?.success) setChurchHistory(d.history || []); })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(profile as any)?.id]);
+
+  const switchToHistoryChurch = async (h: any) => {
+    const pid = (profile as any)?.id;
+    if (!pid || historyBusy) return;
+    setHistoryBusy(h.church_id);
+    try {
+      const data = await apiFetch<any>(`/api/profiles/${encodeURIComponent(pid)}/my-church`, {
+        method: 'POST',
+        body: JSON.stringify({ parish: h.church_name || h.parish || '', parish_id: h.church_id, church_number: h.church_number || undefined }),
+      }).catch(() => ({}));
+      if (data?.success) {
+        if (Array.isArray(data.history)) setChurchHistory(data.history);
+        const full = churches.find((c) => c.id === h.church_id);
+        setMyChurch(full || ({ id: h.church_id, name: h.church_name || h.parish, name_ar: h.church_name_ar, avatar: h.church_avatar, city: h.church_city, city_ar: h.church_city_ar, country: h.church_country } as any));
+      }
+    } catch (e) {
+      console.warn('Switch My Church failed:', e);
+    } finally {
+      setHistoryBusy('');
+    }
+  };
+
+  const removeHistoryItem = async (h: any) => {
+    const pid = (profile as any)?.id;
+    if (!pid) return;
+    try {
+      const data = await apiFetch<any>(`/api/profiles/${encodeURIComponent(pid)}/my-church-history/remove`, {
+        method: 'POST',
+        body: JSON.stringify({ church_id: h.church_id }),
+      }).catch(() => ({}));
+      if (data?.success && Array.isArray(data.history)) setChurchHistory(data.history);
+      else setChurchHistory((prev) => prev.filter((x) => x.church_id !== h.church_id));
+    } catch {}
+  };
 
   useEffect(() => {
     const t = setTimeout(() => load(query.trim()), 400);
@@ -207,6 +254,46 @@ export const ChurchesView: React.FC<ChurchesViewProps> = ({ onOpenChurch }) => {
           )}
           <ChevronRight className="w-5 h-5 text-(--tx-mute) shrink-0 rtl:rotate-180" />
         </button>
+      )}
+
+      {/* My Church History — past churches, tap to switch back */}
+      {churchHistory.length > 0 && (
+        <div className="w-full p-3 rounded-3xl bg-(--bg-soft) dark:bg-[#241c15] border border-(--ln-gold)">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-(--tx-mute) mb-2">
+            {ar ? 'سجل كنيستي' : 'My Church History'}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {churchHistory.map((h) => (
+              <span key={h.church_id} className="inline-flex items-center gap-1.5 pl-1.5 pr-1 py-1 rounded-full bg-(--bg-card) dark:bg-[#2a2118] border border-(--ln-gold) text-xs">
+                <button
+                  onClick={() => switchToHistoryChurch(h)}
+                  className="inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  disabled={historyBusy === h.church_id}
+                  title={ar ? 'اجعلها كنيستي' : 'Make this My Church'}
+                >
+                  {h.church_avatar ? (
+                    <img src={h.church_avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                  ) : (
+                    <ChurchIcon className="w-4 h-4 text-(--ac-gold-tx)" />
+                  )}
+                  <span className="font-semibold text-(--tx-strong) max-w-44 truncate">
+                    {ar ? (h.church_name_ar || h.church_name || h.parish) : (h.church_name || h.parish)}
+                  </span>
+                </button>
+                <button
+                  onClick={() => removeHistoryItem(h)}
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-(--tx-mute) hover:text-red-500 cursor-pointer"
+                  title={ar ? 'إزالة من السجل' : 'Remove from history'}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] text-(--tx-mute) mt-2">
+            {ar ? 'دوس على كنيسة في السجل عشان ترجعها كنيستك.' : 'Tap a church to make it your My Church again.'}
+          </p>
+        </div>
       )}
 
       {/* List */}

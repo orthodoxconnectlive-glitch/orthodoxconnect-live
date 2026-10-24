@@ -381,6 +381,22 @@ async function seedKholagyBook(db: D1Database): Promise<void> {
     console.warn('[seedKholagyBook] notice:', seedErr);
   }
 }
+// 2026-10-24: Anba Gregorios (Bishop of Scientific Research) collection —
+// his Theological Encyclopedia, Dogmatic Theology Part 2: Incarnation &
+// Redemption, direct PDF from archive.org (verified fetchable). INSERT OR
+// IGNORE = idempotent; more volumes can be added to this seed later.
+async function seedGregoriosBooks(db: D1Database): Promise<void> {
+  try {
+    try {
+      const chk: any = await db.prepare(`SELECT 1 AS one FROM books WHERE id = 'gregorios-001' LIMIT 1`).all();
+      if ((((chk && chk.results) || [])[0] || {}).one) return;
+    } catch (e) { /* books table missing: fall through and seed */ }
+    await db.prepare(`INSERT OR IGNORE INTO books (id, title_ar, title_en, author_ar, author_en, category, file_url, cover_image_url, description) VALUES ('gregorios-001', 'موسوعة الأنبا غريغوريوس — اللاهوت العقيدي (الجزء الثاني): سرا التجسد والفداء', 'Anba Gregorios Encyclopedia — Dogmatic Theology (Part 2): The Incarnation and Redemption', 'الأنبا غريغوريوس أسقف البحث العلمي', 'Anba Gregorios', 'gregorios', 'https://archive.org/download/20200905_20200905_1335/%D9%85%D9%88%D8%B3%D9%88%D8%B9%D8%A9%20%D8%A7%D9%84%D8%A3%D9%86%D8%A8%D8%A7%20%D8%BA%D9%88%D8%B1%D9%8A%D8%BA%D9%88%D8%B1%D9%8A%D9%88%D8%B3%20%D8%A3%D8%B3%D9%82%D9%81%20%D8%A7%D9%84%D8%A8%D8%AD%D8%AB%20%D8%A7%D9%84%D8%B9%D9%84%D9%85%D9%8A%20%2C%20%D8%A7%D9%84%D9%84%D8%A7%D9%87%D9%88%D8%AA%20%D8%A7%D9%84%D8%B9%D9%82%D9%8A%D8%AF%D9%8A%20%28%D8%A7%D9%84%D8%AC%D8%B2%D8%A1%20%D8%A7%D9%84%D8%AB%D8%A7%D9%86%D9%8A%29%20%D8%B3%D8%B1%D9%8A%20%D8%A7%D9%84%D8%AA%D8%AC%D8%B3%D8%AF%20%D9%88%20%D8%A7%D9%84%D9%81%D8%AF%D8%A7%D8%A1.pdf', 'https://orthodoxconnect.live/gregorios-cover.jpg', 'الموسوعة اللاهوتية للأنبا غريغوريوس أسقف البحث العلمي — اللاهوت العقيدي، الجزء الثاني: سرا التجسد والفداء. The Theological Encyclopedia of Anba Gregorios, Bishop of Scientific Research — Dogmatic Theology, Part 2: The Incarnation and Redemption.')`).run();
+  } catch (seedErr) {
+    console.warn('[seedGregoriosBooks] notice:', seedErr);
+  }
+}
+
 
 let d1TablesInitialized = false;
 // Unified emoji reactions (2026-10-01): one reactions table for posts,
@@ -489,6 +505,8 @@ export async function ensureD1Tables(db?: D1Database) {
       db.prepare(`SELECT id FROM books WHERE id IN ('shenouda-001', 'saints-001', 'kholagy-001')`),
     ]);
     const seedRows = (((probe[7] && probe[7].results) || []) as any[]).length;
+    // Gregorios seed is NOT in the probe — it self-skips when gregorios-001 exists.
+    await seedGregoriosBooks(db);
     if (seedRows >= 3) {
       d1TablesInitialized = true;
       return;
@@ -496,6 +514,7 @@ export async function ensureD1Tables(db?: D1Database) {
     await seedShenoudaBooks(db);
     await seedSaintsBook(db);
     await seedKholagyBook(db);
+    await seedGregoriosBooks(db);
     await ensureReactionsTable(db);
     await ensureBooksReadsCount(db);
     await ensureBooksAddedBy(db);
@@ -725,6 +744,7 @@ export async function ensureD1Tables(db?: D1Database) {
     await seedShenoudaBooks(db);
     await seedSaintsBook(db);
     await seedKholagyBook(db);
+    await seedGregoriosBooks(db);
     d1TablesInitialized = true;
   } catch (e) {
     // Non-fatal if tables already exist

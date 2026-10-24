@@ -4269,17 +4269,22 @@ export default {
           let churches: any[] = [];
           if (env.DB) {
             const q = (url.searchParams.get('q') || '').trim();
-            let stmt;
-            if (q) {
-              const like = `%${q}%`;
-              stmt = env.DB.prepare(
-                `SELECT * FROM churches WHERE name LIKE ? OR name_ar LIKE ? OR city LIKE ? OR city_ar LIKE ? OR country LIKE ? ORDER BY name ASC LIMIT 500`
-              ).bind(like, like, like, like, like);
-            } else {
-              stmt = env.DB.prepare('SELECT * FROM churches ORDER BY name ASC LIMIT 500');
-            }
-            const { results } = await stmt.all();
+            const { results } = await env.DB.prepare('SELECT * FROM churches ORDER BY name ASC LIMIT 500').all();
             churches = results || [];
+            if (q) {
+              // Forgiving search (Mina Karam report 2026-10-23): ignore case,
+              // punctuation and extra spaces; every typed word must appear
+              // somewhere in the church's name/city/country (EN or AR).
+              // "st verena", "St. Verena" and "ST VERENA" now find the same rows.
+              const normSrch = (v: any) => String(v || '').toLowerCase().replace(/[.,'’ʼ\-_/()،؛:]/g, ' ').replace(/\s+/g, ' ').trim();
+              const tokens = normSrch(q).split(' ').filter(Boolean);
+              if (tokens.length) {
+                churches = churches.filter((c: any) => {
+                  const hay = normSrch([c.name, c.name_ar, c.city, c.city_ar, c.country].join(' '));
+                  return tokens.every((t: string) => hay.includes(t));
+                });
+              }
+            }
           }
           return jsonResponse({ success: true, churches });
         }

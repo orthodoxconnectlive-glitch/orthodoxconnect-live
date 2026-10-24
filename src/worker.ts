@@ -471,7 +471,28 @@ export async function ensureD1Tables(db?: D1Database) {
   // database, so every table and column exists — skip all DDL and mark
   // initialized. (1 round trip instead of ~40.)
   try {
-    await db.prepare(`SELECT bunny_stream_id FROM live_streams LIMIT 0`).all();
+    // Cold-start speed (2026-10-23): the probe + 9 helper calls that used to
+    // follow it cost ~16 SEQUENTIAL D1 round trips on every cold isolate
+    // (measured: a 16.6s first /api/posts right after a deploy, while warm
+    // calls answer in 1-2s). Now ONE db.batch verifies every late migration
+    // marker + the three seed rows in a single round trip. A missing
+    // table/column fails its statement (batch rejects -> slow path below,
+    // unchanged); missing seed rows run just the idempotent helpers.
+    const probe: any[] = await db.batch([
+      db.prepare(`SELECT bunny_stream_id FROM live_streams LIMIT 0`),
+      db.prepare(`SELECT reads_count, added_by_user_id, added_by_name FROM books LIMIT 0`),
+      db.prepare(`SELECT images FROM posts LIMIT 0`),
+      db.prepare(`SELECT 1 FROM reactions LIMIT 0`),
+      db.prepare(`SELECT 1 FROM sermons LIMIT 0`),
+      db.prepare(`SELECT 1 FROM jobs LIMIT 0`),
+      db.prepare(`SELECT 1 FROM candle_lights LIMIT 0`),
+      db.prepare(`SELECT id FROM books WHERE id IN ('shenouda-001', 'saints-001', 'kholagy-001')`),
+    ]);
+    const seedRows = (((probe[7] && probe[7].results) || []) as any[]).length;
+    if (seedRows >= 3) {
+      d1TablesInitialized = true;
+      return;
+    }
     await seedShenoudaBooks(db);
     await seedSaintsBook(db);
     await seedKholagyBook(db);

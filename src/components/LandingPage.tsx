@@ -89,10 +89,10 @@ export const LandingPage: React.FC = () => {
       className="min-h-screen bg-(--bg-page) dark:bg-[#0f0c09] text-(--tx-strong) dark:text-[#f5ebd9] transition-colors"
     >
       {/* Top bar */}
-      <header className="sticky top-0 z-20 bg-(--bg-page)/90 dark:bg-[#0f0c09]/90 backdrop-blur-md border-b border-(--ln-gold)/30">
+      <header className="sticky top-0 z-20 bg-(--bg-page)/90 dark:bg-[#0f0c09]/90 backdrop-blur-md border-b border-[#1e3a8a]/30">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl overflow-hidden border border-(--ln-gold) shrink-0">
+            <div className="w-9 h-9 rounded-xl overflow-hidden border border-[#1e3a8a] shrink-0">
               <img src="/launchericon-512x512.png" alt="OrthodoxConnect" className="w-full h-full object-cover" />
             </div>
             <span className="font-serif-coptic font-bold text-sm uppercase tracking-wider">
@@ -103,7 +103,7 @@ export const LandingPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setLanguage(ar ? 'en' : 'ar')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-(--ln-gold)/50 text-xs font-bold text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#1e3a8a]/50 text-xs font-bold text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) transition-colors cursor-pointer"
             >
               <Globe className="w-3.5 h-3.5" />
               <span>{ar ? 'EN' : 'عربي'}</span>
@@ -111,7 +111,7 @@ export const LandingPage: React.FC = () => {
             <button
               type="button"
               onClick={() => openAuth('signin')}
-              className="px-4 py-1.5 rounded-full text-xs font-serif font-bold uppercase tracking-wider text-(--ac-bronze-tx) hover:bg-(--bg-soft) dark:hover:bg-[#282019] transition-colors cursor-pointer"
+              className="px-4 py-1.5 rounded-full text-xs font-serif font-bold uppercase tracking-wider text-[#1e3a8a] dark:text-[#93c5fd] hover:bg-(--bg-soft) dark:hover:bg-[#282019] transition-colors cursor-pointer"
             >
               {ar ? 'تسجيل الدخول' : 'Sign In'}
             </button>
@@ -121,19 +121,19 @@ export const LandingPage: React.FC = () => {
 
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute top-0 start-0 w-72 h-72 bg-(--ac-gold)/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 end-0 w-72 h-72 bg-(--ac-bronze)/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 start-0 w-72 h-72 bg-[#1e3a8a]/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 end-0 w-72 h-72 bg-[#3b82f6]/10 rounded-full blur-3xl pointer-events-none" />
         <div className="max-w-3xl mx-auto px-4 pt-14 pb-10 text-center relative z-10">
-          <div className="w-20 h-20 mx-auto rounded-3xl overflow-hidden border-2 border-(--ln-gold) shadow-xl mb-6">
+          <div className="w-20 h-20 mx-auto rounded-3xl overflow-hidden border-2 border-[#1e3a8a] shadow-xl mb-6">
             <img src="/launchericon-512x512.png" alt="OrthodoxConnect" className="w-full h-full object-cover" />
           </div>
           <h1 className="font-serif-coptic font-bold text-[clamp(1.5rem,7.8vw,1.875rem)] sm:text-4xl uppercase tracking-wide sm:tracking-wider mb-4">
             OrthodoxConnect
           </h1>
-          <p className="font-serif text-xl sm:text-2xl font-bold text-(--ac-bronze-tx) mb-3 leading-relaxed">
+          <p className="font-serif text-xl sm:text-2xl font-bold text-black dark:text-[#e2e8f0] mb-3 leading-relaxed">
             {ar ? 'بيت واحد لكل حياتك الروحية.' : 'One home for your whole Orthodox life.'}
           </p>
-          <p className="text-sm text-(--tx-mute) dark:text-[#a89379] font-serif leading-relaxed max-w-xl mx-auto mb-8">
+          <p className="text-sm text-[#1e3a8a] dark:text-[#93c5fd] font-serif leading-relaxed max-w-xl mx-auto mb-8">
             {ar
               ? 'قداسات بث مباشر، ترانيم وعظات، ٢٤٤ كتاب أرثوذكسي، دليل الكنائس، والتقويم الكنسي — مجاني للأبد.'
               : 'Live liturgies, hymns & sermons, 244 Orthodox books, a church directory, and the church calendar — free forever.'}
@@ -142,25 +142,25 @@ export const LandingPage: React.FC = () => {
             <button
               type="button"
               onClick={() => openAuth('signup')}
-              className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white font-serif font-bold text-sm uppercase tracking-wider shadow-xl transition-all cursor-pointer"
+              className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-[#1e3a8a] hover:bg-[#172554] text-white font-serif font-bold text-sm uppercase tracking-wider shadow-xl transition-all cursor-pointer"
             >
               {ar ? 'انضم مجاناً' : 'Join Free'}
             </button>
             <button
               type="button"
               onClick={() => openAuth('signin')}
-              className="w-full sm:w-auto px-8 py-4 rounded-2xl border-2 border-(--ln-gold) text-(--ac-bronze-tx) font-serif font-bold text-sm uppercase tracking-wider hover:bg-(--bg-soft) dark:hover:bg-[#282019] transition-all cursor-pointer"
+              className="w-full sm:w-auto px-8 py-4 rounded-2xl border-2 border-[#1e3a8a] text-[#1e3a8a] dark:text-[#93c5fd] font-serif font-bold text-sm uppercase tracking-wider hover:bg-(--bg-soft) dark:hover:bg-[#282019] transition-all cursor-pointer"
             >
               {ar ? 'عندي حساب' : 'I Have an Account'}
             </button>
           </div>
-          <div className="mt-6 flex items-center justify-center gap-4 text-[11px] font-serif text-(--tx-mute) dark:text-[#a89379]">
+          <div className="mt-6 flex items-center justify-center gap-4 text-[11px] font-serif text-[#1e3a8a] dark:text-[#93c5fd]">
             <span className="flex items-center gap-1">
-              <Check className="w-3.5 h-3.5 text-(--ac-gold-tx)" />
+              <Check className="w-3.5 h-3.5 text-[#1e3a8a] dark:text-[#93c5fd]" />
               {ar ? 'مجاني للأبد' : 'Free forever'}
             </span>
             <span className="flex items-center gap-1">
-              <Check className="w-3.5 h-3.5 text-(--ac-gold-tx)" />
+              <Check className="w-3.5 h-3.5 text-[#1e3a8a] dark:text-[#93c5fd]" />
               {ar ? 'عربي وإنجليزي' : 'English & عربي'}
             </span>
           </div>
@@ -176,15 +176,15 @@ export const LandingPage: React.FC = () => {
           {features.map((f) => (
             <div
               key={f.titleEn}
-              className="rounded-3xl bg-(--bg-card) dark:bg-[#1a140e] border border-(--ln-gold)/40 p-6 shadow-lg hover:shadow-xl transition-shadow"
+              className="rounded-3xl bg-(--bg-card) dark:bg-[#1a140e] border border-[#1e3a8a]/40 p-6 shadow-lg hover:shadow-xl transition-shadow"
             >
-              <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/15 border border-(--ln-gold)/50 flex items-center justify-center text-(--ac-gold-tx) mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-[#1e3a8a]/10 border border-[#1e3a8a]/50 flex items-center justify-center text-[#1e3a8a] dark:text-[#93c5fd] mb-4">
                 {f.icon}
               </div>
               <h3 className="font-serif font-bold text-sm mb-1.5">
                 {ar ? f.titleAr : f.titleEn}
               </h3>
-              <p className="text-xs font-serif text-(--tx-mute) dark:text-[#a89379] leading-relaxed">
+              <p className="text-xs font-serif text-[#1e3a8a] dark:text-[#93c5fd] leading-relaxed">
                 {ar ? f.descAr : f.descEn}
               </p>
             </div>
@@ -194,11 +194,11 @@ export const LandingPage: React.FC = () => {
 
       {/* Final CTA */}
       <section className="max-w-3xl mx-auto px-4 py-10 text-center">
-        <div className="rounded-3xl bg-(--ac-gold)/10 border-2 border-(--ln-gold)/50 p-8 sm:p-10">
+        <div className="rounded-3xl bg-[#1e3a8a]/10 border-2 border-[#1e3a8a]/50 p-8 sm:p-10">
           <h2 className="font-serif font-bold text-xl mb-3">
             {ar ? 'عائلتك الأرثوذكسية مستنياك.' : 'Your Orthodox family is waiting.'}
           </h2>
-          <p className="text-sm font-serif text-(--tx-mute) dark:text-[#a89379] mb-6">
+          <p className="text-sm font-serif text-[#1e3a8a] dark:text-[#93c5fd] mb-6">
             {ar
               ? 'انضم لمئات الأقباط الأرثوذكس اللي لقوا بيتهم هنا.'
               : 'Join hundreds of Orthodox Christians who already found their home here.'}
@@ -206,7 +206,7 @@ export const LandingPage: React.FC = () => {
           <button
             type="button"
             onClick={() => openAuth('signup')}
-            className="px-10 py-4 rounded-2xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white font-serif font-bold text-sm uppercase tracking-wider shadow-xl transition-all cursor-pointer"
+            className="px-10 py-4 rounded-2xl bg-[#1e3a8a] hover:bg-[#172554] text-white font-serif font-bold text-sm uppercase tracking-wider shadow-xl transition-all cursor-pointer"
           >
             {ar ? 'مجاني تماماً' : 'Completely Free'}
           </button>
@@ -214,20 +214,20 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-(--ln-gold)/30 mt-6">
+      <footer className="border-t border-[#1e3a8a]/30 mt-6">
         <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg overflow-hidden border border-(--ln-gold) shrink-0">
+            <div className="w-7 h-7 rounded-lg overflow-hidden border border-[#1e3a8a] shrink-0">
               <img src="/launchericon-512x512.png" alt="OrthodoxConnect" className="w-full h-full object-cover" />
             </div>
-            <span className="text-[10px] font-serif uppercase tracking-widest text-(--tx-mute) dark:text-[#a89379]">
+            <span className="text-[10px] font-serif uppercase tracking-widest text-[#1e3a8a] dark:text-[#93c5fd]">
               OrthodoxConnect · Fellowship in Faith
             </span>
           </div>
           <button
             type="button"
             onClick={() => openAuth('signin')}
-            className="flex items-center gap-1.5 text-xs font-serif text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-xs font-serif text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5 rtl:rotate-180" />
             {ar ? 'تسجيل الدخول' : 'Sign in'}

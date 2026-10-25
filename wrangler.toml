@@ -16,3 +16,9 @@ migrations_dir = "migrations"
 
 [triggers]
 crons = ["0 12 * * *", "*/3 * * * *"]
+
+# Public Google OAuth client ID for Sign in with Google (NOT a secret).
+# Hany creates this in Google Cloud Console (OAuth client ID, Web application)
+# and pastes the value here; the button stays hidden until it is set.
+[vars]
+GOOGLE_CLIENT_ID = ""

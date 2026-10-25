@@ -179,6 +179,18 @@ export const authApi = {
     return res;
   },
 
+  async signInWithGoogle(credential: string): Promise<{ user: User; profile: UserProfile; token: string; isNewUser?: boolean }> {
+    const res = await apiFetch('/api/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
+    });
+
+    if (res.token) {
+      setAuthToken(res.token);
+    }
+    return res;
+  },
+
   async getSession(): Promise<{ user: User | null; profile: UserProfile | null; unreachable?: boolean; sessionDead?: boolean }> {
     const token = getAuthToken();
     if (!token) return { user: null, profile: null };

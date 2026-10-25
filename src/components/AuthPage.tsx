@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mail, Lock, User, Church, Cross, LogIn, AlertCircle, Sparkles, Globe, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { GoogleSignInButton } from './GoogleSignInButton';
 import { useTheme } from '../context/ThemeContext';
 
 interface AuthPageProps {
@@ -346,6 +347,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
                 : t('signUp')}
             </span>
           </button>
+          <GoogleSignInButton />
         </form>
 
         {/* Footer info */}

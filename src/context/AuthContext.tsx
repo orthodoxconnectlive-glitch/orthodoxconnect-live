@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password?: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string, parish: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: (credential: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: Error | null }>;
   setLocalProfile: (updates: Partial<UserProfile>) => void;
@@ -180,6 +181,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signInWithGoogle = async (credential: string) => {
+    try {
+      const res = await authApi.signInWithGoogle(credential);
+      if (res.user && res.profile) {
+        setUser(res.user);
+        setProfile(res.profile);
+        setCurrentUserId(res.profile.id);
+        localStorage.setItem('orthodox_user_profile', JSON.stringify(res.profile));
+        setSessionExpiredNotice(false);
+        if ((res as any).isNewUser) {
+          // Same welcome ritual as email signup.
+          try { localStorage.setItem('oc_welcome_candle', '1'); } catch {}
+          try { (window as any).fbq?.('track', 'CompleteRegistration'); } catch {}
+        }
+      }
+      return { error: null };
+    } catch (err: any) {
+      return { error: err as Error };
+    }
+  };
+
   const signOut = async () => {
     try {
       await authApi.signOut();
@@ -251,6 +273,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         signIn,
         signUp,
+        signInWithGoogle,
         signOut,
         updateProfile,
         setLocalProfile,

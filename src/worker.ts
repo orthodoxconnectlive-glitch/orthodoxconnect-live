@@ -3332,6 +3332,150 @@ export default {
           });
         }
 
+
+        // GET /api/auth/google/config — public: tells the login screen whether
+        // Sign in with Google is configured (client ID set in wrangler [vars]).
+        if (authAction === 'google/config' && request.method === 'GET') {
+          const clientId = (env as any).GOOGLE_CLIENT_ID || '';
+          return jsonResponse({ configured: !!clientId, clientId: clientId || null });
+        }
+
+        // POST /api/auth/google — Sign in / Sign up with Google (Google Identity
+        // Services ID-token flow). The frontend sends the ID token; the worker
+        // verifies it with Google's tokeninfo endpoint (worker egress works —
+        // see the YouTube/Bunny fetches elsewhere), then signs the user in if
+        // the email exists or creates the account if it is new. Same session
+        // token format and response shape as /api/auth/signin, so the app's
+        // AuthContext works unchanged. No client secret needed: only the
+        // public OAuth client ID (wrangler [vars] GOOGLE_CLIENT_ID).
+        if (authAction === 'google' && request.method === 'POST') {
+          const clientId = (env as any).GOOGLE_CLIENT_ID || '';
+          if (!clientId) {
+            return jsonResponse({ success: false, error: 'Google sign-in is not configured yet.' }, 503);
+          }
+          if (!env.DB) {
+            return jsonResponse({ success: false, error: 'Service temporarily unavailable.' }, 503);
+          }
+          const body: any = await request.json().catch(() => ({}));
+          const credential = body.credential || body.idToken || '';
+          if (!credential) {
+            return jsonResponse({ success: false, error: 'Missing Google credential.' }, 400);
+          }
+          let info: any = null;
+          try {
+            const ti = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+            if (!ti.ok) throw new Error('tokeninfo rejected');
+            info = await ti.json();
+          } catch (e) {
+            return jsonResponse({ success: false, error: 'Google sign-in failed. Please try again.' }, 401);
+          }
+          const email = (info.email || '').trim().toLowerCase();
+          const emailVerified = info.email_verified === 'true' || info.email_verified === true;
+          const audOk = info.aud === clientId;
+          const issOk = info.iss === 'https://accounts.google.com' || info.iss === 'accounts.google.com';
+          const expOk = !info.exp || (Number(info.exp) * 1000 > Date.now());
+          if (!email || !emailVerified || !audOk || !issOk || !expOk) {
+            return jsonResponse({ success: false, error: 'Google sign-in failed. Please try again.' }, 401);
+          }
+          const now = new Date().toISOString();
+          const isSuperAdmin = email === SUPER_ADMIN_EMAIL;
+          let profileRow: D1ProfileRow | null = await env.DB.prepare('SELECT * FROM profiles WHERE LOWER(email) = LOWER(?)').bind(email).first<D1ProfileRow>();
+          let isNewUser = false;
+          if (profileRow) {
+            if (profileRow.is_banned) {
+              return jsonResponse({ success: false, error: 'Your account has been suspended by parish moderation.' }, 403);
+            }
+            if (isSuperAdmin && profileRow.role !== 'super_admin') {
+              profileRow.role = 'super_admin';
+              await env.DB.prepare("UPDATE profiles SET role = 'super_admin' WHERE id = ?").bind(profileRow.id).run();
+            }
+          } else {
+            const userId = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `user_${Date.now()}`);
+            const fullName = info.name || (email ? email.split('@')[0] : 'Orthodox Parishioner');
+            const avatarUrl = info.picture || 'https://orthodoxconnect.live/launchericon-512x512.png';
+            const role = isSuperAdmin ? 'super_admin' : 'user';
+            await env.DB.prepare(`
+              INSERT INTO profiles (id, email, password_hash, full_name, parish, bio, avatar_url, role, is_banned, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+            `).bind(userId, email, 'google-oauth', fullName, 'Orthodox Church', 'Orthodox Christian seeking fellowship and spiritual growth.', avatarUrl, role, now, now).run();
+            profileRow = {
+              id: userId,
+              email,
+              password_hash: 'google-oauth',
+              full_name: fullName,
+              parish: 'Orthodox Church',
+              bio: 'Orthodox Christian seeking fellowship and spiritual growth.',
+              avatar_url: avatarUrl,
+              role,
+              is_banned: 0,
+              created_at: now,
+              updated_at: now,
+            } as D1ProfileRow;
+            isNewUser = true;
+            // Same welcome + admin alerts as email signup (best-effort, never breaks login).
+            try {
+              const adminRow: any = await env.DB.prepare('SELECT id, full_name, avatar_url FROM profiles WHERE LOWER(email) = LOWER(?)').bind(SUPER_ADMIN_EMAIL).first();
+              if (adminRow && adminRow.id && adminRow.id !== userId) {
+                const welcomeId = `msg_welcome_${userId}`;
+                const already = await env.DB.prepare('SELECT id FROM messages WHERE id = ?').bind(welcomeId).first();
+                if (!already) {
+                  const adminName = adminRow.full_name || 'OrthodoxConnect';
+                  const welcomeText = `Welcome to OrthodoxConnect! We're so glad you're here. Take a look around the library and your parish rooms, and feel at home. God bless you!\n\nأهلاً بيك في أورثوذكس كونكت! مبسوطين إنك معانا.`;
+                  await env.DB.prepare('INSERT INTO messages (id, sender_id, sender_name, receiver_id, content, image_url, video_url, audio_url, is_read, created_at) VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, 0, ?)').bind(welcomeId, adminRow.id, adminName, userId, welcomeText, now).run();
+                  await env.DB.prepare('INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(`notif_welcome_${userId}`, userId, adminRow.id, adminName, adminRow.avatar_url || '', 'message', `Message from ${adminName}`, welcomeText.slice(0, 120), null, 'messages', 0, now).run();
+                }
+              }
+            } catch (welcomeErr) { /* never break login */ }
+            try {
+              const adminEmails = ADMIN_EMAILS.map((e: string) => e.toLowerCase());
+              const emailPlaceholders = adminEmails.map(() => '?').join(',');
+              const adminRows: any[] = ((await env.DB.prepare(
+                `SELECT id FROM profiles WHERE role IN ('super_admin','admin','owner')${emailPlaceholders ? ` OR LOWER(email) IN (${emailPlaceholders})` : ''}`
+              ).bind(...adminEmails).all()).results) || [];
+              const adminIds = adminRows.map((r: any) => r.id).filter((id: any) => id && id !== userId);
+              for (const adminId of adminIds) {
+                try {
+                  await env.DB.prepare(
+                    'INSERT INTO notifications (id, recipient_id, actor_id, actor_name, actor_avatar, type, title, body, post_id, link, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                  ).bind(`notif_newmember_${userId}_${adminId}`, adminId, userId, profileRow.full_name, profileRow.avatar_url, 'new_member', 'New member joined 🎉', `${profileRow.full_name} just registered on OrthodoxConnect.`, null, null, 0, now).run();
+                } catch (e) { /* one admin failing must not stop the others */ }
+              }
+            } catch (newMemberErr) { /* never break login */ }
+          }
+          const token = `sess_${profileRow.id}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+          const expiresAt = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString();
+          await env.DB.prepare('INSERT INTO sessions (id, user_id, token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)').bind(`s_${Date.now()}`, profileRow.id, token, expiresAt, now).run();
+          const profileObj = {
+            id: profileRow.id,
+            email: profileRow.email || email,
+            full_name: profileRow.full_name || 'Orthodox Parishioner',
+            parish: profileRow.parish || 'Orthodox Church',
+            bio: profileRow.bio || '',
+            avatar_url: profileRow.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
+            role: profileRow.role || 'user',
+            created_at: profileRow.created_at,
+          };
+          const userObj = {
+            id: profileRow.id,
+            email: profileRow.email || email,
+            user_metadata: {
+              full_name: profileRow.full_name,
+              parish: profileRow.parish,
+              avatar_url: profileRow.avatar_url,
+              role: profileRow.role,
+            },
+            created_at: profileRow.created_at,
+          };
+          return jsonResponse({
+            success: true,
+            user: userObj,
+            profile: profileObj,
+            token,
+            session: { access_token: token, user: userObj, expires_at: expiresAt },
+            isNewUser,
+          }, isNewUser ? 201 : 200);
+        }
+
         // GET /api/auth/session or /api/auth/me
         // Identity comes ONLY from a verified session token (query ?token= or
         // Authorization: Bearer). No valid token -> not authenticated, period.

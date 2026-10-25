@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User, Church, Cross, LogIn, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { GoogleSignInButton } from './GoogleSignInButton';
 import { useTheme } from '../context/ThemeContext';
 
 export const AuthModal: React.FC = () => {
@@ -225,6 +226,7 @@ export const AuthModal: React.FC = () => {
                 : t('signUp')}
             </span>
           </button>
+          <GoogleSignInButton />
         </form>
       </div>
     </div>

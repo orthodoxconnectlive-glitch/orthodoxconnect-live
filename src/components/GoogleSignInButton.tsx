@@ -110,11 +110,11 @@ export const GoogleSignInButton: React.FC = () => {
   return (
     <div className="mt-4">
       <div className="flex items-center gap-3 mb-4">
-        <div className="flex-1 h-px bg-(--ln-gold)/30" />
+        <div className="flex-1 h-px bg-[#1e3a8a]/30" />
         <span className="text-[10px] font-serif uppercase tracking-widest text-[#1e3a8a] dark:text-[#93c5fd]">
           {language === 'ar' ? 'أو' : 'or'}
         </span>
-        <div className="flex-1 h-px bg-(--ln-gold)/30" />
+        <div className="flex-1 h-px bg-[#1e3a8a]/30" />
       </div>
       <div ref={btnRef} className="flex justify-center opacity-100" />
       {busy && (

@@ -112,15 +112,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
   };
 
   return (
-    <div className="min-h-screen bg-(--bg-page) dark:bg-[#0f0c09] text-(--tx-strong) dark:text-[#f5ebd9] flex items-center justify-center p-4 selection:bg-(--ac-gold) selection:text-white transition-colors text-left rtl:text-right">
-      <div className="w-full max-w-md bg-(--bg-card) dark:bg-[#1a140e] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+    <div className="min-h-screen bg-(--bg-page) dark:bg-[#0f0c09] text-(--tx-strong) dark:text-[#f5ebd9] flex items-center justify-center p-4 selection:bg-[#1e3a8a] selection:text-white transition-colors text-left rtl:text-right">
+      <div className="w-full max-w-md bg-(--bg-card) dark:bg-[#1a140e] border-2 border-[#1e3a8a] dark:border-[#93c5fd]/50 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
         {/* Back to landing page */}
         {onBack && (
           <button
             type="button"
             onClick={onBack}
             aria-label={language === 'ar' ? 'رجوع' : 'Back'}
-            className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-(--ln-gold)/50 bg-(--bg-soft)/80 dark:bg-[#282019]/80 text-xs font-bold text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] backdrop-blur-sm transition-colors cursor-pointer"
+            className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#1e3a8a]/50 bg-(--bg-soft)/80 dark:bg-[#282019]/80 text-xs font-bold text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] backdrop-blur-sm transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5 rtl:rotate-180" />
           </button>
@@ -130,18 +130,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
           type="button"
           onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
           title={language === 'en' ? 'التحويل إلى اللغة العربية' : 'Switch to English'}
-          className="absolute top-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-(--ln-gold)/50 bg-(--bg-soft)/80 dark:bg-[#282019]/80 text-xs font-bold text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] backdrop-blur-sm transition-colors cursor-pointer"
+          className="absolute top-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#1e3a8a]/50 bg-(--bg-soft)/80 dark:bg-[#282019]/80 text-xs font-bold text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] backdrop-blur-sm transition-colors cursor-pointer"
         >
           <Globe className="w-3.5 h-3.5" />
           <span>{language === 'en' ? 'عربي' : 'EN'}</span>
         </button>
         {/* Ambient Glow */}
-        <div className="absolute top-0 right-0 w-48 h-48 bg-(--ac-gold)/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-(--ac-bronze)/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-48 h-48 bg-[#1e3a8a]/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#3b82f6]/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Brand Header */}
         <div className="text-center space-y-3 mb-8 relative z-10">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-(--ac-gold)/20 border-2 border-(--ln-gold) flex items-center justify-center text-(--ac-gold-tx) shadow-xl">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-[#1e3a8a]/10 border-2 border-[#1e3a8a] dark:bg-[#93c5fd]/10 dark:border-[#93c5fd]/50 flex items-center justify-center text-[#1e3a8a] dark:text-[#93c5fd] shadow-xl">
             <Cross className="w-8 h-8" />
           </div>
           <h1 className="font-serif-coptic font-bold text-2xl text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider">
@@ -160,8 +160,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
 
         {/* Session-expired notice: the saved login was rejected by the server */}
         {sessionExpiredNotice && (
-          <div className="relative z-10 mb-6 flex items-start gap-2.5 rounded-2xl border border-(--ln-gold) bg-(--ac-gold)/10 px-4 py-3">
-            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-(--ac-gold-tx)" />
+          <div className="relative z-10 mb-6 flex items-start gap-2.5 rounded-2xl border border-[#1e3a8a] bg-[#1e3a8a]/10 px-4 py-3">
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-[#1e3a8a] dark:text-[#93c5fd]" />
             <div className="flex-1">
               <p className="text-xs font-serif font-bold text-(--tx-strong) dark:text-[#f5ebd9] leading-relaxed">
                 {language === 'ar'
@@ -181,7 +181,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
         )}
 
         {/* Mode Selector Tabs */}
-        <div className="flex rounded-2xl bg-(--bg-soft) dark:bg-[#282019] p-1.5 mb-6 border border-(--ln-gold)/40 relative z-10">
+        <div className="flex rounded-2xl bg-(--bg-soft) dark:bg-[#282019] p-1.5 mb-6 border border-[#1e3a8a]/40 relative z-10">
           <button
             type="button"
             onClick={() => {
@@ -190,7 +190,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
             }}
             className={`flex-1 py-2.5 text-xs font-serif font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
               mode === 'signin'
-                ? 'bg-(--ac-gold) text-white shadow-md'
+                ? 'bg-[#1e3a8a] text-white shadow-md'
                 : 'text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9]'
             }`}
           >
@@ -204,7 +204,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
             }}
             className={`flex-1 py-2.5 text-xs font-serif font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
               mode === 'signup'
-                ? 'bg-(--ac-gold) text-white shadow-md'
+                ? 'bg-[#1e3a8a] text-white shadow-md'
                 : 'text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9]'
             }`}
           >
@@ -225,28 +225,28 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
           {mode === 'signup' && (
             <>
               <div>
-                <label className="block text-(--ac-bronze-tx) font-bold uppercase tracking-wider text-[10px] mb-1">
+                <label className="block text-black dark:text-[#e2e8f0] font-bold uppercase tracking-wider text-[10px] mb-1">
                   {t('fullName')}
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-(--ac-bronze-tx)" />
+                  <User className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-black dark:text-[#e2e8f0]" />
                   <input
                     type="text"
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder={language === 'ar' ? 'مثال: يوحنا ذهبي الفم' : 'e.g. John Chrysostom'}
-                    className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-[#5b7db1] dark:placeholder-[#7ea6d8] focus:outline-none focus:border-(--ln-gold) transition-colors"
+                    className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-[#1e3a8a]/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-[#5b7db1] dark:placeholder-[#7ea6d8] focus:outline-none focus:border-[#1e3a8a] transition-colors"
                   />
                 </div>
               </div>
 
               <div ref={parishWrapRef}>
-                <label className="block text-(--ac-bronze-tx) font-bold uppercase tracking-wider text-[10px] mb-1">
+                <label className="block text-black dark:text-[#e2e8f0] font-bold uppercase tracking-wider text-[10px] mb-1">
                   {t('parish')}
                 </label>
                 <div className="relative">
-                  <Church className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-(--ac-bronze-tx)" />
+                  <Church className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-black dark:text-[#e2e8f0]" />
                   <input
                     type="text"
                     required
@@ -255,10 +255,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
                     onFocus={() => { if (churchSuggestions.length > 0) setShowChurchSuggestions(true); }}
                     placeholder={language === 'ar' ? 'مثال: كنيسة السيدة العذراء مريم' : 'e.g. St. Mary Church'}
                     autoComplete="off"
-                    className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-[#5b7db1] dark:placeholder-[#7ea6d8] focus:outline-none focus:border-(--ln-gold) transition-colors"
+                    className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-[#1e3a8a]/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-[#5b7db1] dark:placeholder-[#7ea6d8] focus:outline-none focus:border-[#1e3a8a] transition-colors"
                   />
                   {showChurchSuggestions && churchSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full mt-1.5 rounded-2xl border border-(--ln-gold)/50 bg-(--bg-card) dark:bg-[#1a140e] shadow-2xl overflow-hidden z-30 max-h-56 overflow-y-auto">
+                    <div className="absolute left-0 right-0 top-full mt-1.5 rounded-2xl border border-[#1e3a8a]/50 bg-(--bg-card) dark:bg-[#1a140e] shadow-2xl overflow-hidden z-30 max-h-56 overflow-y-auto">
                       {churchSuggestions.map((c) => (
                         <button
                           key={c.id}
@@ -270,7 +270,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
                           }}
                           className="w-full flex items-center gap-2.5 px-4 py-2.5 text-start hover:bg-(--bg-soft) dark:hover:bg-[#282019] transition-colors cursor-pointer"
                         >
-                          <Church className="w-4 h-4 shrink-0 text-(--ac-gold-tx)" />
+                          <Church className="w-4 h-4 shrink-0 text-[#1e3a8a] dark:text-[#93c5fd]" />
                           <span className="flex-1 min-w-0">
                             <span className="block text-xs font-bold text-(--tx-strong) dark:text-[#f5ebd9] truncate">{c.name}</span>
                             {(c.city || c.country) && (
@@ -294,35 +294,35 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
           )}
 
           <div>
-            <label className="block text-(--ac-bronze-tx) font-bold uppercase tracking-wider text-[10px] mb-1">
+            <label className="block text-black dark:text-[#e2e8f0] font-bold uppercase tracking-wider text-[10px] mb-1">
               {language === 'ar' ? 'البريد الإلكتروني' : 'Email Address'}
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-(--ac-bronze-tx)" />
+              <Mail className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-black dark:text-[#e2e8f0]" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-[#5b7db1] dark:placeholder-[#7ea6d8] focus:outline-none focus:border-(--ln-gold) transition-colors"
+                className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-[#1e3a8a]/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-[#5b7db1] dark:placeholder-[#7ea6d8] focus:outline-none focus:border-[#1e3a8a] transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-(--ac-bronze-tx) font-bold uppercase tracking-wider text-[10px] mb-1">
+            <label className="block text-black dark:text-[#e2e8f0] font-bold uppercase tracking-wider text-[10px] mb-1">
               {language === 'ar' ? 'كلمة المرور' : 'Password'}
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-(--ac-bronze-tx)" />
+              <Lock className="w-4 h-4 absolute left-3.5 rtl:left-auto rtl:right-3.5 top-1/2 -translate-y-1/2 text-black dark:text-[#e2e8f0]" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-[#5b7db1] dark:placeholder-[#7ea6d8] focus:outline-none focus:border-(--ln-gold) transition-colors"
+                className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-[#1e3a8a]/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-[#5b7db1] dark:placeholder-[#7ea6d8] focus:outline-none focus:border-[#1e3a8a] transition-colors"
               />
             </div>
           </div>
@@ -330,7 +330,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 mt-4 rounded-2xl bg-(--ac-gold) hover:bg-(--ac-bronze) text-white font-serif font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer disabled:opacity-50"
+            className="w-full py-3.5 mt-4 rounded-2xl bg-[#1e3a8a] hover:bg-[#172554] text-white font-serif font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer disabled:opacity-50"
           >
             {loading ? (
               <Sparkles className="w-4 h-4 animate-spin text-white" />
@@ -351,7 +351,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
         </form>
 
         {/* Footer info */}
-        <div className="mt-6 text-center text-[10px] text-[#1e3a8a] dark:text-[#93c5fd] font-serif uppercase tracking-widest border-t border-(--ln-gold)/20 pt-4">
+        <div className="mt-6 text-center text-[10px] text-[#1e3a8a] dark:text-[#93c5fd] font-serif uppercase tracking-widest border-t border-[#1e3a8a]/20 pt-4">
           OrthodoxConnect · Fellowship in Faith
         </div>
       </div>

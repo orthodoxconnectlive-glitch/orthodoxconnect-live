@@ -120,7 +120,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
             type="button"
             onClick={onBack}
             aria-label={language === 'ar' ? 'رجوع' : 'Back'}
-            className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-(--ln-gold)/50 bg-(--bg-soft)/80 dark:bg-[#282019]/80 text-xs font-bold text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] backdrop-blur-sm transition-colors cursor-pointer"
+            className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-(--ln-gold)/50 bg-(--bg-soft)/80 dark:bg-[#282019]/80 text-xs font-bold text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] backdrop-blur-sm transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5 rtl:rotate-180" />
           </button>
@@ -130,7 +130,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
           type="button"
           onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
           title={language === 'en' ? 'التحويل إلى اللغة العربية' : 'Switch to English'}
-          className="absolute top-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-(--ln-gold)/50 bg-(--bg-soft)/80 dark:bg-[#282019]/80 text-xs font-bold text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] backdrop-blur-sm transition-colors cursor-pointer"
+          className="absolute top-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-(--ln-gold)/50 bg-(--bg-soft)/80 dark:bg-[#282019]/80 text-xs font-bold text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] backdrop-blur-sm transition-colors cursor-pointer"
         >
           <Globe className="w-3.5 h-3.5" />
           <span>{language === 'en' ? 'عربي' : 'EN'}</span>
@@ -147,7 +147,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
           <h1 className="font-serif-coptic font-bold text-2xl text-(--tx-strong) dark:text-[#f5ebd9] uppercase tracking-wider">
             {t('appName')}
           </h1>
-          <p className="text-xs font-serif text-(--tx-mute) dark:text-[#a89379]">
+          <p className="text-xs font-serif text-[#1e3a8a] dark:text-[#93c5fd]">
             {mode === 'signin'
               ? language === 'ar'
                 ? 'أهلاً بك مجدداً. سجّل الدخول للانضمام إلى مجتمع رعيتك الأرثوذكسي.'
@@ -173,7 +173,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
               type="button"
               onClick={clearSessionExpiredNotice}
               aria-label={language === 'ar' ? 'إغلاق' : 'Dismiss'}
-              className="shrink-0 text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] cursor-pointer"
+              className="shrink-0 text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9] cursor-pointer"
             >
               ✕
             </button>
@@ -191,7 +191,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
             className={`flex-1 py-2.5 text-xs font-serif font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
               mode === 'signin'
                 ? 'bg-(--ac-gold) text-white shadow-md'
-                : 'text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9]'
+                : 'text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9]'
             }`}
           >
             {t('signIn')}
@@ -205,7 +205,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
             className={`flex-1 py-2.5 text-xs font-serif font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
               mode === 'signup'
                 ? 'bg-(--ac-gold) text-white shadow-md'
-                : 'text-(--tx-mute) dark:text-[#a89379] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9]'
+                : 'text-[#1e3a8a] dark:text-[#93c5fd] hover:text-(--tx-strong) dark:hover:text-[#f5ebd9]'
             }`}
           >
             {t('signUp')}
@@ -236,7 +236,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder={language === 'ar' ? 'مثال: يوحنا ذهبي الفم' : 'e.g. John Chrysostom'}
-                    className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--ac-bronze-tx)/60 focus:outline-none focus:border-(--ln-gold) transition-colors"
+                    className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-[#5b7db1] dark:placeholder-[#7ea6d8] focus:outline-none focus:border-(--ln-gold) transition-colors"
                   />
                 </div>
               </div>
@@ -255,7 +255,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
                     onFocus={() => { if (churchSuggestions.length > 0) setShowChurchSuggestions(true); }}
                     placeholder={language === 'ar' ? 'مثال: كنيسة السيدة العذراء مريم' : 'e.g. St. Mary Church'}
                     autoComplete="off"
-                    className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--ac-bronze-tx)/60 focus:outline-none focus:border-(--ln-gold) transition-colors"
+                    className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-[#5b7db1] dark:placeholder-[#7ea6d8] focus:outline-none focus:border-(--ln-gold) transition-colors"
                   />
                   {showChurchSuggestions && churchSuggestions.length > 0 && (
                     <div className="absolute left-0 right-0 top-full mt-1.5 rounded-2xl border border-(--ln-gold)/50 bg-(--bg-card) dark:bg-[#1a140e] shadow-2xl overflow-hidden z-30 max-h-56 overflow-y-auto">
@@ -274,7 +274,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
                           <span className="flex-1 min-w-0">
                             <span className="block text-xs font-bold text-(--tx-strong) dark:text-[#f5ebd9] truncate">{c.name}</span>
                             {(c.city || c.country) && (
-                              <span className="block text-[10px] text-(--tx-mute) dark:text-[#a89379] truncate">
+                              <span className="block text-[10px] text-[#1e3a8a] dark:text-[#93c5fd] truncate">
                                 {[c.city, c.country].filter(Boolean).join('، ')}
                               </span>
                             )}
@@ -284,7 +284,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
                     </div>
                   )}
                 </div>
-                <p className="mt-1 text-[10px] text-(--tx-mute) dark:text-[#a89379]">
+                <p className="mt-1 text-[10px] text-[#1e3a8a] dark:text-[#93c5fd]">
                   {language === 'ar'
                     ? 'ابدأ الكتابة واختر كنيستك من القائمة، أو اكتب اسمها بنفسك.'
                     : 'Start typing and pick your church from the list, or just type its name.'}
@@ -305,7 +305,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--ac-bronze-tx)/60 focus:outline-none focus:border-(--ln-gold) transition-colors"
+                className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-[#5b7db1] dark:placeholder-[#7ea6d8] focus:outline-none focus:border-(--ln-gold) transition-colors"
               />
             </div>
           </div>
@@ -322,7 +322,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--ac-bronze-tx)/60 focus:outline-none focus:border-(--ln-gold) transition-colors"
+                className="w-full pl-10 pr-3.5 rtl:pl-3.5 rtl:pr-10 py-3 rounded-2xl bg-(--bg-soft)/60 dark:bg-[#282019] border border-(--ln-gold)/50 text-(--tx-strong) dark:text-[#f5ebd9] placeholder-[#5b7db1] dark:placeholder-[#7ea6d8] focus:outline-none focus:border-(--ln-gold) transition-colors"
               />
             </div>
           </div>
@@ -351,7 +351,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
         </form>
 
         {/* Footer info */}
-        <div className="mt-6 text-center text-[10px] text-(--tx-mute) dark:text-[#a89379] font-serif uppercase tracking-widest border-t border-(--ln-gold)/20 pt-4">
+        <div className="mt-6 text-center text-[10px] text-[#1e3a8a] dark:text-[#93c5fd] font-serif uppercase tracking-widest border-t border-(--ln-gold)/20 pt-4">
           OrthodoxConnect · Fellowship in Faith
         </div>
       </div>

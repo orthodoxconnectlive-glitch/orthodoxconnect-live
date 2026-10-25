@@ -58,7 +58,7 @@ export const AuthModal: React.FC = () => {
       <div className="relative w-full max-w-md bg-stone-950 border border-amber-600/40 rounded-2xl p-6 shadow-2xl text-stone-100 text-left rtl:text-right">
         <button
           onClick={closeAuthModal}
-          className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-1.5 rounded-full text-stone-400 hover:text-amber-300 hover:bg-stone-900 transition-colors cursor-pointer"
+          className="absolute top-4 right-4 rtl:right-auto rtl:left-4 p-1.5 rounded-full text-blue-300 hover:text-amber-300 hover:bg-stone-900 transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -71,7 +71,7 @@ export const AuthModal: React.FC = () => {
           <h3 className="font-serif font-bold text-xl text-amber-100">
             {t('appName')}
           </h3>
-          <p className="text-xs text-stone-400">
+          <p className="text-xs text-blue-300">
             {mode === 'signin'
               ? language === 'ar'
                 ? 'سجّل الدخول للتواصل مع مجتمعك الأرثوذكسي'
@@ -95,7 +95,7 @@ export const AuthModal: React.FC = () => {
               type="button"
               onClick={clearSessionExpiredNotice}
               aria-label={language === 'ar' ? 'إغلاق' : 'Dismiss'}
-              className="shrink-0 text-stone-400 hover:text-amber-200 cursor-pointer"
+              className="shrink-0 text-blue-300 hover:text-amber-200 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -111,7 +111,7 @@ export const AuthModal: React.FC = () => {
               setErrorText(null);
             }}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-              mode === 'signin' ? 'bg-amber-600 text-stone-950 shadow-md' : 'text-stone-400 hover:text-amber-200'
+              mode === 'signin' ? 'bg-amber-600 text-stone-950 shadow-md' : 'text-blue-300 hover:text-amber-200'
             }`}
           >
             {t('signIn')}
@@ -123,7 +123,7 @@ export const AuthModal: React.FC = () => {
               setErrorText(null);
             }}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
-              mode === 'signup' ? 'bg-amber-600 text-stone-950 shadow-md' : 'text-stone-400 hover:text-amber-200'
+              mode === 'signup' ? 'bg-amber-600 text-stone-950 shadow-md' : 'text-blue-300 hover:text-amber-200'
             }`}
           >
             {t('signUp')}
@@ -145,14 +145,14 @@ export const AuthModal: React.FC = () => {
                   {t('fullName')}
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-stone-400" />
+                  <User className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-blue-300" />
                   <input
                     type="text"
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder={language === 'ar' ? 'مثال: يوحنا ذهبي الفم / مريم مرقس' : 'e.g. John Chrysostom / Maria Markos'}
-                    className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
+                    className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 placeholder-blue-300/70 focus:outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
@@ -162,14 +162,14 @@ export const AuthModal: React.FC = () => {
                   {t('parish')}
                 </label>
                 <div className="relative">
-                  <Church className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-stone-400" />
+                  <Church className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-blue-300" />
                   <input
                     type="text"
                     required
                     value={parish}
                     onChange={(e) => setParish(e.target.value)}
                     placeholder={language === 'ar' ? 'مثال: كنيسة القديس جاورجيوس الأنطاكية' : 'e.g. St. George Antiochian Church'}
-                    className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
+                    className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 placeholder-blue-300/70 focus:outline-none focus:border-amber-500"
                   />
                 </div>
               </div>
@@ -181,14 +181,14 @@ export const AuthModal: React.FC = () => {
               {language === 'ar' ? 'البريد الإلكتروني' : 'Email Address'}
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-stone-400" />
+              <Mail className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-blue-300" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="orthodox@example.com"
-                className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
+                className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 placeholder-blue-300/70 focus:outline-none focus:border-amber-500"
               />
             </div>
           </div>
@@ -198,14 +198,14 @@ export const AuthModal: React.FC = () => {
               {language === 'ar' ? 'كلمة المرور' : 'Password'}
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-stone-400" />
+              <Lock className="w-4 h-4 absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-blue-300" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500"
+                className="w-full pl-9 pr-3 rtl:pl-3 rtl:pr-9 py-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 placeholder-blue-300/70 focus:outline-none focus:border-amber-500"
               />
             </div>
           </div>

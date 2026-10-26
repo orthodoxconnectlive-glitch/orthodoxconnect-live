@@ -133,12 +133,12 @@ async function buildPostShareImage(post: Post): Promise<Blob | null> {
     if (!ctx) return null;
 
     const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#f7efdb');
-    bg.addColorStop(1, '#e8d3a4');
+    bg.addColorStop(0, '#101a33');
+    bg.addColorStop(1, '#000000');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    ctx.strokeStyle = '#c9a227';
+    ctx.strokeStyle = '#2563eb';
     ctx.lineWidth = 10;
     ctx.strokeRect(28, 28, W - 56, H - 56);
     ctx.lineWidth = 3;
@@ -148,12 +148,12 @@ async function buildPostShareImage(post: Post): Promise<Blob | null> {
     let y = 158;
     ctx.textBaseline = 'alphabetic';
 
-    ctx.fillStyle = '#7a5c2e';
+    ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 54px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.fillText('\u271D OrthodoxConnect', cx, y);
     y += 42;
-    ctx.strokeStyle = '#c9a227';
+    ctx.strokeStyle = '#2563eb';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(150, y);
@@ -163,7 +163,7 @@ async function buildPostShareImage(post: Post): Promise<Blob | null> {
 
     const p: any = post as any;
     const authorName = String(p.authorName || p.author_name || 'OrthodoxConnect').slice(0, 60);
-    ctx.fillStyle = '#3a2c1a';
+    ctx.fillStyle = '#dbe7ff';
     ctx.font = 'bold 46px Georgia, serif';
     ctx.fillText(authorName, cx, y);
     y += 96;
@@ -198,7 +198,7 @@ async function buildPostShareImage(post: Post): Promise<Blob | null> {
     lines = lines.slice(0, 20);
 
     const lineH = fontSize * 1.55;
-    ctx.fillStyle = '#3a2c1a';
+    ctx.fillStyle = '#dbe7ff';
     for (const line of lines) {
       if (!line) { y += lineH * 0.55; continue; }
       ctx.direction = isRtl(line) ? 'rtl' : 'ltr';
@@ -243,7 +243,7 @@ async function buildPostShareImage(post: Post): Promise<Blob | null> {
           ctx.clip();
           ctx.drawImage(photo, dx, dy, dw, dh);
           ctx.restore();
-          ctx.strokeStyle = '#c9a227';
+          ctx.strokeStyle = '#2563eb';
           ctx.lineWidth = 3;
           rr(dx, dy, dw, dh, 26);
           ctx.stroke();
@@ -252,7 +252,7 @@ async function buildPostShareImage(post: Post): Promise<Blob | null> {
       } catch { /* card stays text-only */ }
     }
 
-    ctx.fillStyle = '#7a5c2e';
+    ctx.fillStyle = '#93c5fd';
     ctx.textAlign = 'center';
     ctx.font = '36px Georgia, serif';
     ctx.fillText('orthodoxconnect.live', cx, H - 148);

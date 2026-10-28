@@ -178,6 +178,14 @@ async function buildPostShareImage(post: Post): Promise<Blob | null> {
     y += 96;
 
     const raw = String(p.content || '').trim() || 'A post from OrthodoxConnect.';
+    // Share-card fix: links are untappable on a picture, and a URL is one
+    // giant word, so it runs off the card edges. Strip them from the IMAGE
+    // text only; the post itself keeps its clickable links.
+    const imageText = raw.split('\n').flatMap((ln) => {
+      if (!/https?:\/\//.test(ln)) return [ln];
+      const cleaned = ln.replace(/https?:\/\/\S+/g, '').trim();
+      return cleaned === '' || cleaned === '🔗' ? [] : [cleaned];
+    }).join('\n');
     const maxW = W - 220;
     const isRtl = (s: string) => /[\u0600-\u06FF]/.test(s);
     const wrap = (text: string, font: string): string[] => {
@@ -200,13 +208,26 @@ async function buildPostShareImage(post: Post): Promise<Blob | null> {
     let fontSize = 46;
     let lines: string[] = [];
     while (fontSize >= 28) {
-      lines = wrap(raw, fontSize + 'px Georgia, serif');
+      lines = wrap(imageText, fontSize + 'px Georgia, serif');
       if (lines.length <= 20) break;
       fontSize -= 4;
     }
     lines = lines.slice(0, 20);
 
-    const lineH = fontSize * 1.55;
+    let lineH = fontSize * 1.55;
+    // Fit the text above the footer: shrink first, then trim trailing lines.
+    const textBottomLimit = H - 170 - 40;
+    const textEndY = () => {
+      let yy = y;
+      for (const line of lines) yy += line ? lineH : lineH * 0.55;
+      return yy;
+    };
+    while (textEndY() > textBottomLimit && fontSize > 28) {
+      fontSize -= 4;
+      lines = wrap(imageText, fontSize + 'px Georgia, serif').slice(0, 20);
+      lineH = fontSize * 1.55;
+    }
+    while (lines.length > 0 && textEndY() > textBottomLimit) lines.pop();
     ctx.fillStyle = '#dbe7ff';
     for (const line of lines) {
       if (!line) { y += lineH * 0.55; continue; }

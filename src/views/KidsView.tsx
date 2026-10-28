@@ -12,7 +12,6 @@ import {
   Video,
   Send,
   Trash2,
-  Shuffle,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -131,6 +130,8 @@ const [videos, setVideos] = useState<Post[]>([]);
   const [ytMeta, setYtMeta] = useState<Record<string, { title: string; author: string }>>({});
   // Two-part hymns: English vs Arabic (auto-detected from caption/YouTube title).
   const [hymnTab, setHymnTab] = useState<'en' | 'ar'>(ar ? 'ar' : 'en');
+  // Sort control: newest / oldest / shuffle (default shuffle = today's view).
+  const [videoSort, setVideoSort] = useState<'new' | 'old' | 'shuffle'>('shuffle');
   const ytMetaFetching = useRef<Set<string>>(new Set());
 
   // Real YouTube titles via the keyless oEmbed endpoint (no API key needed).
@@ -362,6 +363,18 @@ const [videos, setVideos] = useState<Post[]>([]);
   const arabicVideos = videos.filter(isArabicVideo);
   const englishVideos = videos.filter((v) => !isArabicVideo(v));
   const tabVideos = hymnTab === 'ar' ? arabicVideos : englishVideos;
+  const videoDate = (v: Post): number => {
+    const t = new Date((v as any).createdAt || (v as any).created_at || '').getTime();
+    return isNaN(t) ? 0 : t;
+  };
+  // Render-time sort so Shuffle (the shuffle mode) keeps working: newest,
+  // oldest, or the shuffled order.
+  const sortedTabVideos =
+    videoSort === 'new'
+      ? [...tabVideos].sort((a, b) => videoDate(b) - videoDate(a))
+      : videoSort === 'old'
+        ? [...tabVideos].sort((a, b) => videoDate(a) - videoDate(b))
+        : tabVideos;
 
   const renderVideoRow = (v: Post) => {
     const ytId = ytIdOf(v);
@@ -587,16 +600,26 @@ const [videos, setVideos] = useState<Post[]>([]);
             </button>
             <button
               type="button"
-              onClick={() => setVideos((prev) => shuffleArray(prev))}
-              title={ar ? 'ترتيب عشوائي' : 'Shuffle'}
-              aria-label={ar ? 'ترتيب عشوائي' : 'Shuffle videos'}
-              className="px-4 py-2.5 rounded-xl bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) border border-(--ln-gold)/50 hover:text-(--tx-strong) transition-all cursor-pointer shrink-0"
+              onClick={() => setVideoSort((s) => (s === 'shuffle' ? 'new' : s === 'new' ? 'old' : 'shuffle'))}
+              title={ar ? 'ترتيب الفيديوهات' : 'Sort videos'}
+              aria-label={ar ? 'ترتيب الفيديوهات' : 'Sort videos'}
+              className="px-4 py-2.5 rounded-xl bg-(--bg-soft) dark:bg-[#282019] text-(--tx-mute) border border-(--ln-gold)/50 hover:text-(--tx-strong) transition-all cursor-pointer shrink-0 font-serif font-bold text-sm whitespace-nowrap"
             >
-              <Shuffle className="w-4 h-4" />
+              {videoSort === 'new'
+                ? ar
+                  ? '↓ الأحدث'
+                  : '↓ Newest'
+                : videoSort === 'old'
+                  ? ar
+                    ? '↑ الأقدم'
+                    : '↑ Oldest'
+                  : ar
+                    ? '🔀 عشوائي'
+                    : '🔀 Shuffle'}
             </button>
           </div>
         )}
-        {tabVideos.length === 0 ? (
+        {sortedTabVideos.length === 0 ? (
           <EmptyNote
             text={
               videos.length === 0
@@ -610,7 +633,7 @@ const [videos, setVideos] = useState<Post[]>([]);
           />
         ) : (
           <div className="flex flex-col">
-            {tabVideos.map((v) => renderVideoRow(v))}
+            {sortedTabVideos.map((v) => renderVideoRow(v))}
           </div>
         )}
       </div>
@@ -763,7 +786,7 @@ const [videos, setVideos] = useState<Post[]>([]);
               </div>
               <div className="flex-1 min-h-0 md:flex-none md:w-80 lg:w-96 border-t md:border-t-0 md:border-s border-black/10 dark:border-white/10 p-2 overflow-y-auto">
                 <div className="flex flex-col">
-                  {tabVideos.map((v) => renderVideoRow(v))}
+                  {sortedTabVideos.map((v) => renderVideoRow(v))}
                 </div>
               </div>
             </div>

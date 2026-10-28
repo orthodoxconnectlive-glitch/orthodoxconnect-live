@@ -221,29 +221,33 @@ const [videos, setVideos] = useState<Post[]>([]);
 
   useEffect(() => {
     let alive = true;
-    (async () => {
+    // Progressive load: show the first videos page + books + groups as soon
+    // as they arrive, then keep appending later pages in the background.
+    // A stalled request must never spin forever (10s books timeout + 15s
+    // absolute safety net).
+    let firstVideosIn = false;
+    let videosSettled = false;
+    let metaIn = false;
+    const maybeShow = () => {
+      if (alive && (firstVideosIn || videosSettled) && metaIn) setLoading(false);
+    };
+    const booksController = new AbortController();
+    const booksTimer = setTimeout(() => booksController.abort(), 10000);
+    const metaPromise = (async () => {
       try {
-        const [vids, bookRes, synced] = await Promise.all([
-          loadAllVideos('only').catch(() => [] as Post[]),
-          fetch('/api/books?category=all')
+        const [bookRes, synced] = await Promise.all([
+          fetch('/api/books?category=all', { signal: booksController.signal })
             .then((r) => (r.ok ? r.json() : []))
             .catch(() => [] as KidsBook[]),
           syncGroupsFromServer().catch(() => getCustomGroups()),
         ]);
         if (!alive) return;
-
-        // Kids Corner videos: ONLY posts explicitly tagged #kidsonly (shared from
-        // the Kids Corner share bar). Ordinary posts that merely mention kids
-        // stay on the main feed.
-        setVideos(shuffleArray((vids || []).filter((v) => KIDSONLY_RE.test(videoText(v)))));
-
         const bookList: KidsBook[] = Array.isArray(bookRes) ? bookRes : [];
         setBooks(
           bookList.filter((b) =>
             KIDS_RE.test(`${b.title_en || ''} ${b.title_ar || ''} ${b.description || ''}`)
           )
         );
-
         const builtIn = ALL_GROUPS.filter(
           (g) => g.type === 'youth' || KIDS_RE.test(`${g.name} ${g.description}`)
         );
@@ -261,11 +265,53 @@ const [videos, setVideos] = useState<Post[]>([]);
         setGroups(merged);
         setJoinedIds(getJoinedGroupIds());
       } finally {
-        if (alive) setLoading(false);
+        clearTimeout(booksTimer);
+        if (alive) {
+          metaIn = true;
+          maybeShow();
+        }
       }
     })();
+    const videosPromise = loadAllVideos('only', (page) => {
+      if (!alive) return;
+      // Kids Corner videos: ONLY posts explicitly tagged #kidsonly (shared from
+      // the Kids Corner share bar). Ordinary posts that merely mention kids
+      // stay on the main feed.
+      const fresh = (page || []).filter((v) => KIDSONLY_RE.test(videoText(v)));
+      if (fresh.length) {
+        setVideos((prev) => {
+          const seen = new Set(prev.map((p) => p.id));
+          const add = fresh.filter((p) => !seen.has(p.id));
+          return add.length ? [...prev, ...add] : prev;
+        });
+      }
+      if (!firstVideosIn) {
+        firstVideosIn = true;
+        maybeShow();
+      }
+    })
+      .then((all) => {
+        if (!alive) return;
+        // Final pass: same shuffled full list as before, once everything arrived.
+        const filtered = (all || []).filter((v) => KIDSONLY_RE.test(videoText(v)));
+        if (filtered.length) setVideos(shuffleArray(filtered));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (alive) {
+          videosSettled = true;
+          maybeShow();
+        }
+      });
+    void metaPromise;
+    void videosPromise;
+    const safety = setTimeout(() => {
+      if (alive) setLoading(false);
+    }, 15000);
     return () => {
       alive = false;
+      clearTimeout(safety);
+      clearTimeout(booksTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

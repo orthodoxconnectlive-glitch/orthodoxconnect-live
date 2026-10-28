@@ -65,6 +65,15 @@ export function parseVideoEmbed(raw?: string | null): { type: 'youtube' | 'vimeo
     };
   }
 
+  // Bare YouTube video ID (bot posts store just the ID, e.g. 'Nb5OneiFYdg').
+  // Without this, posts carrying a bare ID render no player at all.
+  if (/^[\w-]{11}$/.test(cleanUrl)) {
+    return {
+      type: 'youtube',
+      embedUrl: `https://www.youtube-nocookie.com/embed/${cleanUrl}`,
+    };
+  }
+
   const vimeoMatch = cleanUrl.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
   if (vimeoMatch && vimeoMatch[1]) {
     return {

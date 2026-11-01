@@ -703,11 +703,15 @@ export const VideosView: React.FC<VideosViewProps> = ({
             onScroll={handleFeedScroll}
             className="w-full h-full snap-y snap-mandatory overflow-y-scroll no-scrollbar relative"
           >
-            {filteredVideos.map((video) => (
+            {filteredVideos.map((video, videoIndex) => (
               <VideoCard
                 key={video.id}
                 video={video}
                 isPlaying={activePlayingId === video.id}
+                isNext={
+                  activePlayingId !== null &&
+                  filteredVideos.findIndex((v) => v.id === activePlayingId) + 1 === videoIndex
+                }
                 onTogglePlay={() =>
                   setActivePlayingId(activePlayingId === video.id ? null : video.id)
                 }

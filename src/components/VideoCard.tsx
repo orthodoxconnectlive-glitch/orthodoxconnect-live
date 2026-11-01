@@ -35,6 +35,9 @@ export interface VideoComment {
 export interface VideoCardProps {
   video: Post;
   isPlaying: boolean;
+  // Next video in the feed: its player is warmed up (hidden, muted) so
+  // swiping to it does not start from a cold iframe load.
+  isNext?: boolean;
   onTogglePlay: (e?: React.MouseEvent) => void;
   onSelectUser?: (userData: UserProfileData) => void;
   onOpenMessengerWithUser?: (contactId?: string) => void;
@@ -108,6 +111,7 @@ export function extractCleanVideoId(rawSource?: string | null): string | null {
 export const VideoCard: React.FC<VideoCardProps> = ({
   video,
   isPlaying,
+  isNext = false,
   onTogglePlay,
   onSelectUser,
   onOpenMessengerWithUser,
@@ -166,6 +170,18 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   const [showPlayPulse, setShowPlayPulse] = useState<boolean>(false);
   const [doubleTapHearts, setDoubleTapHearts] = useState<{ id: number; x: number; y: number }[]>([]);
   const [isCaptionExpanded, setIsCaptionExpanded] = useState<boolean>(false);
+  // True once the active player's iframe document has loaded. Until then the
+  // poster + spinner stay on top, so the user never stares at a black frame
+  // while YouTube/Bunny warms up.
+  const [iframeReady, setIframeReady] = useState<boolean>(false);
+  // Warm-up: the next card's player loads hidden + muted so a swipe does not
+  // start from a cold iframe. The next player always stays muted; only the
+  // active player follows the global mute setting.
+  const shouldLoadPlayer = isPlaying || isNext;
+  const playerMuted = isPlaying ? isGlobalMuted : true;
+  useEffect(() => {
+    if (!isPlaying) setIframeReady(false);
+  }, [isPlaying]);
 
   const lastTapRef = useRef<number>(0);
   const elementMediaId = `reel-${video.id}`;
@@ -297,32 +313,48 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       onClick={handleScreenClick}
       className="w-full h-full relative overflow-hidden bg-black select-none flex items-center justify-center snap-start snap-always"
     >
-      {/* Fallback Ambient Background: Blurred backdrop */}
-      <div
-        className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
-        style={{ backgroundImage: `url(${posterUrl})` }}
-      />
+      {/* Fallback Ambient Background: Blurred backdrop (active/next only, so
+          the other 48 cards do not compete with the playing video for
+          bandwidth and image decoding). */}
+      {(isPlaying || isNext) && (
+        <div
+          className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
+          style={{ backgroundImage: `url(${posterUrl})` }}
+        />
+      )}
 
       {/* Main 9:16 Video Player Surface */}
       <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
         {/* 1. Bunny Stream Player */}
         {cleanVideoId ? (
-          isPlaying ? (
-            <iframe
-              src={`https://iframe.mediadelivery.net/embed/713265/${cleanVideoId}?autoplay=true&loop=true&muted=${
-                isGlobalMuted ? 'true' : 'false'
-              }&preload=true&responsive=true`}
-              loading="eager"
-              className="w-full h-full border-0 absolute inset-0 object-cover pointer-events-auto"
-              allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
-              allowFullScreen={true}
-              title={videoText || 'Orthodox Reel'}
-            />
+          shouldLoadPlayer ? (
+            <>
+              <iframe
+                src={`https://iframe.mediadelivery.net/embed/713265/${cleanVideoId}?autoplay=true&loop=true&muted=${
+                  playerMuted ? 'true' : 'false'
+                }&preload=true&responsive=true`}
+                loading="eager"
+                onLoad={() => setIframeReady(true)}
+                className={`w-full h-full border-0 absolute inset-0 object-cover ${
+                  isPlaying ? 'pointer-events-auto' : 'opacity-0 pointer-events-none'
+                }`}
+                allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;"
+                allowFullScreen={true}
+                title={videoText || 'Orthodox Reel'}
+              />
+              {isPlaying && !iframeReady && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black pointer-events-none">
+                  <img src={posterUrl} alt="Reel content" className="w-full h-full object-cover absolute inset-0" />
+                  <div className="relative w-10 h-10 rounded-full border-2 border-(--ac-gold-tx) border-t-transparent animate-spin" />
+                </div>
+              )}
+            </>
           ) : (
             <div className="relative w-full h-full">
               <img
                 src={posterUrl}
                 alt="Reel content"
+                loading="lazy"
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   if (postImage) (e.currentTarget as HTMLImageElement).src = postImage;
@@ -337,22 +369,34 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           )
         ) : youtubeId ? (
           /* 2. YouTube Player */
-          isPlaying ? (
-            <iframe
-              src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=${
-                isGlobalMuted ? 1 : 0
-              }&loop=1&playlist=${youtubeId}&controls=1&modestbranding=1&playsinline=1&rel=0`}
-              loading="eager"
-              className="w-full h-full border-0 absolute inset-0 object-cover pointer-events-auto"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen={true}
-              title={videoText || 'Orthodox Reel YouTube'}
-            />
+          shouldLoadPlayer ? (
+            <>
+              <iframe
+                src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=${
+                  playerMuted ? 1 : 0
+                }&loop=1&playlist=${youtubeId}&controls=1&modestbranding=1&playsinline=1&rel=0`}
+                loading="eager"
+                onLoad={() => setIframeReady(true)}
+                className={`w-full h-full border-0 absolute inset-0 object-cover ${
+                  isPlaying ? 'pointer-events-auto' : 'opacity-0 pointer-events-none'
+                }`}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen={true}
+                title={videoText || 'Orthodox Reel YouTube'}
+              />
+              {isPlaying && !iframeReady && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black pointer-events-none">
+                  <img src={posterUrl} alt="Reel thumbnail" className="w-full h-full object-cover absolute inset-0" />
+                  <div className="relative w-10 h-10 rounded-full border-2 border-(--ac-gold-tx) border-t-transparent animate-spin" />
+                </div>
+              )}
+            </>
           ) : (
             <div className="relative w-full h-full">
               <img
                 src={posterUrl}
                 alt="Reel thumbnail"
+                loading="lazy"
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
@@ -367,6 +411,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
           <img
             src={posterUrl}
             alt="Reel content"
+            loading="lazy"
             className="w-full h-full object-cover"
           />
         )}

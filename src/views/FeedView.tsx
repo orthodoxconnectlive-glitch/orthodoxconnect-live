@@ -24,7 +24,7 @@ import {
   getLocalSavedPosts,
 } from '../utils/posts';
 import { uploadMediaFile, uploadVideoToBunnyStream, compressImageToDataUrl } from '../utils/storage';
-import { isFollowing, toggleFollow } from '../utils/follows';
+import { isFollowing, toggleFollowUserServer } from '../utils/follows';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 import { useTheme } from '../context/ThemeContext';
@@ -318,6 +318,17 @@ export const FeedView: React.FC<FeedViewProps> = ({
           return [...prev, ...uniqueNew];
         });
 
+        // Older posts arriving via Load More must also refresh the follow
+        // map, or their FOLLOW buttons show stale state.
+        setFollowedMap((prev) => {
+          const next = { ...prev };
+          syncedBatch.forEach((p) => {
+            const name = (p as any).authorName || (p as any).author_name || '';
+            if (name) next[name] = isFollowing(name);
+          });
+          return next;
+        });
+
         setPage(nextPage);
         if (nextBatch.length < PAGE_SIZE) {
           setHasMore(false);
@@ -387,20 +398,33 @@ export const FeedView: React.FC<FeedViewProps> = ({
     e.target.value = '';
   };
 
-  const handleToggleFollowUser = (authorName: string) => {
-    const isNowFollowing = toggleFollow(authorName);
+  // Feed follows save to the server immediately and confirm the save,
+  // keyed by the author's stable id when available (bots included) — the
+  // old name-only, debounced save could be lost when leaving the app
+  // before the sync fired, which is exactly how the Orthodox News follow
+  // kept reverting to FOLLOW.
+  const handleToggleFollowUser = async (authorName: string, authorId?: string) => {
+    const res = await toggleFollowUserServer(authorId, authorName);
     setFollowedMap((prev) => ({
       ...prev,
-      [authorName]: isNowFollowing,
+      [authorName]: res.following,
     }));
     triggerToast(
-      isNowFollowing
+      res.following
         ? language === 'ar'
-          ? `أنت الآن تتابع ${authorName}.`
-          : `Now following ${authorName}.`
+          ? res.saved
+            ? `أنت الآن تتابع ${authorName}.`
+            : `تمت المتابعة، لكن لم يتم الحفظ — تحقق من الاتصال.`
+          : res.saved
+          ? `Now following ${authorName}.`
+          : `Followed ${authorName}, but couldn't save — check connection.`
         : language === 'ar'
-        ? `تم إلغاء متابعة ${authorName}.`
-        : `Unfollowed ${authorName}.`
+        ? res.saved
+          ? `تم إلغاء متابعة ${authorName}.`
+          : `تم إلغاء المتابعة، لكن لم يتم الحفظ — تحقق من الاتصال.`
+        : res.saved
+        ? `Unfollowed ${authorName}.`
+        : `Unfollowed ${authorName}, but couldn't save — check connection.`
     );
   };
 

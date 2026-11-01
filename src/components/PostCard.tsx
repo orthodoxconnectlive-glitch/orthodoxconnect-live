@@ -41,7 +41,7 @@ interface PostCardProps {
   onSelectUser?: (user: { id?: string; name: string; avatar: string; parish: string }) => void;
   onOpenLive?: () => void;
   onOpenMessengerWithUser?: (userIdOrName: string) => void;
-  onToggleFollow?: (authorName: string) => void;
+  onToggleFollow?: (authorName: string, authorId?: string) => void;
   isFollowed?: boolean;
   onDeletePost?: (postId: string) => void;
   onOpenReport: (type: 'post' | 'comment', id: string, authorName: string, snippet: string) => void;
@@ -808,7 +808,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   {onToggleFollow && (
                     <button
                       type="button"
-                      onClick={() => onToggleFollow(authorName)}
+                      onClick={() => onToggleFollow(authorName, authorId)}
                       className="px-2.5 py-0.5 rounded-full text-[10px] font-serif font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer bg-green-600 hover:bg-green-700 text-white border border-green-700 shadow-sm"
                     >
                       {isFollowed ? (

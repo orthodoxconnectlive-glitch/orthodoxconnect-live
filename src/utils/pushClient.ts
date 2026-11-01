@@ -15,6 +15,14 @@ const HARDCODED_VAPID_KEY =
 const VAPID_KEY_STORAGE = 'oc-vapid-key-used';
 const VAPID_KEY_SERVER_CACHE = 'oc-vapid-key-server';
 
+// Registration race guard (2026-10-31): ensurePushSubscription runs from
+// both CallContext and NotificationPrompt on login, and testPushNotification
+// wipes + remakes the subscription. Two of these running at once used to
+// unsubscribe each other's fresh endpoint, which is exactly how a brand-new
+// registration could answer 410 on its first send.
+let ensureInFlight: Promise<void> | null = null;
+let pushTestInProgress = false;
+
 async function getVapidPublicKey(): Promise<string> {
   const cached = (() => { try { return localStorage.getItem(VAPID_KEY_SERVER_CACHE) || ''; } catch (e) { return ''; } })();
   try {
@@ -45,7 +53,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
  * Make sure this device is subscribed to Web Push and the subscription
  * is registered on the server for this user. Safe to call on every login.
  */
-export async function ensurePushSubscription(userId: string): Promise<void> {
+async function ensurePushSubscriptionInner(userId: string): Promise<void> {
   try {
     if (!userId) return;
     if (typeof window === 'undefined') return;
@@ -66,14 +74,19 @@ export async function ensurePushSubscription(userId: string): Promise<void> {
     try {
       const usedKey = localStorage.getItem(VAPID_KEY_STORAGE);
       if (sub && usedKey !== VAPID_PUBLIC_KEY) {
+        // Delete ONLY this device's old endpoint, not clear_all: the old
+        // clear_all also wiped other devices (tablet, PC) for this user.
+        const oldEndpoint = (sub.toJSON() as any).endpoint || '';
         try { await sub.unsubscribe(); } catch (e) {}
-        try {
-          await fetch('/api/push-subscriptions', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json', ...authHeader() },
-            body: JSON.stringify({ user_id: userId, clear_all: true }),
-          });
-        } catch (e) {}
+        if (oldEndpoint) {
+          try {
+            await fetch('/api/push-subscriptions', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json', ...authHeader() },
+              body: JSON.stringify({ user_id: userId, endpoint: oldEndpoint }),
+            });
+          } catch (e) {}
+        }
         sub = null;
       }
     } catch (e) {}
@@ -118,6 +131,22 @@ export async function ensurePushSubscription(userId: string): Promise<void> {
   }
 }
 
+/**
+ * Guarded entry point: concurrent ensure calls share one in-flight run
+ * instead of churning the subscription twice, and ensure never runs while
+ * a push test owns the registration.
+ */
+export async function ensurePushSubscription(userId: string): Promise<void> {
+  if (pushTestInProgress) return;
+  if (ensureInFlight) return ensureInFlight;
+  ensureInFlight = ensurePushSubscriptionInner(userId);
+  try {
+    await ensureInFlight;
+  } finally {
+    ensureInFlight = null;
+  }
+}
+
 /** Remove this device's push subscription (e.g. on logout). */
 export async function removePushSubscription(userId: string): Promise<void> {
   try {
@@ -143,7 +172,7 @@ export async function removePushSubscription(userId: string): Promise<void> {
  * subscription, register it with the server, and ask the server to send a test
  * push. Returns a status message for the UI.
  */
-export async function testPushNotification(userId: string): Promise<string> {
+async function testPushNotificationInner(userId: string): Promise<string> {
   try {
     if (!userId) return 'Not logged in';
     if (typeof window === 'undefined') return 'Not supported';
@@ -175,13 +204,29 @@ export async function testPushNotification(userId: string): Promise<string> {
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     });
     const subJson = sub.toJSON();
-    const endpoint = subJson.endpoint || '';
-    const p256dh = (subJson.keys && (subJson.keys as any).p256dh) || '';
-    const auth = (subJson.keys && (subJson.keys as any).auth) || '';
+    let endpoint = subJson.endpoint || '';
+    let p256dh = (subJson.keys && (subJson.keys as any).p256dh) || '';
+    let auth = (subJson.keys && (subJson.keys as any).auth) || '';
     if (!endpoint || !p256dh || !auth) return 'Failed to create subscription';
     if (oldEndpoint && endpoint === oldEndpoint) {
       return 'Browser kept the old push registration — fully close the browser app and try again';
     }
+
+    // Re-read what the browser actually holds right now before sending:
+    // a background re-register that ran before this test could have
+    // replaced the endpoint we just made. Sending to that stale endpoint
+    // is a 410, even though the registration looked fresh.
+    const currentSub = await reg.pushManager.getSubscription().catch(() => null);
+    const currentJson = currentSub ? (currentSub.toJSON() as any) : null;
+    const currentEndpoint = (currentJson && currentJson.endpoint) || '';
+    const currentP256dh = (currentJson && currentJson.keys && currentJson.keys.p256dh) || '';
+    const currentAuth = (currentJson && currentJson.keys && currentJson.keys.auth) || '';
+    if (!currentSub || !currentEndpoint || !currentP256dh || !currentAuth) {
+      return 'Subscription disappeared before the test — tap Reset Call Alerts again';
+    }
+    endpoint = currentEndpoint;
+    p256dh = currentP256dh;
+    auth = currentAuth;
 
     // Clear all old subscriptions for this user first (removes dead endpoints)
     await fetch('/api/push-subscriptions', {
@@ -230,6 +275,24 @@ export async function testPushNotification(userId: string): Promise<string> {
   } catch (e) {
     console.warn('[push] test failed:', e);
     return 'Error: ' + ((e as any)?.message || 'unknown');
+  }
+}
+
+/**
+ * Guarded entry point for the Reset Call Alerts test: wait out any
+ * in-flight ensure first, then own the registration until the test
+ * finishes, so no background re-register can wipe it mid-test.
+ */
+export async function testPushNotification(userId: string): Promise<string> {
+  if (pushTestInProgress) return 'A push test is already running — wait for it to finish';
+  if (ensureInFlight) {
+    try { await ensureInFlight; } catch (e) {}
+  }
+  pushTestInProgress = true;
+  try {
+    return await testPushNotificationInner(userId);
+  } finally {
+    pushTestInProgress = false;
   }
 }
 

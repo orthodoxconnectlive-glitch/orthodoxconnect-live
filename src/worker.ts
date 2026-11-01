@@ -7444,6 +7444,39 @@ export default {
 
       // 17c. Push subscriptions (Web Push for calls when app is closed)
       // Test push endpoint: send a test notification to all of a user's devices
+      // Live-subscription test: send to the subscription the phone actually
+      // holds right now (supplied in the body), NOT to the saved DB list.
+      // If the DB list is stale, the old test sends to a dead endpoint and
+      // "accepts" it while the phone in hand never sees it. This endpoint
+      // also saves the live subscription, so the next real message push
+      // uses it too. Authenticated, own user only.
+      if (url.pathname === '/api/push-subscriptions/test-live' && request.method === 'POST' && env.DB) {
+        const body: any = await request.json().catch(() => ({}));
+        const authTl = await getAuthIdentity(request, env);
+        if (!authTl.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+        const userId = String(body.user_id || body.userId || authTl.id);
+        if (userId !== authTl.id && !authTl.isAdmin) return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
+        const sub = body.subscription || {};
+        const endpoint = String(sub.endpoint || '');
+        const p256dh = String((sub.keys && sub.keys.p256dh) || '');
+        const authKey = String((sub.keys && sub.keys.auth) || '');
+        if (!endpoint || !endpoint.startsWith('https://') || !p256dh || !authKey) {
+          return jsonResponse({ success: false, error: 'user_id, endpoint, p256dh and auth are required' }, 400);
+        }
+        try { await env.DB.prepare('INSERT OR REPLACE INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?)').bind(userId, endpoint, p256dh, authKey, new Date().toISOString()).run(); } catch (e) {}
+        (globalThis as any).__lastPushStatus = null;
+        (globalThis as any).__lastPushBody = '';
+        const pushId = 'tl-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+        try { await env.DB.prepare('INSERT INTO push_receipts (push_id, user_id) VALUES (?, ?)').bind(pushId, userId).run(); } catch (e) {}
+        const ok = await sendWebPush(env, { endpoint, p256dh, auth: authKey }, {
+          title: 'OrthodoxConnect ✓',
+          body: 'Push notifications are working on this device!',
+          icon: 'https://orthodoxconnect.live/launchericon-512x512.png',
+          badge: 'https://orthodoxconnect.live/launchericon-512x512.png',
+          data: { url: '/', pushId },
+        }, { urgency: 'high' });
+        return jsonResponse({ success: true, subscriptions: 1, sent: ok ? 1 : 0, fcm_status: (globalThis as any).__lastPushStatus ?? null, fcm_body: (globalThis as any).__lastPushBody || '', endpoint_tail: endpoint.slice(-16), endpoint_host: endpoint.split('/')[2] || '', push_id: pushId });
+      }
       if (url.pathname === '/api/push-subscriptions/test' && request.method === 'POST' && env.DB) {
         const body: any = await request.json().catch(() => ({}));
         const authPs = await getAuthIdentity(request, env);

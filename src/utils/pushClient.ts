@@ -242,16 +242,17 @@ async function testPushNotificationInner(userId: string): Promise<string> {
     });
     if (!regRes.ok) return 'Server registration failed';
 
-    // Ask server to send a test push to this device
-    const testRes = await fetch('/api/push-subscriptions/test', {
+    // Ask server to send a test push to the LIVE subscription this phone
+    // holds right now — not to the saved DB list, which may be stale.
+    const testRes = await fetch('/api/push-subscriptions/test-live', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader() },
-      body: JSON.stringify({ user_id: userId }),
+      body: JSON.stringify({ user_id: userId, subscription: { endpoint, keys: { p256dh, auth } } }),
     });
     if (!testRes.ok) return 'Registered, but test send failed';
     // Don't claim success on HTTP 200 alone — report how many pushes FCM accepted.
     const tj = await testRes.json().catch(() => ({} as any));
-    const n = Number(tj.subscriptions || 0);
+    const n = Number(tj.subscriptions || 1);
     const s = Number(tj.sent || 0);
     // Receipt check: did the phone's service worker confirm the push arrived?
     // Wait a few seconds for FCM delivery + the pingback, then ask the server.
@@ -268,7 +269,7 @@ async function testPushNotificationInner(userId: string): Promise<string> {
       : deviceConfirmed === false ? ' — phone did NOT confirm arrival (push lost between Google and the phone)'
       : '';
     if (s > 0) return `ok (${s} of ${n} accepted by push service${receiptTxt})`;
-    const det = (tj.details && tj.details[0]) || {};
+    const det = (tj.details && tj.details[0]) || { fcm_status: tj.fcm_status, fcm_body: tj.fcm_body, endpoint_tail: tj.endpoint_tail, endpoint_host: tj.endpoint_host };
     const fcm = det.fcm_status != null ? ` (push service said: ${det.fcm_status}${det.fcm_body ? ' ' + String(det.fcm_body).slice(0, 120) : ''})` : '';
     const tail = det.endpoint_tail ? ` [reg …${det.endpoint_tail}${det.endpoint_host ? ' @ ' + det.endpoint_host : ''}]` : '';
     return `Registered, but push server accepted ${s} of ${n}${fcm}${tail}${receiptTxt} — screenshot this and send it`;

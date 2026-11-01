@@ -377,6 +377,19 @@ export const PostCard: React.FC<PostCardProps> = ({
       displayedText.lastIndexOf('\n', TEXT_LIMIT)
     );
     previewText = displayedText.slice(0, boundary > TEXT_LIMIT * 0.5 ? boundary : TEXT_LIMIT).trimEnd();
+    // Never end a preview inside a URL: a cut Google News link (1500+ chars)
+    // tapped from the preview opened as a truncated link and Google answered
+    // 400. If the preview ends mid-URL, trim back to before that URL so the
+    // preview shows text only; the full link appears after "Read more".
+    const urlStart = previewText.search(/https?:\/\/[^\s]*$/);
+    if (urlStart > 50 && previewText.length < displayedText.length) {
+      const nextChar = displayedText[previewText.length];
+      if (nextChar && nextChar !== ' ' && nextChar !== '\n') {
+        previewText = previewText.slice(0, urlStart).trimEnd();
+        // Drop a dangling "🔗" marker left behind when the URL was trimmed.
+        if (previewText.endsWith('🔗')) previewText = previewText.slice(0, -1).trimEnd();
+      }
+    }
   }
   const shownText = isLongText && !textExpanded ? previewText : displayedText;
 

@@ -953,7 +953,11 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
       res = await fetch(sub.endpoint, {
         method: 'POST',
         headers: {
-          'TTL': '120',
+          // TTL was 120s: a Doze/idle phone often wakes after that, so FCM
+          // had already dropped the push even though it accepted it (200)
+          // — exactly "accepted but phone never showed it". 24h lets FCM
+          // hold it until the phone wakes.
+          'TTL': '86400',
           'Content-Type': 'application/octet-stream',
           // RFC 8291 aes128gcm: the browser needs the salt + ephemeral key as headers to decrypt.
           'Content-Encoding': 'aes128gcm',
@@ -3977,7 +3981,9 @@ export default {
                 for (const s of subs as any[]) {
                   if (s && s.endpoint && s.p256dh && s.auth && !seen.has(s.endpoint)) {
                     seen.add(s.endpoint);
-                    await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
+                    // High urgency: normal urgency lets Android Doze defer
+                    // the push, and with the old 120s TTL it expired first.
+                    await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload, { urgency: 'high' });
                   }
                 }
               }
@@ -7461,7 +7467,7 @@ export default {
             icon: 'https://orthodoxconnect.live/launchericon-512x512.png',
             badge: 'https://orthodoxconnect.live/launchericon-512x512.png',
             data: { url: '/', pushId },
-          });
+          }, { urgency: 'high' });
           if (ok) sent++;
           details.push({ endpoint_tail: String(s.endpoint || '').slice(-16), endpoint_host: String(s.endpoint || '').split('/')[2] || '', created_at: String(s.created_at || ''), accepted: ok, fcm_status: (globalThis as any).__lastPushStatus ?? null, fcm_body: (globalThis as any).__lastPushBody || '' });
         }

@@ -101,6 +101,10 @@ async function ensurePushSubscriptionInner(userId: string): Promise<void> {
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
+      // Record the key NOW, before the server POST: if the POST fails and
+      // the app is reopened, the next ensure must POST this subscription,
+      // not kill it for a "key mismatch" that is really just a stale record.
+      try { localStorage.setItem(VAPID_KEY_STORAGE, VAPID_PUBLIC_KEY); } catch (e) {}
     }
 
     const subJson = sub.toJSON();
@@ -203,6 +207,13 @@ async function testPushNotificationInner(userId: string): Promise<string> {
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     });
+    // CHURN FIX (2026-10-31): the test never recorded which VAPID key it
+    // subscribed with, so the next app open's ensure saw a stale stored key,
+    // decided the fresh subscription was "key-rotated", and unsubscribed it
+    // — killing the very subscription the test had just saved. Record the
+    // key immediately, before any server call, so no ensure (this tab or
+    // another) can kill this subscription for a phantom key mismatch.
+    try { localStorage.setItem(VAPID_KEY_STORAGE, VAPID_PUBLIC_KEY); } catch (e) {}
     const subJson = sub.toJSON();
     let endpoint = subJson.endpoint || '';
     let p256dh = (subJson.keys && (subJson.keys as any).p256dh) || '';

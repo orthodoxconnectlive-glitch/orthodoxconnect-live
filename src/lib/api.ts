@@ -5,7 +5,18 @@
 
 import { User, UserProfile, Post, Message, EventItem, Story, NotificationItem, ContentReport, Church, MarketplaceListing, Job } from '../types';
 
-export const API_BASE_URL = '';
+// Native (Capacitor) apps run on capacitor://localhost, so relative /api
+// calls would go nowhere. In native mode, point every API call at the live
+// site. On the web/PWA this stays '' (same-origin) exactly as before.
+const isNativeAppForApi = (() => {
+  try {
+    const cap = (typeof window !== 'undefined' ? (window as any).Capacitor : null);
+    return !!(cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform());
+  } catch (e) {
+    return false;
+  }
+})();
+export const API_BASE_URL = isNativeAppForApi ? 'https://orthodoxconnect.live' : '';
 
 export function getAuthToken(): string | null {
   try {

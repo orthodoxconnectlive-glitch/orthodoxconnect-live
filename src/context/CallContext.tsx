@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { soundSynth, triggerBrowserNotification } from '../utils/ringtone';
 import { callSignaling, CallSignalPayload } from '../utils/callSignaling';
 import { ensurePushSubscription } from '../utils/pushClient';
+import { registerNativePush, isNativeApp } from '../utils/nativePush';
 import { messagesApi } from '../lib/api';
 import { IncomingCallModal } from '../components/IncomingCallModal';
 import { WebRTCCallModal } from '../components/WebRTCCallModal';
@@ -83,8 +84,14 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const myId = profile?.id;
     if (!myId) return;
 
-    // Register this device for Web Push call notifications (works even when app is closed)
-    ensurePushSubscription(myId);
+    // Register this device for push notifications. Native app: FCM token
+    // (Facebook-style, works even when app is closed). Web/PWA: Web Push
+    // exactly as before.
+    if (isNativeApp()) {
+      registerNativePush(myId);
+    } else {
+      ensurePushSubscription(myId);
+    }
 
     // Poll the server for cross-device call signals
     const stopPoll = callSignaling.startServerPoll(myId);

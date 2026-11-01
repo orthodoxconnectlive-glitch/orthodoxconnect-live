@@ -9,7 +9,7 @@ import { ReshareModal } from '../components/ReshareModal';
 import { ReportContentModal } from '../components/ReportContentModal';
 import { addNotification } from '../utils/notifications';
 import { getFollowingCount, isFollowingUser, toggleFollowUserServer } from '../utils/follows';
-import { testPushNotification } from '../utils/pushClient';
+import { testPushNotification, diagnosePush } from '../utils/pushClient';
 
 export interface UserProfileData {
   id?: string;
@@ -53,6 +53,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [pushTestMsg, setPushTestMsg] = useState<string | null>(null);
   const [pushTesting, setPushTesting] = useState(false);
+  const [diagMsg, setDiagMsg] = useState<string | null>(null);
+  const [diagBusy, setDiagBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [followingState, setFollowingState] = useState<boolean>(false);
   const [commentsMap, setCommentsMap] = useState<Record<string, PostComment[]>>({});
@@ -351,6 +353,30 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </button>
               {pushTestMsg && (
                 <div className="text-xs font-serif mt-1 text-(--tx-strong) dark:text-[#f5ebd9]">{pushTestMsg}</div>
+              )}
+              {/* Direct on-phone test: asks the service worker itself to show
+                  a notification, bypassing Google/FCM entirely. If this shows
+                  at the top, the phone can show notifications and the break
+                  is in delivery; if it does not, the break is on the phone.
+                  This test never wipes or remakes the push registration. */}
+              <button
+                onClick={async () => {
+                  setDiagBusy(true);
+                  setDiagMsg('Testing…');
+                  const uid = (profile as any)?.id || '';
+                  const res = await diagnosePush(uid);
+                  setDiagBusy(false);
+                  setDiagMsg(res);
+                }}
+                disabled={diagBusy}
+                className="px-4 py-2.5 rounded-2xl bg-(--bg-soft) dark:bg-[#282019] text-(--tx-strong) dark:text-[#f5ebd9] border border-(--ln-gold) font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                title="Show a notification directly from this phone's service worker, without Google"
+              >
+                <span>📲</span>
+                <span>{diagBusy ? 'Testing…' : 'Test on this phone'}</span>
+              </button>
+              {diagMsg && (
+                <div className="text-xs font-serif mt-1 text-(--tx-strong) dark:text-[#f5ebd9]" style={{ whiteSpace: 'pre-line' }}>{diagMsg}</div>
               )}
             </div>
           ) : (            <div className="flex items-center gap-3 shrink-0">

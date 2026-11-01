@@ -226,6 +226,17 @@ export const VideosView: React.FC<VideosViewProps> = ({
       if (/#kidsonly/i.test(`${v.text || ''} ${(v as any).content || ''}`)) {
         return false;
       }
+      // Cinema separation: full-length Movie of the Day films live only in
+      // the Cinema tab, never in the TikTok-style short feed (For You /
+      // Following). Shorts stay shorts.
+      const rawV = v as any;
+      if (
+        rawV.authorId === 'bot-movie-of-day' ||
+        rawV.author_id === 'bot-movie-of-day' ||
+        /movie of the day/i.test(v.authorName || '')
+      ) {
+        return false;
+      }
       // Tab filter
       if (activeTab === 'following' && !followedAuthors[v.authorName]) {
         return false;

@@ -28,6 +28,9 @@ export const CinemaView: React.FC = () => {
   const ar = language === 'ar';
 
   const [films, setFilms] = useState<CinemaFilm[]>([]);
+  // Today's Movie of the Day film (moved here from the short-video feed, so
+  // shorts stay shorts and no daily film is lost).
+  const [todaysFilm, setTodaysFilm] = useState<CinemaFilm | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<CatFilter>('all');
   const [playing, setPlaying] = useState<CinemaFilm | null>(null);
@@ -54,6 +57,30 @@ export const CinemaView: React.FC = () => {
     } finally {
       setLoading(false);
     }
+    // Today's film: latest Movie of the Day bot post (bare YouTube ID).
+    // Best-effort: if this fetch fails, the section simply stays hidden.
+    try {
+      const p: any = await apiFetch('/api/posts?videos_only=true&limit=50');
+      const posts: any[] = Array.isArray(p) ? p : (p?.posts || []);
+      const movie = posts.find(
+        (row: any) =>
+          row?.author_id === 'bot-movie-of-day' ||
+          /movie of the day/i.test(row?.author_name || '')
+      );
+      if (movie && movie.video_id) {
+        const text: string = String(movie.content || movie.text || '');
+        const lines = text.split('\n').map((l: string) => l.trim()).filter(Boolean);
+        const titleLine = lines.find((l: string) => !/movie of the day/i.test(l) && !/^▶/.test(l)) || 'Movie of the Day';
+        setTodaysFilm({
+          id: 'movie-of-day-today',
+          title: titleLine.replace(/^[🎬🎥📽️]+\s*/, '').slice(0, 120),
+          description: text.replace(/▶.*$/m, '').trim().slice(0, 500),
+          youtube_id: String(movie.video_id).trim(),
+          category: 'movie',
+          created_at: movie.created_at,
+        });
+      }
+    } catch (e) { /* section stays hidden */ }
   };
 
   useEffect(() => { void load(); }, []);
@@ -187,6 +214,37 @@ export const CinemaView: React.FC = () => {
           </button>
         ))}
       </div>
+
+      {/* Today's film (moved here from the short-video feed) */}
+      {todaysFilm && (
+        <div className="mb-5 rounded-2xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] bg-(--bg-card) dark:bg-[#1c1611] shadow-md">
+          <button
+            type="button"
+            onClick={() => setPlaying(todaysFilm)}
+            className="relative w-full aspect-video cursor-pointer group block"
+          >
+            <img
+              src={`https://img.youtube.com/vi/${todaysFilm.youtube_id}/hqdefault.jpg`}
+              alt={todaysFilm.title}
+              loading="eager"
+              className="w-full h-full object-cover"
+            />
+            <span className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+              <span className="w-14 h-14 rounded-full bg-black/60 border-2 border-white/70 flex items-center justify-center">
+                <Play className="w-6 h-6 text-white fill-white ml-0.5" />
+              </span>
+            </span>
+            <span className="absolute top-2 left-2 rtl:left-auto rtl:right-2 px-2 py-0.5 rounded-full bg-(--ac-gold) text-white text-[10px] font-bold uppercase">
+              {ar ? 'فيلم اليوم' : "Today's film"}
+            </span>
+          </button>
+          <div className="p-3">
+            <p className="text-sm font-bold text-(--tx-strong) dark:text-[#f5ebd9] leading-snug">
+              {todaysFilm.title}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Film grid */}
       {loading ? (

@@ -3029,7 +3029,7 @@ export default {
                 headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
               });
             } catch (e) {
-              return jsonResponse({ success: false, error: 'ai_failed' }, 502);
+              return jsonResponse({ success: false, error: 'ai_stream_failed' }, 502);
             }
           }
           // Non-streaming path (fallback): one model, bounded and concise.
@@ -3052,11 +3052,15 @@ export default {
               }
               return jsonResponse({ success: true, answer: text, sources });
             }
-          } catch (e) { /* fall through to ai_failed below */ }
-          return jsonResponse({ success: false, error: 'ai_failed' }, 502);
+          } catch (e) {
+            return jsonResponse({ success: false, error: 'ai_run_failed' }, 502);
+          }
+          return jsonResponse({ success: false, error: 'ai_empty' }, 502);
         }
         const apiKey = (env as any).GEMINI_API_KEY;
-        if (!apiKey) return jsonResponse({ success: false, error: 'not_configured' }, 503);
+        // No Cloudflare AI binding AND no Gemini key: say which, so the
+        // phone error stops hiding the real cause.
+        if (!apiKey) return jsonResponse({ success: false, error: 'ai_binding_missing' }, 503);
         const prompt = guardrails +
           'Return ONLY a JSON object with: answer (the full answer text), sources (array of short source strings, e.g. "Luke 15:11-32", "St. John Chrysostom, Homilies on Matthew"). ';
         try {

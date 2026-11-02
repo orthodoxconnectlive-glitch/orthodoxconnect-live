@@ -119,10 +119,12 @@ export const StudyView: React.FC = () => {
       return;
     } catch (e: any) {
       const code = String(e?.message || e || '');
+      // TEMPORARY DIAGNOSTIC: show the exact server error code so one
+      // screenshot pinpoints the failing line (remove once it works).
       setError(
         code.includes('not_configured')
           ? (ar ? 'ركن الدراسة يحتاج مفتاح Gemini على الخادم — سيتم تفعيله قريباً.' : 'The study corner needs a Gemini key on the server — it will be enabled soon.')
-          : (ar ? 'تعذر الحصول على إجابة الآن، حاول مرة أخرى.' : 'Could not get an answer right now, please try again.')
+          : (ar ? `تعذر الحصول على إجابة الآن، حاول مرة أخرى. (${code})` : `Could not get an answer right now, please try again. (${code})`)
       );
     } finally {
       setLoading(false);

@@ -74,8 +74,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isDonateOpen, setIsDonateOpen] = useState(false);
-  // Donations button hidden for now (Hany, 2026-10-28) — flip to true to show it again.
-  const SHOW_DONATE_BUTTON = false;
+  // Donations button restored (Hany, 2026-11-01) — Stripe only, Zelle removed.
+  const SHOW_DONATE_BUTTON = true;
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   const todayData = getTodayLiturgicalDay(language);

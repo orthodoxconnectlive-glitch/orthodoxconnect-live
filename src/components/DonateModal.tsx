@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { X, Copy, Check, Heart } from 'lucide-react';
+import React from 'react';
+import { X, Heart, ExternalLink } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
-// Donations go to Hany's Zelle (phone number). Zelle has no checkout link,
-// so the app shows the number with a copy button — donors send from their
-// own bank app, the same way churches collect Zelle offerings.
-export const ZELLE_DONATE_PHONE = '571-550-1677';
+// Donations go through Stripe only (Hany, 2026-11-01) — Zelle removed.
+// One-time donation, donor chooses any amount (min $1, preset $10).
+export const STRIPE_DONATE_URL = 'https://buy.stripe.com/6oU28r4dZ1hH2IRbNC8k802';
 
 interface DonateModalProps {
   isOpen: boolean;
@@ -14,28 +13,9 @@ interface DonateModalProps {
 
 export const DonateModal: React.FC<DonateModalProps> = ({ isOpen, onClose }) => {
   const { language } = useTheme();
-  const [copied, setCopied] = useState(false);
-  // Hany 2026-10-21: the Zelle number stays hidden until the donor taps
-  // "Donate with Zelle" — it only appears when someone is actually giving.
-  const [revealed, setRevealed] = useState(false);
   const ar = language === 'ar';
 
-  useEffect(() => {
-    if (!isOpen) {
-      setRevealed(false);
-      setCopied(false);
-    }
-  }, [isOpen]);
-
   if (!isOpen) return null;
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(ZELLE_DONATE_PHONE);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
-  };
 
   return (
     <div
@@ -63,67 +43,25 @@ export const DonateModal: React.FC<DonateModalProps> = ({ isOpen, onClose }) => 
           </h3>
           <p className="text-xs text-stone-400 max-w-xs mx-auto leading-relaxed">
             {ar
-              ? 'أرثوذكسى كونكت مجاني تماماً وسيظل كذلك. لو الخدمة دي باركتك، تقدر تساعدها تستمر بهدية عن طريق Zelle — أي مبلغ بركة.'
-              : 'OrthodoxConnect is completely free, and always will be. If this ministry has blessed you, you can help it keep going with a gift via Zelle — any amount is a blessing.'}
+              ? 'أرثوذكسى كونكت مجاني تماماً وسيظل كذلك. لو الخدمة دي باركتك، تقدر تساعدها تستمر بهدية — أي مبلغ بركة.'
+              : 'OrthodoxConnect is completely free, and always will be. If this ministry has blessed you, you can help it keep going with a gift — any amount is a blessing.'}
           </p>
         </div>
 
-        {/* Zelle number card */}
-        <div className="p-4 bg-stone-900 border border-amber-900/40 rounded-2xl flex flex-col items-center justify-center mb-4 shadow-inner">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-amber-300 mb-1">
-            Zelle
-          </span>
-          {revealed ? (
-            <>
-              <span className="text-2xl font-mono font-bold text-amber-100 tracking-wide" dir="ltr">
-                {ZELLE_DONATE_PHONE}
-              </span>
-              <span className="text-[11px] text-stone-400 mt-2 text-center">
-                {ar
-                  ? 'افتح تطبيق البنك ← Zelle ← إرسال ← اكتب الرقم ده'
-                  : 'Open your bank app → Zelle → Send → enter this number'}
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="text-2xl font-mono font-bold text-amber-100/70 tracking-wide" dir="ltr">
-                •••-•••-••••
-              </span>
-              <span className="text-[11px] text-stone-400 mt-2 text-center">
-                {ar
-                  ? 'الرقم مخفي — بيظهر بس لما تكون جاهز تتبرع فعلاً'
-                  : 'The number stays hidden — it appears only when you are ready to give'}
-              </span>
-            </>
-          )}
-        </div>
-
-        {revealed ? (
-          <button
-            onClick={handleCopy}
-            className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-sm flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer"
-          >
-            {copied ? (
-              <>
-                <Check className="w-5 h-5" />
-                <span>{ar ? 'تم نسخ الرقم!' : 'Number Copied!'}</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-5 h-5" />
-                <span>{ar ? 'انسخ الرقم' : 'Copy the Number'}</span>
-              </>
-            )}
-          </button>
-        ) : (
-          <button
-            onClick={() => setRevealed(true)}
-            className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-sm flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer"
-          >
-            <Heart className="w-5 h-5 fill-current" />
-            <span>{ar ? 'تبرع عبر Zelle — إظهار الرقم' : 'Donate with Zelle — Show Number'}</span>
-          </button>
-        )}
+        <a
+          href={STRIPE_DONATE_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-sm flex items-center justify-center gap-2 shadow-xl transition-all cursor-pointer"
+        >
+          <span>{ar ? 'تبرع عبر Stripe' : 'Donate with Stripe'}</span>
+          <ExternalLink className="w-5 h-5" />
+        </a>
+        <p className="text-center text-[11px] text-stone-400 mt-3">
+          {ar
+            ? 'تبرع لمرة واحدة — أنت تختار المبلغ، من دولار واحد.'
+            : 'One-time donation — you choose the amount, from $1.'}
+        </p>
 
         <p className="text-center text-xs text-stone-400 mt-4">
           {ar ? 'شكراً — ربنا يباركك ✝' : 'Thank you — God bless you ✝'}

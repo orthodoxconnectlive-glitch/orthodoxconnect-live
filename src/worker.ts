@@ -3002,10 +3002,13 @@ export default {
           'Respond in ' + (lang === 'ar' ? 'Arabic' : 'English') + '. ' +
           'End your answer with a "Sources:" section listing each source on its own line starting with "- ". ' +
           'Question: ' + question;
-        // Primary: Cloudflare Workers AI (official, no key) — proven live by
-        // post translation. Dashboard variables do NOT reliably reach the
-        // deployed Worker in this setup (see MEMBER_LIST_KEY_FALLBACK), so
-        // Gemini is only a backup, not the path the feature depends on.
+        // Primary: Cloudflare Workers AI (official, no key). Dashboard
+        // variables do NOT reliably reach the deployed Worker in this setup
+        // (see MEMBER_LIST_KEY_FALLBACK), so Gemini is only a backup, not
+        // the path the feature depends on. The binding itself is declared
+        // in wrangler.toml ([ai] binding = "AI") so deploy provisions it.
+        // NOTE: if AI.run throws, report ai_failed — never fall through to
+        // not_configured, which hid the real failure before.
         if ((env as any).AI) {
           try {
             const out: any = await (env as any).AI.run('@cf/meta/llama-3.1-8b-instruct', {
@@ -3025,7 +3028,10 @@ export default {
               }
               return jsonResponse({ success: true, answer: text, sources });
             }
-          } catch (e) { /* fall through to Gemini backup */ }
+            return jsonResponse({ success: false, error: 'ai_failed' }, 502);
+          } catch (e) {
+            return jsonResponse({ success: false, error: 'ai_failed' }, 502);
+          }
         }
         const apiKey = (env as any).GEMINI_API_KEY;
         if (!apiKey) return jsonResponse({ success: false, error: 'not_configured' }, 503);

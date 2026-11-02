@@ -14,6 +14,12 @@ database_name = "orthodoxconnect"
 database_id = "cc2a30b0-43f6-4485-a2d7-8ca4e8e8a4fe"
 migrations_dir = "migrations"
 
+# Cloudflare Workers AI binding — declared in code so Cloudflare provisions
+# it on deploy (no dashboard step, no API key). This is what Study Corner
+# and post translation call as env.AI.
+[ai]
+binding = "AI"
+
 [triggers]
 crons = ["0 12 * * *", "*/3 * * * *"]
 

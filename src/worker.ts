@@ -3010,35 +3010,30 @@ export default {
         // NOTE: if AI.run throws, report ai_failed — never fall through to
         // not_configured, which hid the real failure before.
         if ((env as any).AI) {
-          // Try the two Llama instruct models in turn, with a bounded
-          // output so a slow first call cannot hang the request.
-          const models = ['@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3-8b-instruct'];
-          for (const model of models) {
-            try {
-              const out: any = await (env as any).AI.run(model, {
-                messages: [
-                  { role: 'system', content: guardrails },
-                  { role: 'user', content: question },
-                ],
-                max_tokens: 1500,
-              });
-              let text = String((out && out.response) || '').trim();
-              if (text) {
-                const marker = text.search(/\n\s*(Sources|المصادر)\s*:/);
-                let sources: string[] = [];
-                if (marker >= 0) {
-                  const tail = text.slice(marker);
-                  sources = tail.split('\n').map((l: string) => l.replace(/^\s*[-•]\s*/, '').trim()).filter((l: string) => l && !/^(Sources|المصادر)\s*:/.test(l)).slice(0, 12);
-                  text = text.slice(0, marker).trim();
-                }
-                return jsonResponse({ success: true, answer: text, sources });
+          // ONE Cloudflare model, bounded and concise: the previous
+          // two-model chain could run past the app's 25s request timeout
+          // (a full sermon outline at 1500 tokens takes 20-40s per model),
+          // which looked exactly like an AI failure from the phone.
+          try {
+            const out: any = await (env as any).AI.run('@cf/meta/llama-3.1-8b-instruct', {
+              messages: [
+                { role: 'system', content: guardrails + ' Keep the answer concise (under 350 words).' },
+                { role: 'user', content: question },
+              ],
+              max_tokens: 900,
+            });
+            let text = String((out && out.response) || '').trim();
+            if (text) {
+              const marker = text.search(/\n\s*(Sources|المصادر)\s*:/);
+              let sources: string[] = [];
+              if (marker >= 0) {
+                const tail = text.slice(marker);
+                sources = tail.split('\n').map((l: string) => l.replace(/^\s*[-•]\s*/, '').trim()).filter((l: string) => l && !/^(Sources|المصادر)\s*:/.test(l)).slice(0, 12);
+                text = text.slice(0, marker).trim();
               }
-            } catch (e) { /* try the next model, then the Gemini backup */ }
-          }
-          // Both Cloudflare models failed: report it honestly instead of
-          // falling through to the "missing key" message (which hid this
-          // exact failure before). The Gemini backup below runs only when
-          // there is no Cloudflare AI binding at all.
+              return jsonResponse({ success: true, answer: text, sources });
+            }
+          } catch (e) { /* fall through to ai_failed below */ }
           return jsonResponse({ success: false, error: 'ai_failed' }, 502);
         }
         const apiKey = (env as any).GEMINI_API_KEY;

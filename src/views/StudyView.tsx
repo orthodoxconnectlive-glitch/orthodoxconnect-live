@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { BookOpen, Send, Loader2, Church } from 'lucide-react';
-import { apiFetch } from '../lib/api';
+import { API_BASE_URL, authHeader } from '../lib/api';
 import { useTheme } from '../context/ThemeContext';
 
 type Mode = 'bible' | 'sermon' | 'lesson' | 'qa';
@@ -40,10 +40,23 @@ export const StudyView: React.FC = () => {
     setMsgs((m) => [...m, { role: 'user', text: q }]);
     setLoading(true);
     try {
-      const d: any = await apiFetch('/api/study', {
-        method: 'POST',
-        body: JSON.stringify({ question: q, mode, language: ar ? 'ar' : 'en' }),
-      });
+      // Study answers take longer than a normal API call (AI generation),
+      // so this request gets a 90s timeout instead of apiFetch's 25s —
+      // the previous timeout made slow-but-working answers look like failures.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 90000);
+      let d: any;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/study`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader() },
+          body: JSON.stringify({ question: q, mode, language: ar ? 'ar' : 'en' }),
+          signal: controller.signal,
+        });
+        d = await res.json();
+      } finally {
+        clearTimeout(timer);
+      }
       if (!d?.success) throw new Error(d?.error || 'ai_failed');
       setMsgs((m) => [...m, { role: 'ai', text: d.answer || '', sources: d.sources || [] }]);
     } catch (e: any) {

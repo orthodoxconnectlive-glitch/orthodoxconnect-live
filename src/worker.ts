@@ -3016,25 +3016,31 @@ export default {
           // outlast every request timeout (the failure mode that hid
           // whether the AI itself was even working).
           if (body.stream === true) {
-            try {
-              const stream: any = await (env as any).AI.run('@cf/meta/llama-3.1-8b-instruct', {
-                messages: [
-                  { role: 'system', content: guardrails + ' Keep the answer concise (under 350 words).' },
-                  { role: 'user', content: question },
-                ],
-                max_tokens: 900,
-                stream: true,
-              });
-              return new Response(stream, {
-                headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
-              });
-            } catch (e) {
-              return jsonResponse({ success: false, error: 'ai_stream_failed' }, 502);
+            // The diagnostic code (ai_stream_failed) proved the stream call
+            // itself throws at once — the plain llama-3.1-8b-instruct id is
+            // superseded on Cloudflare by its fp8 build, so try the current
+            // ids in turn; each rejection is immediate, so the chain is cheap.
+            const streamModels = ['@cf/meta/llama-3.1-8b-instruct-fp8', '@cf/meta/llama-3.1-8b-instruct-fast', '@cf/meta/llama-3.1-8b-instruct'];
+            for (const model of streamModels) {
+              try {
+                const stream: any = await (env as any).AI.run(model, {
+                  messages: [
+                    { role: 'system', content: guardrails + ' Keep the answer concise (under 350 words).' },
+                    { role: 'user', content: question },
+                  ],
+                  max_tokens: 900,
+                  stream: true,
+                });
+                return new Response(stream, {
+                  headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+                });
+              } catch (e) { /* try the next model id */ }
             }
+            return jsonResponse({ success: false, error: 'ai_stream_failed' }, 502);
           }
           // Non-streaming path (fallback): one model, bounded and concise.
           try {
-            const out: any = await (env as any).AI.run('@cf/meta/llama-3.1-8b-instruct', {
+            const out: any = await (env as any).AI.run('@cf/meta/llama-3.1-8b-instruct-fp8', {
               messages: [
                 { role: 'system', content: guardrails + ' Keep the answer concise (under 350 words).' },
                 { role: 'user', content: question },

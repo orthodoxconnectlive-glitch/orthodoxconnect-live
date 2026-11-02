@@ -74,8 +74,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isDonateOpen, setIsDonateOpen] = useState(false);
-  // Donations button restored (Hany, 2026-11-01) — Stripe only, Zelle removed.
-  const SHOW_DONATE_BUTTON = true;
+  // Donate lives in the side menu only (Hany, 2026-11-01) — top-bar button removed, no duplicates.
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   const todayData = getTodayLiturgicalDay(language);
@@ -160,6 +159,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const drawerMenuItems = [
     { id: 'live', label: t('goLive'), icon: Radio, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isLive: true },
     { id: 'candle', label: language === 'ar' ? 'أضئ شمعة' : 'Light a Candle', emoji: '🕯', color: 'text-amber-600 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30', isCandle: true },
+    { id: 'donate', label: language === 'ar' ? 'تبرع' : 'Donate', icon: Heart, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isDonate: true },
     { id: 'profile', label: t('profile'), icon: UserIcon, color: 'text-stone-700 dark:text-amber-200', bg: 'bg-stone-200 dark:bg-stone-800' },
     { id: 'churches', label: language === 'ar' ? 'الكنائس' : 'Churches', icon: Church, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'jobs', label: language === 'ar' ? 'الوظائف' : 'Jobs', icon: Briefcase, color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/30' },
@@ -296,20 +296,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               )}
             </button>
-
-            {/* Donate Button — hidden for now, see SHOW_DONATE_BUTTON */}
-            {SHOW_DONATE_BUTTON && (
-            <button
-              onClick={() => setIsDonateOpen(true)}
-              className="h-11 px-3 rounded-full bg-(--ac-gold) text-white border border-(--ac-gold) flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm shrink-0 hover:brightness-110"
-              title={language === 'ar' ? 'تبرع لدعم الخدمة' : 'Donate to support the ministry'}
-            >
-              <Heart className="w-5 h-5 fill-current" />
-              <span className="hidden sm:inline text-sm font-bold">
-                {language === 'ar' ? 'تبرع' : 'Donate'}
-              </span>
-            </button>
-            )}
 
             {/* Notifications Bell */}
             <div className="relative shrink-0">
@@ -493,6 +479,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onClick={() => {
                         if (item.isCandle) {
                           window.dispatchEvent(new CustomEvent('oc:open-candle'));
+                        } else if (item.isDonate) {
+                          setIsDonateOpen(true);
                         } else {
                           onNavigate(item.id);
                         }

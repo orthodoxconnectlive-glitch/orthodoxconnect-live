@@ -40,25 +40,83 @@ export const StudyView: React.FC = () => {
     setMsgs((m) => [...m, { role: 'user', text: q }]);
     setLoading(true);
     try {
-      // Study answers take longer than a normal API call (AI generation),
-      // so this request gets a 90s timeout instead of apiFetch's 25s —
-      // the previous timeout made slow-but-working answers look like failures.
+      // STREAMING: tokens arrive as they are generated, so the user sees
+      // the answer starting within seconds instead of waiting blindly for
+      // a full generation. 90s overall guard; the stream itself proves
+      // within seconds whether the AI is actually running.
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 90000);
-      let d: any;
+      let res: Response;
       try {
-        const res = await fetch(`${API_BASE_URL}/api/study`, {
+        res = await fetch(`${API_BASE_URL}/api/study`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeader() },
-          body: JSON.stringify({ question: q, mode, language: ar ? 'ar' : 'en' }),
+          body: JSON.stringify({ question: q, mode, language: ar ? 'ar' : 'en', stream: true }),
           signal: controller.signal,
         });
-        d = await res.json();
+      } catch (e) {
+        clearTimeout(timer);
+        throw e;
+      }
+      if (!res.ok || !res.body) {
+        clearTimeout(timer);
+        let code = 'ai_failed';
+        try { const d: any = await res.json(); code = d?.error || code; } catch {}
+        throw new Error(code);
+      }
+      // Streaming placeholder message, filled token by token.
+      setMsgs((m) => [...m, { role: 'ai', text: '' }]);
+      setLoading(false);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let full = '';
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop() || '';
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t.startsWith('data:')) continue;
+            const payload = t.slice(5).trim();
+            if (!payload || payload === '[DONE]') continue;
+            try {
+              const chunk: any = JSON.parse(payload);
+              const tok = typeof chunk?.response === 'string' ? chunk.response : '';
+              if (tok) {
+                full += tok;
+                const snap = full;
+                setMsgs((m) => {
+                  const copy = [...m];
+                  copy[copy.length - 1] = { role: 'ai', text: snap };
+                  return copy;
+                });
+              }
+            } catch {}
+          }
+        }
       } finally {
         clearTimeout(timer);
       }
-      if (!d?.success) throw new Error(d?.error || 'ai_failed');
-      setMsgs((m) => [...m, { role: 'ai', text: d.answer || '', sources: d.sources || [] }]);
+      if (!full.trim()) throw new Error('ai_failed');
+      // Split off the trailing Sources section, like the server does.
+      const marker = full.search(/\n\s*(Sources|المصادر)\s*:/);
+      let sources: string[] = [];
+      let answer = full;
+      if (marker >= 0) {
+        const tail = full.slice(marker);
+        sources = tail.split('\n').map((l: string) => l.replace(/^\s*[-•]\s*/, '').trim()).filter((l: string) => l && !/^(Sources|المصادر)\s*:/.test(l)).slice(0, 12);
+        answer = full.slice(0, marker).trim();
+      }
+      setMsgs((m) => {
+        const copy = [...m];
+        copy[copy.length - 1] = { role: 'ai', text: answer, sources };
+        return copy;
+      });
+      return;
     } catch (e: any) {
       const code = String(e?.message || e || '');
       setError(

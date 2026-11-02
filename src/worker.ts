@@ -3010,10 +3010,29 @@ export default {
         // NOTE: if AI.run throws, report ai_failed — never fall through to
         // not_configured, which hid the real failure before.
         if ((env as any).AI) {
-          // ONE Cloudflare model, bounded and concise: the previous
-          // two-model chain could run past the app's 25s request timeout
-          // (a full sermon outline at 1500 tokens takes 20-40s per model),
-          // which looked exactly like an AI failure from the phone.
+          // STREAMING first: tokens flow to the phone as they are
+          // generated, so the user sees an answer starting within seconds
+          // instead of waiting blindly for a full generation that can
+          // outlast every request timeout (the failure mode that hid
+          // whether the AI itself was even working).
+          if (body.stream === true) {
+            try {
+              const stream: any = await (env as any).AI.run('@cf/meta/llama-3.1-8b-instruct', {
+                messages: [
+                  { role: 'system', content: guardrails + ' Keep the answer concise (under 350 words).' },
+                  { role: 'user', content: question },
+                ],
+                max_tokens: 900,
+                stream: true,
+              });
+              return new Response(stream, {
+                headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+              });
+            } catch (e) {
+              return jsonResponse({ success: false, error: 'ai_failed' }, 502);
+            }
+          }
+          // Non-streaming path (fallback): one model, bounded and concise.
           try {
             const out: any = await (env as any).AI.run('@cf/meta/llama-3.1-8b-instruct', {
               messages: [

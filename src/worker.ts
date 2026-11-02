@@ -543,8 +543,6 @@ export async function ensureD1Tables(db?: D1Database) {
       db.prepare(`CREATE TABLE IF NOT EXISTS synax_likes ( synax_key TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (synax_key, user_id) )`),
       db.prepare(`CREATE TABLE IF NOT EXISTS synax_comments ( id TEXT PRIMARY KEY, synax_key TEXT NOT NULL, user_id TEXT NOT NULL, author_name TEXT, author_avatar TEXT, content TEXT NOT NULL, created_at TEXT NOT NULL )`),
       db.prepare(`CREATE TABLE IF NOT EXISTS push_receipts ( push_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, sent_at TEXT NOT NULL DEFAULT (datetime('now')), received_at TEXT )`),
-      db.prepare(`CREATE TABLE IF NOT EXISTS fcm_tokens ( user_id TEXT NOT NULL, token TEXT PRIMARY KEY, platform TEXT DEFAULT 'android', created_at TEXT NOT NULL DEFAULT (datetime('now')) )`),
-      db.prepare(`CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user ON fcm_tokens ( user_id )`),
       db.prepare(`CREATE TABLE IF NOT EXISTS post_translations ( post_id TEXT NOT NULL, lang TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (post_id, lang) )`),
       db.prepare(`CREATE INDEX IF NOT EXISTS idx_events_date ON events ( date )`),
     ]);
@@ -955,11 +953,7 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
       res = await fetch(sub.endpoint, {
         method: 'POST',
         headers: {
-          // TTL was 120s: a Doze/idle phone often wakes after that, so FCM
-          // had already dropped the push even though it accepted it (200)
-          // — exactly "accepted but phone never showed it". 24h lets FCM
-          // hold it until the phone wakes.
-          'TTL': '86400',
+          'TTL': '120',
           'Content-Type': 'application/octet-stream',
           // RFC 8291 aes128gcm: the browser needs the salt + ephemeral key as headers to decrypt.
           'Content-Encoding': 'aes128gcm',
@@ -988,48 +982,6 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
   } catch (e) {
     console.warn('[push] send failed:', (e as any)?.message || e);
     (globalThis as any).__lastPushStatus = 'exception: ' + ((e as any)?.message || e);
-    return false;
-  }
-}
-
-// ---- Native FCM push (Facebook-style, 2026-11-01) ----
-// Web Push delivery to the browser registration was declared failed
-// 2026-10-31, so the native app uses Firebase Cloud Messaging directly:
-// FCM talks straight to the app even when it is closed, no browser SW.
-// Gated on env.FCM_SERVICE_ACCOUNT_JSON (a Firebase service-account JSON,
-// supplied via Secure Vault, never in the repo). Without it, this returns
-// false and message sending is unaffected (Web Push still runs first).
-// FCM HTTP v1: OAuth2 JWT (RS256) -> access token -> messages:send.
-async function sendFcmPush(env: Env, fcmToken: string, payload: any): Promise<boolean> {
-  try {
-    const saRaw = String((env as any).FCM_SERVICE_ACCOUNT_JSON || '').trim();
-    if (!saRaw || !fcmToken) return false;
-    let sa: any;
-    try { sa = JSON.parse(saRaw); } catch (e) { console.warn('[fcm] bad service account JSON'); return false; }
-    if (!sa.project_id || !sa.client_email || !sa.private_key) return false;
-    const now = Math.floor(Date.now() / 1000);
-    const enc = new TextEncoder();
-    const headerB64 = b64uEncode(enc.encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
-    const claimsB64 = b64uEncode(enc.encode(JSON.stringify({ iss: sa.client_email, sub: sa.client_email, aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600, scope: 'https://www.googleapis.com/auth/firebase.messaging' })));
-    const pem = String(sa.private_key).replace(/-----BEGIN PRIVATE KEY-----/g, '').replace(/-----END PRIVATE KEY-----/g, '').replace(/\s+/g, '');
-    const keyBytes = b64uDecode(pem);
-    const privKey = await crypto.subtle.importKey('pkcs8', keyBytes as any, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
-    const sig = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', privKey, enc.encode(headerB64 + '.' + claimsB64)));
-    const jwt = headerB64 + '.' + claimsB64 + '.' + b64uEncode(sig);
-    const tokRes = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + encodeURIComponent(jwt) });
-    if (!tokRes.ok) { console.warn('[fcm] token exchange failed:', tokRes.status); return false; }
-    const tokJson: any = await tokRes.json().catch(() => ({}));
-    if (!tokJson.access_token) return false;
-    const msgRes = await fetch('https://fcm.googleapis.com/v1/projects/' + encodeURIComponent(sa.project_id) + '/messages:send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tokJson.access_token }, body: JSON.stringify({ message: { token: fcmToken, notification: { title: payload.title || 'OrthodoxConnect', body: payload.body || '' }, data: { url: String((payload.data && payload.data.url) || '/'), type: 'message', senderId: String((payload.data && payload.data.senderId) || '') } } }) });
-    if (!msgRes.ok) {
-      const body = await msgRes.text().catch(() => '');
-      console.warn('[fcm] send failed:', msgRes.status, body.slice(0, 200));
-      if (msgRes.status === 404) { try { await env.DB.prepare('DELETE FROM fcm_tokens WHERE token = ?').bind(fcmToken).run(); } catch (e) {} }
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.warn('[fcm] send failed:', (e as any)?.message || e);
     return false;
   }
 }
@@ -3021,6 +2973,58 @@ export default {
         }
       }
 
+      // OrthodoxConnect Study Corner: POST /api/study { question, mode, language }
+      // Authenticated (session token) so it can't be used as an anonymous proxy.
+      // The Gemini key stays server-side in env.GEMINI_API_KEY (never shipped to clients).
+      // Answers must cite Orthodox sources; anything unsourced is said plainly.
+      if (url.pathname === '/api/study' && request.method === 'POST') {
+        const auth = await getAuthIdentity(request, env);
+        if (!auth.id) return jsonResponse({ success: false, error: 'unauthorized' }, 401);
+        let body: any = {};
+        try { body = await request.json(); } catch (e) { /* fall through to validation */ }
+        const question = typeof body.question === 'string' ? body.question.trim().slice(0, 1000) : '';
+        const mode = ['bible', 'sermon', 'lesson', 'qa'].includes(body.mode) ? body.mode : 'qa';
+        const lang = body.language === 'ar' ? 'ar' : 'en';
+        if (!question) return jsonResponse({ success: false, error: 'bad_request' }, 400);
+        const apiKey = (env as any).GEMINI_API_KEY;
+        if (!apiKey) return jsonResponse({ success: false, error: 'not_configured' }, 503);
+        const modeGuide: Record<string, string> = {
+          bible: 'Explain the passage or topic for Bible study, with verse-by-verse clarity.',
+          sermon: 'Prepare a sermon outline: theme, key verses, patristic support, and a practical closing.',
+          lesson: 'Prepare a complete lesson: objectives, key verses, explanation, an illustration, and discussion questions.',
+          qa: 'Answer the question clearly and briefly, for a general Orthodox reader.',
+        };
+        const prompt =
+          'You are an Orthodox Christian study assistant for OrthodoxConnect. ' +
+          'Answer ONLY from Orthodox teaching: the Holy Bible, the Church Fathers, the liturgy, and the Ecumenical Councils. ' +
+          'Cite every factual claim with a book and chapter, or a father and work. ' +
+          'If you are not sure of a source, say so plainly and DO NOT invent quotes or attributions. ' +
+          'Never present speculation as doctrine. ' +
+          'Task: ' + modeGuide[mode] + ' ' +
+          'Respond in ' + (lang === 'ar' ? 'Arabic' : 'English') + '. ' +
+          'Return ONLY a JSON object with: answer (the full answer text), sources (array of short source strings, e.g. "Luke 15:11-32", "St. John Chrysostom, Homilies on Matthew"). ' +
+          'Question: ' + question;
+        try {
+          const gres = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { responseMimeType: 'application/json' },
+            }),
+          });
+          if (!gres.ok) return jsonResponse({ success: false, error: 'ai_failed' }, 502);
+          const gdata: any = await gres.json();
+          const aiText = (gdata && gdata.candidates && gdata.candidates[0] && gdata.candidates[0].content && gdata.candidates[0].content.parts && gdata.candidates[0].content.parts[0] && gdata.candidates[0].content.parts[0].text) || '{}';
+          let parsed: any = {};
+          try { parsed = JSON.parse(aiText); } catch (e) { /* fall through to validation */ }
+          if (!parsed.answer) return jsonResponse({ success: false, error: 'ai_failed' }, 502);
+          return jsonResponse({ success: true, answer: String(parsed.answer), sources: Array.isArray(parsed.sources) ? parsed.sources.map(String).slice(0, 12) : [] });
+        } catch (e) {
+          return jsonResponse({ success: false, error: 'ai_failed' }, 502);
+        }
+      }
+
       // Public VAPID key (safe to expose — clients need it to subscribe).
       if (url.pathname === '/api/push/vapid-public-key' && request.method === 'GET') {
         const { publicKey, privateKey } = await getVapidKeys(env);
@@ -4025,21 +4029,9 @@ export default {
                 for (const s of subs as any[]) {
                   if (s && s.endpoint && s.p256dh && s.auth && !seen.has(s.endpoint)) {
                     seen.add(s.endpoint);
-                    // High urgency: normal urgency lets Android Doze defer
-                    // the push, and with the old 120s TTL it expired first.
-                    await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload, { urgency: 'high' });
+                    await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
                   }
                 }
-                // Native FCM (2026-11-01): same message, straight to the
-                // native app even when closed. Isolated try/catch — an FCM
-                // failure must never break the Web Push path above, and
-                // sendFcmPush itself no-ops without a service account.
-                try {
-                  const fcmRows: any = await env.DB.prepare('SELECT token FROM fcm_tokens WHERE user_id = ? OR user_id = ?').bind(receiverId, String(receiverId).replace(/^auth-/, '')).all().catch(() => ({ results: [] }));
-                  for (const r of ((fcmRows && fcmRows.results) || []) as any[]) {
-                    if (r && r.token) await sendFcmPush(env, String(r.token), pushPayload);
-                  }
-                } catch (e) { console.warn('[push] FCM message push failed:', (e as any)?.message || e); }
               }
             } catch (e) { console.warn('[push] chat message push failed:', (e as any)?.message || e); }
           }
@@ -7498,67 +7490,6 @@ export default {
 
       // 17c. Push subscriptions (Web Push for calls when app is closed)
       // Test push endpoint: send a test notification to all of a user's devices
-      // Native FCM tokens (2026-11-01): register/delete, authenticated, own user only.
-      // Self-healing CREATE TABLE: ensureD1Tables fast-path skips migrations on
-      // fully-migrated databases, so this endpoint creates the table itself.
-      if (url.pathname === '/api/fcm-tokens' && env.DB) {
-        if (request.method === 'POST') {
-          const body: any = await request.json().catch(() => ({}));
-          const authFt = await getAuthIdentity(request, env);
-          if (!authFt.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
-          const userId = String(body.user_id || body.userId || authFt.id);
-          if (userId !== authFt.id && !authFt.isAdmin) return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
-          const token = String(body.token || '').trim();
-          const platform = String(body.platform || 'android');
-          if (!token) return jsonResponse({ success: false, error: 'token is required' }, 400);
-          try { await env.DB.prepare('CREATE TABLE IF NOT EXISTS fcm_tokens ( user_id TEXT NOT NULL, token TEXT PRIMARY KEY, platform TEXT DEFAULT \'android\', created_at TEXT NOT NULL DEFAULT (datetime(\'now\')) )').run(); } catch (e) {}
-          await env.DB.prepare('INSERT OR REPLACE INTO fcm_tokens (user_id, token, platform, created_at) VALUES (?, ?, ?, ?)').bind(userId, token, platform, new Date().toISOString()).run();
-          return jsonResponse({ success: true }, 201);
-        }
-        if (request.method === 'DELETE') {
-          const body: any = await request.json().catch(() => ({}));
-          const authFd = await getAuthIdentity(request, env);
-          if (!authFd.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
-          const userId = String(body.user_id || body.userId || authFd.id);
-          if (userId !== authFd.id && !authFd.isAdmin) return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
-          const token = String(body.token || '').trim();
-          if (token) { await env.DB.prepare('DELETE FROM fcm_tokens WHERE user_id = ? AND token = ?').bind(userId, token).run(); }
-          return jsonResponse({ success: true });
-        }
-      }
-      // Live-subscription test: send to the subscription the phone actually
-      // holds right now (supplied in the body), NOT to the saved DB list.
-      // If the DB list is stale, the old test sends to a dead endpoint and
-      // "accepts" it while the phone in hand never sees it. This endpoint
-      // also saves the live subscription, so the next real message push
-      // uses it too. Authenticated, own user only.
-      if (url.pathname === '/api/push-subscriptions/test-live' && request.method === 'POST' && env.DB) {
-        const body: any = await request.json().catch(() => ({}));
-        const authTl = await getAuthIdentity(request, env);
-        if (!authTl.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
-        const userId = String(body.user_id || body.userId || authTl.id);
-        if (userId !== authTl.id && !authTl.isAdmin) return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
-        const sub = body.subscription || {};
-        const endpoint = String(sub.endpoint || '');
-        const p256dh = String((sub.keys && sub.keys.p256dh) || '');
-        const authKey = String((sub.keys && sub.keys.auth) || '');
-        if (!endpoint || !endpoint.startsWith('https://') || !p256dh || !authKey) {
-          return jsonResponse({ success: false, error: 'user_id, endpoint, p256dh and auth are required' }, 400);
-        }
-        try { await env.DB.prepare('INSERT OR REPLACE INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?)').bind(userId, endpoint, p256dh, authKey, new Date().toISOString()).run(); } catch (e) {}
-        (globalThis as any).__lastPushStatus = null;
-        (globalThis as any).__lastPushBody = '';
-        const pushId = 'tl-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
-        try { await env.DB.prepare('INSERT INTO push_receipts (push_id, user_id) VALUES (?, ?)').bind(pushId, userId).run(); } catch (e) {}
-        const ok = await sendWebPush(env, { endpoint, p256dh, auth: authKey }, {
-          title: 'OrthodoxConnect ✓',
-          body: 'Push notifications are working on this device!',
-          icon: 'https://orthodoxconnect.live/launchericon-512x512.png',
-          badge: 'https://orthodoxconnect.live/launchericon-512x512.png',
-          data: { url: '/', pushId },
-        }, { urgency: 'high' });
-        return jsonResponse({ success: true, subscriptions: 1, sent: ok ? 1 : 0, fcm_status: (globalThis as any).__lastPushStatus ?? null, fcm_body: (globalThis as any).__lastPushBody || '', endpoint_tail: endpoint.slice(-16), endpoint_host: endpoint.split('/')[2] || '', push_id: pushId });
-      }
       if (url.pathname === '/api/push-subscriptions/test' && request.method === 'POST' && env.DB) {
         const body: any = await request.json().catch(() => ({}));
         const authPs = await getAuthIdentity(request, env);
@@ -7582,7 +7513,7 @@ export default {
             icon: 'https://orthodoxconnect.live/launchericon-512x512.png',
             badge: 'https://orthodoxconnect.live/launchericon-512x512.png',
             data: { url: '/', pushId },
-          }, { urgency: 'high' });
+          });
           if (ok) sent++;
           details.push({ endpoint_tail: String(s.endpoint || '').slice(-16), endpoint_host: String(s.endpoint || '').split('/')[2] || '', created_at: String(s.created_at || ''), accepted: ok, fcm_status: (globalThis as any).__lastPushStatus ?? null, fcm_body: (globalThis as any).__lastPushBody || '' });
         }

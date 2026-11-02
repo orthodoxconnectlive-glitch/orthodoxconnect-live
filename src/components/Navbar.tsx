@@ -160,6 +160,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'live', label: t('goLive'), icon: Radio, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isLive: true },
     { id: 'candle', label: language === 'ar' ? 'أضئ شمعة' : 'Light a Candle', emoji: '🕯', color: 'text-amber-600 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30', isCandle: true },
     { id: 'donate', label: language === 'ar' ? 'تبرع' : 'Donate', icon: Heart, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isDonate: true },
+    { id: 'study', label: language === 'ar' ? 'ركن الدراسة' : 'Study Corner', icon: BookOpen, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'profile', label: t('profile'), icon: UserIcon, color: 'text-stone-700 dark:text-amber-200', bg: 'bg-stone-200 dark:bg-stone-800' },
     { id: 'churches', label: language === 'ar' ? 'الكنائس' : 'Churches', icon: Church, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'jobs', label: language === 'ar' ? 'الوظائف' : 'Jobs', icon: Briefcase, color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/30' },

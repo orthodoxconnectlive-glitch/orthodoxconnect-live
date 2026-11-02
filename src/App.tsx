@@ -29,6 +29,7 @@ const MarketplaceView = lazy(() => import('./views/MarketplaceView').then((m) =>
 const JobsView = lazy(() => import('./views/JobsView').then((m) => ({ default: m.JobsView })));
 const SettingsView = lazy(() => import('./views/SettingsView').then((m) => ({ default: m.SettingsView })));
 const RadioView = lazy(() => import('./views/RadioView').then((m) => ({ default: m.RadioView })));
+const StudyView = lazy(() => import('./views/StudyView').then((m) => ({ default: m.StudyView })));
 const NotificationsView = lazy(() => import('./views/NotificationsView').then((m) => ({ default: m.NotificationsView })));
 const LibraryView = lazy(() => import('./views/LibraryView').then((m) => ({ default: m.LibraryView })));
 // Load slimming (2026-10-21): modals, the landing page and desktop-only
@@ -468,6 +469,8 @@ function AppContent() {
         );
       case 'radio':
         return <RadioView focusTrackId={focusTrackId} onFocusTrackConsumed={() => setFocusTrackId(null)} focusRadioLive={focusRadioLive} onFocusRadioLiveConsumed={() => setFocusRadioLive(false)} />;
+      case 'study':
+        return <StudyView />;
       default:
         return <FeedView onSelectUser={handleSelectUser} />;
     }

@@ -2986,15 +2986,13 @@ export default {
         const mode = ['bible', 'sermon', 'lesson', 'qa'].includes(body.mode) ? body.mode : 'qa';
         const lang = body.language === 'ar' ? 'ar' : 'en';
         if (!question) return jsonResponse({ success: false, error: 'bad_request' }, 400);
-        const apiKey = (env as any).GEMINI_API_KEY;
-        if (!apiKey) return jsonResponse({ success: false, error: 'not_configured' }, 503);
         const modeGuide: Record<string, string> = {
           bible: 'Explain the passage or topic for Bible study, with verse-by-verse clarity.',
           sermon: 'Prepare a sermon outline: theme, key verses, patristic support, and a practical closing.',
           lesson: 'Prepare a complete lesson: objectives, key verses, explanation, an illustration, and discussion questions.',
           qa: 'Answer the question clearly and briefly, for a general Orthodox reader.',
         };
-        const prompt =
+        const guardrails =
           'You are an Orthodox Christian study assistant for OrthodoxConnect. ' +
           'Answer ONLY from Orthodox teaching: the Holy Bible, the Church Fathers, the liturgy, and the Ecumenical Councils. ' +
           'Cite every factual claim with a book and chapter, or a father and work. ' +
@@ -3002,8 +3000,37 @@ export default {
           'Never present speculation as doctrine. ' +
           'Task: ' + modeGuide[mode] + ' ' +
           'Respond in ' + (lang === 'ar' ? 'Arabic' : 'English') + '. ' +
-          'Return ONLY a JSON object with: answer (the full answer text), sources (array of short source strings, e.g. "Luke 15:11-32", "St. John Chrysostom, Homilies on Matthew"). ' +
+          'End your answer with a "Sources:" section listing each source on its own line starting with "- ". ' +
           'Question: ' + question;
+        // Primary: Cloudflare Workers AI (official, no key) — proven live by
+        // post translation. Dashboard variables do NOT reliably reach the
+        // deployed Worker in this setup (see MEMBER_LIST_KEY_FALLBACK), so
+        // Gemini is only a backup, not the path the feature depends on.
+        if ((env as any).AI) {
+          try {
+            const out: any = await (env as any).AI.run('@cf/meta/llama-3.1-8b-instruct', {
+              messages: [
+                { role: 'system', content: guardrails },
+                { role: 'user', content: question },
+              ],
+            });
+            let text = String((out && out.response) || '').trim();
+            if (text) {
+              const marker = text.search(/\n\s*(Sources|المصادر)\s*:/);
+              let sources: string[] = [];
+              if (marker >= 0) {
+                const tail = text.slice(marker);
+                sources = tail.split('\n').map((l: string) => l.replace(/^\s*[-•]\s*/, '').trim()).filter((l: string) => l && !/^(Sources|المصادر)\s*:/.test(l)).slice(0, 12);
+                text = text.slice(0, marker).trim();
+              }
+              return jsonResponse({ success: true, answer: text, sources });
+            }
+          } catch (e) { /* fall through to Gemini backup */ }
+        }
+        const apiKey = (env as any).GEMINI_API_KEY;
+        if (!apiKey) return jsonResponse({ success: false, error: 'not_configured' }, 503);
+        const prompt = guardrails +
+          'Return ONLY a JSON object with: answer (the full answer text), sources (array of short source strings, e.g. "Luke 15:11-32", "St. John Chrysostom, Homilies on Matthew"). ';
         try {
           const gres = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
             method: 'POST',

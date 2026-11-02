@@ -94,6 +94,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     window.addEventListener('orthodox:notifications_updated', handleLocalUpdate);
     window.addEventListener('orthodox:new_notification', handleLocalUpdate);
     window.addEventListener('storage', handleLocalUpdate);
+    // Desktop sidebar Donate row (2026-11-02) opens the same modal.
+    const handleOpenDonate = () => setIsDonateOpen(true);
+    window.addEventListener('oc:open-donate', handleOpenDonate);
 
     const pollInterval = setInterval(() => {
       fetchNotifs();
@@ -104,6 +107,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       window.removeEventListener('orthodox:notifications_updated', handleLocalUpdate);
       window.removeEventListener('orthodox:new_notification', handleLocalUpdate);
       window.removeEventListener('storage', handleLocalUpdate);
+      window.removeEventListener('oc:open-donate', handleOpenDonate);
     };
   }, [profile?.id]);
 

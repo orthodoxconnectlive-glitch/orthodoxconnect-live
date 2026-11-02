@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Radio,
   Flame,
+  Heart,
   MessageSquare,
   Bell,
   User,
@@ -17,7 +18,6 @@ import {
   Briefcase,
   ThumbsUp,
   Palette,  Settings,
-  Heart,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -74,6 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     badge?: string;
     isLive?: boolean;
     isCandle?: boolean;
+    isDonate?: boolean;
     count?: number;
   }
 
@@ -82,6 +83,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: NavItem[] = [
     { id: 'live', label: t('goLive'), icon: Radio, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isLive: true },
     { id: 'candle', label: language === 'ar' ? 'أضئ شمعة' : 'Light a Candle', icon: Flame, color: 'text-amber-600 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30', isCandle: true },
+    // Desktop Donate row (2026-11-02): the Nov 1 sidebar-only move wired
+    // only the phone drawer — the PC sidebar had NO working Donate handler,
+    // so its bottom card did nothing when tapped. This row opens the modal.
+    { id: 'donate', label: language === 'ar' ? 'تبرع' : 'Donate', icon: Heart, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isDonate: true },
     { id: 'messages', label: t('messages'), icon: MessageSquare, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', count: activeUnreadMsgs },
     { id: 'notifications', label: t('notifications'), icon: Bell, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', count: activeUnreadNotifs },
     { id: 'profile', label: t('profile'), icon: User, color: 'text-stone-700 dark:text-amber-200', bg: 'bg-stone-200 dark:bg-stone-800' },
@@ -220,6 +225,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => {
                   if (item.isCandle) {
                     window.dispatchEvent(new CustomEvent('oc:open-candle'));
+                  } else if (item.isDonate) {
+                    window.dispatchEvent(new CustomEvent('oc:open-donate'));
                   } else {
                     onNavigate(item.id);
                   }
@@ -276,24 +283,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <p className="text-[10px] text-(--tx-mute) dark:text-[#a89379] leading-tight font-serif uppercase">
               {t('referralSub')}
-            </p>
-          </button>
-        </div>
-
-        {/* Donate Card — opens the Donate modal (Navbar listens) */}
-        <div className="mt-3">
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent('oc:open-donate'))}
-            className="w-full p-3 rounded-2xl bg-gradient-to-b from-[#ffe27a] to-[#f5b81f] hover:brightness-105 transition-all text-left rtl:text-right group cursor-pointer shadow-sm"
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <Heart className="w-4 h-4 text-[#1a2340] fill-current group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-serif font-bold uppercase tracking-wider text-[#1a2340]">
-                {language === 'ar' ? 'تبرع' : 'Donate'}
-              </span>
-            </div>
-            <p className="text-[10px] text-[#5c4a12] leading-tight font-serif uppercase">
-              {language === 'ar' ? 'ادعم خدمة أرثوذكسى كونكت' : 'Support the OrthodoxConnect ministry'}
             </p>
           </button>
         </div>

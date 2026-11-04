@@ -980,7 +980,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
             <button
               type="submit"
               disabled={isSubmitting || (!newPostText.trim() && !imageUrl && !videoUrl && !selectedVideoFile)}
-              className="px-5 py-2 rounded-xl bg-(--ac-bronze) hover:bg-(--ac-bronze-dk) text-white font-serif uppercase tracking-wider font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-[#C4DFED] hover:bg-[#99CBE5] text-[#183451] font-serif uppercase tracking-wider font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-80"
             >
               {isSubmitting ? (
                 <>

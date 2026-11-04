@@ -113,7 +113,7 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
       const grad = ctx.createLinearGradient(0, 0, 0, H);
-      grad.addColorStop(0, '#13264e'); grad.addColorStop(0.5, '#0e1c40'); grad.addColorStop(1, '#0a142e');
+      grad.addColorStop(0, '#E8F4FA'); grad.addColorStop(0.5, '#DCEEF7'); grad.addColorStop(1, '#C4DFED');
       ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
       ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 5;
       ctx.strokeRect(26, 26, W - 52, H - 52);
@@ -126,32 +126,32 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
         ctx.restore();
         y += imgSize + 34;
       } else {
-        ctx.fillStyle = '#e8c25a'; ctx.font = '110px Georgia, serif';
+        ctx.fillStyle = '#A07C2C'; ctx.font = '110px Georgia, serif';
         ctx.fillText('†', W / 2, y + 40); y += 130;
       }
-      ctx.fillStyle = '#e8c25a'; ctx.font = F.brand;
+      ctx.fillStyle = '#A07C2C'; ctx.font = F.brand;
       ctx.fillText('O R T H O D O X C O N N E C T', W / 2, y); y += 62;
-      ctx.fillStyle = '#f2e3b3'; ctx.font = F.date;
+      ctx.fillStyle = '#183451'; ctx.font = F.date;
       ctx.fillText(String(todayData.date).toUpperCase(), W / 2, y); y += 54;
       ctx.font = F.sub;
       ctx.fillText(formatCopticDate(ct, language), W / 2, y); y += 54;
-      ctx.fillStyle = '#6ee7b7'; ctx.font = F.sub;
+      ctx.fillStyle = '#065F46'; ctx.font = F.sub;
       ctx.fillText(todayData.fastingInfo, W / 2, y); y += 58;
       ctx.strokeStyle = 'rgba(201,162,39,0.6)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(W / 2 - 190, y); ctx.lineTo(W / 2 + 190, y); ctx.stroke(); y += 46;
       if (titleLines.length) {
-        ctx.fillStyle = '#e8c25a'; ctx.font = F.head;
+        ctx.fillStyle = '#A07C2C'; ctx.font = F.head;
         ctx.fillText(synaxHead, W / 2, y); y += 50;
-        ctx.fillStyle = '#fdf6e3'; ctx.font = F.title;
+        ctx.fillStyle = '#183451'; ctx.font = F.title;
         for (const ln of titleLines) { ctx.fillText(ln, W / 2, y); y += 60; }
         y += 16;
       }
-      ctx.fillStyle = '#fdf6e3'; ctx.font = F.verse;
+      ctx.fillStyle = '#183451'; ctx.font = F.verse;
       for (const ln of verseLines) { ctx.fillText(ln, W / 2, y); y += 62; }
       y += 8;
-      ctx.fillStyle = '#c9a227'; ctx.font = F.ref;
+      ctx.fillStyle = '#A07C2C'; ctx.font = F.ref;
       ctx.fillText(`— ${todayData.scriptureRef}`, W / 2, y); y += 78;
-      ctx.fillStyle = '#e8c25a'; ctx.font = F.foot;
+      ctx.fillStyle = '#A07C2C'; ctx.font = F.foot;
       ctx.fillText('orthodoxconnect.live', W / 2, y);
       return await new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), 'image/png'));
     } catch (e) {

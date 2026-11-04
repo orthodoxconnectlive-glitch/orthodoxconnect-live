@@ -302,7 +302,7 @@ export async function loadNotifications ( userId?: string ): Promise < Notificat
 
   const deletedIds = getDeletedNotifIds ( ) ;
 
-  const localItems = getLocalNotifications ( ) . filter ( ( n ) => ! deletedIds . has ( n . id ) ) ;
+  const localItems = getLocalNotifications ( ) . filter ( ( n ) => ! deletedIds . has ( n . id ) && ( ! effectiveUserId || n . userId === effectiveUserId || n . userId === 'all' ) ) ;
 
 try {
 

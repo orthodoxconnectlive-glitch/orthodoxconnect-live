@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Post, PostComment } from '../types';
 import { loadPostsByAuthor, togglePostLike, fetchPostComments, addPostComment, deletePostComment, deletePost } from '../utils/posts';
 import { PostCard } from '../components/PostCard';
+import { ClergyBadge } from '../components/ClergyBadge';
 import { ReshareModal } from '../components/ReshareModal';
 import { ReportContentModal } from '../components/ReportContentModal';
 import { addNotification } from '../utils/notifications';
@@ -292,6 +293,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <span className="px-3 py-0.5 rounded-full bg-(--bg-soft) dark:bg-[#282019] text-(--tx-strong) dark:text-[#f5ebd9] border border-(--ln-gold) text-[10px] font-serif font-bold uppercase tracking-wider">
                   {targetRole}
                 </span>
+                <ClergyBadge role={isSelf ? profile?.role : viewedUser?.role} />
               </div>
 
               <p className="text-xs text-(--ac-bronze-tx) font-serif font-semibold flex items-center gap-1.5 mt-1 uppercase tracking-wider">

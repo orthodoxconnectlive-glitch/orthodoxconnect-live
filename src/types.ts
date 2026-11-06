@@ -10,6 +10,8 @@ export interface Post {
   author_avatar?: string;
   authorId?: string;
   author_id?: string;
+  author_role?: string | null;
+  authorRole?: string | null;
   image?: string | null;
   imageUrl?: string | null;
   image_url?: string | null;
@@ -129,6 +131,7 @@ export interface PostComment {
   authorName?: string;
   author_avatar?: string;
   authorAvatar?: string;
+  author_role?: string | null;
   content?: string;
   mentions?: { id: string; name: string }[] | string;
   created_at?: string;

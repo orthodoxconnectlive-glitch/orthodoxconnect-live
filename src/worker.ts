@@ -5827,11 +5827,25 @@ export default {
                 // Fall back smoothly
               }
 
+              // Clergy badge (2026-11-05): attach each author's profile role
+              // so the client can show the CLERGY badge next to clergy names.
+              const authorRoleMap = new Map<string, string>();
+              try {
+                const authorIds = [...new Set(posts.map((p: any) => String(p.author_id || '')).filter(Boolean))];
+                for (let i = 0; i < authorIds.length; i += 50) {
+                  const chunk = authorIds.slice(i, i + 50);
+                  const placeholders = chunk.map(() => '?').join(',');
+                  const { results } = await env.DB.prepare(`SELECT id, role FROM profiles WHERE id IN (${placeholders})`).bind(...chunk).all<any>();
+                  for (const r of (results || [])) authorRoleMap.set(String(r.id), String(r.role || ''));
+                }
+              } catch (e) { /* badge is best-effort; posts still load */ }
+
               const reactionSummaries = await reactionSummariesPromise;
 
               for (const p of posts) {
                 const key = String(p.id);
                 const rs = reactionSummaries.get(key) || { counts: {}, total: 0, myEmoji: null };
+                p.author_role = authorRoleMap.get(String(p.author_id || '')) || null;
                 p.is_liked = rs.myEmoji === REACTION_HEART;
                 p.my_emoji = rs.myEmoji;
                 p.reaction_counts = rs.counts;
@@ -6237,6 +6251,18 @@ export default {
                 return { ...c, reaction_counts: s.counts, reactions_count: s.total, my_emoji: s.myEmoji };
               });
             } catch (e) { /* comments still load without reaction data */ }
+            // Clergy badge (2026-11-05): attach each commenter's profile role.
+            try {
+              const commenterIds = [...new Set(comments.map((c: any) => String(c.user_id || '')).filter(Boolean))];
+              const roleMap = new Map<string, string>();
+              for (let i = 0; i < commenterIds.length; i += 50) {
+                const chunk = commenterIds.slice(i, i + 50);
+                const placeholders = chunk.map(() => '?').join(',');
+                const { results } = await env.DB.prepare(`SELECT id, role FROM profiles WHERE id IN (${placeholders})`).bind(...chunk).all<any>();
+                for (const r of (results || [])) roleMap.set(String(r.id), String(r.role || ''));
+              }
+              comments = comments.map((c: any) => ({ ...c, author_role: roleMap.get(String(c.user_id || '')) || null }));
+            } catch (e) { /* badge is best-effort */ }
           }
           return jsonResponse({ success: true, post_id: postId, comments, count: comments.length });
         }
@@ -6333,9 +6359,16 @@ export default {
             }
           }
 
+          let commenterRole: string | null = null;
+          try {
+            if (env.DB) {
+              const rrow = await env.DB.prepare('SELECT role FROM profiles WHERE id = ?').bind(userId).first<any>();
+              commenterRole = rrow ? String(rrow.role || '') : null;
+            }
+          } catch (e) { /* badge is best-effort */ }
           return jsonResponse({
             success: true,
-            comment: { id, post_id: postId, user_id: userId, author_name: authorName, author_avatar: authorAvatar, content, mentions: validMentions, created_at: createdAt },
+            comment: { id, post_id: postId, user_id: userId, author_name: authorName, author_avatar: authorAvatar, author_role: commenterRole, content, mentions: validMentions, created_at: createdAt },
             comments_count: newCommentCount,
           }, 201);
         }
@@ -6350,6 +6383,13 @@ export default {
             post = await env.DB.prepare('SELECT * FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
           }
           if (!post) return jsonResponse({ success: false, error: 'Post not found' }, 404);
+          // Clergy badge (2026-11-05)
+          try {
+            if (env.DB && (post as any).author_id) {
+              const prow = await env.DB.prepare('SELECT role FROM profiles WHERE id = ?').bind(String((post as any).author_id)).first<any>();
+              (post as any).author_role = prow ? String(prow.role || '') : null;
+            }
+          } catch (e) { /* badge is best-effort */ }
           if (/^data:image\//i.test(String((post as any).image_url || ''))) {
             (post as any).image_url = 'https://orthodoxconnect.live/post-image/' + encodeURIComponent(String((post as any).id));
           }

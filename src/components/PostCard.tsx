@@ -30,6 +30,7 @@ import {
 } from './ReactionPicker';
 import { REACTION_HEART, reactionLabel } from '../utils/reactions';
 import { TimeAgo } from './TimeAgo';
+import { ClergyBadge } from './ClergyBadge';
 import { BroadcastCard } from './BroadcastCard';
 import { AudioPlayer } from './AudioPlayer';
 import { useTheme } from '../context/ThemeContext';
@@ -548,6 +549,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   };
 
   const authorName = post.authorName || post.author_name || rawPost.profile?.full_name || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner');
+  const authorRole = (post as any).author_role || (post as any).authorRole || rawPost?.profile?.role || null;
   const authorParish = post.authorParish || post.author_parish || rawPost.profile?.parish || (language === 'ar' ? 'كنيسة أرثوذكسية' : 'Orthodox Parish');
   const authorAvatar = post.authorAvatar || post.author_avatar || rawPost.profile?.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png';
   const authorId = post.authorId || post.author_id || rawPost.author_id;
@@ -815,6 +817,8 @@ export const PostCard: React.FC<PostCardProps> = ({
               >
                 {authorName}
               </h4>
+
+              <ClergyBadge role={authorRole} />
 
               {currentProfile?.full_name?.toLowerCase() !== authorName.toLowerCase() && (
                 <div className="flex items-center gap-1.5">
@@ -1211,6 +1215,7 @@ export const PostCard: React.FC<PostCardProps> = ({
             <span className="font-bold text-(--tx-head) dark:text-(--ac-gold-tx) hover:underline">
               {post.quotedPost.authorName}
             </span>
+            <ClergyBadge role={(post.quotedPost as any)?.author_role} />
             <span className="text-[10px] text-(--tx-soft) dark:text-[#a89379]">
               • {post.quotedPost.authorParish}
             </span>
@@ -1415,6 +1420,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                           >
                             {comm.author_name || comm.authorName || (language === 'ar' ? 'عضو الرعية' : 'Orthodox Parishioner')}
                           </span>
+                          <ClergyBadge role={(comm as any).author_role} />
                           <span className="text-[10px] text-(--tx-soft) dark:text-[#a89379]">
                             <TimeAgo dateString={comm.created_at || comm.createdAt || ''} />
                           </span>

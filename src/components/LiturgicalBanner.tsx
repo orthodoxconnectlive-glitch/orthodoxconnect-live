@@ -90,8 +90,8 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
         date: '700 42px Georgia, serif',
         sub: '600 38px Georgia, serif',
         head: '700 34px Georgia, serif',
-        title: '700 46px Georgia, serif',
-        verse: 'italic 46px Georgia, serif',
+        title: '700 48px Georgia, serif',
+        verse: 'italic 600 48px Georgia, serif',
         ref: '700 36px Georgia, serif',
         foot: '700 44px Georgia, serif',
       };
@@ -126,10 +126,10 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
         ctx.restore();
         y += imgSize + 34;
       } else {
-        ctx.fillStyle = '#A07C2C'; ctx.font = '110px Georgia, serif';
+        ctx.fillStyle = '#7A5A14'; ctx.font = '110px Georgia, serif';
         ctx.fillText('†', W / 2, y + 40); y += 130;
       }
-      ctx.fillStyle = '#A07C2C'; ctx.font = F.brand;
+      ctx.fillStyle = '#7A5A14'; ctx.font = F.brand;
       ctx.fillText('O R T H O D O X C O N N E C T', W / 2, y); y += 62;
       ctx.fillStyle = '#183451'; ctx.font = F.date;
       ctx.fillText(String(todayData.date).toUpperCase(), W / 2, y); y += 54;
@@ -140,7 +140,7 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
       ctx.strokeStyle = 'rgba(201,162,39,0.6)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(W / 2 - 190, y); ctx.lineTo(W / 2 + 190, y); ctx.stroke(); y += 46;
       if (titleLines.length) {
-        ctx.fillStyle = '#A07C2C'; ctx.font = F.head;
+        ctx.fillStyle = '#7A5A14'; ctx.font = F.head;
         ctx.fillText(synaxHead, W / 2, y); y += 50;
         ctx.fillStyle = '#183451'; ctx.font = F.title;
         for (const ln of titleLines) { ctx.fillText(ln, W / 2, y); y += 60; }
@@ -149,9 +149,9 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
       ctx.fillStyle = '#183451'; ctx.font = F.verse;
       for (const ln of verseLines) { ctx.fillText(ln, W / 2, y); y += 62; }
       y += 8;
-      ctx.fillStyle = '#A07C2C'; ctx.font = F.ref;
+      ctx.fillStyle = '#7A5A14'; ctx.font = F.ref;
       ctx.fillText(`— ${todayData.scriptureRef}`, W / 2, y); y += 78;
-      ctx.fillStyle = '#A07C2C'; ctx.font = F.foot;
+      ctx.fillStyle = '#7A5A14'; ctx.font = F.foot;
       ctx.fillText('orthodoxconnect.live', W / 2, y);
       return await new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), 'image/png'));
     } catch (e) {
@@ -230,14 +230,14 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
 
           {/* Date, Coptic date & Fasting pills */}
           <div className="flex items-center justify-center gap-2 flex-wrap text-xs">
-            <span className="px-3 py-1 rounded-full bg-white/70 border border-[#5687A6]/50 text-[#183451] font-serif font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
+            <span className="px-3 py-1 rounded-full bg-white/85 border border-[#5687A6]/50 text-[#183451] font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-[#285DA0]" />
               {todayData.date}
             </span>
-            <span className="px-3 py-1 rounded-full bg-white/70 border border-[#5687A6]/50 text-[#183451] font-serif font-bold text-[10px] uppercase tracking-wider">
+            <span className="px-3 py-1 rounded-full bg-white/85 border border-[#5687A6]/50 text-[#183451] font-serif font-bold text-xs uppercase tracking-wider">
               {formatCopticDate(copticToday, language)}
             </span>
-            <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-600/40 text-emerald-800 font-serif font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
+            <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-600/40 text-emerald-800 font-serif font-bold text-xs uppercase tracking-wider flex items-center gap-1">
               <Utensils className="w-3 h-3 text-emerald-600" />
               {todayData.fastingInfo}
             </span>
@@ -247,23 +247,23 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
           {titles.length > 0 && (
             <button
               onClick={() => setReaderDate(copticToday)}
-              className="w-full text-center p-3.5 rounded-2xl bg-white/70 border border-[#5687A6]/40 hover:border-[#285DA0]/70 transition-colors cursor-pointer group"
+              className="w-full text-center p-3.5 rounded-2xl bg-white/85 border border-[#5687A6]/40 hover:border-[#285DA0]/70 transition-colors cursor-pointer group"
             >
               <div className="flex items-center justify-center gap-2 mb-1.5">
                 <BookOpen className="w-3.5 h-3.5 text-[#285DA0]" />
-                <span className="text-[10px] font-serif font-bold uppercase tracking-wider text-[#A07C2C]">
+                <span className="text-xs font-serif font-black uppercase tracking-wider text-[#7A5A14]">
                   {isAr ? 'سنكسار اليوم' : "Today's Synaxarium"}
                 </span>
                 <ChevronRight className={`w-4 h-4 text-[#5687A6] group-hover:text-[#285DA0] transition-colors shrink-0 ${isAr ? 'rotate-180' : ''}`} />
               </div>
               <div className="space-y-1">
                 {titles.slice(0, 3).map((title, i) => (
-                  <p key={i} className="text-xs font-serif-coptic font-bold text-[#183451] leading-relaxed">
+                  <p key={i} className="text-sm font-serif-coptic font-bold text-[#183451] leading-relaxed">
                     {title}
                   </p>
                 ))}
                 {titles.length > 3 && (
-                  <p className="text-[10px] font-serif text-[#A07C2C] italic">
+                  <p className="text-xs font-serif text-[#7A5A14] italic">
                     {isAr ? `+ ${titles.length - 3} تذكارات أخرى — اضغط للقراءة` : `+ ${titles.length - 3} more — tap to read`}
                   </p>
                 )}
@@ -272,14 +272,14 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
           )}
 
           {/* Scripture Verse Quote */}
-          <div className="w-full p-3.5 rounded-2xl bg-white/70 border border-[#5687A6]/40 flex items-start justify-between gap-3 text-start">
+          <div className="w-full p-3.5 rounded-2xl bg-white/85 border border-[#5687A6]/40 flex items-start justify-between gap-3 text-start">
             <div className="flex items-start gap-2.5">
               <BookOpen className="w-4 h-4 text-[#285DA0] shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs text-[#183451] italic font-serif leading-relaxed">
+                <p className="text-sm text-[#183451] italic font-serif font-semibold leading-relaxed">
                   "{todayData.scriptureText}"
                 </p>
-                <span className="text-[10px] text-[#A07C2C] font-serif font-bold uppercase tracking-wider mt-1 block">
+                <span className="text-xs text-[#7A5A14] font-serif font-black uppercase tracking-wider mt-1 block">
                   — {todayData.scriptureRef}
                 </span>
               </div>
@@ -287,7 +287,7 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
 
             <button
               onClick={handleShareScripture}
-              className="p-1.5 rounded-xl bg-white/70 hover:bg-[#285DA0] hover:text-white border border-[#5687A6]/50 text-[#183451] transition-colors shrink-0 cursor-pointer shadow-sm"
+              className="p-1.5 rounded-xl bg-white/85 hover:bg-[#285DA0] hover:text-white border border-[#5687A6]/50 text-[#183451] transition-colors shrink-0 cursor-pointer shadow-sm"
               title="Share Scripture Verse"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5" />}
@@ -306,7 +306,7 @@ export const LiturgicalBanner: React.FC<LiturgicalBannerProps> = ({ onOpenCalend
             <button
               onClick={handleShareCard}
               title="Share today's card"
-              className="px-6 py-3 rounded-full bg-white/70 hover:bg-white border border-[#285DA0]/60 text-[#183451] font-serif font-black text-sm uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
+              className="px-6 py-3 rounded-full bg-white/85 hover:bg-white border border-[#285DA0]/60 text-[#183451] font-serif font-black text-sm uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer"
             >
               {cardShared ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}
               <span>{isAr ? 'مشاركة' : 'Share'}</span>

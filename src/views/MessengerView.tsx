@@ -39,6 +39,7 @@ import { WebRTCCallModal } from '../components/WebRTCCallModal';
 import { UserProfileData } from './ProfileView';
 import { uploadMediaFile } from '../utils/storage';
 import { TimeAgo } from '../components/TimeAgo';
+import { ClergyBadge } from '../components/ClergyBadge';
 import { formatTimeAgo, isRecentlyActive, presenceLabel } from '../utils/timeAgo';
 
 interface ChatContact {
@@ -47,6 +48,7 @@ interface ChatContact {
   full_name?: string;
   username?: string;
   parish: string;
+  role?: string;
   avatar: string;
   isOnline?: boolean;
   last_seen?: string | null;
@@ -228,6 +230,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
               name: displayName,
               full_name: p.full_name || undefined,
               parish: p.parish || 'Orthodox Church',
+              role: (p as any).role || undefined,
               avatar: p.avatar_url || 'https://orthodoxconnect.live/launchericon-512x512.png',
               isOnline: isRecentlyActive(lastSeen),
               last_seen: lastSeen,
@@ -293,6 +296,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                     name: realName,
                     full_name: data.full_name || undefined,
                     parish: data.parish || prev.parish,
+                    role: (data as any).role || prev.role,
                     avatar: data.avatar_url || prev.avatar,
                   }
                 : prev
@@ -306,6 +310,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
                       name: realName,
                       full_name: data.full_name || undefined,
                       parish: data.parish || c.parish,
+                      role: (data as any).role || c.role,
                       avatar: data.avatar_url || c.avatar,
                     }
                   : c
@@ -876,13 +881,16 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
 
                   <div className="overflow-hidden min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-1">
-                      <p
-                        className={`text-sm font-semibold truncate ${
-                          isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-white'
-                        }`}
-                      >
-                        {contact.name}
-                      </p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p
+                          className={`text-sm font-semibold truncate ${
+                            isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-white'
+                          }`}
+                        >
+                          {contact.name}
+                        </p>
+                        <ClergyBadge role={contact.role} />
+                      </div>
                       {contact.lastMessageTime && (
                         <TimeAgo
                           date={contact.lastMessageTime}
@@ -962,9 +970,12 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
             </div>
 
             <div className="min-w-0">
-              <h3 className="font-bold text-sm text-gray-900 dark:text-white truncate group-hover:underline">
-                {activeContact.name}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-sm text-gray-900 dark:text-white truncate group-hover:underline">
+                  {activeContact.name}
+                </h3>
+                <ClergyBadge role={activeContact.role} />
+              </div>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
                 {(() => {
                   const online = isRecentlyActive(activeContact.last_seen);
@@ -1022,7 +1033,10 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
               alt={activeContact.name}
               className="w-20 h-20 rounded-full object-cover shadow-md mb-2"
             />
-            <h4 className="font-bold text-lg text-gray-900 dark:text-white">{activeContact.name}</h4>
+            <div className="flex items-center justify-center gap-2">
+              <h4 className="font-bold text-lg text-gray-900 dark:text-white">{activeContact.name}</h4>
+              <ClergyBadge role={activeContact.role} />
+            </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{activeContact.parish}</p>
             <p className="text-[11px] text-gray-400 dark:text-gray-500">
               You're connected on Messenger • OrthodoxConnect
@@ -1317,7 +1331,10 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
               alt={activeContact.name}
               className="w-20 h-20 rounded-full object-cover shadow-sm mb-3"
             />
-            <h4 className="font-bold text-base text-gray-900 dark:text-white">{activeContact.name}</h4>
+            <div className="flex items-center justify-center gap-2">
+              <h4 className="font-bold text-base text-gray-900 dark:text-white">{activeContact.name}</h4>
+              <ClergyBadge role={activeContact.role} />
+            </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">{activeContact.parish}</p>
 
             {/* Quick Actions Row */}

@@ -87,6 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // only the phone drawer — the PC sidebar had NO working Donate handler,
     // so its bottom card did nothing when tapped. This row opens the modal.
     { id: 'donate', label: language === 'ar' ? 'تبرع' : 'Donate', icon: Heart, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isDonate: true },
+    { id: 'study', label: language === 'ar' ? 'ركن الدراسة' : 'Study Corner', icon: BookOpen, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'messages', label: t('messages'), icon: MessageSquare, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', count: activeUnreadMsgs },
     { id: 'notifications', label: t('notifications'), icon: Bell, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', count: activeUnreadNotifs },
     { id: 'profile', label: t('profile'), icon: User, color: 'text-stone-700 dark:text-amber-200', bg: 'bg-stone-200 dark:bg-stone-800' },

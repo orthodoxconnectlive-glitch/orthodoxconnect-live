@@ -501,6 +501,14 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
   const activeStory = activeStoryIndex !== null ? stories[activeStoryIndex] : null;
   const activeMediaType = activeStory?.mediaType || 'image';
 
+  // PC scroll arrows (2026-11-05): the stories row is swipe-only, so mouse
+  // users on PC could not move it. Arrows scroll one page at a time.
+  const railRef = useRef<HTMLDivElement>(null);
+  const scrollRailBy = (dir: 1 | -1) => {
+    const el = railRef.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: 'smooth' });
+  };
+
   const bunnyEmbedForStory = (guid: string) =>
     `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID || '713265'}/${guid}?autoplay=true&loop=false&muted=false&preload=true`;
 
@@ -525,7 +533,8 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
 
   return (
     <div className="bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] rounded-3xl p-3 shadow-lg">
-      <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1">
+      <div className="relative">
+      <div ref={railRef} className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1">
         {/* Add Story Button */}
         <button
           onClick={() => setIsCreateOpen(true)}
@@ -579,6 +588,23 @@ export const StoriesBar: React.FC<StoriesBarProps> = ({ onSelectUser }) => {
             </button>
           );
         })}
+      </div>
+      <button
+        type="button"
+        aria-label={ar ? 'السابق' : 'Previous stories'}
+        onClick={() => scrollRailBy(ar ? 1 : -1)}
+        className="absolute left-1 rtl:left-auto rtl:right-1 top-1/2 -translate-y-1/2 z-10 hidden md:flex p-2 rounded-full bg-black/60 text-white hover:bg-(--ac-gold) transition-colors cursor-pointer"
+      >
+        <ChevronLeft className="w-5 h-5 rtl:rotate-180" />
+      </button>
+      <button
+        type="button"
+        aria-label={ar ? 'التالي' : 'More stories'}
+        onClick={() => scrollRailBy(ar ? -1 : 1)}
+        className="absolute right-1 rtl:right-auto rtl:left-1 top-1/2 -translate-y-1/2 z-10 hidden md:flex p-2 rounded-full bg-black/60 text-white hover:bg-(--ac-gold) transition-colors cursor-pointer"
+      >
+        <ChevronRight className="w-5 h-5 rtl:rotate-180" />
+      </button>
       </div>
 
       {/* Fullscreen Story Viewer Modal */}

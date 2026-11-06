@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Play, Sparkles } from 'lucide-react';
+import React, { useMemo, useRef } from 'react';
+import { Play, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Post } from '../types';
 import { useTheme } from '../context/ThemeContext';
 
@@ -221,6 +221,14 @@ export const HighlightsRail: React.FC<{ posts: Post[] }> = ({ posts }) => {
     return out.filter((c) => c.title || c.image);
   }, [posts, ar]);
 
+  // PC scroll arrows (2026-11-05): the rail is swipe-only, so mouse users
+  // on PC could not move it. Arrows scroll one page at a time.
+  const railRef = useRef<HTMLDivElement>(null);
+  const scrollRailBy = (dir: 1 | -1) => {
+    const el = railRef.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: 'smooth' });
+  };
+
   if (cards.length < 2) return null;
 
   return (
@@ -231,7 +239,8 @@ export const HighlightsRail: React.FC<{ posts: Post[] }> = ({ posts }) => {
           {ar ? 'أبرز اليوم' : "Today's Highlights"}
         </p>
       </div>
-      <div className="flex gap-3 overflow-x-auto no-scrollbar snap-x py-0.5 px-0.5">
+      <div className="relative">
+      <div ref={railRef} className="flex gap-3 overflow-x-auto no-scrollbar snap-x py-0.5 px-0.5">
         {cards.map((c) => (
           <button
             key={c.key}
@@ -265,6 +274,23 @@ export const HighlightsRail: React.FC<{ posts: Post[] }> = ({ posts }) => {
             </span>
           </button>
         ))}
+      </div>
+      <button
+        type="button"
+        aria-label={ar ? 'السابق' : 'Previous highlights'}
+        onClick={() => scrollRailBy(ar ? 1 : -1)}
+        className="absolute left-1 rtl:left-auto rtl:right-1 top-1/2 -translate-y-1/2 z-10 hidden md:flex p-2 rounded-full bg-black/60 text-white hover:bg-(--ac-gold) transition-colors cursor-pointer"
+      >
+        <ChevronLeft className="w-5 h-5 rtl:rotate-180" />
+      </button>
+      <button
+        type="button"
+        aria-label={ar ? 'التالي' : 'More highlights'}
+        onClick={() => scrollRailBy(ar ? -1 : 1)}
+        className="absolute right-1 rtl:right-auto rtl:left-1 top-1/2 -translate-y-1/2 z-10 hidden md:flex p-2 rounded-full bg-black/60 text-white hover:bg-(--ac-gold) transition-colors cursor-pointer"
+      >
+        <ChevronRight className="w-5 h-5 rtl:rotate-180" />
+      </button>
       </div>
     </div>
   );

@@ -490,7 +490,14 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
   useEffect(() => {
     if (isOpen && isAdmin && destination === 'cloudflare' && !cfStatus) {
       liveStreamsApi.cloudflareStatus()
-        .then((st) => setCfStatus(st))
+        .then((st) => {
+          setCfStatus(st);
+          // One-tap live can't work without the Stream token — don't leave the
+          // broadcaster on a tab whose Go Live button can only fail. Route to
+          // the YouTube path (works today via Larix) and explain the one setup
+          // step in the banner at the top of the modal.
+          if (!st.tokenSet || !st.accountReady) setDestination('youtube');
+        })
         .catch(() => setCfStatus({ tokenSet: false, accountReady: false }));
     }
   }, [isOpen, isAdmin, destination]);
@@ -625,6 +632,17 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
             </p>
           </div>
         </div>
+
+        {/* One-tap live not configured: say so plainly on every tab, not only
+            inside the Cloudflare tab, so the broadcaster knows why One-Tap
+            Live isn't offered and that YouTube works now. */}
+        {isAdmin && cfStatus && (!cfStatus.tokenSet || !cfStatus.accountReady) && (
+          <div className="rounded-xl bg-amber-900/30 border border-amber-500/40 p-3 text-amber-200 text-[11px] font-semibold mb-4">
+            {language === 'ar'
+              ? 'البث بضغطة واحدة غير مفعّل بعد — يحتاج مفتاح Cloudflare Stream (خطوة واحدة في لوحة تحكم Cloudflare). يمكنك البث الآن عبر يوتيوب بالأسفل.'
+              : 'One-tap live is not set up yet — it needs the Cloudflare Stream token (one step in the Cloudflare dashboard). You can go live now via YouTube below.'}
+          </div>
+        )}
 
         {/* Camera Preview Frame */}
         <div className="relative aspect-video rounded-xl bg-stone-900 border border-amber-900/40 overflow-hidden flex flex-col items-center justify-center mb-5 shadow-inner">
@@ -901,6 +919,13 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
               ? 'ضغطة واحدة: تُفتح الكاميرا أعلاه وتبدأ البث فوراً، ويُحفظ التسجيل على هاتفك.'
               : 'One tap: the camera above goes live instantly, and the recording saves on your phone.'}
           </p>
+          {!mediaStream && (
+            <p className="text-[11px] text-amber-300 font-semibold">
+              {language === 'ar'
+                ? 'الكاميرا غير مفعّلة بعد — اضغط «إعادة محاولة الاتصال بالكاميرا» أعلاه أولاً، ثم اضغط «ابدأ البث المباشر».'
+                : 'Camera is not on yet — tap “Retry Camera Access” above first, then “Go Live”.'}
+            </p>
+          )}
           <div className="pt-3 flex justify-end gap-3">
             <button
               type="button"

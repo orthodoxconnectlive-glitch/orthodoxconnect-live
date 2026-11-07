@@ -76,6 +76,62 @@ const ViewLoadingFallback = () => (
   </div>
 );
 
+// Per-view safety net: if one screen crashes (bad data, bad chunk), only
+// that screen shows the snag panel — the navbar and the rest of the app
+// stay up, and the panel names the screen that broke so a screenshot of
+// it says exactly where the crash lives. Mounted with key={currentView}
+// so switching screens gives it fresh state.
+const VIEW_LABELS: Record<string, string> = {
+  feed: 'Feed', videos: 'Videos', reels: 'Videos', library: 'Library',
+  live: 'Live broadcasts', myNetwork: 'My Network', kids: 'Kids Corner',
+  messages: 'Messages', notifications: 'Notifications', profile: 'Profile',
+  admin: 'Admin Panel', calendar: 'Calendar', churches: 'Churches',
+  churchProfile: 'Church profile', marketplace: 'Marketplace', jobs: 'Jobs',
+  settings: 'Settings', radio: 'Radio', study: 'Study Corner',
+};
+
+class ViewErrorBoundary extends React.Component<
+  { viewName: string; children: React.ReactNode },
+  { hasError: boolean; errorMessage: string }
+> {
+  constructor(props: { viewName: string; children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMessage: '' };
+  }
+  static getDerivedStateFromError(err: unknown) {
+    return { hasError: true, errorMessage: err instanceof Error ? err.message : String(err) };
+  }
+  componentDidCatch(err: unknown) {
+    console.error('[App] view render error:', this.props.viewName, err);
+  }
+  render() {
+    if (this.state.hasError) {
+      const label = VIEW_LABELS[this.props.viewName] || this.props.viewName;
+      return (
+        <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+          <div className="text-2xl text-(--ac-gold-tx)">☨</div>
+          <p className="font-serif font-bold mt-3">The {label} screen hit a snag.</p>
+          <p className="text-xs opacity-80 mt-1">The rest of the app is fine — tap below to reload, or use the menu to open another screen.</p>
+          <button
+            onClick={() => {
+              try { sessionStorage.removeItem('oc_chunk_reload'); } catch {}
+              try { sessionStorage.removeItem('oc_boot_reload'); } catch {}
+              window.location.reload();
+            }}
+            className="mt-4 px-5 py-2.5 rounded-full bg-(--ac-gold) text-white font-bold text-sm"
+          >Reload the app</button>
+          {this.state.errorMessage && (
+            <p className="mt-4 text-[11px] font-mono opacity-65 break-words text-left bg-black/5 dark:bg-white/5 rounded-lg px-3 py-2 max-w-md">
+              {this.state.errorMessage}
+            </p>
+          )}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function AppContent() {
   const [currentView, setCurrentView] = useState<string>(() => {
     try {
@@ -531,7 +587,9 @@ function AppContent() {
 
             {/* Main Feed Column */}
             <div className="col-span-1 lg:col-span-8 xl:col-span-6 min-w-0">
-              <Suspense fallback={<ViewLoadingFallback />}>{renderView()}</Suspense>
+              <ViewErrorBoundary key={currentView} viewName={currentView}>
+                <Suspense fallback={<ViewLoadingFallback />}>{renderView()}</Suspense>
+              </ViewErrorBoundary>
             </div>
 
             {/* Right Active Chats / Community Widgets Panel */}
@@ -545,9 +603,11 @@ function AppContent() {
             </div>
           </div>
         ) : (
-          /* Dedicated View Layout */
+          {/* Dedicated View Layout */}
           <div className="w-full min-h-[calc(100vh-8rem)]">
-            <Suspense fallback={<ViewLoadingFallback />}>{renderView()}</Suspense>
+            <ViewErrorBoundary key={currentView} viewName={currentView}>
+              <Suspense fallback={<ViewLoadingFallback />}>{renderView()}</Suspense>
+            </ViewErrorBoundary>
           </div>
         )}
       </main>

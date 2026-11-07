@@ -6438,6 +6438,28 @@ export default {
           }
           return jsonResponse({ success: true, id: postId, message: 'Post deleted successfully.' });
         }
+
+        if (request.method === 'PUT') {
+          const auth = await getAuthIdentity(request, env);
+          let post: D1PostRow | null = null;
+          if (env.DB) {
+            post = await env.DB.prepare('SELECT * FROM posts WHERE id = ?').bind(postId).first<D1PostRow>();
+          }
+          if (!post) return jsonResponse({ success: false, error: 'Post not found' }, 404);
+          const isAuthor = Boolean(post && auth.id && post.author_id && auth.id === post.author_id);
+          const isAllowed = auth.isAdmin || isAuthor;
+          if (!isAllowed) {
+            return jsonResponse({ success: false, error: 'Forbidden: You do not have permission to edit this post.' }, 403);
+          }
+          let body: any = {};
+          try { body = await request.json(); } catch { body = {}; }
+          const content = String(body.content ?? '').trim();
+          if (!content) return jsonResponse({ success: false, error: 'Content is required.' }, 400);
+          if (env.DB) {
+            await env.DB.prepare('UPDATE posts SET content = ? WHERE id = ?').bind(content, postId).run();
+          }
+          return jsonResponse({ success: true, id: postId });
+        }
       }
 
       // 16. Books & Library Endpoints (/api/books and /api/books/:id)

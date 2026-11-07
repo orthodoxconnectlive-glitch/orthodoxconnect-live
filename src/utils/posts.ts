@@ -787,6 +787,35 @@ export async function deletePost(postId: string, userProfile?: any): Promise<{ s
   }
 }
 
+export async function updatePostContent(
+  postId: string,
+  content: string,
+  userProfile?: any
+): Promise<{ success: boolean; error?: any }> {
+  try {
+    const headers = getAuthHeaders(userProfile);
+    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...headers,
+      },
+      body: JSON.stringify({ content }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      return { success: false, error: errData.error || `HTTP ${res.status}` };
+    }
+
+    invalidatePostsCache();
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || err };
+  }
+}
+
 export async function deleteUserApi(
   userId: string,
   targetEmail?: string,

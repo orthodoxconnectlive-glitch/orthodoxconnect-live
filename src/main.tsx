@@ -6,14 +6,17 @@ import './index.css';
 // Render safety net: without this, ANY render error anywhere in the tree
 // kills the whole app into a blank white screen with no recovery and no
 // message. The boundary turns that into a visible screen with a Reload
-// button instead.
-class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+// button — and it shows the actual error text (small, below the button) so
+// a screenshot of this screen says exactly what broke instead of guessing.
+// The Reload button also clears the one-shot chunk-reload flags, so a
+// failed chunk gets a fresh retry instead of throwing again immediately.
+class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; errorMessage: string }> {
   constructor(props: { children: ReactNode }) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, errorMessage: '' };
   }
-  static getDerivedStateFromError() {
-    return { hasError: true };
+  static getDerivedStateFromError(err: unknown) {
+    return { hasError: true, errorMessage: err instanceof Error ? err.message : String(err) };
   }
   componentDidCatch(err: unknown) {
     console.error('[App] render error:', err);
@@ -22,11 +25,23 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
     if (this.state.hasError) {
       return (
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: '#0f0c09', color: '#f5ebd9', fontFamily: 'Georgia, serif', textAlign: 'center' }}>
-          <div>
+          <div style={{ maxWidth: '420px' }}>
             <div style={{ fontSize: '2rem', color: '#c5a059' }}>☨</div>
             <p style={{ fontWeight: 'bold', margin: '0.75rem 0 0.25rem' }}>OrthodoxConnect hit a snag loading.</p>
             <p style={{ opacity: 0.8, margin: '0 0 1rem', fontSize: '0.9rem' }}>Tap below to reload the app — your account is safe.</p>
-            <button onClick={() => window.location.reload()} style={{ background: '#c5a059', color: '#0f0c09', border: 'none', borderRadius: '999px', padding: '0.75rem 1.5rem', fontWeight: 'bold', cursor: 'pointer' }}>Reload the app</button>
+            <button
+              onClick={() => {
+                try { sessionStorage.removeItem('oc_chunk_reload'); } catch {}
+                try { sessionStorage.removeItem('oc_boot_reload'); } catch {}
+                window.location.reload();
+              }}
+              style={{ background: '#c5a059', color: '#0f0c09', border: 'none', borderRadius: '999px', padding: '0.75rem 1.5rem', fontWeight: 'bold', cursor: 'pointer' }}
+            >Reload the app</button>
+            {this.state.errorMessage && (
+              <p style={{ marginTop: '1.25rem', fontSize: '11px', lineHeight: 1.5, fontFamily: 'monospace', opacity: 0.65, wordBreak: 'break-word', textAlign: 'left', background: 'rgba(255,255,255,0.06)', borderRadius: '8px', padding: '0.5rem 0.75rem' }}>
+                {this.state.errorMessage}
+              </p>
+            )}
           </div>
         </div>
       );

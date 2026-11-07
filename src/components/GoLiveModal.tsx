@@ -77,9 +77,38 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  // Mirrors mediaStream for the preview callback ref (state may lag the mount).
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  // True when the preview video is mounted with a stream but still not
+  // showing frames after a few seconds — surfaces a retry instead of a
+  // black box (mobile play() can reject once and the old code swallowed it
+  // with no second attempt).
+  const [previewStuck, setPreviewStuck] = useState(false);
 
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
   const isStreamTransferredRef = useRef<boolean>(false);
+
+  // Attach the camera stream the instant the preview <video> mounts.
+  // (An effect alone can miss the moment: if play() rejects once — common
+  // on phones — the old code swallowed the rejection and never retried,
+  // leaving a black preview. This retries on mount, on metadata/canplay,
+  // and the effect below retries again if the video is still paused.)
+  const attachPreviewVideo = (el: HTMLVideoElement | null) => {
+    videoPreviewRef.current = el;
+    if (!el) return;
+    const stream = mediaStreamRef.current;
+    if (!stream) return;
+    try { el.muted = true; } catch (e) {}
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+    const tryPlay = () => { el.play().catch(() => {}); };
+    tryPlay();
+    const onReady = () => { tryPlay(); setPreviewStuck(false); };
+    el.addEventListener('loadedmetadata', onReady);
+    el.addEventListener('canplay', onReady);
+    el.addEventListener('playing', onReady);
+  };
 
   // Helper to safely stop current tracks
   const stopTracks = (streamToStop?: MediaStream | null) => {
@@ -87,6 +116,7 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     if (s) {
       s.getTracks().forEach((track) => track.stop());
     }
+    if (!streamToStop) mediaStreamRef.current = null;
   };
 
   // Function to initialize or switch webcam stream
@@ -116,7 +146,9 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
       });
 
       setMediaStream(stream);
+      mediaStreamRef.current = stream;
       setHasCameraPermission(true);
+      setPreviewStuck(false);
 
       if (videoPreviewRef.current) {
         videoPreviewRef.current.srcObject = stream;
@@ -157,7 +189,11 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     };
   }, [isOpen, facingMode]);
 
-  // Ensure video element receives stream whenever mediaStream changes
+  // Ensure video element receives stream whenever mediaStream changes.
+  // Retries play: on phones play() can reject once (no user activation yet
+  // in the WebView) and the old code swallowed it with no second attempt,
+  // leaving a black preview. If the video is still paused with no frames
+  // after 3s, flag it stuck so the UI offers a retry instead of a black box.
   useEffect(() => {
     const video = videoPreviewRef.current;
     if (video && mediaStream) {
@@ -173,6 +209,13 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
         const onLoaded = () => { tryPlay(); video.removeEventListener('loadedmetadata', onLoaded); };
         video.addEventListener('loadedmetadata', onLoaded);
       }
+      const retryTimer = setTimeout(() => {
+        if (video.paused) tryPlay();
+      }, 1500);
+      const stuckTimer = setTimeout(() => {
+        if (video.paused || video.readyState < 2) setPreviewStuck(true);
+      }, 3000);
+      return () => { clearTimeout(retryTimer); clearTimeout(stuckTimer); };
     }
   }, [mediaStream]);
 
@@ -649,15 +692,32 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
           {hasCameraPermission === true && mediaStream ? (
             <div className="relative w-full h-full bg-black">
               <video
-                ref={videoPreviewRef}
+                ref={attachPreviewVideo}
                 data-user-initiated="true"
                 autoPlay
                 playsInline
                 muted
+                onPlaying={() => setPreviewStuck(false)}
                 className={`w-full h-full object-cover transition-transform duration-300 ${
                   facingMode === 'user' ? 'transform scale-x-[-1]' : 'transform scale-x-100'
                 }`}
               />
+              {previewStuck && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/70 p-4 text-center">
+                  <p className="text-sm font-bold text-white">
+                    {language === 'ar'
+                      ? 'الكاميرا شغّالة بس المعاينة مش ظاهرة.'
+                      : 'Camera is on but the preview is not showing.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setPreviewStuck(false); void initWebcam(facingMode); }}
+                    className="px-4 py-2 rounded-full bg-red-600 text-white text-xs font-bold cursor-pointer"
+                  >
+                    {language === 'ar' ? 'إعادة تشغيل الكاميرا' : 'Retry Camera'}
+                  </button>
+                </div>
+              )}
 
               {/* Top Left: Live Preview Badge */}
               <div className="absolute top-3 left-3 rtl:left-auto rtl:right-3 flex items-center gap-2 z-10">

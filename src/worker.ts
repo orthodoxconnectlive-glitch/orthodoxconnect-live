@@ -769,7 +769,7 @@ export const SUPER_ADMIN_EMAIL = 'orthodoxconnect.live@gmail.com';
 export const ADMIN_EMAILS = ['orthodoxconnect.live@gmail.com', 'hsyz9625@gmail.com'];
 // Emails allowed to see the full member directory and member counts.
 // Admin accounts NOT on this list see clergy profiles only (no member list, no member counts).
-const FULL_DIRECTORY_EMAILS = ['orthodoxconnect.live@gmail.com', 'hanysabdo83@gmail.com', 'videokid.live@gmail.com'];
+const FULL_DIRECTORY_EMAILS = ['orthodoxconnect.live@gmail.com', 'hanysabdo83@gmail.com', 'videokid.live@gmail.com', 'lucasautocode@gmail.com'];
 
 /**
  * Edge-compatible password hashing using Web Crypto API SHA-256.

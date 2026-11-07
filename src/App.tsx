@@ -12,37 +12,60 @@ import { loadNotifications, markNotificationAsRead } from './utils/notifications
 import { syncFollowsFromServer } from './utils/follows';
 
 import { FeedView } from './views/FeedView';
+// Chunk-load self-heal: every deploy renames the hashed chunks and the old
+// files 404. A phone holding the old app that opens a view whose chunk is
+// gone would hang on Suspense ("Loading…") forever — there is no error
+// boundary to catch it. Reload once for fresh files instead; the session
+// flag stops any reload loop.
+const lazyRetry = <T extends React.ComponentType<any>>(
+  importer: () => Promise<{ default: T }>
+) => {
+  return lazy(() =>
+    importer().catch((err) => {
+      try {
+        if (!sessionStorage.getItem('oc_chunk_reload')) {
+          sessionStorage.setItem('oc_chunk_reload', '1');
+          window.location.reload();
+          // Never-settling promise so React keeps the fallback up while
+          // the reload happens instead of flashing an error.
+          return new Promise<{ default: T }>(() => {});
+        }
+      } catch {}
+      throw err;
+    })
+  );
+};
 // Route-based code splitting: every non-default view loads on demand,
 // keeping the initial bundle small for a fast first paint.
-const VideosView = lazy(() => import('./views/VideosView').then((m) => ({ default: m.VideosView })));
-const LiveBroadcastView = lazy(() => import('./views/LiveBroadcastView').then((m) => ({ default: m.LiveBroadcastView })));
-const GroupRoomsView = lazy(() => import('./views/GroupRoomsView').then((m) => ({ default: m.GroupRoomsView })));
-const MessengerView = lazy(() => import('./views/MessengerView').then((m) => ({ default: m.MessengerView })));
-const ProfileView = lazy(() => import('./views/ProfileView').then((m) => ({ default: m.ProfileView })));
+const VideosView = lazyRetry(() => import('./views/VideosView').then((m) => ({ default: m.VideosView })));
+const LiveBroadcastView = lazyRetry(() => import('./views/LiveBroadcastView').then((m) => ({ default: m.LiveBroadcastView })));
+const GroupRoomsView = lazyRetry(() => import('./views/GroupRoomsView').then((m) => ({ default: m.GroupRoomsView })));
+const MessengerView = lazyRetry(() => import('./views/MessengerView').then((m) => ({ default: m.MessengerView })));
+const ProfileView = lazyRetry(() => import('./views/ProfileView').then((m) => ({ default: m.ProfileView })));
 import type { UserProfileData } from './views/ProfileView';
-const AdminPanelView = lazy(() => import('./views/AdminPanelView').then((m) => ({ default: m.AdminPanelView })));
-const CalendarView = lazy(() => import('./views/CalendarView').then((m) => ({ default: m.CalendarView })));
-const ChurchesView = lazy(() => import('./views/ChurchesView').then((m) => ({ default: m.ChurchesView })));
-const ChurchProfileView = lazy(() => import('./views/ChurchProfileView').then((m) => ({ default: m.ChurchProfileView })));
-const KidsView = lazy(() => import('./views/KidsView').then((m) => ({ default: m.KidsView })));
-const MarketplaceView = lazy(() => import('./views/MarketplaceView').then((m) => ({ default: m.MarketplaceView })));
-const JobsView = lazy(() => import('./views/JobsView').then((m) => ({ default: m.JobsView })));
-const SettingsView = lazy(() => import('./views/SettingsView').then((m) => ({ default: m.SettingsView })));
-const RadioView = lazy(() => import('./views/RadioView').then((m) => ({ default: m.RadioView })));
-const StudyView = lazy(() => import('./views/StudyView').then((m) => ({ default: m.StudyView })));
-const NotificationsView = lazy(() => import('./views/NotificationsView').then((m) => ({ default: m.NotificationsView })));
-const LibraryView = lazy(() => import('./views/LibraryView').then((m) => ({ default: m.LibraryView })));
+const AdminPanelView = lazyRetry(() => import('./views/AdminPanelView').then((m) => ({ default: m.AdminPanelView })));
+const CalendarView = lazyRetry(() => import('./views/CalendarView').then((m) => ({ default: m.CalendarView })));
+const ChurchesView = lazyRetry(() => import('./views/ChurchesView').then((m) => ({ default: m.ChurchesView })));
+const ChurchProfileView = lazyRetry(() => import('./views/ChurchProfileView').then((m) => ({ default: m.ChurchProfileView })));
+const KidsView = lazyRetry(() => import('./views/KidsView').then((m) => ({ default: m.KidsView })));
+const MarketplaceView = lazyRetry(() => import('./views/MarketplaceView').then((m) => ({ default: m.MarketplaceView })));
+const JobsView = lazyRetry(() => import('./views/JobsView').then((m) => ({ default: m.JobsView })));
+const SettingsView = lazyRetry(() => import('./views/SettingsView').then((m) => ({ default: m.SettingsView })));
+const RadioView = lazyRetry(() => import('./views/RadioView').then((m) => ({ default: m.RadioView })));
+const StudyView = lazyRetry(() => import('./views/StudyView').then((m) => ({ default: m.StudyView })));
+const NotificationsView = lazyRetry(() => import('./views/NotificationsView').then((m) => ({ default: m.NotificationsView })));
+const LibraryView = lazyRetry(() => import('./views/LibraryView').then((m) => ({ default: m.LibraryView })));
 // Load slimming (2026-10-21): modals, the landing page and desktop-only
 // panels load on demand — none of them are needed for the first paint.
-const GroupCallModal = lazy(() => import('./components/GroupCallModal').then((m) => ({ default: m.GroupCallModal })));
-const Sidebar = lazy(() => import('./components/Sidebar').then((m) => ({ default: m.Sidebar })));
-const ActiveChatsPanel = lazy(() => import('./components/ActiveChatsPanel').then((m) => ({ default: m.ActiveChatsPanel })));
-const InviteModal = lazy(() => import('./components/InviteModal').then((m) => ({ default: m.InviteModal })));
-const CandleModal = lazy(() => import('./components/CandleModal'));
-const ThemePickerModal = lazy(() => import('./components/ThemePickerModal'));
-const EditProfileModal = lazy(() => import('./components/EditProfileModal').then((m) => ({ default: m.EditProfileModal })));
-const AuthModal = lazy(() => import('./components/AuthModal').then((m) => ({ default: m.AuthModal })));
-const LandingPage = lazy(() => import('./components/LandingPage').then((m) => ({ default: m.LandingPage })));
+const GroupCallModal = lazyRetry(() => import('./components/GroupCallModal').then((m) => ({ default: m.GroupCallModal })));
+const Sidebar = lazyRetry(() => import('./components/Sidebar').then((m) => ({ default: m.Sidebar })));
+const ActiveChatsPanel = lazyRetry(() => import('./components/ActiveChatsPanel').then((m) => ({ default: m.ActiveChatsPanel })));
+const InviteModal = lazyRetry(() => import('./components/InviteModal').then((m) => ({ default: m.InviteModal })));
+const CandleModal = lazyRetry(() => import('./components/CandleModal'));
+const ThemePickerModal = lazyRetry(() => import('./components/ThemePickerModal'));
+const EditProfileModal = lazyRetry(() => import('./components/EditProfileModal').then((m) => ({ default: m.EditProfileModal })));
+const AuthModal = lazyRetry(() => import('./components/AuthModal').then((m) => ({ default: m.AuthModal })));
+const LandingPage = lazyRetry(() => import('./components/LandingPage').then((m) => ({ default: m.LandingPage })));
 import { updateSEOForView } from './utils/seo';
 
 // Lightweight fallback shown while a lazily-loaded view chunk downloads.

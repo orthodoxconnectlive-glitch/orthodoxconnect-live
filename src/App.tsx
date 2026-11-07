@@ -603,7 +603,7 @@ function AppContent() {
             </div>
           </div>
         ) : (
-          {/* Dedicated View Layout */}
+          /* Dedicated View Layout */
           <div className="w-full min-h-[calc(100vh-8rem)]">
             <ViewErrorBoundary key={currentView} viewName={currentView}>
               <Suspense fallback={<ViewLoadingFallback />}>{renderView()}</Suspense>

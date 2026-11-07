@@ -124,7 +124,41 @@
       </div>
     </noscript>
 
-    <div id="root"></div>
+    <div id="root">
+      <!-- Boot splash: shown instantly while the app bundle downloads, so the
+           screen is never blank white. React replaces this on mount. -->
+      <div id="oc-boot" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#0f0c09;color:#f5ebd9;font-family:Georgia,serif;">
+        <div style="width:48px;height:48px;border-radius:16px;background:rgba(197,160,89,.2);border:1px solid #c5a059;display:flex;align-items:center;justify-content:center;color:#c5a059;font-size:22px;font-weight:bold;">☨</div>
+        <p style="font-weight:bold;letter-spacing:.15em;text-transform:uppercase;font-size:14px;">Loading OrthodoxConnect...</p>
+      </div>
+    </div>
+    <!-- Boot watchdog: if the app bundle never mounts (e.g. a stale cached
+         page points at files a new deploy removed), the screen used to stay
+         blank white forever with no recovery. After 15s with no mount,
+         reload once for fresh files; if it still has not mounted, show a
+         tap-to-reload button instead of a blank screen. -->
+    <script>
+      (function () {
+        setTimeout(function () {
+          if (!document.getElementById('oc-boot')) return; // React mounted, all good.
+          var reloaded = null;
+          try { reloaded = sessionStorage.getItem('oc_boot_reload'); } catch (e) {}
+          if (!reloaded) {
+            try { sessionStorage.setItem('oc_boot_reload', '1'); } catch (e) {}
+            window.location.reload();
+            return;
+          }
+          var boot = document.getElementById('oc-boot');
+          if (boot) {
+            boot.innerHTML =
+              '<div style="font-size:2rem;color:#c5a059;">&#9768;</div>' +
+              '<p style="font-weight:bold;">OrthodoxConnect is taking too long to load.</p>' +
+              '<p style="opacity:.8;font-size:.9rem;">Tap below to reload the app &mdash; your account is safe.</p>' +
+              '<button onclick="window.location.reload()" style="background:#c5a059;color:#0f0c09;border:none;border-radius:999px;padding:.75rem 1.5rem;font-weight:bold;cursor:pointer;">Reload the app</button>';
+          }
+        }, 15000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

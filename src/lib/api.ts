@@ -255,10 +255,12 @@ export const profilesApi = {
   },
   // Full directory fetch that also reports the server's visibility scope:
   // 'full' (member list + counts) or 'clergy' (clergy profiles only).
-  async getDirectory(): Promise<{ profiles: UserProfile[]; directoryScope: string; count: number }> {
+  async getDirectory(): Promise<{ profiles: UserProfile[]; directoryScope: string; count?: number }> {
     const res = await apiFetch<{ profiles: UserProfile[]; directoryScope?: string; count?: number }>(`/api/profiles`);
     const profiles = res.profiles || [];
-    return { profiles, directoryScope: res.directoryScope || 'full', count: res.count ?? profiles.length };
+    // No fallback to profiles.length: when the server withholds the total
+    // (admins without full-directory access), the count stays unknown.
+    return { profiles, directoryScope: res.directoryScope || 'full', count: res.count };
   },
 
   async getById(id: string): Promise<UserProfile | null> {

@@ -92,17 +92,20 @@ const VIEW_LABELS: Record<string, string> = {
 
 class ViewErrorBoundary extends React.Component<
   { viewName: string; children: React.ReactNode },
-  { hasError: boolean; errorMessage: string }
+  { hasError: boolean; errorMessage: string; errorStack: string; componentStack: string }
 > {
   constructor(props: { viewName: string; children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false, errorMessage: '' };
+    this.state = { hasError: false, errorMessage: '', errorStack: '', componentStack: '' };
   }
   static getDerivedStateFromError(err: unknown) {
     return { hasError: true, errorMessage: err instanceof Error ? err.message : String(err) };
   }
-  componentDidCatch(err: unknown) {
+  componentDidCatch(err: unknown, errorInfo?: React.ErrorInfo) {
     console.error('[App] view render error:', this.props.viewName, err);
+    const stack = err instanceof Error && err.stack ? err.stack : '';
+    const compStack = errorInfo && errorInfo.componentStack ? errorInfo.componentStack : '';
+    this.setState({ errorStack: stack, componentStack: compStack });
   }
   render() {
     if (this.state.hasError) {
@@ -124,6 +127,16 @@ class ViewErrorBoundary extends React.Component<
             <p className="mt-4 text-[11px] font-mono opacity-65 break-words text-left bg-black/5 dark:bg-white/5 rounded-lg px-3 py-2 max-w-md">
               {this.state.errorMessage}
             </p>
+          )}
+          {this.state.componentStack && (
+            <pre className="mt-3 text-[10px] font-mono opacity-60 break-words text-left bg-black/5 dark:bg-white/5 rounded-lg px-3 py-2 max-w-md whitespace-pre-wrap">
+              {this.state.componentStack.split('\n').slice(0, 12).join('\n')}
+            </pre>
+          )}
+          {this.state.errorStack && (
+            <pre className="mt-3 text-[10px] font-mono opacity-50 break-words text-left bg-black/5 dark:bg-white/5 rounded-lg px-3 py-2 max-w-md whitespace-pre-wrap">
+              {this.state.errorStack.split('\n').slice(0, 6).join('\n')}
+            </pre>
           )}
         </div>
       );

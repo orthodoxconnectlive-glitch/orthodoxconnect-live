@@ -37,6 +37,10 @@ import type { Post, GroupRoom } from '../types';
 const KIDS_RE = /kid|child|أطفال|اطفال|للأطفال|للاطفال|sunday school|مدرسة ?الأحد/i;
 // Marks a post as kids-only: hidden from the main feed, shown only in Kids Corner.
 const KIDSONLY_RE = /#kidsonly/i;
+// Language side of a kids video, set at share time (see handleKidsShare).
+// Tags are stripped from the displayed caption by cleanCaption.
+const KIDS_EN_RE = /#kids-en/i;
+const KIDS_AR_RE = /#kids-ar/i;
 
 interface KidsBook {
   id: string;
@@ -193,6 +197,12 @@ const [videos, setVideos] = useState<Post[]>([]);
       let finalCaption = caption;
       if (!KIDSONLY_RE.test(finalCaption)) {
         finalCaption = (finalCaption ? finalCaption + ' ' : '') + '#kidsonly';
+      }
+      // The share bar belongs to the active side: English adds to English,
+      // Arabic adds to Arabic.
+      const langTag = hymnTab === 'ar' ? '#kids-ar' : '#kids-en';
+      if (!KIDS_EN_RE.test(finalCaption) && !KIDS_AR_RE.test(finalCaption)) {
+        finalCaption = (finalCaption ? finalCaption + ' ' : '') + langTag;
       }
       const created = await savePost({
         text: finalCaption,
@@ -353,12 +363,20 @@ const [videos, setVideos] = useState<Post[]>([]);
     }
   };
 
-  // Split kids videos into English / Arabic hymn parts — auto-detected from the
-  // caption or the resolved YouTube title, so sharing needs no extra step.
+  // Split kids videos into English / Arabic parts. A video shared from a side
+  // carries that side's tag (#kids-en / #kids-ar) and the tag always wins.
+  // Older shares have no tag: Arabic only when Arabic letters dominate the
+  // caption + YouTube title — a bilingual title like "St. Pephamon … |
+  // الشهيد أبو فام" is mostly English, so it stays on the English side.
   const isArabicVideo = (v: Post): boolean => {
     const ytId = ytIdOf(v);
     const metaTitle = (ytId && ytMeta[ytId]?.title) || '';
-    return /[\u0600-\u06FF]/.test(`${videoText(v)} ${metaTitle}`);
+    const text = `${videoText(v)} ${metaTitle}`;
+    if (KIDS_AR_RE.test(text)) return true;
+    if (KIDS_EN_RE.test(text)) return false;
+    const arabic = (text.match(/[\u0600-\u06FF]/g) || []).length;
+    const latin = (text.match(/[A-Za-z]/g) || []).length;
+    return arabic > latin;
   };
   const arabicVideos = videos.filter(isArabicVideo);
   const englishVideos = videos.filter((v) => !isArabicVideo(v));
@@ -509,11 +527,23 @@ const [videos, setVideos] = useState<Post[]>([]);
           <div className="w-10 h-10 rounded-full bg-(--chip-dark) text-(--ac-gold-tx) flex items-center justify-center shrink-0 border-2 border-(--ln-gold)">
             <Baby className="w-5 h-5" />
           </div>
+          <button
+            type="button"
+            onClick={() => setHymnTab(hymnTab === 'ar' ? 'en' : 'ar')}
+            title={ar ? 'تبديل لغة الإضافة' : 'Switch add language'}
+            className="px-2.5 py-1.5 rounded-full bg-(--ac-bronze) text-white font-serif font-bold text-[11px] shrink-0 cursor-pointer"
+          >
+            {hymnTab === 'ar' ? 'عربي' : 'English'}
+          </button>
           <input
             type="text"
             value={shareCaption}
             onChange={(e) => setShareCaption(e.target.value)}
-            placeholder={ar ? 'شارك فيديو للأطفال… الصق رابط يوتيوب أو أرفق فيديو' : 'Share a kids video… paste a YouTube link or attach a video'}
+            placeholder={
+              hymnTab === 'ar'
+                ? 'شارك فيديو أطفال بالعربية… الصق رابط يوتيوب أو أرفق فيديو'
+                : 'Share an English kids video… paste a YouTube link or attach a video'
+            }
             className="flex-1 min-w-0 bg-transparent text-xs font-serif text-(--tx-strong) dark:text-[#f5ebd9] placeholder-(--tx-mute) dark:placeholder-(--tx-ph-dark) focus:outline-none"
           />
           <button
@@ -562,9 +592,13 @@ const [videos, setVideos] = useState<Post[]>([]);
           }}
         />
         <p className="text-[10px] font-serif text-(--tx-mute) dark:text-[#a89379] px-1">
-          {ar
-            ? 'كل ما يُشارك هنا يظهر في ركن الأطفال فقط — ولن يظهر في الصفحة الرئيسية.'
-            : 'Everything shared here appears only in Kids Corner — never on the main feed.'}
+          {hymnTab === 'ar'
+            ? ar
+              ? 'كل ما يُشارك هنا يظهر في ركن الأطفال فقط — في الجانب العربي.'
+              : 'Everything shared here appears only in Kids Corner — on the Arabic side.'
+            : ar
+              ? 'كل ما يُشارك هنا يظهر في ركن الأطفال فقط — في الجانب الإنجليزي.'
+              : 'Everything shared here appears only in Kids Corner — on the English side.'}
         </p>
       </div>
 
@@ -573,6 +607,7 @@ const [videos, setVideos] = useState<Post[]>([]);
         <SectionHeader
           icon={<Film className="w-4 h-4" />}
           title={ar ? 'فيديوهات الأطفال' : 'Kids Videos'}
+          count={tabVideos.length}
         />
         {videos.length > 0 && (
           <div className="flex gap-2 px-1">

@@ -3710,8 +3710,9 @@ export default {
           const role = url.searchParams.get('role');
           const excludeId = url.searchParams.get('exclude_id');
 
-          // Directory visibility: full member list + counts only for the
-          // directory owners; other admins see clergy profiles only.
+          // Directory visibility: every admin sees every member account.
+          // The actual total number is only for the directory owners;
+          // other admins get the list without the count.
           const auth = await getAuthIdentity(request, env);
           const hasFullDirectory = auth.isSuperAdmin || FULL_DIRECTORY_EMAILS.includes((auth.email || '').toLowerCase());
           // Member emails are private: directory owners, admins, and the
@@ -3724,10 +3725,9 @@ export default {
             auth.isAdmin ||
             memberListKeyMatches(env, listServiceKey);
           let directoryScope = 'full';
-          let effectiveRole = role;
+          const effectiveRole = role;
           if (auth.isAdmin && !hasFullDirectory) {
-            effectiveRole = 'clergy';
-            directoryScope = 'clergy';
+            directoryScope = 'limited';
           }
 
           if (env.DB) {
@@ -3774,7 +3774,8 @@ export default {
                 return rest;
               });
 
-          return jsonResponse({ success: true, profiles: emailSafeProfiles, count: emailSafeProfiles.length, directoryScope });
+          const hideCount = auth.isAdmin && !hasFullDirectory;
+          return jsonResponse({ success: true, profiles: emailSafeProfiles, ...(hideCount ? {} : { count: emailSafeProfiles.length }), directoryScope });
         }
 
         if (request.method === 'POST') {

@@ -66,9 +66,12 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
   const [isStartingBunny, setIsStartingBunny] = useState(false);
   const [showRtmpDetails, setShowRtmpDetails] = useState(false);
 
-  // Stream destination: Bunny true-live or YouTube Live (via encoder app)
+  // Stream destination: Bunny true-live or YouTube Live (paste a live link).
   const [destination, setDestination] = useState<'bunny' | 'youtube' | 'cloudflare'>('cloudflare');
   const [youtubeUrl, setYoutubeUrl] = useState('');
+  // Whether the Larix encoder steps are expanded in the YouTube tab.
+  // (Hook — must stay up here with the others, above the early returns.)
+  const [showLarixSteps, setShowLarixSteps] = useState(false);
 
   // Cloudflare one-tap live state — declared here with every other hook.
   // (Hooks must always run in the same order: these used to sit below the
@@ -357,11 +360,12 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     return null;
   };
 
-  // YouTube Live path (Hany 2026-09-21): the host streams to YouTube from an
-  // encoder app (Larix/OBS) using a stream key from YouTube Studio. The app
-  // never touches the Google account — the host pastes the watch link, the
-  // app embeds it, and viewers watch inside the app (BunnyPlayer already
-  // renders YouTube embeds).
+  // YouTube Live path (Hany 2026-09-21, link-first 2026-11-08): the host is
+  // already live on YouTube (YouTube app, OBS, or an encoder) and pastes the
+  // live video link — the app embeds it and viewers watch inside the app
+  // (BunnyPlayer already renders YouTube embeds). The Larix encoder steps
+  // are a collapsed fallback for going live from the phone camera. The app
+  // never touches the Google account.
   const handleGoLiveYoutube = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) e.preventDefault();
 
@@ -819,8 +823,8 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
         <p className="text-[10px] text-stone-500 mb-3">
           {destination === 'youtube'
             ? (language === 'ar'
-                ? 'ستبث إلى يوتيوب عبر تطبيق Larix، وسيشاهد المتابعون البث داخل التطبيق.'
-                : 'You’ll stream to YouTube via the Larix app; viewers watch inside the app.')
+                ? 'تبث مباشرة على يوتيوب؟ الصق رابط البث أدناه — وسيشاهد المتابعون البث داخل التطبيق.'
+                : 'Already live on YouTube? Paste the live link below — viewers watch inside the app.')
             : destination === 'cloudflare'
             ? (language === 'ar'
                 ? 'بث مباشر فوري من كاميرا التطبيق عبر Cloudflare.'
@@ -862,55 +866,82 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
             />
           </div>
 
-          <div className="rounded-xl bg-stone-900 border border-red-500/30 p-3 space-y-2">
-            <p className="text-red-300 font-bold">
-              {language === 'ar' ? 'خطوات البث عبر يوتيوب:' : 'YouTube streaming steps:'}
+          {/* Simple box (Hany 2026-11-08): already live on YouTube? Paste the
+              live video link and it appears in the app — no Larix, no key. */}
+          <div className="rounded-xl bg-emerald-950/60 border border-emerald-500/40 p-3 space-y-2">
+            <p className="text-emerald-300 font-bold">
+              {language === 'ar' ? 'تبث مباشرة على يوتيوب؟' : 'Already live on YouTube?'}
             </p>
-            <ol className="list-decimal list-inside space-y-1.5 text-stone-300 text-[11px]">
-              <li>
-                {language === 'ar' ? (
-                  <>في <span className="font-mono text-amber-200">studio.youtube.com</span> ← إنشاء ← بث مباشر، وانسخ <b>مفتاح البث</b> (Stream key)</>
-                ) : (
-                  <>In <span className="font-mono text-amber-200">studio.youtube.com</span> → Create → Go live, and copy your <b>Stream key</b></>
-                )}
-              </li>
-              <li>
-                {language === 'ar' ? (
-                  <>في تطبيق <b>Larix Broadcaster</b>: أضف اتصالاً جديداً والصق الرابط أدناه ومفتاح البث</>
-                ) : (
-                  <>In the <b>Larix Broadcaster</b> app: add a new connection and paste the URL below plus your stream key</>
-                )}
-              </li>
-              <li>
-                {language === 'ar'
-                  ? 'ابدأ البث في Larix، ثم اضغط «Go Live» في YouTube Studio'
-                  : 'Start streaming in Larix, then press “Go Live” in YouTube Studio'}
-              </li>
-              <li>
-                {language === 'ar'
-                  ? 'الصق رابط المشاهدة أدناه واضغط «بدء البث المباشر» ليظهر البث داخل التطبيق'
-                  : 'Paste the watch link below and press “Start Broadcasting” so it appears inside the app'}
-              </li>
-            </ol>
+            <p className="text-stone-300 text-[11px]">
+              {language === 'ar'
+                ? 'الصق رابط الفيديو المباشر — من تطبيق يوتيوب، اضغط «مشاركة» ثم «نسخ الرابط» أثناء البث.'
+                : 'Paste the live video link — from the YouTube app, tap Share → Copy link while you’re live.'}
+            </p>
             <div>
-              <span className="text-stone-400">RTMP URL:</span>
-              <code className="block mt-0.5 p-2 rounded bg-black/50 text-green-300 font-mono text-[11px] break-all select-all">
-                rtmp://a.rtmp.youtube.com/live2
-              </code>
+              <label className="block text-amber-300 font-semibold mb-1">
+                {language === 'ar' ? 'رابط البث المباشر على يوتيوب' : 'YouTube live link'}
+              </label>
+              <input
+                type="text"
+                value={youtubeUrl}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="w-full p-2.5 rounded-xl bg-stone-900 border border-emerald-500/40 text-amber-100 focus:outline-none focus:border-emerald-400 font-mono text-[11px]"
+              />
             </div>
           </div>
 
+          {/* Larix encoder steps — collapsed; only for going live from the
+              phone camera when not already live on YouTube. */}
           <div>
-            <label className="block text-amber-300 font-semibold mb-1">
-              {language === 'ar' ? 'رابط مشاهدة يوتيوب' : 'YouTube watch link'}
-            </label>
-            <input
-              type="text"
-              value={youtubeUrl}
-              onChange={(e) => setYoutubeUrl(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=..."
-              className="w-full p-2.5 rounded-xl bg-stone-900 border border-amber-900/30 text-amber-100 focus:outline-none focus:border-amber-500 font-mono text-[11px]"
-            />
+            <button
+              type="button"
+              onClick={() => setShowLarixSteps((v) => !v)}
+              className="text-amber-300 underline text-[11px] cursor-pointer"
+            >
+              {showLarixSteps
+                ? (language === 'ar' ? 'إخفاء خطوات Larix' : 'Hide Larix steps')
+                : (language === 'ar' ? 'تبث من كاميرا الهاتف؟ استخدم Larix' : 'Going live from your phone camera? Use Larix')}
+            </button>
+            {showLarixSteps && (
+            <div className="mt-2 rounded-xl bg-stone-900 border border-red-500/30 p-3 space-y-2">
+              <p className="text-red-300 font-bold">
+                {language === 'ar' ? 'خطوات البث عبر يوتيوب:' : 'YouTube streaming steps:'}
+              </p>
+              <ol className="list-decimal list-inside space-y-1.5 text-stone-300 text-[11px]">
+                <li>
+                  {language === 'ar' ? (
+                    <>في <span className="font-mono text-amber-200">studio.youtube.com</span> ← إنشاء ← بث مباشر، وانسخ <b>مفتاح البث</b> (Stream key)</>
+                  ) : (
+                    <>In <span className="font-mono text-amber-200">studio.youtube.com</span> → Create → Go live, and copy your <b>Stream key</b></>
+                  )}
+                </li>
+                <li>
+                  {language === 'ar' ? (
+                    <>في تطبيق <b>Larix Broadcaster</b>: أضف اتصالاً جديداً والصق الرابط أدناه ومفتاح البث</>
+                  ) : (
+                    <>In the <b>Larix Broadcaster</b> app: add a new connection and paste the URL below plus your stream key</>
+                  )}
+                </li>
+                <li>
+                  {language === 'ar'
+                    ? 'ابدأ البث في Larix، ثم اضغط «Go Live» في YouTube Studio'
+                    : 'Start streaming in Larix, then press “Go Live” in YouTube Studio'}
+                </li>
+                <li>
+                  {language === 'ar'
+                    ? 'الصق رابط المشاهدة في المربع أعلاه واضغط «بدء البث المباشر» ليظهر البث داخل التطبيق'
+                    : 'Paste the live link in the box above and press “Start Broadcasting” so it appears inside the app'}
+                </li>
+              </ol>
+              <div>
+                <span className="text-stone-400">RTMP URL:</span>
+                <code className="block mt-0.5 p-2 rounded bg-black/50 text-green-300 font-mono text-[11px] break-all select-all">
+                  rtmp://a.rtmp.youtube.com/live2
+                </code>
+              </div>
+            </div>
+            )}
           </div>
 
           <div className="pt-3 flex justify-end gap-3">

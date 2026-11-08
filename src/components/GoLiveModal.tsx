@@ -70,6 +70,29 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
   const [destination, setDestination] = useState<'bunny' | 'youtube' | 'cloudflare'>('cloudflare');
   const [youtubeUrl, setYoutubeUrl] = useState('');
 
+  // Cloudflare one-tap live state — declared here with every other hook.
+  // (Hooks must always run in the same order: these used to sit below the
+  // `if (!isOpen) return null` early return, so opening the modal called
+  // MORE hooks than the closed render and React threw error #310.)
+  const [cfStatus, setCfStatus] = useState<{ tokenSet: boolean; accountReady: boolean } | null>(null);
+  const [cfError, setCfError] = useState<string | null>(null);
+  const [isStartingCf, setIsStartingCf] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && isAdmin && destination === 'cloudflare' && !cfStatus) {
+      liveStreamsApi.cloudflareStatus()
+        .then((st) => {
+          setCfStatus(st);
+          // One-tap live can't work without the Stream token — don't leave the
+          // broadcaster on a tab whose Go Live button can only fail. Route to
+          // the YouTube path (works today via Larix) and explain the one setup
+          // step in the banner at the top of the modal.
+          if (!st.tokenSet || !st.accountReady) setDestination('youtube');
+        })
+        .catch(() => setCfStatus({ tokenSet: false, accountReady: false }));
+    }
+  }, [isOpen, isAdmin, destination]);
+
   // Camera lens mode ('user' = front / selfie, 'environment' = back / world)
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
 
@@ -524,26 +547,6 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     setMediaUrl('');
     onClose();
   };
-
-  // Cloudflare one-tap live state
-  const [cfStatus, setCfStatus] = useState<{ tokenSet: boolean; accountReady: boolean } | null>(null);
-  const [cfError, setCfError] = useState<string | null>(null);
-  const [isStartingCf, setIsStartingCf] = useState(false);
-
-  useEffect(() => {
-    if (isOpen && isAdmin && destination === 'cloudflare' && !cfStatus) {
-      liveStreamsApi.cloudflareStatus()
-        .then((st) => {
-          setCfStatus(st);
-          // One-tap live can't work without the Stream token — don't leave the
-          // broadcaster on a tab whose Go Live button can only fail. Route to
-          // the YouTube path (works today via Larix) and explain the one setup
-          // step in the banner at the top of the modal.
-          if (!st.tokenSet || !st.accountReady) setDestination('youtube');
-        })
-        .catch(() => setCfStatus({ tokenSet: false, accountReady: false }));
-    }
-  }, [isOpen, isAdmin, destination]);
 
   // One-tap Cloudflare live: create the live input, publish the camera via WHIP.
   const handleStartCloudflare = async () => {

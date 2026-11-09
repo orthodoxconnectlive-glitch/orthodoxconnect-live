@@ -140,7 +140,7 @@ export default function CandleModal({
     : 'border-amber-500/50 text-amber-200 hover:bg-amber-500/10';
 
   return (
-    <div className={`fixed inset-0 z-[70] flex items-center justify-center p-6 ${isLit ? 'bg-[#fdf8ee]/95' : 'bg-[#0b0705]/95'} backdrop-blur-sm animate-fade-in`}>
+    <div className={`fixed inset-0 z-[70] flex overflow-y-auto p-6 ${isLit ? 'bg-[#fdf8ee]/95' : 'bg-[#0b0705]/95'} backdrop-blur-sm animate-fade-in`}>
       <style>{`
         @keyframes oc-match-move {
           0% { transform: translate(95px, 130px) rotate(38deg); opacity: 0; }
@@ -176,7 +176,7 @@ export default function CandleModal({
         .oc-glow { animation: oc-glow-pulse 2.4s ease-in-out infinite; transform-origin: 100px 92px; }
       `}</style>
 
-      <div className={`relative w-full max-w-sm text-center ${isLit ? 'rounded-3xl overflow-hidden shadow-2xl' : ''}`}>
+      <div className={`relative m-auto w-full max-w-sm text-center ${isLit ? 'rounded-3xl overflow-hidden shadow-2xl' : ''}`}>
         {isLit && (
           <>
             <img src="/jesus-candle-bg.webp" alt="" aria-hidden
@@ -184,7 +184,7 @@ export default function CandleModal({
             <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-white/75 to-[#fffdf8]/95" />
           </>
         )}
-        <div className={isLit ? 'relative px-6 pt-8 pb-8' : ''}>
+        <div className={isLit ? 'relative px-6 pt-8 pb-6' : ''}>
         <button
           onClick={onClose}
           className={`absolute ${isLit ? 'top-3 right-3' : '-top-2 right-0'} p-2 rounded-full ${closeColor} transition-colors cursor-pointer`}
@@ -201,8 +201,12 @@ export default function CandleModal({
           </p>
         )}
 
-        {/* Candle scene */}
-        <div className="mx-auto w-56 h-64 relative">
+        {/* Candle scene — when lit it rests on the heart of the
+            background image (the heart sits ~2/3 down the image), clear
+            of the face; the face stays fully visible above it. The
+            candle is a touch smaller so the card stays about the same
+            height. The dark idle/lighting states are unchanged. */}
+        <div className={`mx-auto relative ${isLit ? 'mt-[300px] w-44 h-48' : 'w-56 h-64'}`}>
           <svg viewBox="0 0 200 260" className="w-full h-full">
             <defs>
               <radialGradient id="ocGlow" cx="50%" cy="50%" r="50%">
@@ -274,7 +278,7 @@ export default function CandleModal({
         </div>
 
         {/* Actions */}
-        <div className="mt-6 min-h-[76px] flex flex-col items-center justify-start gap-3">
+        <div className={`${isLit ? 'mt-4' : 'mt-6'} min-h-[76px] flex flex-col items-center justify-start gap-3`}>
           {state === 'idle' && (
             <button
               onClick={startLighting}

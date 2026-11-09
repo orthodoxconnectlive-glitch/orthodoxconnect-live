@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
+  Bell,
   Church,
   Settings as SettingsIcon,
   Sun,
@@ -17,6 +18,7 @@ import {
   Camera,
   Video,
   X,
+  User,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -453,6 +455,40 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
       <SectionHeader id="app" icon={<Smartphone className="w-6 h-6" />} title={ar ? 'إعدادات التطبيق' : 'App Settings'} />
       {openSection === 'app' && (
         <div className="space-y-4 pl-1">
+          {/* Profile — moved here from the sidebar (2026-11-09) */}
+          <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
+            <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/15 flex items-center justify-center shrink-0">
+              <User className="w-6 h-6 text-stone-600 dark:text-amber-200" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-serif font-bold text-base text-(--tx-head)">{t('profile')}</p>
+              <p className="text-xs text-(--tx-soft) mt-0.5">{ar ? 'عرض وتعديل ملفك الشخصي' : 'View and edit your profile'}</p>
+            </div>
+            <button
+              onClick={() => onNavigate?.('profile')}
+              className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer shrink-0"
+            >
+              {ar ? 'فتح' : 'Open'}
+            </button>
+          </div>
+
+          {/* Notifications — moved here from the sidebar (2026-11-09) */}
+          <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
+            <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/15 flex items-center justify-center shrink-0">
+              <Bell className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-serif font-bold text-base text-(--tx-head)">{t('notifications')}</p>
+              <p className="text-xs text-(--tx-soft) mt-0.5">{ar ? 'التنبيهات والتحديثات' : 'Your alerts and updates'}</p>
+            </div>
+            <button
+              onClick={() => onNavigate?.('notifications')}
+              className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer shrink-0"
+            >
+              {ar ? 'فتح' : 'Open'}
+            </button>
+          </div>
+
           {/* Theme */}
           <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
             <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/15 flex items-center justify-center shrink-0">

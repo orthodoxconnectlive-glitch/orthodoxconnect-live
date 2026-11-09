@@ -4,7 +4,6 @@ import {
   Flame,
   Heart,
   MessageSquare,
-  Bell,
   User,
   ShieldAlert,
   QrCode,
@@ -37,27 +36,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   onOpenInvite,
   unreadMessagesCount,
-  unreadNotificationsCount,
 }) => {
   const { profile, openAuthModal } = useAuth();
   const { theme, setTheme, language, setLanguage, t } = useTheme();
-  const [realUnreadNotifs, setRealUnreadNotifs] = useState(0);
   const [realUnreadMsgs, setRealUnreadMsgs] = useState(0);
 
   useEffect(() => {
     async function updateCounts() {
       if (profile?.id) {
         const notifs = await loadNotifications(profile.id);
-        const unreadN = notifs.filter((n) => !n.isRead).length;
         const unreadM = notifs.filter((n) => n.type === 'message' && !n.isRead).length;
-        setRealUnreadNotifs(unreadN);
         setRealUnreadMsgs(unreadM);
       }
     }
     updateCounts();
   }, [profile?.id]);
 
-  const activeUnreadNotifs = unreadNotificationsCount ?? realUnreadNotifs;
   const activeUnreadMsgs = unreadMessagesCount ?? realUnreadMsgs;
 
   const todayData = getTodayLiturgicalDay(language);
@@ -89,8 +83,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'donate', label: language === 'ar' ? 'تبرع' : 'Donate', icon: Heart, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', isDonate: true },
     { id: 'study', label: language === 'ar' ? 'ركن الدراسة' : 'Study Corner', icon: BookOpen, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'messages', label: t('messages'), icon: MessageSquare, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', count: activeUnreadMsgs },
-    { id: 'notifications', label: t('notifications'), icon: Bell, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', count: activeUnreadNotifs },
-    { id: 'profile', label: t('profile'), icon: User, color: 'text-stone-700 dark:text-amber-200', bg: 'bg-stone-200 dark:bg-stone-800' },
     { id: 'churches', label: language === 'ar' ? 'الكنائس' : 'Churches', icon: Church, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'jobs', label: language === 'ar' ? 'الوظائف' : 'Jobs', icon: Briefcase, color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/30' },
     { id: 'settings', label: language === 'ar' ? 'الإعدادات' : 'Settings', icon: Settings, color: 'text-stone-600 dark:text-stone-300', bg: 'bg-stone-100 dark:bg-stone-800/40' },

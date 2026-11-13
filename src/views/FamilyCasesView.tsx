@@ -124,6 +124,7 @@ export const FamilyCasesView: React.FC = () => {
     r === 'husband' ? (ar ? 'الزوج' : 'Husband') : r === 'wife' ? (ar ? 'الزوجة' : 'Wife') : r === 'counselor' ? (ar ? 'الكاهن' : 'Priest') : (ar ? 'الإدارة' : 'Admin');
 
   const isManager = !!detail && (detail.my_role === 'counselor' || detail.my_role === 'admin');
+  const isParty = !!detail && (detail.my_role === 'husband' || detail.my_role === 'wife');
   const counselorRole = detail?.c?.counselor_id ? counselors.find((x) => x.id === detail.c.counselor_id)?.role : undefined;
 
   const submitNewCase = async () => {
@@ -368,18 +369,26 @@ export const FamilyCasesView: React.FC = () => {
               </button>
             )}
 
-            {/* Manager panel — counselor / admin only */}
-            {isManager && (
+            {/* Manager panel — counselor / admin, plus the spouses themselves
+                (2026-11-13: Hany needs to assign a priest and link the other
+                spouse from his own case view). Status buttons stay
+                counselor/admin-only. */}
+            {(isManager || isParty) && (
               <div className="rounded-2xl border-2 border-amber-300/70 bg-amber-50/60 dark:bg-amber-950/20 p-3.5 space-y-3">
                 <button
                   type="button"
                   onClick={() => setShowManage((v) => !v)}
                   className="text-xs font-black text-amber-800 dark:text-amber-200 hover:underline cursor-pointer"
                 >
-                  {ar ? 'إدارة القضية (للكاهن / الإدارة)' : 'Manage case (priest / admin)'}
+                  {ar ? 'إدارة القضية' : 'Manage case'}
                 </button>
                 {showManage && (
                   <div className="space-y-3">
+                    {isParty && !isManager && (
+                      <p className="text-[11px] font-medium text-(--tx-ph) leading-relaxed">
+                        {ar ? 'يمكنك تعيين كاهن وربط حساب زوجك / زوجتك هنا. يجب أن يكون لزوجك / زوجتك حساب في التطبيق أولاً — اكتب بريده الإلكتروني أدناه.' : 'You can assign a priest and link your spouse’s account here. Your spouse needs an OrthodoxConnect account first — type their email below.'}
+                      </p>
+                    )}
                     <div className="flex flex-col sm:flex-row gap-2">
                       <select value={assignCounselorId} onChange={(e) => setAssignCounselorId(e.target.value)} className={inputCls}>
                         <option value="">{ar ? 'اختر كاهناً / مرشداً…' : 'Choose a priest / counselor…'}</option>
@@ -401,6 +410,7 @@ export const FamilyCasesView: React.FC = () => {
                         {ar ? 'ربط' : 'Link'}
                       </button>
                     </div>
+                    {isManager && (
                     <div className="flex flex-wrap gap-2">
                       {detail.c.status !== 'in_progress' && (
                         <button type="button" onClick={() => doSetStatus('in_progress')} disabled={manageBusy} className="px-3 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-black disabled:opacity-50 cursor-pointer">
@@ -418,6 +428,7 @@ export const FamilyCasesView: React.FC = () => {
                         </button>
                       )}
                     </div>
+                    )}
                   </div>
                 )}
               </div>

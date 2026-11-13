@@ -5876,7 +5876,11 @@ export default {
       }
 
       // PATCH /api/family-cases/:id/assign — assign/reassign counselor, link a spouse account.
-      // Only an admin or the currently assigned counselor may do this.
+      // Admins, the assigned counselor, or a spouse on the case may do this
+      // (2026-11-13: Hany needs to assign a priest and bring the other spouse
+      // in from his own case view). A spouse may only link the OTHER spouse's
+      // slot, never replace their own. Status changes stay with the counselor
+      // or an admin (see /status below).
       {
         const m = url.pathname.match(/^\/api\/family-cases\/([^/]+)\/assign\/?$/);
         if (m && (request.method === 'PATCH' || request.method === 'PUT')) {
@@ -5887,8 +5891,9 @@ export default {
           if (!env.DB) return jsonResponse({ success: false, error: 'Database unavailable.' }, 500);
           const c: any = await env.DB.prepare('SELECT * FROM family_cases WHERE id = ?').bind(caseId).first();
           if (!c) return jsonResponse({ success: false, error: 'Case not found.' }, 404);
+          const isParty = String(auth.id) === String(c.husband_id || '') || String(auth.id) === String(c.wife_id || '');
           const isManager = auth.isAdmin || auth.isSuperAdmin || (!!c.counselor_id && String(auth.id) === String(c.counselor_id));
-          if (!isManager) return jsonResponse({ success: false, error: 'Case not found.' }, 404);
+          if (!isManager && !isParty) return jsonResponse({ success: false, error: 'Case not found.' }, 404);
           const body: any = await request.json().catch(() => ({}));
           const nowIso = new Date().toISOString();
           let nextCounselorId = String(c.counselor_id || '');
@@ -5910,6 +5915,10 @@ export default {
           if (body.spouse_email) {
             const spouseRole = body.spouse_role === 'wife' ? 'wife' : body.spouse_role === 'husband' ? 'husband' : '';
             if (!spouseRole) return jsonResponse({ success: false, error: 'Say whether the linked account is the husband or the wife.' }, 400);
+            if (isParty && !isManager) {
+              const myRole = String(auth.id) === String(c.husband_id || '') ? 'husband' : 'wife';
+              if (spouseRole === myRole) return jsonResponse({ success: false, error: 'You can only link your spouse’s account, not your own.' }, 400);
+            }
             const sp: any = await env.DB.prepare('SELECT id, full_name, email FROM profiles WHERE lower(email) = ?').bind(String(body.spouse_email).trim().toLowerCase()).first();
             if (!sp) return jsonResponse({ success: false, error: 'That spouse has no OrthodoxConnect account yet.' }, 400);
             if (spouseRole === 'husband') {

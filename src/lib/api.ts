@@ -743,9 +743,11 @@ export const familyCasesApi = {
     const res = await apiFetch<{ cases: FamilyCase[] }>('/api/family-cases');
     return res.cases || [];
   },
-  async get(id: string): Promise<{ case: FamilyCase; entries: FamilyCaseEntry[]; my_role: string }> {
+  async get(id: string): Promise<{ c: FamilyCase; entries: FamilyCaseEntry[]; my_role: string }> {
     const res = await apiFetch<{ case: FamilyCase; entries: FamilyCaseEntry[]; my_role: string }>(`/api/family-cases/${encodeURIComponent(id)}`);
-    return res;
+    // FIX 2026-11-13: the worker returns the case under `case`, but the view
+    // reads `detail.c` — map it here so `detail.c` is never undefined.
+    return { c: res.case, entries: res.entries || [], my_role: res.my_role };
   },
   async counselors(): Promise<FamilyCounselor[]> {
     const res = await apiFetch<{ counselors: FamilyCounselor[] }>('/api/family-cases/counselors');

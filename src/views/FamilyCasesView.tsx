@@ -124,7 +124,7 @@ export const FamilyCasesView: React.FC = () => {
     r === 'husband' ? (ar ? 'الزوج' : 'Husband') : r === 'wife' ? (ar ? 'الزوجة' : 'Wife') : r === 'counselor' ? (ar ? 'الكاهن' : 'Priest') : (ar ? 'الإدارة' : 'Admin');
 
   const isManager = !!detail && (detail.my_role === 'counselor' || detail.my_role === 'admin');
-  const counselorRole = detail?.c.counselor_id ? counselors.find((x) => x.id === detail.c.counselor_id)?.role : undefined;
+  const counselorRole = detail?.c?.counselor_id ? counselors.find((x) => x.id === detail.c.counselor_id)?.role : undefined;
 
   const submitNewCase = async () => {
     setFormError('');
@@ -280,7 +280,7 @@ export const FamilyCasesView: React.FC = () => {
       )}
 
       {/* ---------- CASE DETAIL ---------- */}
-      {selectedId && detail ? (
+      {selectedId && detail?.c ? (
         <div className="space-y-4">
           <button
             type="button"

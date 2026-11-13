@@ -16,10 +16,10 @@ import {
   Compass,
 } from 'lucide-react';
 import { Post } from '../types';
-import { loadVideoPage, deletePost, savePost, togglePostLike, addPostComment } from '../utils/posts';
+import { loadVideoPage, deletePost, savePost, togglePostLike, addPostComment, extractBunnyVideoGuid } from '../utils/posts';
 import { uploadVideoToBunnyStream } from '../utils/storage';
 import { addNotification } from '../utils/notifications';
-import { VideoCard, VideoComment } from '../components/VideoCard';
+import { VideoCard, VideoComment, extractYouTubeId } from '../components/VideoCard';
 import { useAuth } from '../context/AuthContext';
 import { CinemaView } from './CinemaView';
 import { UserProfileData } from './ProfileView';
@@ -221,7 +221,16 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
   // Filter videos by tab, search query, and selected hashtag
   const filteredVideos = useMemo(() => {
+    const seenSources = new Set<string>();
     return videos.filter((v) => {
+      // Dedupe: the same YouTube/Bunny video posted twice shows once in the
+      // scroll instead of appearing again a few swipes later.
+      const sourceKey =
+        extractYouTubeId(v.video || v.video_id || '') ||
+        extractBunnyVideoGuid(v.video || v.video_id || '') ||
+        v.id;
+      if (seenSources.has(sourceKey)) return false;
+      seenSources.add(sourceKey);
       // Kids-only posts (shared from Kids Corner) never appear on main surfaces
       if (/#kidsonly/i.test(`${v.text || ''} ${(v as any).content || ''}`)) {
         return false;
@@ -229,11 +238,17 @@ export const VideosView: React.FC<VideosViewProps> = ({
       // Cinema separation: full-length Movie of the Day films live only in
       // the Cinema tab, never in the TikTok-style short feed (For You /
       // Following). Shorts stay shorts.
+      // Same for Sermon of the Day: full sermons live only in the Sermons
+      // tab. Long videos in the vertical scroll stall playback and spoil
+      // the short-feed experience.
       const rawV = v as any;
       if (
         rawV.authorId === 'bot-movie-of-day' ||
         rawV.author_id === 'bot-movie-of-day' ||
-        /movie of the day/i.test(v.authorName || '')
+        /movie of the day/i.test(v.authorName || '') ||
+        rawV.authorId === 'bot-sermon-of-day' ||
+        rawV.author_id === 'bot-sermon-of-day' ||
+        /sermon of the day/i.test(v.authorName || '')
       ) {
         return false;
       }
@@ -912,4 +927,5 @@ export const VideosView: React.FC<VideosViewProps> = ({
 
 export const ReelsView = VideosView;
 export const VideoView = VideosView;
+
 

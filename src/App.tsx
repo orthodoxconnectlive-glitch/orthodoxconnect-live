@@ -53,6 +53,7 @@ const JobsView = lazyRetry(() => import('./views/JobsView').then((m) => ({ defau
 const SettingsView = lazyRetry(() => import('./views/SettingsView').then((m) => ({ default: m.SettingsView })));
 const RadioView = lazyRetry(() => import('./views/RadioView').then((m) => ({ default: m.RadioView })));
 const StudyView = lazyRetry(() => import('./views/StudyView').then((m) => ({ default: m.StudyView })));
+const FamilyCasesView = lazyRetry(() => import('./views/FamilyCasesView').then((m) => ({ default: m.FamilyCasesView })));
 const NotificationsView = lazyRetry(() => import('./views/NotificationsView').then((m) => ({ default: m.NotificationsView })));
 const LibraryView = lazyRetry(() => import('./views/LibraryView').then((m) => ({ default: m.LibraryView })));
 // Load slimming (2026-10-21): modals, the landing page and desktop-only
@@ -87,7 +88,7 @@ const VIEW_LABELS: Record<string, string> = {
   messages: 'Messages', notifications: 'Notifications', profile: 'Profile',
   admin: 'Admin Panel', calendar: 'Calendar', churches: 'Churches',
   churchProfile: 'Church profile', marketplace: 'Marketplace', jobs: 'Jobs',
-  settings: 'Settings', radio: 'Radio', study: 'Study Corner',
+  settings: 'Settings', radio: 'Radio', study: 'Study Corner', familyCases: 'Family Cases',
 };
 
 class ViewErrorBoundary extends React.Component<
@@ -563,6 +564,8 @@ function AppContent() {
         return <RadioView focusTrackId={focusTrackId} onFocusTrackConsumed={() => setFocusTrackId(null)} focusRadioLive={focusRadioLive} onFocusRadioLiveConsumed={() => setFocusRadioLive(false)} />;
       case 'study':
         return <StudyView />;
+      case 'familyCases':
+        return <FamilyCasesView />;
       default:
         return <FeedView onSelectUser={handleSelectUser} />;
     }

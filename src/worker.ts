@@ -476,6 +476,21 @@ async function ensureJobsTable(db: any) {
     await db.exec(`CREATE TABLE IF NOT EXISTS jobs ( id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT DEFAULT '', address TEXT DEFAULT '', salary TEXT DEFAULT '', contact TEXT DEFAULT '', posted_by TEXT DEFAULT '', posted_by_name TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
   } catch (e) { console.warn('[ensureJobsTable] notice:', (e as any)?.message || e); }
 }
+// Family Cases (2026-11-13): private husband/wife dispute cases for the
+// church. A case is visible ONLY to its two spouses, its assigned counselor
+// (clergy/admin) and admins — enforced server-side in the endpoint, never
+// by the client. Called from the fast path like ensureJobsTable AND
+// self-healed inside the endpoint, so it exists on fully-migrated DBs too.
+async function ensureFamilyCasesTables(db: any) {
+  try {
+    await db.exec(`CREATE TABLE IF NOT EXISTS family_cases ( id TEXT PRIMARY KEY, title TEXT NOT NULL, husband_id TEXT NOT NULL DEFAULT '', husband_name TEXT DEFAULT '', husband_phone TEXT DEFAULT '', wife_id TEXT NOT NULL DEFAULT '', wife_name TEXT DEFAULT '', wife_phone TEXT DEFAULT '', counselor_id TEXT DEFAULT '', counselor_name TEXT DEFAULT '', status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
+    await db.exec(`CREATE INDEX IF NOT EXISTS idx_family_cases_husband ON family_cases ( husband_id )`);
+    await db.exec(`CREATE INDEX IF NOT EXISTS idx_family_cases_wife ON family_cases ( wife_id )`);
+    await db.exec(`CREATE INDEX IF NOT EXISTS idx_family_cases_counselor ON family_cases ( counselor_id )`);
+    await db.exec(`CREATE TABLE IF NOT EXISTS family_case_entries ( id TEXT PRIMARY KEY, case_id TEXT NOT NULL, author_id TEXT NOT NULL, author_name TEXT DEFAULT '', author_role TEXT NOT NULL DEFAULT 'spouse', body TEXT NOT NULL DEFAULT '', photo_url TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
+    await db.exec(`CREATE INDEX IF NOT EXISTS idx_family_case_entries_case ON family_case_entries ( case_id )`);
+  } catch (e) { console.warn('[ensureFamilyCasesTables] notice:', (e as any)?.message || e); }
+}
 
 export async function ensureD1Tables(db?: D1Database) {
   if (!db || d1TablesInitialized) return;
@@ -522,6 +537,7 @@ export async function ensureD1Tables(db?: D1Database) {
     await ensureSermonsTable(db);
     await ensureJobsTable(db);
     await ensureCandleLightsTable(db);
+    await ensureFamilyCasesTables(db);
     d1TablesInitialized = true;
     return;
   } catch (probeErr) {
@@ -5682,6 +5698,278 @@ export default {
         }
       }
 
+      // 9c. Family Cases (2026-11-13): private husband/wife dispute cases.
+      // Privacy is enforced HERE, server-side, on every request: a case is
+      // visible ONLY to its husband_id, wife_id, assigned counselor_id, or
+      // an admin/super-admin. getAuthIdentity is the only trusted identity
+      // source; client-supplied x-user-* headers are never trusted. A
+      // non-party probing an id gets 404 (not 403) so they cannot tell
+      // whether the case exists. Nothing about a case is ever written to
+      // the feed, search, or notifications — no case titles or names in
+      // any notification payload. Phone numbers are masked in every
+      // response; the full number is only returned by the /phones
+      // endpoint, after the same party check.
+      const maskCasePhone = (p: any): string => {
+        const s = String(p || '').trim();
+        if (!s) return '';
+        if (s.length <= 4) return '•••';
+        return '••• ••• ' + s.slice(-4);
+      };
+      const caseVisibleTo = (auth: any, c: any): boolean => {
+        if (!auth || !auth.id || !c) return false;
+        if (auth.isAdmin || auth.isSuperAdmin) return true;
+        const uid = String(auth.id);
+        return uid === String(c.husband_id || '') || uid === String(c.wife_id || '') || (!!c.counselor_id && uid === String(c.counselor_id));
+      };
+      const caseRoleOf = (auth: any, c: any): string => {
+        if (!auth || !auth.id || !c) return '';
+        const uid = String(auth.id);
+        if (uid === String(c.husband_id || '')) return 'husband';
+        if (uid === String(c.wife_id || '')) return 'wife';
+        if (c.counselor_id && uid === String(c.counselor_id)) return 'counselor';
+        if (auth.isAdmin || auth.isSuperAdmin) return 'admin';
+        return '';
+      };
+      const casePublic = (c: any) => {
+        if (!c) return c;
+        return { ...c, husband_phone: maskCasePhone(c.husband_phone), wife_phone: maskCasePhone(c.wife_phone) };
+      };
+      const isValidCasePhotoUrl = (u: any): boolean => {
+        if (typeof u !== 'string') return false;
+        const s = u.trim();
+        return s.length > 0 && s.length <= 2000 && /^https:\/\//i.test(s) && /\.(jpe?g|png|gif|webp|avif)(\?|#|$)/i.test(s);
+      };
+      const loadVisibleCase = async (caseId: string, auth: any) => {
+        if (!env.DB) return null;
+        const c: any = await env.DB.prepare('SELECT * FROM family_cases WHERE id = ?').bind(caseId).first();
+        if (!c || !caseVisibleTo(auth, c)) return null;
+        return c;
+      };
+      const loadCounselorProfile = async (counselorId: string) => {
+        if (!env.DB || !counselorId) return null;
+        const p: any = await env.DB.prepare('SELECT id, full_name, role, is_banned FROM profiles WHERE id = ?').bind(counselorId).first();
+        if (!p || p.is_banned) return null;
+        const role = String(p.role || '').toLowerCase();
+        if (!['clergy', 'admin', 'owner', 'super_admin'].includes(role)) return null;
+        return p;
+      };
+
+      // GET /api/family-cases (my cases) + POST /api/family-cases (open a case)
+      if (url.pathname === '/api/family-cases' || url.pathname === '/api/family-cases/') {
+        if (env.DB) {
+          try { await ensureFamilyCasesTables(env.DB); } catch (e) { console.warn('[family-cases] ensure table notice:', e); }
+        }
+        const auth = await getAuthIdentity(request, env);
+        if (auth.verifyError) return jsonResponse({ success: false, error: 'Verification unavailable. Please try again.' }, 503);
+        if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+        if (!env.DB) return jsonResponse({ success: false, error: 'Database unavailable.' }, 500);
+        if (request.method === 'GET') {
+          let rows: any[] = [];
+          if (auth.isAdmin || auth.isSuperAdmin) {
+            const { results } = await env.DB.prepare('SELECT c.*, (SELECT COUNT(*) FROM family_case_entries e WHERE e.case_id = c.id) AS entry_count FROM family_cases c ORDER BY c.updated_at DESC LIMIT 100').all();
+            rows = results || [];
+          } else if (String(auth.role || '').toLowerCase() === 'clergy') {
+            const { results } = await env.DB.prepare('SELECT c.*, (SELECT COUNT(*) FROM family_case_entries e WHERE e.case_id = c.id) AS entry_count FROM family_cases c WHERE c.counselor_id = ? ORDER BY c.updated_at DESC LIMIT 100').bind(auth.id).all();
+            rows = results || [];
+          } else {
+            const { results } = await env.DB.prepare('SELECT c.*, (SELECT COUNT(*) FROM family_case_entries e WHERE e.case_id = c.id) AS entry_count FROM family_cases c WHERE c.husband_id = ? OR c.wife_id = ? ORDER BY c.updated_at DESC LIMIT 100').bind(auth.id, auth.id).all();
+            rows = results || [];
+          }
+          return jsonResponse({ success: true, cases: rows.map(casePublic) });
+        }
+        if (request.method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const title = String(body.title || '').trim().slice(0, 200);
+          const myRole = body.my_role === 'wife' ? 'wife' : body.my_role === 'husband' ? 'husband' : '';
+          const spouseName = String(body.spouse_name || '').trim().slice(0, 100);
+          const spousePhone = String(body.spouse_phone || '').trim().slice(0, 30);
+          const myPhone = String(body.my_phone || '').trim().slice(0, 30);
+          const firstNote = String(body.first_note || '').trim().slice(0, 5000);
+          const photoUrl = typeof body.photo_url === 'string' ? body.photo_url.trim() : '';
+          if (!title) return jsonResponse({ success: false, error: 'A case title is required.' }, 400);
+          if (!myRole) return jsonResponse({ success: false, error: 'Please say whether you are the husband or the wife.' }, 400);
+          if (!spouseName) return jsonResponse({ success: false, error: 'Your spouse’s name is required.' }, 400);
+          if (photoUrl && !isValidCasePhotoUrl(photoUrl)) return jsonResponse({ success: false, error: 'Photo must be an https image link (jpg, png, gif or webp).' }, 400);
+          const me: any = await env.DB.prepare('SELECT id, full_name FROM profiles WHERE id = ?').bind(auth.id).first();
+          if (!me) return jsonResponse({ success: false, error: 'Profile not found.' }, 400);
+          let counselorId = '';
+          let counselorName = '';
+          if (body.counselor_id) {
+            const cp = await loadCounselorProfile(String(body.counselor_id));
+            if (!cp) return jsonResponse({ success: false, error: 'Chosen priest or counselor was not found.' }, 400);
+            counselorId = String(cp.id);
+            counselorName = String(cp.full_name || '');
+          }
+          const id = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `fc_${Date.now()}`);
+          const nowIso = new Date().toISOString();
+          const row: any = {
+            id, title,
+            husband_id: myRole === 'husband' ? auth.id : '',
+            husband_name: myRole === 'husband' ? String(me.full_name || '') : spouseName,
+            husband_phone: myRole === 'husband' ? myPhone : spousePhone,
+            wife_id: myRole === 'wife' ? auth.id : '',
+            wife_name: myRole === 'wife' ? String(me.full_name || '') : spouseName,
+            wife_phone: myRole === 'wife' ? myPhone : spousePhone,
+            counselor_id: counselorId, counselor_name: counselorName,
+            status: 'open', created_at: nowIso, updated_at: nowIso,
+          };
+          await env.DB.prepare('INSERT INTO family_cases (id, title, husband_id, husband_name, husband_phone, wife_id, wife_name, wife_phone, counselor_id, counselor_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(row.id, row.title, row.husband_id, row.husband_name, row.husband_phone, row.wife_id, row.wife_name, row.wife_phone, row.counselor_id, row.counselor_name, row.status, row.created_at, row.updated_at).run();
+          if (firstNote || photoUrl) {
+            const entryId = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `fce_${Date.now()}`);
+            await env.DB.prepare('INSERT INTO family_case_entries (id, case_id, author_id, author_name, author_role, body, photo_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(entryId, id, auth.id, String(me.full_name || ''), myRole, firstNote, photoUrl, nowIso).run();
+          }
+          return jsonResponse({ success: true, case: casePublic(row) }, 201);
+        }
+        return jsonResponse({ success: false, error: 'Method not allowed.' }, 405);
+      }
+
+      // GET /api/family-cases/counselors — priests/counselors directory (names only).
+      // Must sit BEFORE the /:id match below, or "counselors" would read as an id.
+      if (url.pathname === '/api/family-cases/counselors' && request.method === 'GET') {
+        const auth = await getAuthIdentity(request, env);
+        if (auth.verifyError) return jsonResponse({ success: false, error: 'Verification unavailable. Please try again.' }, 503);
+        if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+        if (!env.DB) return jsonResponse({ success: false, error: 'Database unavailable.' }, 500);
+        try { await ensureFamilyCasesTables(env.DB); } catch (e) { /* tables best-effort here */ }
+        const { results } = await env.DB.prepare(`SELECT id, full_name, role, avatar_url FROM profiles WHERE role IN ('clergy', 'admin', 'owner', 'super_admin') AND is_banned = 0 ORDER BY full_name ASC LIMIT 200`).all();
+        return jsonResponse({ success: true, counselors: results || [] });
+      }
+
+      // GET /api/family-cases/:id/phones — full numbers, parties only, on explicit reveal.
+      {
+        const m = url.pathname.match(/^\/api\/family-cases\/([^/]+)\/phones\/?$/);
+        if (m && request.method === 'GET') {
+          const caseId = decodeURIComponent(m[1]);
+          const auth = await getAuthIdentity(request, env);
+          if (auth.verifyError) return jsonResponse({ success: false, error: 'Verification unavailable. Please try again.' }, 503);
+          if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          const c = await loadVisibleCase(caseId, auth);
+          if (!c) return jsonResponse({ success: false, error: 'Case not found.' }, 404);
+          return jsonResponse({ success: true, husband_phone: String(c.husband_phone || ''), wife_phone: String(c.wife_phone || '') });
+        }
+      }
+
+      // POST /api/family-cases/:id/entries — add a note / photo to the shared timeline.
+      {
+        const m = url.pathname.match(/^\/api\/family-cases\/([^/]+)\/entries\/?$/);
+        if (m && request.method === 'POST') {
+          const caseId = decodeURIComponent(m[1]);
+          const auth = await getAuthIdentity(request, env);
+          if (auth.verifyError) return jsonResponse({ success: false, error: 'Verification unavailable. Please try again.' }, 503);
+          if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          if (!env.DB) return jsonResponse({ success: false, error: 'Database unavailable.' }, 500);
+          const c = await loadVisibleCase(caseId, auth);
+          if (!c) return jsonResponse({ success: false, error: 'Case not found.' }, 404);
+          const body: any = await request.json().catch(() => ({}));
+          const text = String(body.body || '').trim().slice(0, 5000);
+          const photoUrl = typeof body.photo_url === 'string' ? body.photo_url.trim() : '';
+          if (!text && !photoUrl) return jsonResponse({ success: false, error: 'Write a note or attach a photo.' }, 400);
+          if (photoUrl && !isValidCasePhotoUrl(photoUrl)) return jsonResponse({ success: false, error: 'Photo must be an https image link (jpg, png, gif or webp).' }, 400);
+          const me: any = await env.DB.prepare('SELECT full_name FROM profiles WHERE id = ?').bind(auth.id).first();
+          const entryId = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `fce_${Date.now()}`);
+          const nowIso = new Date().toISOString();
+          const authorRole = caseRoleOf(auth, c);
+          await env.DB.prepare('INSERT INTO family_case_entries (id, case_id, author_id, author_name, author_role, body, photo_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(entryId, caseId, auth.id, String((me && me.full_name) || ''), authorRole, text, photoUrl, nowIso).run();
+          await env.DB.prepare('UPDATE family_cases SET updated_at = ? WHERE id = ?').bind(nowIso, caseId).run();
+          return jsonResponse({ success: true, entry: { id: entryId, case_id: caseId, author_id: auth.id, author_name: String((me && me.full_name) || ''), author_role: authorRole, body: text, photo_url: photoUrl, created_at: nowIso } }, 201);
+        }
+      }
+
+      // PATCH /api/family-cases/:id/assign — assign/reassign counselor, link a spouse account.
+      // Only an admin or the currently assigned counselor may do this.
+      {
+        const m = url.pathname.match(/^\/api\/family-cases\/([^/]+)\/assign\/?$/);
+        if (m && (request.method === 'PATCH' || request.method === 'PUT')) {
+          const caseId = decodeURIComponent(m[1]);
+          const auth = await getAuthIdentity(request, env);
+          if (auth.verifyError) return jsonResponse({ success: false, error: 'Verification unavailable. Please try again.' }, 503);
+          if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          if (!env.DB) return jsonResponse({ success: false, error: 'Database unavailable.' }, 500);
+          const c: any = await env.DB.prepare('SELECT * FROM family_cases WHERE id = ?').bind(caseId).first();
+          if (!c) return jsonResponse({ success: false, error: 'Case not found.' }, 404);
+          const isManager = auth.isAdmin || auth.isSuperAdmin || (!!c.counselor_id && String(auth.id) === String(c.counselor_id));
+          if (!isManager) return jsonResponse({ success: false, error: 'Case not found.' }, 404);
+          const body: any = await request.json().catch(() => ({}));
+          const nowIso = new Date().toISOString();
+          let nextCounselorId = String(c.counselor_id || '');
+          let nextCounselorName = String(c.counselor_name || '');
+          let nextStatus = String(c.status || 'open');
+          let nextHusbandId = String(c.husband_id || '');
+          let nextHusbandName = String(c.husband_name || '');
+          let nextWifeId = String(c.wife_id || '');
+          let nextWifeName = String(c.wife_name || '');
+          let changed = false;
+          if (body.counselor_id) {
+            const cp = await loadCounselorProfile(String(body.counselor_id));
+            if (!cp) return jsonResponse({ success: false, error: 'Chosen priest or counselor was not found.' }, 400);
+            nextCounselorId = String(cp.id);
+            nextCounselorName = String(cp.full_name || '');
+            if (nextStatus === 'open') nextStatus = 'in_progress';
+            changed = true;
+          }
+          if (body.spouse_email) {
+            const spouseRole = body.spouse_role === 'wife' ? 'wife' : body.spouse_role === 'husband' ? 'husband' : '';
+            if (!spouseRole) return jsonResponse({ success: false, error: 'Say whether the linked account is the husband or the wife.' }, 400);
+            const sp: any = await env.DB.prepare('SELECT id, full_name, email FROM profiles WHERE lower(email) = ?').bind(String(body.spouse_email).trim().toLowerCase()).first();
+            if (!sp) return jsonResponse({ success: false, error: 'That spouse has no OrthodoxConnect account yet.' }, 400);
+            if (spouseRole === 'husband') {
+              if (nextHusbandId && nextHusbandId !== String(sp.id)) return jsonResponse({ success: false, error: 'A husband is already linked to this case.' }, 400);
+              nextHusbandId = String(sp.id);
+              nextHusbandName = String(sp.full_name || nextHusbandName);
+            } else {
+              if (nextWifeId && nextWifeId !== String(sp.id)) return jsonResponse({ success: false, error: 'A wife is already linked to this case.' }, 400);
+              nextWifeId = String(sp.id);
+              nextWifeName = String(sp.full_name || nextWifeName);
+            }
+            changed = true;
+          }
+          if (!changed) return jsonResponse({ success: false, error: 'Nothing to assign.' }, 400);
+          await env.DB.prepare('UPDATE family_cases SET counselor_id = ?, counselor_name = ?, husband_id = ?, husband_name = ?, wife_id = ?, wife_name = ?, status = ?, updated_at = ? WHERE id = ?').bind(nextCounselorId, nextCounselorName, nextHusbandId, nextHusbandName, nextWifeId, nextWifeName, nextStatus, nowIso, caseId).run();
+          const updated: any = await env.DB.prepare('SELECT * FROM family_cases WHERE id = ?').bind(caseId).first();
+          return jsonResponse({ success: true, case: casePublic(updated) });
+        }
+      }
+
+      // PATCH /api/family-cases/:id/status — only the assigned counselor or an admin.
+      {
+        const m = url.pathname.match(/^\/api\/family-cases\/([^/]+)\/status\/?$/);
+        if (m && (request.method === 'PATCH' || request.method === 'PUT')) {
+          const caseId = decodeURIComponent(m[1]);
+          const auth = await getAuthIdentity(request, env);
+          if (auth.verifyError) return jsonResponse({ success: false, error: 'Verification unavailable. Please try again.' }, 503);
+          if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          if (!env.DB) return jsonResponse({ success: false, error: 'Database unavailable.' }, 500);
+          const c: any = await env.DB.prepare('SELECT * FROM family_cases WHERE id = ?').bind(caseId).first();
+          if (!c) return jsonResponse({ success: false, error: 'Case not found.' }, 404);
+          const isManager = auth.isAdmin || auth.isSuperAdmin || (!!c.counselor_id && String(auth.id) === String(c.counselor_id));
+          if (!isManager) return jsonResponse({ success: false, error: 'Case not found.' }, 404);
+          const body: any = await request.json().catch(() => ({}));
+          const status = String(body.status || '');
+          if (!['open', 'in_progress', 'resolved'].includes(status)) return jsonResponse({ success: false, error: 'Invalid status.' }, 400);
+          const nowIso = new Date().toISOString();
+          await env.DB.prepare('UPDATE family_cases SET status = ?, updated_at = ? WHERE id = ?').bind(status, nowIso, caseId).run();
+          const updated: any = await env.DB.prepare('SELECT * FROM family_cases WHERE id = ?').bind(caseId).first();
+          return jsonResponse({ success: true, case: casePublic(updated) });
+        }
+      }
+
+      // GET /api/family-cases/:id — one case + its shared timeline, parties only.
+      {
+        const m = url.pathname.match(/^\/api\/family-cases\/([^/]+)\/?$/);
+        if (m && request.method === 'GET') {
+          const caseId = decodeURIComponent(m[1]);
+          const auth = await getAuthIdentity(request, env);
+          if (auth.verifyError) return jsonResponse({ success: false, error: 'Verification unavailable. Please try again.' }, 503);
+          if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          if (!env.DB) return jsonResponse({ success: false, error: 'Database unavailable.' }, 500);
+          try { await ensureFamilyCasesTables(env.DB); } catch (e) { /* best-effort */ }
+          const c = await loadVisibleCase(caseId, auth);
+          if (!c) return jsonResponse({ success: false, error: 'Case not found.' }, 404);
+          const { results } = await env.DB.prepare('SELECT * FROM family_case_entries WHERE case_id = ? ORDER BY created_at ASC LIMIT 200').bind(caseId).all();
+          return jsonResponse({ success: true, case: casePublic(c), entries: results || [], my_role: caseRoleOf(auth, c) });
+        }
+      }
+
       // 10. Bunny Stream Video Creation Proxy
       if (url.pathname === '/api/bunny/create-video' || url.pathname === '/api/bunny/create-video/') {
         if (request.method !== 'POST') {
@@ -7974,3 +8262,4 @@ export default {
     }
   },
 };
+

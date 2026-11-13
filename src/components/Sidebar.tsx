@@ -3,6 +3,7 @@ import {
   Radio,
   Flame,
   Heart,
+  HeartHandshake,
   MessageSquare,
   User,
   ShieldAlert,
@@ -85,6 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'messages', label: t('messages'), icon: MessageSquare, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30', count: activeUnreadMsgs },
     { id: 'churches', label: language === 'ar' ? 'الكنائس' : 'Churches', icon: Church, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/30' },
     { id: 'jobs', label: language === 'ar' ? 'الوظائف' : 'Jobs', icon: Briefcase, color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+    { id: 'familyCases', label: language === 'ar' ? 'قضايا الأسرة' : 'Family Cases', icon: HeartHandshake, color: 'text-rose-700 dark:text-rose-300', bg: 'bg-rose-100 dark:bg-rose-900/30' },
     { id: 'settings', label: language === 'ar' ? 'الإعدادات' : 'Settings', icon: Settings, color: 'text-stone-600 dark:text-stone-300', bg: 'bg-stone-100 dark:bg-stone-800/40' },
   ];
 
@@ -325,3 +327,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </aside>
   );
 };
+

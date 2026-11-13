@@ -3,7 +3,7 @@
  * 100% Cloudflare Workers + D1 SQLite Backend
  */
 
-import { User, UserProfile, Post, Message, EventItem, Story, NotificationItem, ContentReport, Church, MarketplaceListing, Job } from '../types';
+import { User, UserProfile, Post, Message, EventItem, Story, NotificationItem, ContentReport, Church, MarketplaceListing, Job, FamilyCase, FamilyCaseEntry, FamilyCounselor } from '../types';
 
 // Native (Capacitor) apps run on capacitor://localhost, so relative /api
 // calls would go nowhere. In native mode, point every API call at the live
@@ -733,3 +733,55 @@ export const jobsApi = {
     });
   },
 };
+
+// Family Cases (2026-11-13): private husband/wife dispute cases. All calls
+// carry the session token (apiFetch attaches it); the server decides who may
+// see each case — the client never filters by role on its own. Phone numbers
+// arrive masked; the full number is fetched only on an explicit reveal tap.
+export const familyCasesApi = {
+  async list(): Promise<FamilyCase[]> {
+    const res = await apiFetch<{ cases: FamilyCase[] }>('/api/family-cases');
+    return res.cases || [];
+  },
+  async get(id: string): Promise<{ case: FamilyCase; entries: FamilyCaseEntry[]; my_role: string }> {
+    const res = await apiFetch<{ case: FamilyCase; entries: FamilyCaseEntry[]; my_role: string }>(`/api/family-cases/${encodeURIComponent(id)}`);
+    return res;
+  },
+  async counselors(): Promise<FamilyCounselor[]> {
+    const res = await apiFetch<{ counselors: FamilyCounselor[] }>('/api/family-cases/counselors');
+    return res.counselors || [];
+  },
+  async create(payload: { title: string; my_role: 'husband' | 'wife'; spouse_name: string; spouse_phone?: string; my_phone?: string; counselor_id?: string; first_note?: string; photo_url?: string }): Promise<FamilyCase> {
+    const res = await apiFetch<{ case: FamilyCase }>('/api/family-cases', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return res.case;
+  },
+  async addEntry(id: string, payload: { body?: string; photo_url?: string }): Promise<FamilyCaseEntry> {
+    const res = await apiFetch<{ entry: FamilyCaseEntry }>(`/api/family-cases/${encodeURIComponent(id)}/entries`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return res.entry;
+  },
+  async revealPhones(id: string): Promise<{ husband_phone: string; wife_phone: string }> {
+    const res = await apiFetch<{ husband_phone: string; wife_phone: string }>(`/api/family-cases/${encodeURIComponent(id)}/phones`);
+    return res;
+  },
+  async assign(id: string, payload: { counselor_id?: string; spouse_email?: string; spouse_role?: 'husband' | 'wife' }): Promise<FamilyCase> {
+    const res = await apiFetch<{ case: FamilyCase }>(`/api/family-cases/${encodeURIComponent(id)}/assign`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+    return res.case;
+  },
+  async setStatus(id: string, status: 'open' | 'in_progress' | 'resolved'): Promise<FamilyCase> {
+    const res = await apiFetch<{ case: FamilyCase }>(`/api/family-cases/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+    return res.case;
+  },
+};
+

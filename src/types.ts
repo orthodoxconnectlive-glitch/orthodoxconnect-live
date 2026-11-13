@@ -101,6 +101,44 @@ export interface Job {
   created_at?: string;
 }
 
+// Family Cases (2026-11-13): private husband/wife dispute cases. A case is
+// visible ONLY to its two spouses, its assigned counselor and admins — the
+// server enforces this; the client never decides who may see a case.
+export interface FamilyCase {
+  id: string;
+  title: string;
+  husband_id?: string;
+  husband_name?: string;
+  husband_phone?: string;
+  wife_id?: string;
+  wife_name?: string;
+  wife_phone?: string;
+  counselor_id?: string;
+  counselor_name?: string;
+  status: 'open' | 'in_progress' | 'resolved';
+  entry_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FamilyCaseEntry {
+  id: string;
+  case_id: string;
+  author_id: string;
+  author_name?: string;
+  author_role: 'husband' | 'wife' | 'counselor' | 'admin' | string;
+  body?: string;
+  photo_url?: string;
+  created_at?: string;
+}
+
+export interface FamilyCounselor {
+  id: string;
+  full_name: string;
+  role: string;
+  avatar_url?: string;
+}
+
 export interface GroupRoom {
   id: string;
   name: string;
@@ -154,3 +192,4 @@ export interface NotificationItem {
   mediaUrl?: string;
   mediaType?: string;
 }
+

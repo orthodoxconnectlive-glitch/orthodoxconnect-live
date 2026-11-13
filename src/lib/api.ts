@@ -753,6 +753,10 @@ export const familyCasesApi = {
     const res = await apiFetch<{ counselors: FamilyCounselor[] }>('/api/family-cases/counselors');
     return res.counselors || [];
   },
+  async docket(): Promise<number[]> {
+    const res = await apiFetch<{ numbers: number[] }>('/api/family-cases/docket');
+    return res.numbers || [];
+  },
   async create(payload: { title: string; my_role: 'husband' | 'wife'; spouse_name: string; spouse_phone?: string; my_phone?: string; counselor_id?: string; first_note?: string; photo_url?: string }): Promise<FamilyCase> {
     const res = await apiFetch<{ case: FamilyCase }>('/api/family-cases', {
       method: 'POST',

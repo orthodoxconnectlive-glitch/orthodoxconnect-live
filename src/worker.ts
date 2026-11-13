@@ -483,12 +483,24 @@ async function ensureJobsTable(db: any) {
 // self-healed inside the endpoint, so it exists on fully-migrated DBs too.
 async function ensureFamilyCasesTables(db: any) {
   try {
-    await db.exec(`CREATE TABLE IF NOT EXISTS family_cases ( id TEXT PRIMARY KEY, title TEXT NOT NULL, husband_id TEXT NOT NULL DEFAULT '', husband_name TEXT DEFAULT '', husband_phone TEXT DEFAULT '', wife_id TEXT NOT NULL DEFAULT '', wife_name TEXT DEFAULT '', wife_phone TEXT DEFAULT '', counselor_id TEXT DEFAULT '', counselor_name TEXT DEFAULT '', status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
+    await db.exec(`CREATE TABLE IF NOT EXISTS family_cases ( id TEXT PRIMARY KEY, case_number INTEGER, title TEXT NOT NULL, husband_id TEXT NOT NULL DEFAULT '', husband_name TEXT DEFAULT '', husband_phone TEXT DEFAULT '', wife_id TEXT NOT NULL DEFAULT '', wife_name TEXT DEFAULT '', wife_phone TEXT DEFAULT '', counselor_id TEXT DEFAULT '', counselor_name TEXT DEFAULT '', status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
     await db.exec(`CREATE INDEX IF NOT EXISTS idx_family_cases_husband ON family_cases ( husband_id )`);
     await db.exec(`CREATE INDEX IF NOT EXISTS idx_family_cases_wife ON family_cases ( wife_id )`);
     await db.exec(`CREATE INDEX IF NOT EXISTS idx_family_cases_counselor ON family_cases ( counselor_id )`);
     await db.exec(`CREATE TABLE IF NOT EXISTS family_case_entries ( id TEXT PRIMARY KEY, case_id TEXT NOT NULL, author_id TEXT NOT NULL, author_name TEXT DEFAULT '', author_role TEXT NOT NULL DEFAULT 'spouse', body TEXT NOT NULL DEFAULT '', photo_url TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
     await db.exec(`CREATE INDEX IF NOT EXISTS idx_family_case_entries_case ON family_case_entries ( case_id )`);
+    // Case numbers (2026-11-13): every case gets a short public number
+    // (Case #0001, #0002, ...) — the ONLY thing non-parties ever see.
+    try { await db.exec(`ALTER TABLE family_cases ADD COLUMN case_number INTEGER`); } catch (e) { /* column already exists */ }
+    try {
+      const unnumbered: any = await db.prepare(`SELECT id FROM family_cases WHERE case_number IS NULL ORDER BY created_at ASC, id ASC`).all();
+      const rows = (unnumbered?.results || []) as any[];
+      if (rows.length > 0) {
+        const maxRow: any = await db.prepare(`SELECT COALESCE(MAX(case_number), 0) AS m FROM family_cases`).first();
+        let n = Number((maxRow as any)?.m || 0);
+        for (const r of rows) { n += 1; await db.prepare(`UPDATE family_cases SET case_number = ? WHERE id = ?`).bind(n, r.id).run(); }
+      }
+    } catch (e) { console.warn('[ensureFamilyCasesTables] case_number backfill notice:', (e as any)?.message || e); }
   } catch (e) { console.warn('[ensureFamilyCasesTables] notice:', (e as any)?.message || e); }
 }
 
@@ -5802,8 +5814,10 @@ export default {
           }
           const id = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `fc_${Date.now()}`);
           const nowIso = new Date().toISOString();
+          const maxRow: any = await env.DB.prepare(`SELECT COALESCE(MAX(case_number), 0) AS m FROM family_cases`).first();
+          const caseNumber = Number((maxRow as any)?.m || 0) + 1;
           const row: any = {
-            id, title,
+            id, case_number: caseNumber, title,
             husband_id: myRole === 'husband' ? auth.id : '',
             husband_name: myRole === 'husband' ? String(me.full_name || '') : spouseName,
             husband_phone: myRole === 'husband' ? myPhone : spousePhone,
@@ -5813,7 +5827,7 @@ export default {
             counselor_id: counselorId, counselor_name: counselorName,
             status: 'open', created_at: nowIso, updated_at: nowIso,
           };
-          await env.DB.prepare('INSERT INTO family_cases (id, title, husband_id, husband_name, husband_phone, wife_id, wife_name, wife_phone, counselor_id, counselor_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(row.id, row.title, row.husband_id, row.husband_name, row.husband_phone, row.wife_id, row.wife_name, row.wife_phone, row.counselor_id, row.counselor_name, row.status, row.created_at, row.updated_at).run();
+          await env.DB.prepare('INSERT INTO family_cases (id, case_number, title, husband_id, husband_name, husband_phone, wife_id, wife_name, wife_phone, counselor_id, counselor_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(row.id, row.case_number, row.title, row.husband_id, row.husband_name, row.husband_phone, row.wife_id, row.wife_name, row.wife_phone, row.counselor_id, row.counselor_name, row.status, row.created_at, row.updated_at).run();
           if (firstNote || photoUrl) {
             const entryId = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `fce_${Date.now()}`);
             await env.DB.prepare('INSERT INTO family_case_entries (id, case_id, author_id, author_name, author_role, body, photo_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(entryId, id, auth.id, String(me.full_name || ''), myRole, firstNote, photoUrl, nowIso).run();
@@ -5833,6 +5847,20 @@ export default {
         try { await ensureFamilyCasesTables(env.DB); } catch (e) { /* tables best-effort here */ }
         const { results } = await env.DB.prepare(`SELECT id, full_name, role, avatar_url FROM profiles WHERE role IN ('clergy', 'admin', 'owner', 'super_admin') AND is_banned = 0 ORDER BY full_name ASC LIMIT 200`).all();
         return jsonResponse({ success: true, counselors: results || [] });
+      }
+
+      // GET /api/family-cases/docket — public case numbers ONLY (2026-11-13).
+      // Any signed-in user sees the numbers; nothing else — no titles, names,
+      // dates, or status. Must sit BEFORE the /:id match below, or "docket"
+      // would read as an id.
+      if (url.pathname === '/api/family-cases/docket' && request.method === 'GET') {
+        const auth = await getAuthIdentity(request, env);
+        if (auth.verifyError) return jsonResponse({ success: false, error: 'Verification unavailable. Please try again.' }, 503);
+        if (!auth.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+        if (!env.DB) return jsonResponse({ success: false, error: 'Database unavailable.' }, 500);
+        try { await ensureFamilyCasesTables(env.DB); } catch (e) { /* tables best-effort here */ }
+        const { results } = await env.DB.prepare(`SELECT case_number FROM family_cases WHERE case_number IS NOT NULL ORDER BY case_number ASC LIMIT 500`).all();
+        return jsonResponse({ success: true, numbers: (results || []).map((r: any) => r.case_number) });
       }
 
       // GET /api/family-cases/:id/phones — full numbers, parties only, on explicit reveal.

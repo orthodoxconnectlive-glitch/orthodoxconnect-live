@@ -39,6 +39,7 @@ export const FamilyCasesView: React.FC = () => {
 
   const [cases, setCases] = useState<FamilyCase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [docket, setDocket] = useState<number[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ c: FamilyCase; entries: FamilyCaseEntry[]; my_role: string } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -83,8 +84,20 @@ export const FamilyCasesView: React.FC = () => {
     }
   };
 
+  const loadDocket = async () => {
+    try {
+      setDocket(await familyCasesApi.docket());
+    } catch (e) {
+      console.warn('Family cases docket notice:', e);
+    }
+  };
+
+  // Public case number (2026-11-13): the ONLY thing other users ever see.
+  const caseNo = (n?: number) => (typeof n === 'number' ? `Case #${String(n).padStart(4, '0')}` : '');
+
   useEffect(() => {
     loadCases();
+    loadDocket();
     familyCasesApi.counselors().then(setCounselors).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -146,6 +159,7 @@ export const FamilyCasesView: React.FC = () => {
       setNcTitle(''); setNcSpouseName(''); setNcSpousePhone(''); setNcMyPhone(''); setNcCounselorId(''); setNcFirstNote(''); setNcPhotoUrl('');
       setShowNewCase(false);
       await loadCases();
+      await loadDocket();
       await openCase(created.id);
     } catch (e: any) {
       setFormError(e?.message || (ar ? 'تعذر فتح القضية. حاول مرة أخرى.' : 'Could not open the case. Please try again.'));
@@ -294,7 +308,12 @@ export const FamilyCasesView: React.FC = () => {
 
           <div className="rounded-3xl bg-(--bg-card) dark:bg-[#282019] border border-(--ln-gold) shadow-sm p-4 sm:p-5 space-y-4">
             <div className="flex items-start justify-between gap-3">
-              <h2 className="text-lg sm:text-xl font-black text-(--tx-strong) dark:text-[#f5ebd9] leading-snug">{detail.c.title}</h2>
+              <div className="min-w-0">
+                <h2 className="text-lg sm:text-xl font-black text-(--tx-strong) dark:text-[#f5ebd9] leading-snug">{detail.c.title}</h2>
+                {detail.c.case_number ? (
+                  <p className="text-xs font-black text-amber-700 dark:text-amber-300 mt-0.5">{caseNo(detail.c.case_number)}</p>
+                ) : null}
+              </div>
               <span className={`${statusPill} ${detail.c.status === 'resolved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200' : detail.c.status === 'in_progress' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200' : 'bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200'}`}>
                 {statusLabel(detail.c.status)}
               </span>
@@ -576,6 +595,7 @@ export const FamilyCasesView: React.FC = () => {
                     <div className="min-w-0">
                       <p className="font-black text-(--tx-strong) dark:text-[#f5ebd9] leading-snug truncate">{c.title}</p>
                       <p className="text-xs font-bold text-(--tx-ph) mt-1 truncate">
+                        {c.case_number ? `${caseNo(c.case_number)} · ` : ''}
                         {c.counselor_name ? (ar ? `مع ${c.counselor_name}` : `With ${c.counselor_name}`) : (ar ? 'بانتظار تعيين كاهن' : 'Waiting for a priest to be assigned')}
                         {typeof c.entry_count === 'number' ? ` · ${c.entry_count} ${ar ? 'ملاحظة' : 'notes'}` : ''}
                       </p>
@@ -589,6 +609,32 @@ export const FamilyCasesView: React.FC = () => {
               ))}
             </div>
           )}
+
+          {/* Public docket (2026-11-13): EVERYONE sees only the case numbers.
+              Plain text, not buttons — a number cannot be tapped or opened.
+              Only the couple, their priest, and admins can open a case. */}
+          <div className="rounded-3xl bg-(--bg-card) dark:bg-[#282019] border border-dashed border-(--ln-gold) p-4 sm:p-5">
+            <h3 className="font-black text-sm text-(--tx-strong) dark:text-[#f5ebd9] flex items-center gap-1.5">
+              <Lock className="w-4 h-4 text-amber-600 dark:text-amber-300" />
+              {ar ? 'كل أرقام القضايا' : 'All case numbers'}
+            </h3>
+            <p className="text-xs font-medium text-(--tx-ph) mt-1 leading-relaxed">
+              {ar
+                ? 'يرى الجميع أرقام القضايا فقط — لا عناوين ولا أسماء، ولا يمكن فتح قضية من رقمها. فقط الزوجان والكاهن المسؤول يفتحان القضية.'
+                : 'Everyone sees only the case numbers — no titles, no names, and a number cannot be opened. Only the couple and their priest can open a case.'}
+            </p>
+            {docket.length === 0 ? (
+              <p className="text-xs font-bold text-(--tx-ph) mt-3">{ar ? 'لا توجد قضايا بعد' : 'No cases yet'}</p>
+            ) : (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {docket.map((n) => (
+                  <span key={n} className="px-3 py-1.5 rounded-full bg-(--bg-soft) dark:bg-black/20 border border-(--ln-gold)/60 text-xs font-black text-(--tx-strong) dark:text-[#f5ebd9]">
+                    {caseNo(n)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

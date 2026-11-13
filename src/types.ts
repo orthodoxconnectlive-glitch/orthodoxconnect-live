@@ -106,6 +106,7 @@ export interface Job {
 // server enforces this; the client never decides who may see a case.
 export interface FamilyCase {
   id: string;
+  case_number?: number;
   title: string;
   husband_id?: string;
   husband_name?: string;

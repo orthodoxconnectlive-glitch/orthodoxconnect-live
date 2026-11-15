@@ -148,15 +148,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const unreadMessageCount = notifications.filter((n) => n.type === 'message' && !n.isRead).length;
 
+  // Top tab icons, one colour per section — exactly as the preview Hany
+  // approved 2026-11-15 (Feed stays blue, the app's main colour).
   const subTabs = [
-    { id: 'feed', icon: Rss, label: t('feed') },
-    { id: 'videos', icon: Film, label: t('videos') },
-    { id: 'library', icon: BookOpen, label: language === 'ar' ? 'المكتبة' : 'Library' },
-    { id: 'radio', icon: Radio, label: language === 'ar' ? 'الراديو' : 'Radio' },
-    { id: 'myNetwork', icon: Users, label: t('myNetwork') },
-    { id: 'calendar', icon: Calendar, label: t('calendar') },
-    { id: 'kids', icon: KidsTabIcon, label: language === 'ar' ? 'أطفال' : 'Kids' },
-    { id: 'marketplace', icon: Store, label: language === 'ar' ? 'السوق' : 'Marketplace' },
+    { id: 'feed', icon: Rss, label: t('feed'), color: 'text-[#2563EB]', bar: 'bg-[#2563EB]' },
+    { id: 'videos', icon: Film, label: t('videos'), color: 'text-[#DC2626]', bar: 'bg-[#DC2626]' },
+    { id: 'library', icon: BookOpen, label: language === 'ar' ? 'المكتبة' : 'Library', color: 'text-[#B45309]', bar: 'bg-[#B45309]' },
+    { id: 'radio', icon: Radio, label: language === 'ar' ? 'الراديو' : 'Radio', color: 'text-[#E11D48]', bar: 'bg-[#E11D48]' },
+    { id: 'myNetwork', icon: Users, label: t('myNetwork'), color: 'text-[#0D9488]', bar: 'bg-[#0D9488]' },
+    { id: 'calendar', icon: Calendar, label: t('calendar'), color: 'text-[#7C3AED]', bar: 'bg-[#7C3AED]' },
+    { id: 'kids', icon: KidsTabIcon, label: language === 'ar' ? 'أطفال' : 'Kids', color: 'text-[#EA580C]', bar: 'bg-[#EA580C]' },
+    { id: 'marketplace', icon: Store, label: language === 'ar' ? 'السوق' : 'Marketplace', color: 'text-[#16A34A]', bar: 'bg-[#16A34A]' },
   ];
 
   // Sidebar only holds what ISN'T already on the main bars (tab row + top
@@ -369,9 +371,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   }`}
                   title={tab.label}
                 >
-                  <Icon className="w-6 h-6 sm:w-7 sm:h-7" />
+                  <Icon className={`w-6 h-6 sm:w-7 sm:h-7 ${tab.color}`} />
                   {isActive && (
-                    <span className="absolute bottom-0 inset-x-0 h-1 bg-(--ac-bronze) dark:bg-(--ac-bright) rounded-t-md shadow-sm" />
+                    <span className={`absolute bottom-0 inset-x-0 h-1 ${tab.bar} rounded-t-md shadow-sm`} />
                   )}
                 </button>
               );

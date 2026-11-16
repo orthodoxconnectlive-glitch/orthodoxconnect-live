@@ -577,6 +577,18 @@ export async function ensureD1Tables(db?: D1Database) {
   } catch (schemaBatchErr) {
     console.warn('[ensureD1Tables] schema batch notice:', schemaBatchErr);
   }
+
+    // Native FCM tokens (2026-11-01, restored 2026-11-15): device tokens for
+    // the native app's Firebase Cloud Messaging push. Standalone block BEFORE
+    // the giant batch below (which throws and skips everything after it if
+    // its SQL is invalid). Single-line DDL: db.exec only reads the first line.
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS fcm_tokens ( user_id TEXT NOT NULL, token TEXT PRIMARY KEY, platform TEXT DEFAULT 'android', created_at TEXT NOT NULL DEFAULT (datetime('now')) )`);
+      await db.exec(`CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user ON fcm_tokens ( user_id )`);
+    } catch (fcmTokensErr) {
+      console.warn('[ensureD1Tables] fcm_tokens migration notice:', fcmTokensErr);
+    }
+
     // Stories columns: older D1 databases were created before newer columns
     // existed, and CREATE TABLE IF NOT EXISTS never alters an existing table.
     // Must run BEFORE the giant batch below (which throws and skips everything
@@ -1010,6 +1022,48 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
   } catch (e) {
     console.warn('[push] send failed:', (e as any)?.message || e);
     (globalThis as any).__lastPushStatus = 'exception: ' + ((e as any)?.message || e);
+    return false;
+  }
+}
+
+// ---- Native FCM push (Facebook-style, 2026-11-01) ----
+// Web Push delivery to the browser registration was declared failed
+// 2026-10-31, so the native app uses Firebase Cloud Messaging directly:
+// FCM talks straight to the app even when it is closed, no browser SW.
+// Gated on env.FCM_SERVICE_ACCOUNT_JSON (a Firebase service-account JSON,
+// supplied via Secure Vault, never in the repo). Without it, this returns
+// false and message sending is unaffected (Web Push still runs first).
+// FCM HTTP v1: OAuth2 JWT (RS256) -> access token -> messages:send.
+async function sendFcmPush(env: Env, fcmToken: string, payload: any): Promise<boolean> {
+  try {
+    const saRaw = String((env as any).FCM_SERVICE_ACCOUNT_JSON || '').trim();
+    if (!saRaw || !fcmToken) return false;
+    let sa: any;
+    try { sa = JSON.parse(saRaw); } catch (e) { console.warn('[fcm] bad service account JSON'); return false; }
+    if (!sa.project_id || !sa.client_email || !sa.private_key) return false;
+    const now = Math.floor(Date.now() / 1000);
+    const enc = new TextEncoder();
+    const headerB64 = b64uEncode(enc.encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
+    const claimsB64 = b64uEncode(enc.encode(JSON.stringify({ iss: sa.client_email, sub: sa.client_email, aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600, scope: 'https://www.googleapis.com/auth/firebase.messaging' })));
+    const pem = String(sa.private_key).replace(/-----BEGIN PRIVATE KEY-----/g, '').replace(/-----END PRIVATE KEY-----/g, '').replace(/\s+/g, '');
+    const keyBytes = b64uDecode(pem);
+    const privKey = await crypto.subtle.importKey('pkcs8', keyBytes as any, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+    const sig = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', privKey, enc.encode(headerB64 + '.' + claimsB64)));
+    const jwt = headerB64 + '.' + claimsB64 + '.' + b64uEncode(sig);
+    const tokRes = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + encodeURIComponent(jwt) });
+    if (!tokRes.ok) { console.warn('[fcm] token exchange failed:', tokRes.status); return false; }
+    const tokJson: any = await tokRes.json().catch(() => ({}));
+    if (!tokJson.access_token) return false;
+    const msgRes = await fetch('https://fcm.googleapis.com/v1/projects/' + encodeURIComponent(sa.project_id) + '/messages:send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tokJson.access_token }, body: JSON.stringify({ message: { token: fcmToken, notification: { title: payload.title || 'OrthodoxConnect', body: payload.body || '' }, data: { url: String((payload.data && payload.data.url) || '/'), type: 'message', senderId: String((payload.data && payload.data.senderId) || '') } } }) });
+    if (!msgRes.ok) {
+      const body = await msgRes.text().catch(() => '');
+      console.warn('[fcm] send failed:', msgRes.status, body.slice(0, 200));
+      if (msgRes.status === 404) { try { await env.DB.prepare('DELETE FROM fcm_tokens WHERE token = ?').bind(fcmToken).run(); } catch (e) {} }
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn('[fcm] send failed:', (e as any)?.message || e);
     return false;
   }
 }
@@ -3125,6 +3179,35 @@ export default {
         return jsonResponse({ success: Boolean(publicKey), publicKey: publicKey || null, pairValid, v: 2 });
       }
 
+      // Native FCM tokens (2026-11-01): register/delete, authenticated, own user only.
+      // Self-healing CREATE TABLE: ensureD1Tables fast-path skips migrations on
+      // fully-migrated databases, so this endpoint creates the table itself.
+      if (url.pathname === '/api/fcm-tokens' && env.DB) {
+        if (request.method === 'POST') {
+          const body: any = await request.json().catch(() => ({}));
+          const authFt = await getAuthIdentity(request, env);
+          if (!authFt.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          const userId = String(body.user_id || body.userId || authFt.id);
+          if (userId !== authFt.id && !authFt.isAdmin) return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
+          const token = String(body.token || '').trim();
+          const platform = String(body.platform || 'android');
+          if (!token) return jsonResponse({ success: false, error: 'token is required' }, 400);
+          try { await env.DB.prepare('CREATE TABLE IF NOT EXISTS fcm_tokens ( user_id TEXT NOT NULL, token TEXT PRIMARY KEY, platform TEXT DEFAULT \'android\', created_at TEXT NOT NULL DEFAULT (datetime(\'now\')) )').run(); } catch (e) {}
+          await env.DB.prepare('INSERT OR REPLACE INTO fcm_tokens (user_id, token, platform, created_at) VALUES (?, ?, ?, ?)').bind(userId, token, platform, new Date().toISOString()).run();
+          return jsonResponse({ success: true }, 201);
+        }
+        if (request.method === 'DELETE') {
+          const body: any = await request.json().catch(() => ({}));
+          const authFd = await getAuthIdentity(request, env);
+          if (!authFd.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+          const userId = String(body.user_id || body.userId || authFd.id);
+          if (userId !== authFd.id && !authFd.isAdmin) return jsonResponse({ success: false, error: 'Forbidden.' }, 403);
+          const token = String(body.token || '').trim();
+          if (token) { await env.DB.prepare('DELETE FROM fcm_tokens WHERE user_id = ? AND token = ?').bind(userId, token).run(); }
+          return jsonResponse({ success: true });
+        }
+      }
+
       // Post translation: POST /api/translate { text, target: 'en'|'ar', post_id? }
       // -> { success, translatedText, detectedSource }. Authenticated (session
       // token) so it can't be used as an anonymous translation proxy. Long
@@ -4126,6 +4209,16 @@ export default {
                     await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
                   }
                 }
+                // Native FCM (2026-11-01, restored 2026-11-15): same message, straight to the
+                // native app even when closed. Isolated try/catch — an FCM
+                // failure must never break the Web Push path above, and
+                // sendFcmPush itself no-ops without a service account.
+                try {
+                  const fcmRows: any = await env.DB.prepare('SELECT token FROM fcm_tokens WHERE user_id = ? OR user_id = ?').bind(receiverId, strippedReceiver).all().catch(() => ({ results: [] }));
+                  for (const r of ((fcmRows && fcmRows.results) || []) as any[]) {
+                    if (r && r.token) await sendFcmPush(env, String(r.token), pushPayload);
+                  }
+                } catch (e) { console.warn('[push] FCM message push failed:', (e as any)?.message || e); }
               }
             } catch (e) { console.warn('[push] chat message push failed:', (e as any)?.message || e); }
           }

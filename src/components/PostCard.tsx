@@ -178,6 +178,31 @@ async function buildPostShareImage(post: Post): Promise<Blob | null> {
     ctx.fillText(authorName, cx, y);
     y += 96;
 
+    // Load the post's photo FIRST so the text can leave room for it.
+    // (Long posts used to eat the whole card, so the photo was skipped
+    // entirely and the shared card came out text-only.)
+    // Video posts carry a derived YouTube thumbnail in image_url.
+    const photoUrl = String(p.imageUrl || p.image || p.image_url || '');
+    let photoImg: HTMLImageElement | null = null;
+    let photoW = 0, photoH = 0;
+    if (photoUrl) {
+      try {
+        photoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const im = new Image();
+          im.crossOrigin = 'anonymous';
+          im.onload = () => resolve(im);
+          im.onerror = () => reject(new Error('photo'));
+          im.src = photoUrl;
+        });
+        if (photoImg.naturalWidth > 0 && photoImg.naturalHeight > 0) {
+          const ps = Math.min((W - 240) / photoImg.naturalWidth, 520 / photoImg.naturalHeight);
+          photoW = Math.max(1, Math.floor(photoImg.naturalWidth * ps));
+          photoH = Math.max(1, Math.floor(photoImg.naturalHeight * ps));
+        } else { photoImg = null; }
+      } catch { photoImg = null; }
+    }
+    const photoBlock = photoImg ? photoH + 80 : 0;
+
     const raw = String(p.content || '').trim() || 'A post from OrthodoxConnect.';
     // Share-card fix: links are untappable on a picture, and a URL is one
     // giant word, so it runs off the card edges. Strip them from the IMAGE
@@ -217,7 +242,7 @@ async function buildPostShareImage(post: Post): Promise<Blob | null> {
 
     let lineH = fontSize * 1.55;
     // Fit the text above the footer: shrink first, then trim trailing lines.
-    const textBottomLimit = H - 170 - 40;
+    const textBottomLimit = H - 170 - 40 - photoBlock;
     const textEndY = () => {
       let yy = y;
       for (const line of lines) yy += line ? lineH : lineH * 0.55;
@@ -239,48 +264,29 @@ async function buildPostShareImage(post: Post): Promise<Blob | null> {
     }
     ctx.direction = 'ltr';
 
-    // Draw the post's photo / video thumbnail on the card when available.
-    // (Video posts carry a derived YouTube thumbnail in image_url.)
-    const photoUrl = String(p.imageUrl || p.image || p.image_url || '');
-    const footerTop = H - 170;
-    if (photoUrl && footerTop - y > 260) {
-      try {
-        const photo = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const im = new Image();
-          im.crossOrigin = 'anonymous';
-          im.onload = () => resolve(im);
-          im.onerror = () => reject(new Error('photo'));
-          im.src = photoUrl;
-        });
-        if (photo.naturalWidth > 0 && photo.naturalHeight > 0) {
-          const maxW = W - 240;
-          const maxH = Math.min(520, footerTop - y - 40);
-          const s = Math.min(maxW / photo.naturalWidth, maxH / photo.naturalHeight);
-          const dw = Math.max(1, Math.floor(photo.naturalWidth * s));
-          const dh = Math.max(1, Math.floor(photo.naturalHeight * s));
-          const dx = Math.round(cx - dw / 2);
-          const dy = Math.round(y + 28);
-          const rr = (x: number, yy: number, w: number, h: number, r: number) => {
-            ctx.beginPath();
-            ctx.moveTo(x + r, yy);
-            ctx.arcTo(x + w, yy, x + w, yy + h, r);
-            ctx.arcTo(x + w, yy + h, x, yy + h, r);
-            ctx.arcTo(x, yy + h, x, yy, r);
-            ctx.arcTo(x, yy, x + w, yy, r);
-            ctx.closePath();
-          };
-          ctx.save();
-          rr(dx, dy, dw, dh, 26);
-          ctx.clip();
-          ctx.drawImage(photo, dx, dy, dw, dh);
-          ctx.restore();
-          ctx.strokeStyle = '#2563eb';
-          ctx.lineWidth = 3;
-          rr(dx, dy, dw, dh, 26);
-          ctx.stroke();
-          y = dy + dh + 52;
-        }
-      } catch { /* card stays text-only */ }
+    // Draw the preloaded photo below the text (space was reserved above).
+    if (photoImg) {
+      const dx = Math.round(cx - photoW / 2);
+      const dy = Math.round(y + 28);
+      const rr = (x: number, yy: number, w: number, h: number, r: number) => {
+        ctx.beginPath();
+        ctx.moveTo(x + r, yy);
+        ctx.arcTo(x + w, yy, x + w, yy + h, r);
+        ctx.arcTo(x + w, yy + h, x, yy + h, r);
+        ctx.arcTo(x, yy + h, x, yy, r);
+        ctx.arcTo(x, yy, x + w, yy, r);
+        ctx.closePath();
+      };
+      ctx.save();
+      rr(dx, dy, photoW, photoH, 26);
+      ctx.clip();
+      ctx.drawImage(photoImg, dx, dy, photoW, photoH);
+      ctx.restore();
+      ctx.strokeStyle = '#2563eb';
+      ctx.lineWidth = 3;
+      rr(dx, dy, photoW, photoH, 26);
+      ctx.stroke();
+      y = dy + photoH + 52;
     }
 
     ctx.fillStyle = '#93c5fd';

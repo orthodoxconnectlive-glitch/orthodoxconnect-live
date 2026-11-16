@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "270772925043",
+    "project_id": "orthodoxconnect-f8a0e",
+    "storage_bucket": "orthodoxconnect-f8a0e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:270772925043:android:0123a832984d8220dff006",
+        "android_client_info": {
+          "package_name": "orthodoxconnect.live"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJercx6BZNMDQh8k-oxi9BpR8yqb8Ujp0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

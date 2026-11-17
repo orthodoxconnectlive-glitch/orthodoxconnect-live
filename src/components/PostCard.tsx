@@ -1092,7 +1092,12 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Image Media (single photo) */}
       {galleryUrls.length <= 1 && postImage && (!cleanVideoId && !parsedEmbed || rawPost.show_image_with_video) && (
-        <div className="rounded-2xl overflow-hidden mb-3.5 border-2 border-(--ln-gold)/40 bg-(--chip-dark)/10 w-full max-h-[500px] flex items-center justify-center shadow-inner">
+        <button
+          type="button"
+          onClick={() => setLightboxIdx(0)}
+          aria-label="View photo"
+          className="rounded-2xl overflow-hidden mb-3.5 border-2 border-(--ln-gold)/40 bg-(--chip-dark)/10 w-full max-h-[500px] flex items-center justify-center shadow-inner cursor-pointer"
+        >
           <img
             src={postImage}
             alt="Post media"
@@ -1102,7 +1107,7 @@ export const PostCard: React.FC<PostCardProps> = ({
               (e.target as HTMLElement).style.display = 'none';
             }}
           />
-        </div>
+        </button>
       )}
 
       {/* Photo Gallery (multi-photo posts) */}

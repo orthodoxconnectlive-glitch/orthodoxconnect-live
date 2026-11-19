@@ -248,11 +248,15 @@ export const HighlightsRail: React.FC<{ posts: Post[] }> = ({ posts }) => {
             onClick={() => scrollToPost(c.postId)}
             className="relative w-[128px] h-[176px] shrink-0 snap-start rounded-2xl overflow-hidden shadow-md border border-black/10 dark:border-white/10 cursor-pointer text-left bg-gradient-to-b from-[#2b2118] to-[#171208]"
           >
+            {/* NOTE (2026-11-19): images load eagerly here — loading="lazy"
+                inside this horizontal rail never fired in the Android
+                WebView, so cards (e.g. New Reel) stayed black on the phone
+                while the same card showed its thumbnail on web. Only a
+                handful of small thumbnails, so eager is fine. */}
             {c.image ? (
               <img
                 src={c.image}
                 alt=""
-                loading="lazy"
                 className="absolute inset-0 w-full h-full object-cover"
               />
             ) : (
@@ -269,7 +273,7 @@ export const HighlightsRail: React.FC<{ posts: Post[] }> = ({ posts }) => {
                 <Play className="w-4 h-4 text-white fill-white" />
               </span>
             )}
-            <span className="absolute inset-x-0 bottom-0 p-2 text-[11px] leading-snug font-bold text-white line-clamp-3">
+            <span dir="auto" className="absolute inset-x-0 bottom-0 p-2 text-[11px] leading-snug font-bold text-white line-clamp-3 break-words">
               {c.title}
             </span>
           </button>

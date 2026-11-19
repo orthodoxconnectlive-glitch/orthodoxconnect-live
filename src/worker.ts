@@ -4191,7 +4191,11 @@ export default {
                 'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ? OR user_id = ?'
               ).bind(receiverId, strippedReceiver).all();
               const subs = results || [];
-              if (subs.length > 0) {
+              // v8 (2026-11-19): run this push block even with no Web Push
+              // subscription — native FCM must fire on its own. Before, the
+              // FCM send sat inside `subs.length > 0`, so a user with no web
+              // subscription never got an FCM push at all.
+              {
                 const preview = content
                   ? String(content).slice(0, 120)
                   : imageUrl ? '📷 Sent a photo' : videoUrl ? '🎬 Sent a video' : audioUrl ? '🎤 Sent a voice message' : 'Sent you a message';

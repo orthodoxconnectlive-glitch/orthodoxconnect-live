@@ -10,6 +10,7 @@ import { NotificationPrompt } from './components/NotificationPrompt';
 // NEW: notification auto-refresh (adjust path if your service lives elsewhere)
 import { loadNotifications, markNotificationAsRead } from './utils/notifications';
 import { syncFollowsFromServer } from './utils/follows';
+import { API_BASE_URL } from './lib/api';
 
 import { FeedView } from './views/FeedView';
 // Chunk-load self-heal: every deploy renames the hashed chunks and the old
@@ -259,7 +260,7 @@ function AppContent() {
       };
       void (async () => {
         try {
-          const r = await fetch(`/api/profiles/${encodeURIComponent(restoreId)}`);
+          const r = await fetch(`${API_BASE_URL}/api/profiles/${encodeURIComponent(restoreId)}`);
           const d = await r.json().catch(() => ({} as any));
           if (d && d.success && d.profile) {
             const p = d.profile;
@@ -620,7 +621,7 @@ function AppContent() {
           </div>
         ) : (
           /* Dedicated View Layout */
-          <div className="w-full min-h-[calc(100vh-8rem)]">
+          <div className="w-full min-h-[calc(100dvh-8rem)]">
             <ViewErrorBoundary key={currentView} viewName={currentView}>
               <Suspense fallback={<ViewLoadingFallback />}>{renderView()}</Suspense>
             </ViewErrorBoundary>

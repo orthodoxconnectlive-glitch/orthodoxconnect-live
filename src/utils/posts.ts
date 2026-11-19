@@ -7,13 +7,12 @@
 
 import { Post } from '../types';
 import { addNotification } from './notifications';
+import { API_BASE_URL } from '../lib/api';
 
 export const BUNNY_LIBRARY_ID = import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
 export const BUNNY_CDN_HOSTNAME = import.meta.env.VITE_BUNNY_CDN_HOST || 'vz-840ad26e-6fe.b-cdn.net';
 export const BUNNY_STREAM_BASE = `https://${BUNNY_CDN_HOSTNAME}`;
 export const SEED_VIDEOS: string[] = [];
-
-const API_BASE_URL = '';
 
 export function extractBunnyVideoGuid(input?: string | null): string | undefined {
   if (!input || typeof input !== 'string') return undefined;

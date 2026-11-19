@@ -3,6 +3,7 @@ import { Mail, Lock, User, Church, Cross, LogIn, AlertCircle, Sparkles, Globe, A
 import { useAuth } from '../context/AuthContext';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { useTheme } from '../context/ThemeContext';
+import { API_BASE_URL } from '../lib/api';
 
 interface AuthPageProps {
   initialMode?: 'signin' | 'signup';
@@ -50,7 +51,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'signin', onBa
     }
     parishDebounce.current = window.setTimeout(async () => {
       try {
-        const res = await fetch(`/api/churches?q=${encodeURIComponent(q)}`);
+        const res = await fetch(`${API_BASE_URL}/api/churches?q=${encodeURIComponent(q)}`);
         const data = await res.json().catch(() => ({}));
         const list = Array.isArray(data?.churches) ? data.churches : [];
         setChurchSuggestions(list.slice(0, 6));

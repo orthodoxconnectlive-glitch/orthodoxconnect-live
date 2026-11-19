@@ -1,3 +1,5 @@
+import { API_BASE_URL } from '../lib/api';
+
 export const BUNNY_LIBRARY_ID =
   import.meta.env.VITE_BUNNY_LIBRARY_ID || '713265';
 export const BUNNY_API_KEY =
@@ -110,7 +112,7 @@ export async function uploadVideoToBunnyStream(
   // Fallback to Worker API endpoint if direct create failed (e.g. CORS)
   if (!guid) {
     try {
-      const proxyRes = await fetch('/api/bunny/create-video', {
+      const proxyRes = await fetch(`${API_BASE_URL}/api/bunny/create-video`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: videoTitle }),

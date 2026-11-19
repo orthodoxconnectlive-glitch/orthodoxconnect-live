@@ -4,6 +4,7 @@ import { EventItem } from '../types';
 import { setEventRsvp } from '../utils/events';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { API_BASE_URL } from '../lib/api';
 
 interface EventDetailModalProps {
   event: EventItem | null;
@@ -44,7 +45,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
 
   const handleShare = async () => {
     // Public shareable page (OG preview for social apps) — no login needed.
-    const link = `${window.location.origin}/event/${event.id}`;
+    const link = `${API_BASE_URL || window.location.origin}/event/${event.id}`;
     const shareText = language === 'ar'
       ? `${event.title} — ${event.date}`
       : `${event.title} — ${event.date} · OrthodoxConnect`;

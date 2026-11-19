@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { API_BASE_URL } from '../lib/api';
 
 // Sign in / Sign up with Google (Google Identity Services ID-token flow).
 // The button renders ONLY when the worker reports a Google client ID
@@ -65,7 +66,7 @@ export const GoogleSignInButton: React.FC = () => {
     (async () => {
       let clientId = '';
       try {
-        const r = await fetch('/api/auth/google/config');
+        const r = await fetch(`${API_BASE_URL}/api/auth/google/config`);
         const cfg = await r.json().catch(() => ({}));
         if (!cfg?.configured || !cfg?.clientId) return;
         clientId = cfg.clientId;

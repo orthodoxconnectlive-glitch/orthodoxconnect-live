@@ -2,7 +2,7 @@ import { NotificationItem , NotificationPreferences } from '../types' ;
 
 import { soundSynth , triggerBrowserNotification } from './ringtone' ;
 
-const API_BASE_URL = typeof window !== 'undefined' ? ( window . location . origin || '' ) : '' ;
+import { API_BASE_URL } from '../lib/api';
 
 // Session token for authenticated API calls. The server verifies identity
 // ONLY from this Bearer token (never from spoofable client headers).

@@ -26,7 +26,7 @@ import {
 import { uploadMediaFile, uploadVideoToBunnyStream, compressImageToDataUrl } from '../utils/storage';
 import { isFollowing, toggleFollowUserServer } from '../utils/follows';
 import { useAuth } from '../context/AuthContext';
-import { apiFetch } from '../lib/api';
+import { apiFetch, API_BASE_URL } from '../lib/api';
 import { useTheme } from '../context/ThemeContext';
 import { ReshareModal } from '../components/ReshareModal';
 import { ReportContentModal } from '../components/ReportContentModal';
@@ -667,7 +667,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
       if (!el) {
         // Post not in loaded feed — fetch it directly
         try {
-          const res = await fetch(`/api/posts/${encodeURIComponent(focusPostId)}`);
+          const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(focusPostId)}`);
           const data = await res.json().catch(() => ({}));
           if (!cancelled && data?.success && data?.post) {
             // Map the raw row to a Post using the same mapper as loadPosts
@@ -763,7 +763,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         if (isDefault || !onOpenChurch) return null;
         const openMyChurch = async () => {
           try {
-            const res = await fetch('/api/churches?q=' + encodeURIComponent(myChurch) + '&limit=5');
+            const res = await fetch(`${API_BASE_URL}/api/churches?q=` + encodeURIComponent(myChurch) + '&limit=5');
             const data = await res.json().catch(() => ({}));
             const list = data.churches || data || [];
             const match = Array.isArray(list) ? list.find((c: any) => c && c.name === myChurch) || list[0] : null;

@@ -468,7 +468,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       </div>
 
       {followToast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[100] px-4 py-2.5 rounded-2xl bg-[#2a2018] text-[#f5ebd9] border border-(--ln-gold) shadow-xl text-sm font-serif font-bold whitespace-nowrap">
+        <div className="fixed bottom-[max(5rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-[100] px-4 py-2.5 rounded-2xl bg-[#2a2018] text-[#f5ebd9] border border-(--ln-gold) shadow-xl text-sm font-serif font-bold whitespace-nowrap">
           {followToast}
         </div>
       )}

@@ -1,4 +1,4 @@
-import { authHeader } from '../lib/api';
+import { authHeader, API_BASE_URL } from '../lib/api';
 
 // Follow store.
 //
@@ -150,7 +150,7 @@ async function pushFollowsToServer(): Promise<boolean> {
     const follows = recs
       .map((e) => ({ following_id: serverFollowKey(e.id, e.name), following_name: e.name }))
       .filter((x) => x.following_id);
-    const res = await fetch('/api/follows', {
+    const res = await fetch(`${API_BASE_URL}/api/follows`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify({ follows }),
@@ -175,7 +175,7 @@ export async function syncFollowsFromServer(userId?: string | null): Promise<voi
   const uid = (userId || '').trim();
   if (!uid || syncedUserIds.has(uid)) return;
   try {
-    const res = await fetch('/api/follows', { headers: { ...authHeader() } });
+    const res = await fetch(`${API_BASE_URL}/api/follows`, { headers: { ...authHeader() } });
     if (!res.ok) return;
     const data = await res.json().catch(() => ({}));
     const rows = Array.isArray(data.follows) ? data.follows : [];

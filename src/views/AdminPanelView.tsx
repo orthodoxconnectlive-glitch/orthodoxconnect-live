@@ -767,7 +767,7 @@ export const AdminPanelView: React.FC<AdminPanelViewProps> = ({ onSelectUser, in
     <div className="space-y-6 relative">
       {/* Toast Feedback Banner */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-2xl bg-[#1c1611] border border-(--ln-gold) text-[#f5ebd9] font-serif font-bold text-xs shadow-2xl flex items-center gap-2 animate-bounce">
+        <div className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-6 z-50 px-4 py-2.5 rounded-2xl bg-[#1c1611] border border-(--ln-gold) text-[#f5ebd9] font-serif font-bold text-xs shadow-2xl flex items-center gap-2 animate-bounce">
           <CheckCircle className="w-4 h-4 text-(--ac-gold-tx)" />
           <span>{toastMessage}</span>
         </div>

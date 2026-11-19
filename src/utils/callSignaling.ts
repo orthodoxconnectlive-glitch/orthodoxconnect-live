@@ -6,6 +6,8 @@
  * reached even when the app is closed.
  */
 
+import { API_BASE_URL } from '../lib/api';
+
 export interface CallSignalPayload {
   type: 'OFFER_CALL' | 'RINGING' | 'ACCEPT_CALL' | 'DECLINE_CALL' | 'END_CALL' | 'WEBRTC_OFFER' | 'WEBRTC_ANSWER' | 'WEBRTC_ICE' | 'GROUP_JOIN' | 'GROUP_LEAVE' | 'GROUP_OFFER' | 'GROUP_ANSWER' | 'GROUP_ICE';
   callId: string;
@@ -95,7 +97,7 @@ export class CallSignalingService {
     //    The server stores the signal for the target to poll, and on
     //    OFFER_CALL it also sends a Web Push (works when app is closed).
     try {
-      fetch('/api/call-signals', {
+      fetch(`${API_BASE_URL}/api/call-signals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(signal),
@@ -119,7 +121,7 @@ export class CallSignalingService {
       if (stopped) return;
       try {
         const res = await fetch(
-          `/api/call-signals?user_id=${encodeURIComponent(userId)}&since=${since}`
+          `${API_BASE_URL}/api/call-signals?user_id=${encodeURIComponent(userId)}&since=${since}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -145,7 +147,7 @@ export class CallSignalingService {
             } as CallSignalPayload);
             // Consume so it is not delivered twice
             if (sid) {
-              fetch(`/api/call-signals/${encodeURIComponent(sid)}`, {
+              fetch(`${API_BASE_URL}/api/call-signals/${encodeURIComponent(sid)}`, {
                 method: 'DELETE',
               }).catch(() => {});
             }

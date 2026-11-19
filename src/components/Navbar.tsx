@@ -204,7 +204,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-(--bg-soft) dark:bg-[#120e0b] border-b-2 border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] shadow-md">
+      <header className="sticky top-0 z-40 bg-(--bg-soft) dark:bg-[#120e0b] border-b-2 border-(--ln-gold) dark:border-[#8b6b4a] text-(--tx-strong) dark:text-[#f5ebd9] shadow-md pt-[env(safe-area-inset-top)]">
         <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
           {/* Left: Brand & Menu */}
           <div className="flex items-center gap-2 shrink min-w-0">
@@ -384,7 +384,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Slide-out Navigation Drawer */}
       {isDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 z-50 flex pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
           <div
             onClick={() => setIsDrawerOpen(false)}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"

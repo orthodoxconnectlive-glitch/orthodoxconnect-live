@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { X, Copy, Check, Share2, MessageCircle, QrCode } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { authHeader } from '../lib/api';
+import { authHeader, API_BASE_URL } from '../lib/api';
 
 interface InviteModalProps {
   isOpen: boolean;
@@ -22,7 +22,7 @@ export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => 
     if (!isOpen || !profile?.id) return;
     let cancelled = false;
     setShortCode(null);
-    fetch('/api/invite-code', { headers: authHeader() })
+    fetch(`${API_BASE_URL}/api/invite-code`, { headers: authHeader() })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!cancelled && d && d.success && d.code) setShortCode(String(d.code));

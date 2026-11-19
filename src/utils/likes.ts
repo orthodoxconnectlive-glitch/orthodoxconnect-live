@@ -5,6 +5,7 @@
 
 import { getAuthHeaders, invalidatePostsCache } from './posts';
 import { addNotification } from './notifications';
+import { API_BASE_URL } from '../lib/api';
 
 // Ensures an isolated identity per browser/device even if the user isn't logged in
 export function getOrCreateClientIdentity(explicitProfile?: any): {
@@ -74,7 +75,7 @@ export async function blessPost(
       ...getAuthHeaders(userProfile),
     };
 
-    const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/like`, {
+    const res = await fetch(`${API_BASE_URL}/api/posts/${encodeURIComponent(postId)}/like`, {
       method: 'POST',
       headers,
       body: JSON.stringify({

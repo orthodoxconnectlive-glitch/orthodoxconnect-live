@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MessagesSquare, RefreshCw, Image as ImageIcon, Video as VideoIcon, Mic } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { authHeader } from '../lib/api';
+import { authHeader, API_BASE_URL } from '../lib/api';
 
 interface GroupInfo {
   id: string;
@@ -49,7 +49,7 @@ export const AdminGroupMessages: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/groups')
+    fetch(`${API_BASE_URL}/api/groups`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (cancelled) return;
@@ -72,7 +72,7 @@ export const AdminGroupMessages: React.FC = () => {
       setError(null);
     }
     try {
-      let url = `/api/admin/group-messages?group_id=${encodeURIComponent(gid)}&limit=${PAGE}`;
+      let url = `${API_BASE_URL}/api/admin/group-messages?group_id=${encodeURIComponent(gid)}&limit=${PAGE}`;
       if (before) url += `&before=${encodeURIComponent(before)}`;
       const r = await fetch(url, { headers: authHeader() });
       const d = await r.json().catch(() => ({}));

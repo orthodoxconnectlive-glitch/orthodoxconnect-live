@@ -4,7 +4,7 @@ import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { apiFetch } from '../lib/api';
+import { apiFetch, API_BASE_URL } from '../lib/api';
 import {
   useReactions,
   useLongPress,
@@ -139,7 +139,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
 
   const fetchBooks = () => {
     setLoading(true);
-    fetch(`/api/books?category=${selectedCategory}&q=${encodeURIComponent(search)}`)
+    fetch(`${API_BASE_URL}/api/books?category=${selectedCategory}&q=${encodeURIComponent(search)}`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         setBooks(Array.isArray(data) ? data : []);
@@ -158,7 +158,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
   // Book read/download counter — increments the server counter on every
   // Read / Download / Listen tap and refreshes the displayed count.
   const recordBookRead = (bookId: string) => {
-    fetch(`/api/books/${encodeURIComponent(bookId)}/read`, { method: 'POST' })
+    fetch(`${API_BASE_URL}/api/books/${encodeURIComponent(bookId)}/read`, { method: 'POST' })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         const n = data && typeof data.reads_count === 'number' ? data.reads_count : null;
@@ -173,7 +173,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
 
   // Special featured Bible section — always shows Bible-category books
   useEffect(() => {
-    fetch('/api/books?category=bible')
+    fetch(`${API_BASE_URL}/api/books?category=bible`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setBibleBooks(Array.isArray(data) ? data : []))
       .catch(() => {});
@@ -182,7 +182,7 @@ export const LibraryView: React.FC<{ focusBookId?: string | null; onFocusBookCon
   // Special featured Synaxarium spotlight — the synaxarium reader book
   const [synaxariumBook, setSynaxariumBook] = useState<Book | null>(null);
   useEffect(() => {
-    fetch('/api/books')
+    fetch(`${API_BASE_URL}/api/books`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         const list = Array.isArray(data) ? data : [];
@@ -473,7 +473,7 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
         cover_image_url: finalCoverUrl || null,
       };
 
-      const url = editingBookId ? `/api/books/${editingBookId}` : '/api/books';
+      const url = editingBookId ? `${API_BASE_URL}/api/books/${editingBookId}` : `${API_BASE_URL}/api/books`;
       const method = editingBookId ? 'PUT' : 'POST';
 
       const res = await fetch(url, {

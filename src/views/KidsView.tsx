@@ -30,6 +30,7 @@ import {
 } from '../components/VideoCard';
 import { ALL_GROUPS } from './GroupRoomsView';
 import type { Post, GroupRoom } from '../types';
+import { API_BASE_URL } from '../lib/api';
 
 // Kids Corner videos show ONLY posts explicitly tagged #kidsonly. Ordinary posts
 // that merely mention kids stay on the main feed. Books/groups still use keyword
@@ -267,7 +268,7 @@ const [videos, setVideos] = useState<Post[]>([]);
     const metaPromise = (async () => {
       try {
         const [bookRes, synced] = await Promise.all([
-          fetch('/api/books?category=all', { signal: booksController.signal })
+          fetch(`${API_BASE_URL}/api/books?category=all`, { signal: booksController.signal })
             .then((r) => (r.ok ? r.json() : []))
             .catch(() => [] as KidsBook[]),
           syncGroupsFromServer().catch(() => getCustomGroups()),

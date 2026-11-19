@@ -60,9 +60,13 @@ export async function registerNativePush(userId: string): Promise<boolean> {
       console.warn('[native-push] notification permission not granted');
       return false;
     }
-    await PushNotifications.register();
+    // Attach ALL listeners BEFORE register(): on Android the 'registration'
+    // event can fire before a listener attached after register() exists,
+    // losing the token with no retry (v9 fix — v8 never registered a token).
+    let tokenReceived = false;
     PushNotifications.addListener('registration', async (reg: any) => {
       if (reg && reg.value) {
+        tokenReceived = true;
         await postFcmToken(userId, reg.value, 'android');
       }
     });
@@ -79,6 +83,15 @@ export async function registerNativePush(userId: string): Promise<boolean> {
         window.location.href = url;
       } catch (e) {}
     });
+    await PushNotifications.register();
+    // Retry once if no token arrived within 10s (listeners are attached,
+    // so the retry's event will be caught).
+    setTimeout(() => {
+      if (!tokenReceived) {
+        console.warn('[native-push] no token in 10s, retrying register()');
+        PushNotifications.register().catch(() => {});
+      }
+    }, 10000);
     return true;
   } catch (e) {
     console.warn('[native-push] registration failed:', e);

@@ -7,7 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 interface ReportContentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  targetType: 'post' | 'comment' | 'user';
+  targetType: 'post' | 'comment' | 'user' | 'general';
   targetId: string;
   targetContentPreview?: string;
   targetAuthorName?: string;
@@ -26,7 +26,9 @@ export const ReportContentModal: React.FC<ReportContentModalProps> = ({
   const { profile } = useAuth();
   const { t, language } = useTheme();
 
-  const [reason, setReason] = useState<'inappropriate' | 'spam' | 'uncanonical_heresy' | 'harassment' | 'other'>('inappropriate');
+  const [reason, setReason] = useState<'child_safety' | 'inappropriate' | 'spam' | 'uncanonical_heresy' | 'harassment' | 'other'>('inappropriate');
+  // General reports (opened from Settings): what is being reported?
+  const [generalTarget, setGeneralTarget] = useState<'post' | 'comment' | 'user' | 'general'>('general');
   const [details, setDetails] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -38,8 +40,8 @@ export const ReportContentModal: React.FC<ReportContentModalProps> = ({
     setIsSubmitting(true);
 
     await submitContentReport({
-      targetType,
-      targetId,
+      targetType: targetType === 'general' ? generalTarget : targetType,
+      targetId: targetType === 'general' ? 'general' : targetId,
       targetContentPreview,
       targetAuthorName,
       targetAuthorId,
@@ -62,9 +64,13 @@ export const ReportContentModal: React.FC<ReportContentModalProps> = ({
     if (language === 'ar') {
       if (targetType === 'post') return 'الإبلاغ عن منشور';
       if (targetType === 'comment') return 'الإبلاغ عن تعليق';
-      return 'الإبلاغ عن مستخدم';
+      if (targetType === 'user') return 'الإبلاغ عن مستخدم';
+      return 'الإبلاغ عن مشكلة';
     }
-    return `Report ${targetType === 'post' ? 'Post' : targetType === 'comment' ? 'Comment' : 'User'}`;
+    if (targetType === 'post') return 'Report Post';
+    if (targetType === 'comment') return 'Report Comment';
+    if (targetType === 'user') return 'Report User';
+    return 'Report a concern';
   };
 
   return (
@@ -101,6 +107,24 @@ export const ReportContentModal: React.FC<ReportContentModalProps> = ({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            {targetType === 'general' && (
+              <div>
+                <label className="block text-xs font-bold text-(--tx-soft) dark:text-(--ac-gold-tx) uppercase tracking-wider mb-2">
+                  {language === 'ar' ? 'ما الذي تبلغ عنه؟' : 'What are you reporting?'}
+                </label>
+                <select
+                  value={generalTarget}
+                  onChange={(e) => setGeneralTarget(e.target.value as 'post' | 'comment' | 'user' | 'general')}
+                  className="w-full px-3 py-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/30 text-xs font-semibold text-(--tx-head) dark:text-[#f5ebd9] focus:outline-none focus:border-(--ln-bright)"
+                >
+                  <option value="general">{language === 'ar' ? 'شيء آخر / سلوك عام' : 'Something else / general behavior'}</option>
+                  <option value="post">{language === 'ar' ? 'منشور' : 'A post'}</option>
+                  <option value="comment">{language === 'ar' ? 'تعليق' : 'A comment'}</option>
+                  <option value="user">{language === 'ar' ? 'شخص / مستخدم' : 'A person / user'}</option>
+                </select>
+              </div>
+            )}
+
             {targetContentPreview && (
               <div className="p-3 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/20 text-xs text-(--tx-faint) dark:text-[#f5ebd9] italic leading-relaxed">
                 "{targetContentPreview.length > 120 ? targetContentPreview.slice(0, 120) + '...' : targetContentPreview}"
@@ -112,6 +136,20 @@ export const ReportContentModal: React.FC<ReportContentModalProps> = ({
                 {language === 'ar' ? 'سبب البلاغ' : 'Reason for Report'}
               </label>
               <div className="space-y-2 text-xs">
+                <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-red-500/40 cursor-pointer hover:border-red-500/60">
+                  <input
+                    type="radio"
+                    name="reportReason"
+                    value="child_safety"
+                    checked={reason === 'child_safety'}
+                    onChange={() => setReason('child_safety')}
+                    className="accent-red-600"
+                  />
+                  <span className="font-semibold text-(--tx-head) dark:text-[#f5ebd9]">
+                    {language === 'ar' ? 'مشكلة تتعلق بسلامة الأطفال' : 'Child safety concern'}
+                  </span>
+                </label>
+
                 <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-(--bg-inset2) dark:bg-[#282019] border border-(--ln-bright)/20 cursor-pointer hover:border-(--ln-bright)/40">
                   <input
                     type="radio"

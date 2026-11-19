@@ -89,7 +89,7 @@ export const LandingPage: React.FC = () => {
       className="min-h-screen bg-(--bg-page) dark:bg-[#0f0c09] text-(--tx-strong) dark:text-[#f5ebd9] transition-colors"
     >
       {/* Top bar */}
-      <header className="sticky top-0 z-20 bg-(--bg-page)/90 dark:bg-[#0f0c09]/90 backdrop-blur-md border-b border-[#1e3a8a]/30">
+      <header className="sticky top-0 z-20 bg-(--bg-page)/90 dark:bg-[#0f0c09]/90 backdrop-blur-md border-b border-[#1e3a8a]/30 pt-[env(safe-area-inset-top)]">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl overflow-hidden border border-[#1e3a8a] shrink-0">

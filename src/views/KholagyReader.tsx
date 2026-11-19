@@ -171,7 +171,7 @@ export const KholagyReader: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   return (
     <div className="fixed inset-0 z-50 bg-[#f5f0e6] dark:bg-[#1a1510] flex flex-col">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-[#f5f0e6]/95 dark:bg-[#1a1510]/95 backdrop-blur border-b border-[#8b6b4a]/30 px-4 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-20 bg-[#f5f0e6]/95 dark:bg-[#1a1510]/95 backdrop-blur border-b border-[#8b6b4a]/30 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex items-center gap-3">
         <button
           onClick={() => {
             if (screen === 'reading') setScreen('parts');

@@ -1120,10 +1120,10 @@ export const FeedView: React.FC<FeedViewProps> = ({
       <ReportContentModal
         isOpen={reportModalData.isOpen}
         onClose={() => setReportModalData((prev) => ({ ...prev, isOpen: false }))}
-        contentType={reportModalData.contentType}
-        contentId={reportModalData.contentId}
+        targetType={reportModalData.contentType}
+        targetId={reportModalData.contentId}
         targetAuthorName={reportModalData.targetAuthorName}
-        contentSnippet={reportModalData.snippet}
+        targetContentPreview={reportModalData.snippet}
       />
     </div>
   );

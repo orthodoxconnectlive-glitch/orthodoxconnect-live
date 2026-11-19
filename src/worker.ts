@@ -1054,7 +1054,7 @@ async function sendFcmPush(env: Env, fcmToken: string, payload: any): Promise<bo
     if (!tokRes.ok) { console.warn('[fcm] token exchange failed:', tokRes.status); return false; }
     const tokJson: any = await tokRes.json().catch(() => ({}));
     if (!tokJson.access_token) return false;
-    const msgRes = await fetch('https://fcm.googleapis.com/v1/projects/' + encodeURIComponent(sa.project_id) + '/messages:send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tokJson.access_token }, body: JSON.stringify({ message: { token: fcmToken, notification: { title: payload.title || 'OrthodoxConnect', body: payload.body || '' }, data: { url: String((payload.data && payload.data.url) || '/'), type: 'message', senderId: String((payload.data && payload.data.senderId) || '') } } }) });
+    const msgRes = await fetch('https://fcm.googleapis.com/v1/projects/' + encodeURIComponent(sa.project_id) + '/messages:send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tokJson.access_token }, body: JSON.stringify({ message: { token: fcmToken, android: { priority: 'high' }, notification: { title: payload.title || 'OrthodoxConnect', body: payload.body || '' }, data: { url: String((payload.data && payload.data.url) || '/'), type: 'message', senderId: String((payload.data && payload.data.senderId) || '') } } }) });
     if (!msgRes.ok) {
       const body = await msgRes.text().catch(() => '');
       console.warn('[fcm] send failed:', msgRes.status, body.slice(0, 200));

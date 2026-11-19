@@ -753,7 +753,7 @@ export const MessengerView: React.FC<MessengerViewProps> = ({ initialContactId, 
   const activeContactsStories = contactsList.filter((c) => c.isOnline);
 
   return (
-    <div className="bg-white dark:bg-[#18191a] text-gray-900 dark:text-gray-100 rounded-2xl md:rounded-3xl shadow-2xl border border-gray-200 dark:border-zinc-800 overflow-hidden flex flex-col md:flex-row h-[calc(100vh-6rem)] md:h-[700px] font-sans transition-colors">
+    <div className="bg-white dark:bg-[#18191a] text-gray-900 dark:text-gray-100 rounded-2xl md:rounded-3xl shadow-2xl border border-gray-200 dark:border-zinc-800 overflow-hidden flex flex-col md:flex-row h-[calc(100dvh-6rem)] md:h-[700px] font-sans transition-colors">
       {/* Hidden File Picker Inputs */}
       <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
       <input ref={videoInputRef} type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />

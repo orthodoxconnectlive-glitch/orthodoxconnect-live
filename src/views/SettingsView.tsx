@@ -24,6 +24,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, churchesApi } from '../lib/api';
 import { AdminGroupMessages } from '../components/AdminGroupMessages';
+import { ReportContentModal } from '../components/ReportContentModal';
 import { US_COPTIC_CHURCHES } from '../data/usCopticChurches';
 import { EGYPT_COPTIC_CHURCHES } from '../data/egyptCopticChurches';
 import { COPTIC_CHURCHES } from '../data/copticChurches';
@@ -33,7 +34,7 @@ interface SettingsViewProps {
   onOpenAdminTab?: (tab: 'reports' | 'audit') => void;
 }
 
-type SectionId = 'church' | 'app' | 'mod';
+type SectionId = 'church' | 'app' | 'mod' | 'safety';
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAdminTab }) => {
   const { t, language, setLanguage, theme, setTheme } = useTheme();
@@ -44,6 +45,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
   const isAdminOrOwner = isSuperAdmin || profile?.role === 'admin' || profile?.role === 'owner';
 
   const [openSection, setOpenSection] = useState<SectionId | null>('app');
+
+  // ---- Safety reporting (visible to everyone) ----
+  const [reportOpen, setReportOpen] = useState(false);
 
   // ---- Church settings state ----
   const [churchImporting, setChurchImporting] = useState(false);
@@ -534,6 +538,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
         </div>
       )}
 
+      {/* ============ SAFETY & REPORTING (everyone) ============ */}
+      <SectionHeader id="safety" icon={<ShieldAlert className="w-6 h-6" />} title={ar ? 'السلامة والإبلاغ' : 'Safety & Reporting'} />
+      {openSection === 'safety' && (
+        <div className="space-y-4 pl-1">
+          {/* Report a concern — in-app form, never leaves the app */}
+          <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
+              <Flag className="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-serif font-bold text-base text-(--tx-head)">{ar ? 'الإبلاغ عن مشكلة' : 'Report a concern'}</p>
+              <p className="text-xs text-(--tx-soft) mt-0.5">{ar ? 'أبلغ عن محتوى أو سلوك يخالف معاييرنا — من داخل التطبيق' : 'Report content or behavior that violates our standards — right here in the app'}</p>
+            </div>
+            <button
+              onClick={() => setReportOpen(true)}
+              className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer shrink-0"
+            >
+              {ar ? 'إبلاغ' : 'Report'}
+            </button>
+          </div>
+
+          {/* Child Safety Standards — published standards page */}
+          <div className="flex items-center gap-4 p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
+            <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/15 flex items-center justify-center shrink-0">
+              <ShieldAlert className="w-6 h-6 text-(--ac-bright-tx)" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-serif font-bold text-base text-(--tx-head)">{ar ? 'معايير سلامة الأطفال' : 'Child Safety Standards'}</p>
+              <p className="text-xs text-(--tx-soft) mt-0.5">{ar ? 'عدم التسامح إطلاقاً مع إساءة استغلال الأطفال' : 'Zero tolerance for CSAM and child exploitation'}</p>
+            </div>
+            <button
+              onClick={() => window.open('https://orthodoxconnect.live/child-safety', '_blank', 'noopener,noreferrer')}
+              className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer shrink-0"
+            >
+              {ar ? 'عرض' : 'View'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ============ CHURCH SETTINGS (admin) ============ */}
       {isAdminOrOwner && (
         <>
@@ -749,6 +793,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
           )}
         </>
       )}
+
+      {/* Report a concern modal (Safety section, everyone) */}
+      <ReportContentModal
+        isOpen={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetType="general"
+        targetId="general"
+      />
     </div>
   );
 };

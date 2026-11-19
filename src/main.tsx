@@ -24,7 +24,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { hasError: bo
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: '#0f0c09', color: '#f5ebd9', fontFamily: 'Georgia, serif', textAlign: 'center' }}>
+        <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: '#0f0c09', color: '#f5ebd9', fontFamily: 'Georgia, serif', textAlign: 'center' }}>
           <div style={{ maxWidth: '420px' }}>
             <div style={{ fontSize: '2rem', color: '#c5a059' }}>☨</div>
             <p style={{ fontWeight: 'bold', margin: '0.75rem 0 0.25rem' }}>OrthodoxConnect hit a snag loading.</p>

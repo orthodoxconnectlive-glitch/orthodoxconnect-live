@@ -1031,7 +1031,7 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
 // 2026-10-31, so the native app uses Firebase Cloud Messaging directly:
 // FCM talks straight to the app even when it is closed, no browser SW.
 // Gated on env.FCM_SERVICE_ACCOUNT_JSON (a Firebase service-account JSON,
-// supplied via Secure Vault, never in the repo). Without it, this returns
+// set as a Runtime secret in the Cloudflare dashboard, never in the repo). Without it, this returns
 // false and message sending is unaffected (Web Push still runs first).
 // FCM HTTP v1: OAuth2 JWT (RS256) -> access token -> messages:send.
 async function sendFcmPush(env: Env, fcmToken: string, payload: any): Promise<boolean> {

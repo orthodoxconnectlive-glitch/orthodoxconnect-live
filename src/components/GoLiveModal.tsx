@@ -607,7 +607,16 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
     } catch (err: any) {
       closePeerConnection(pc);
       console.warn('[GoLive] Cloudflare start failed:', err);
-      setCfError(err?.message || (language === 'ar' ? 'تعذر بدء البث. حاول مرة أخرى.' : 'Could not start the broadcast. Please try again.'));
+      const raw = String(err?.message || '');
+      const code = String((err as any)?.code || '');
+      const notConfigured = code === 'CF_NOT_CONFIGURED' || raw === 'CF_NOT_CONFIGURED';
+      setCfError(
+        notConfigured
+          ? (language === 'ar'
+            ? 'البث بضغطة واحدة غير مفعّل بعد — يحتاج مفتاح Cloudflare Stream. يمكنك البث الآن عبر يوتيوب بالأسفل.'
+            : 'One-tap live is not set up yet — it needs the Cloudflare Stream token. You can go live now via YouTube below.')
+          : raw || (language === 'ar' ? 'تعذر بدء البث. حاول مرة أخرى.' : 'Could not start the broadcast. Please try again.')
+      );
     } finally {
       setIsStartingCf(false);
     }

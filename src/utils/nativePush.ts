@@ -72,6 +72,16 @@ const diag: PushDiagnostics = {
 };
 
 let listenersAttached = false;
+// Account switches (Hany, 2026-11-20): the 'registration' listener is
+// attached once and used to close over the userId from the FIRST attach,
+// so after signing out of one account and into another the token kept
+// posting under the OLD account (and the server 403s it, since the
+// session now belongs to the new account). The listener reads the CURRENT
+// account at fire time, and the last token is kept in memory so a switch
+// re-posts it even if the native side does not re-emit 'registration'.
+let currentPushUserId = '';
+let lastPushToken = '';
+let lastPostedPushUserId = '';
 let pushModule: any = null;
 
 /** Race a promise against a timer: a native-bridge call must never hang the UI forever. */
@@ -132,13 +142,19 @@ async function postFcmToken(userId: string, token: string, platform: string): Pr
  * losing the token with no retry (v9 fix — v8 never registered a token).
  * Attached once: re-registering must not stack duplicate listeners. */
 function attachPushListeners(userId: string, PushNotifications: any): void {
+  // Always refresh the current account — the listener is attached once
+  // and must post under whoever is signed in NOW, not the first account.
+  if (userId) currentPushUserId = userId;
   if (listenersAttached) return;
   listenersAttached = true;
   PushNotifications.addListener('registration', async (reg: any) => {
     if (reg && reg.value) {
       diag.tokenReceived = true;
       diag.tokenReceivedAt = Date.now();
-      await postFcmToken(userId, reg.value, 'android');
+      lastPushToken = reg.value;
+      if (await postFcmToken(currentPushUserId, reg.value, 'android')) {
+        lastPostedPushUserId = currentPushUserId;
+      }
     }
   });
   PushNotifications.addListener('registrationError', (err: any) => {
@@ -237,6 +253,14 @@ export async function registerNativePush(userId: string): Promise<boolean> {
       return false;
     }
     attachPushListeners(userId, PushNotifications);
+    // Account changed since the token was last posted (and the native side
+    // may not re-emit 'registration' for an already-registered token):
+    // re-post the known token under the new account right away.
+    if (lastPushToken && lastPostedPushUserId && lastPostedPushUserId !== userId) {
+      postFcmToken(userId, lastPushToken, 'android').then((ok) => {
+        if (ok) lastPostedPushUserId = userId;
+      });
+    }
     try {
       await withTimeout(PushNotifications.register(), 8000);
     } catch (e) {
@@ -299,10 +323,15 @@ async function refreshPushDiagnosticsInner(userId: string): Promise<PushDiagnost
       diag.stage = 'permission check did not answer';
       diag.lastError = 'Permission check did not answer in 8s';
     }
-    if (diag.permission === 'granted' && !diag.tokenReceived) {
+    if (diag.permission === 'granted' && (!diag.tokenReceived || lastPostedPushUserId !== userId)) {
       diag.stage = 'registering';
       try {
         attachPushListeners(userId, PushNotifications);
+        // Account changed since the token was posted: re-post the known
+        // token under the new account (the native side may not re-emit).
+        if (lastPushToken && lastPostedPushUserId && lastPostedPushUserId !== userId) {
+          if (await postFcmToken(userId, lastPushToken, 'android')) lastPostedPushUserId = userId;
+        }
         await withTimeout(PushNotifications.register(), 8000);
         diag.stage = 'waiting for token';
         const startedAt = Date.now();

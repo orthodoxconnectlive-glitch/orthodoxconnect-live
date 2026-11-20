@@ -4221,48 +4221,51 @@ export default {
           // Chat push (Hany 2026-09-21): a chat message used to be saved but never
           // pushed, so the receiver's phone stayed silent with the app closed.
           // Wake their subscribed devices with a "new message" notification.
+          // ROOT CAUSE (2026-11-20): the FCM send sat INSIDE the Web Push try
+          // block, after a SELECT from push_subscriptions — a table that only
+          // exists in the giant multi-statement db.exec(), which fails in
+          // production ("incomplete input"), so the table was never created
+          // and the SELECT threw "no such table" on EVERY message send,
+          // jumping to the outer catch before FCM ever ran. The 201 still
+          // returned, so nothing looked broken. FCM now runs in its OWN
+          // block, independent of Web Push, and the table self-creates.
           if (env.DB && receiverId) {
+            const strippedReceiver = String(receiverId).replace(/^auth-/, '');
+            const preview = content
+              ? String(content).slice(0, 120)
+              : imageUrl ? '📷 Sent a photo' : videoUrl ? '🎬 Sent a video' : audioUrl ? '🎤 Sent a voice message' : 'Sent you a message';
+            const pushPayload = {
+              type: 'message',
+              title: `💬 ${senderName || 'New message'}`,
+              body: preview,
+              icon: 'https://orthodoxconnect.live/launchericon-512x512.png',
+              data: { url: '/', notifType: 'message', senderId },
+            };
+            // Web Push: independent try/catch — a broken web path must never block FCM.
             try {
-              // Match subscriptions on both raw and auth--stripped user ID formats
-              const strippedReceiver = String(receiverId).replace(/^auth-/, '');
+              await env.DB.prepare(`CREATE TABLE IF NOT EXISTS push_subscriptions ( user_id TEXT, endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, created_at TEXT DEFAULT (datetime('now')) )`).run();
               const { results } = await env.DB.prepare(
                 'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ? OR user_id = ?'
               ).bind(receiverId, strippedReceiver).all();
               const subs = results || [];
-              // v8 (2026-11-19): run this push block even with no Web Push
-              // subscription — native FCM must fire on its own. Before, the
-              // FCM send sat inside `subs.length > 0`, so a user with no web
-              // subscription never got an FCM push at all.
-              {
-                const preview = content
-                  ? String(content).slice(0, 120)
-                  : imageUrl ? '📷 Sent a photo' : videoUrl ? '🎬 Sent a video' : audioUrl ? '🎤 Sent a voice message' : 'Sent you a message';
-                const pushPayload = {
-                  type: 'message',
-                  title: `💬 ${senderName || 'New message'}`,
-                  body: preview,
-                  icon: 'https://orthodoxconnect.live/launchericon-512x512.png',
-                  data: { url: '/', notifType: 'message', senderId },
-                };
-                const seen = new Set<string>();
-                for (const s of subs as any[]) {
-                  if (s && s.endpoint && s.p256dh && s.auth && !seen.has(s.endpoint)) {
-                    seen.add(s.endpoint);
-                    await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
-                  }
+              const seen = new Set<string>();
+              for (const s of subs as any[]) {
+                if (s && s.endpoint && s.p256dh && s.auth && !seen.has(s.endpoint)) {
+                  seen.add(s.endpoint);
+                  await sendWebPush(env, { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth }, pushPayload);
                 }
-                // Native FCM (2026-11-01, restored 2026-11-15): same message, straight to the
-                // native app even when closed. Isolated try/catch — an FCM
-                // failure must never break the Web Push path above, and
-                // sendFcmPush itself no-ops without a service account.
-                try {
-                  const fcmRows: any = await env.DB.prepare('SELECT token FROM fcm_tokens WHERE user_id = ? OR user_id = ?').bind(receiverId, strippedReceiver).all().catch(() => ({ results: [] }));
-                  for (const r of ((fcmRows && fcmRows.results) || []) as any[]) {
-                    if (r && r.token) await sendFcmPush(env, String(r.token), pushPayload, receiverId);
-                  }
-                } catch (e) { console.warn('[push] FCM message push failed:', (e as any)?.message || e); }
               }
-            } catch (e) { console.warn('[push] chat message push failed:', (e as any)?.message || e); }
+            } catch (e) { console.warn('[push] chat message web push failed:', (e as any)?.message || e); }
+            // Native FCM (2026-11-01, restored 2026-11-15): same message, straight to the
+            // native app even when closed. Fully independent of Web Push above.
+            try {
+              const fcmRows: any = await env.DB.prepare('SELECT token FROM fcm_tokens WHERE user_id = ? OR user_id = ?').bind(receiverId, strippedReceiver).all().catch(() => ({ results: [] }));
+              const fcmList = ((fcmRows && fcmRows.results) || []) as any[];
+              if (fcmList.length === 0) { await logFcmSend(env, receiverId, 'no-tokens', '0 tokens in fcm_tokens'); }
+              for (const r of fcmList) {
+                if (r && r.token) await sendFcmPush(env, String(r.token), pushPayload, receiverId);
+              }
+            } catch (e) { console.warn('[push] FCM message push failed:', (e as any)?.message || e); await logFcmSend(env, receiverId, 'error', String((e as any)?.message || e).slice(0, 200)); }
           }
 
           return jsonResponse({
@@ -8139,6 +8142,10 @@ export default {
           if (!userId || !endpoint || !p256dh || !auth) {
             return jsonResponse({ success: false, error: 'user_id, endpoint, p256dh and auth are required' }, 400);
           }
+          // Self-create: push_subscriptions only exists in the giant
+          // multi-statement db.exec(), which fails in production, so the
+          // table was never created and every subscribe INSERT failed.
+          await env.DB.prepare(`CREATE TABLE IF NOT EXISTS push_subscriptions ( user_id TEXT, endpoint TEXT PRIMARY KEY, p256dh TEXT, auth TEXT, created_at TEXT DEFAULT (datetime('now')) )`).run();
           await env.DB.prepare(
             'INSERT OR REPLACE INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?)'
           ).bind(userId, endpoint, p256dh, auth, new Date().toISOString()).run();

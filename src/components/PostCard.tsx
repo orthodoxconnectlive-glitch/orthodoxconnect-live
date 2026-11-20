@@ -35,6 +35,9 @@ import { BroadcastCard } from './BroadcastCard';
 import { AudioPlayer } from './AudioPlayer';
 import { useTheme } from '../context/ThemeContext';
 import { BUNNY_LIBRARY_ID, BUNNY_CDN_HOSTNAME } from '../utils/posts';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { isNativeApp } from '../utils/nativePush';
 
 interface PostCardProps {
   post: Post;
@@ -1358,6 +1361,31 @@ export const PostCard: React.FC<PostCardProps> = ({
             const shareUrl = `https://orthodoxconnect.live/post/${post.id}`;
             const shareText = post.content ? String(post.content).slice(0, 280) : 'OrthodoxConnect';
             const fullShareText = `${shareText}\n\n${shareUrl}`;
+            // Native app: navigator.share does not exist in the Android WebView,
+            // so the web share sheet never opens and the button only copies the
+            // link. Use the native Share plugin instead (Hany, 2026-11-19).
+            if (isNativeApp()) {
+              try {
+                const img = await buildPostShareImage(post);
+                if (img) {
+                  const base64 = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve((reader.result as string).split(',')[1]);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(img);
+                  });
+                  const saved = await Filesystem.writeFile({ path: 'orthodoxconnect-post.png', data: base64, directory: Directory.Cache });
+                  await Share.share({ title: 'OrthodoxConnect', text: fullShareText, files: [saved.uri], dialogTitle: 'Share' });
+                } else {
+                  await Share.share({ title: 'OrthodoxConnect', text: fullShareText, url: shareUrl, dialogTitle: 'Share' });
+                }
+              } catch {
+                // Fall back to a plain text share; a failed share (e.g. user
+                // dismissed the sheet) is not an error worth surfacing.
+                try { await Share.share({ title: 'OrthodoxConnect', text: fullShareText, url: shareUrl, dialogTitle: 'Share' }); } catch { /* ignore */ }
+              }
+              return;
+            }
             if (navigator.share) {
               // Share the verse as a picture card: Threads strips shared text
               // but always shows an attached image, so the words can't be lost.

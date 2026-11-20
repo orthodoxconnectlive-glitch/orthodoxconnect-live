@@ -40,6 +40,7 @@ import type { SearchProfile } from './GlobalSearch';
 import type { UserProfileData } from '../views/ProfileView';
 import { loadNotifications, markNotificationAsRead, markAllNotificationsAsRead, markNotificationIdsAsRead } from '../utils/notifications';
 import { getTodayLiturgicalDay } from '../data/liturgical';
+import { isNativeApp } from '../utils/nativePush';
 
 interface NavbarProps {
   onOpenInvite: () => void;
@@ -60,6 +61,10 @@ const KidsTabIcon: React.FC<{ className?: string }> = ({ className }) => (
   </span>
 );
 
+// The web top bar shows the St George icon (the page account's avatar).
+// On the native app show the same icon, so app and web look identical (Hany, 2026-11-19).
+const NATIVE_TOP_AVATAR = 'https://orthodoxconnect.live/profile-avatar/9e63fd72-f7c1-4748-b463-1137b469c7f5';
+
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenInvite,
   onOpenEditProfile,
@@ -69,6 +74,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenChurch,
 }) => {
   const { profile, signOut, openAuthModal } = useAuth();
+  const topAvatarUrl = isNativeApp() ? NATIVE_TOP_AVATAR : profile?.avatar_url;
   const { theme, setTheme, language, setLanguage, t } = useTheme();
 
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
@@ -223,9 +229,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="w-11 h-11 rounded-full bg-(--ac-gold) dark:bg-(--ac-bright) p-0.5 shadow-md flex items-center justify-center shrink-0 cursor-pointer"
                 title={t('profile')}
               >
-                {profile?.avatar_url ? (
+                {topAvatarUrl ? (
                   <img
-                    src={profile.avatar_url}
+                    src={topAvatarUrl}
                     alt={profile.full_name || 'Profile'}
                     className="w-full h-full rounded-full object-cover"
                   />

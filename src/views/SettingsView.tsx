@@ -647,6 +647,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
                       <span className="font-medium text-red-600 dark:text-red-400 text-right break-words">{pushDiag.lastError}</span>
                     </div>
                   )}
+                  {pushDiag && (
+                    <div className="flex items-start justify-between gap-3 pt-1">
+                      <span className="text-(--tx-soft) shrink-0">{ar ? 'آخر خطوة' : 'Last step'}</span>
+                      <span className="font-medium text-(--tx-soft) text-right break-words">{pushDiag.stage}</span>
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={async () => {

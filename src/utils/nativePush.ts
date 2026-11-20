@@ -50,6 +50,8 @@ export interface PushDiagnostics {
   serverRegistered: boolean | null;
   serverTokenCount: number | null;
   serverCheckedAt: number | null;
+  /** Which step the last check reached — the next screenshot names the stuck step. */
+  stage: string;
 }
 
 const diag: PushDiagnostics = {
@@ -63,6 +65,7 @@ const diag: PushDiagnostics = {
   serverRegistered: null,
   serverTokenCount: null,
   serverCheckedAt: null,
+  stage: 'not checked yet',
 };
 
 let listenersAttached = false;
@@ -113,6 +116,36 @@ async function postFcmToken(userId: string, token: string, platform: string): Pr
   }
 }
 
+/** Attach ALL listeners BEFORE register(): on Android the 'registration'
+ * event can fire before a listener attached after register() exists,
+ * losing the token with no retry (v9 fix — v8 never registered a token).
+ * Attached once: re-registering must not stack duplicate listeners. */
+function attachPushListeners(userId: string, PushNotifications: any): void {
+  if (listenersAttached) return;
+  listenersAttached = true;
+  PushNotifications.addListener('registration', async (reg: any) => {
+    if (reg && reg.value) {
+      diag.tokenReceived = true;
+      diag.tokenReceivedAt = Date.now();
+      await postFcmToken(userId, reg.value, 'android');
+    }
+  });
+  PushNotifications.addListener('registrationError', (err: any) => {
+    const msg = (err && (err.error || err.message)) || 'Registration failed';
+    diag.lastError = String(msg).slice(0, 200);
+    console.warn('[native-push] registration error:', err);
+  });
+  // Foreground: the app is open, in-app notifications already work good —
+  // do nothing here, the existing in-app system shows the message.
+  PushNotifications.addListener('pushNotificationReceived', () => {});
+  // Tapped (app closed or background): open the message screen / home.
+  PushNotifications.addListener('pushNotificationActionPerformed', (action: any) => {
+    try {
+      const url = (action && action.notification && action.notification.data && action.notification.data.url) || '/';
+      window.location.href = url;
+    } catch (e) {}
+  });
+}
 /** Current diagnostics (a copy). Never includes the token value itself. */
 export function getPushDiagnostics(): PushDiagnostics {
   return { ...diag, isNative: isNativeApp() };
@@ -191,35 +224,7 @@ export async function registerNativePush(userId: string): Promise<boolean> {
       console.warn('[native-push] notification permission not granted');
       return false;
     }
-    // Attach ALL listeners BEFORE register(): on Android the 'registration'
-    // event can fire before a listener attached after register() exists,
-    // losing the token with no retry (v9 fix — v8 never registered a token).
-    // Attached once: re-registering must not stack duplicate listeners.
-    if (!listenersAttached) {
-      listenersAttached = true;
-      PushNotifications.addListener('registration', async (reg: any) => {
-        if (reg && reg.value) {
-          diag.tokenReceived = true;
-          diag.tokenReceivedAt = Date.now();
-          await postFcmToken(userId, reg.value, 'android');
-        }
-      });
-      PushNotifications.addListener('registrationError', (err: any) => {
-        const msg = (err && (err.error || err.message)) || 'Registration failed';
-        diag.lastError = String(msg).slice(0, 200);
-        console.warn('[native-push] registration error:', err);
-      });
-      // Foreground: the app is open, in-app notifications already work good —
-      // do nothing here, the existing in-app system shows the message.
-      PushNotifications.addListener('pushNotificationReceived', () => {});
-      // Tapped (app closed or background): open the message screen / home.
-      PushNotifications.addListener('pushNotificationActionPerformed', (action: any) => {
-        try {
-          const url = (action && action.notification && action.notification.data && action.notification.data.url) || '/';
-          window.location.href = url;
-        } catch (e) {}
-      });
-    }
+    attachPushListeners(userId, PushNotifications);
     try {
       await withTimeout(PushNotifications.register(), 8000);
     } catch (e) {
@@ -257,16 +262,58 @@ export async function refreshPushDiagnostics(userId: string): Promise<PushDiagno
   });
 }
 
+/**
+ * "Check again" from Settings → Notifications. Staged, so the next
+ * screenshot names the exact stuck step instead of a generic timeout:
+ * each stage has its own 8s limit, records where it stopped, and the
+ * server check ALWAYS runs last. checkPermissions (read-only, no dialog)
+ * is used here instead of requestPermissions — the login flow already
+ * asks for permission; this check only asks whether the plugin answers.
+ */
 async function refreshPushDiagnosticsInner(userId: string): Promise<PushDiagnostics> {
-  const startedAt = Date.now();
-  await registerNativePush(userId);
-  // Wait for the async token event (already true if a previous login got one).
-  while (!diag.tokenReceived && Date.now() - startedAt < 12000) {
-    await new Promise((r) => setTimeout(r, 500));
+  diag.stage = 'loading plugin';
+  const PushNotifications = await loadPushModule();
+  if (!PushNotifications) {
+    diag.stage = 'plugin missing';
+    diag.lastError = diag.lastError || 'Push plugin missing in this app version';
+  } else {
+    diag.stage = 'checking permission';
+    try {
+      const perm = await withTimeout(PushNotifications.checkPermissions(), 8000);
+      if (perm && typeof perm.receive === 'string') {
+        diag.permission = perm.receive === 'granted' ? 'granted' : perm.receive === 'denied' ? 'denied' : 'prompt';
+      }
+    } catch (e) {
+      diag.stage = 'permission check did not answer';
+      diag.lastError = 'Permission check did not answer in 8s';
+    }
+    if (diag.permission === 'granted' && !diag.tokenReceived) {
+      diag.stage = 'registering';
+      try {
+        attachPushListeners(userId, PushNotifications);
+        await withTimeout(PushNotifications.register(), 8000);
+        diag.stage = 'waiting for token';
+        const startedAt = Date.now();
+        while (!diag.tokenReceived && Date.now() - startedAt < 8000) {
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        if (!diag.tokenReceived) {
+          diag.stage = 'no token arrived';
+          diag.lastError = diag.lastError || 'No token arrived from the phone in 8s';
+        } else {
+          diag.stage = 'token received';
+        }
+      } catch (e) {
+        diag.stage = 'registration did not answer';
+        diag.lastError = diag.lastError || 'Registration did not answer in 8s';
+      }
+    } else if (diag.permission !== 'granted') {
+      diag.stage = 'permission not granted';
+      diag.lastError = diag.lastError || 'Notification permission not granted on this phone';
+    }
   }
-  if (!diag.tokenReceived) {
-    diag.lastError = diag.lastError || 'No token arrived from the phone in 12s';
-  }
+  diag.stage = 'asking server';
   await fetchPushServerStatus();
+  diag.stage = 'done';
   return getPushDiagnostics();
 }

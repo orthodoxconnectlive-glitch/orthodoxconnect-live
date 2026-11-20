@@ -8,6 +8,8 @@ android {
         applicationId "orthodoxconnect.live"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+        // v13 retry: cloud run 44749680644 failed on transient Maven
+        // resolution (kotlin-stdlib-jdk8 etc. not found); same build re-run.
         versionCode 13
         versionName "1.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

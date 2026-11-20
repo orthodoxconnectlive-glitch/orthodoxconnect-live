@@ -23,6 +23,14 @@ binding = "AI"
 [triggers]
 crons = ["0 12 * * *", "*/3 * * * *"]
 
+# Keep Worker logs on across deploys — the dashboard-only Logs toggle gets
+# reset to off by the next git-push deploy (proved 2026-11-19: the v9 deploy
+# switched logs off, so test 5 left no trail). Declaring it here makes it
+# survive deploys.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 # Public Google OAuth client ID for Sign in with Google (NOT a secret).
 # Hany creates this in Google Cloud Console (OAuth client ID, Web application)
 # and pastes the value here; the button stays hidden until it is set.

@@ -79,10 +79,18 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
-async function loadPushModule(): Promise<any | null> {
-  // Static import above: the plugin object is already in the bundle.
-  // (The old dynamic import() is gone — its chunk fetch hung on Hany's
-  // phone and stalled every check with no error. 2026-11-20.)
+/**
+ * The plugin object itself — SYNCHRONOUS on purpose, NEVER awaited.
+ * Found 2026-11-20 (the "loading plugin" screenshot): Capacitor's plugin
+ * proxy answers ANY property — including `.then` — with a method wrapper,
+ * so the proxy is a thenable. `await` on it (or on a promise resolving to
+ * it) calls proxy.then(resolve, reject), which fires a bridge call for a
+ * method called "then" that never answers — the await hangs FOREVER with
+ * no error. That one await froze every check AND the login-time
+ * registration, which is why the phone never registered a token at all.
+ * The proxy is already in the bundle (static import), so just take it.
+ */
+function loadPushModule(): any | null {
   if (pushModule) return pushModule;
   pushModule = (NativePushNotifications as any) || null;
   if (!pushModule) diag.lastError = 'Push plugin missing in this app version';
@@ -184,7 +192,7 @@ export async function loadPushDiagnostics(): Promise<PushDiagnostics> {
   diag.isNative = isNativeApp();
   if (!diag.isNative) return getPushDiagnostics();
   try {
-    const PushNotifications = await loadPushModule();
+    const PushNotifications = loadPushModule();
     if (PushNotifications && typeof PushNotifications.checkPermissions === 'function') {
       const perm = await withTimeout(PushNotifications.checkPermissions(), 8000).catch(() => null);
       if (perm && typeof perm.receive === 'string') {
@@ -208,7 +216,7 @@ export async function registerNativePush(userId: string): Promise<boolean> {
     if (!userId || !isNativeApp()) return false;
     if (typeof window === 'undefined') return false;
     diag.isNative = true;
-    const PushNotifications = await loadPushModule();
+    const PushNotifications = loadPushModule();
     if (!PushNotifications) return false;
     let perm: any;
     try {
@@ -272,7 +280,7 @@ export async function refreshPushDiagnostics(userId: string): Promise<PushDiagno
  */
 async function refreshPushDiagnosticsInner(userId: string): Promise<PushDiagnostics> {
   diag.stage = 'loading plugin';
-  const PushNotifications = await loadPushModule();
+  const PushNotifications = loadPushModule();
   if (!PushNotifications) {
     diag.stage = 'plugin missing';
     diag.lastError = diag.lastError || 'Push plugin missing in this app version';

@@ -22,6 +22,13 @@
  */
 
 import { API_BASE_URL, authHeader } from '../lib/api';
+// Static import (Hany, 2026-11-20): the plugin used to load via a dynamic
+// import(), which fetched a separate chunk — on Hany's phone that fetch
+// never settled, so every check hung in loadPushModule with no timeout
+// and no error, and the screen could only report a generic timeout.
+// The package is installed and bundled, so a static import puts the
+// tiny plugin stub in the entry bundle and the hanging chunk fetch is gone.
+import { PushNotifications as NativePushNotifications } from '@capacitor/push-notifications';
 
 export function isNativeApp(): boolean {
   try {
@@ -70,15 +77,13 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 async function loadPushModule(): Promise<any | null> {
+  // Static import above: the plugin object is already in the bundle.
+  // (The old dynamic import() is gone — its chunk fetch hung on Hany's
+  // phone and stalled every check with no error. 2026-11-20.)
   if (pushModule) return pushModule;
-  try {
-    const mod: any = await import('@capacitor/push-notifications');
-    pushModule = mod.PushNotifications || null;
-    return pushModule;
-  } catch (e) {
-    diag.lastError = 'Push plugin missing in this app version';
-    return null;
-  }
+  pushModule = (NativePushNotifications as any) || null;
+  if (!pushModule) diag.lastError = 'Push plugin missing in this app version';
+  return pushModule;
 }
 
 async function postFcmToken(userId: string, token: string, platform: string): Promise<boolean> {
@@ -180,8 +185,8 @@ export async function registerNativePush(userId: string): Promise<boolean> {
       console.warn('[native-push] requestPermissions timed out');
       return false;
     }
-    diag.permission = perm && perm.receive === 'granted' ? 'granted' : 'denied';
-    if (perm.receive !== 'granted') {
+    diag.permission = perm && perm.receive === 'granted' ? 'granted' : perm && perm.receive === 'denied' ? 'denied' : perm && perm.receive === 'prompt' ? 'prompt' : 'denied';
+    if (!perm || perm.receive !== 'granted') {
       diag.lastError = 'Notification permission not allowed on this phone';
       console.warn('[native-push] notification permission not granted');
       return false;

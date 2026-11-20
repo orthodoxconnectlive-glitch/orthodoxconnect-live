@@ -5,9 +5,10 @@ import './index.css';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { isNativeApp } from './utils/nativePush';
 
-// Match the status bar to the dark header in the native app (Hany, 2026-11-19).
+// The top bar is white, so the status bar needs dark icons (Style.Light);
+// Style.Dark draws white icons that vanish on the white bar (Hany, 2026-11-20).
 if (isNativeApp()) {
-  StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+  StatusBar.setStyle({ style: Style.Light }).catch(() => {});
 }
 
 // Render safety net: without this, ANY render error anywhere in the tree

@@ -568,12 +568,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
               <p className="font-serif font-bold text-base text-(--tx-head)">{ar ? 'معايير سلامة الأطفال' : 'Child Safety Standards'}</p>
               <p className="text-xs text-(--tx-soft) mt-0.5">{ar ? 'عدم التسامح إطلاقاً مع إساءة استغلال الأطفال' : 'Zero tolerance for CSAM and child exploitation'}</p>
             </div>
-            <button
-              onClick={() => window.open('https://orthodoxconnect.live/child-safety', '_blank', 'noopener,noreferrer')}
+            <a
+              href="https://orthodoxconnect.live/child-safety"
+              target="_blank"
+              rel="noopener noreferrer"
               className="px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer shrink-0"
             >
               {ar ? 'عرض' : 'View'}
-            </button>
+            </a>
           </div>
         </div>
       )}

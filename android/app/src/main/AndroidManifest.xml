@@ -23,6 +23,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- App Links: shared orthodoxconnect.live links open the app, not Chrome (Hany, 2026-11-19). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="orthodoxconnect.live" />
+                <data android:scheme="https" android:host="www.orthodoxconnect.live" />
+            </intent-filter>
+
         </activity>
 
         <provider
@@ -40,4 +49,10 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Calls, Go Live camera, voice notes and webcam need these (Hany, 2026-11-19):
+         without them Android instantly denies the runtime request and calls connect dead. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>

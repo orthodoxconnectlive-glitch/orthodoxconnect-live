@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Play, Radio, Video, Volume2, VolumeX, Maximize, AlertCircle, RefreshCw } from 'lucide-react';
 import { useMedia } from '../context/MediaContext';
 import { BunnyPlayer } from './BunnyPlayer';
+import { isNativeApp } from '../utils/nativePush';
 
 interface BroadcastCardProps {
   videoUrl: string;
@@ -30,6 +31,9 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
   const [hasStarted, setHasStarted] = useState<boolean>(false);
   const [isHovered, setIsHovered] = useState<boolean>(false);
   const [hasError, setHasError] = useState<boolean>(false);
+  // In the app, requestFullscreen does nothing (Capacitor hides the custom
+  // view immediately), so fullscreen is an in-app overlay instead.
+  const [nativeFullscreen, setNativeFullscreen] = useState<boolean>(false);
   const { pauseAllMedia, setActiveMediaId, isGlobalMuted, setIsGlobalMuted } = useMedia();
 
   const elementMediaId = mediaId || `broadcast-${videoUrl}`;
@@ -158,6 +162,10 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
 
   const handleToggleFullscreen = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isNativeApp()) {
+      setNativeFullscreen((v) => !v);
+      return;
+    }
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
       containerRef.current.requestFullscreen().catch((err) => {
@@ -191,7 +199,7 @@ export const BroadcastCard: React.FC<BroadcastCardProps> = ({
       id={elementMediaId}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`relative rounded-2xl overflow-hidden bg-black border-2 border-(--ln-gold)/40 shadow-xl group ${className}`}
+      className={`relative rounded-2xl overflow-hidden bg-black border-2 border-(--ln-gold)/40 shadow-xl group ${className} ${nativeFullscreen ? 'fixed inset-0 z-[100] rounded-none border-0' : ''}`}
     >
       {hasError ? (
         /* Graceful error fallback card */

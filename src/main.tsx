@@ -2,6 +2,13 @@ import { StrictMode, Component, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { isNativeApp } from './utils/nativePush';
+
+// Match the status bar to the dark header in the native app (Hany, 2026-11-19).
+if (isNativeApp()) {
+  StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+}
 
 // Render safety net: without this, ANY render error anywhere in the tree
 // kills the whole app into a blank white screen with no recovery and no

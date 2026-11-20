@@ -66,6 +66,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
   const [callState, setCallState] = useState<CallState | null>(null);
+  // Shown when the camera/mic cannot be opened, so a call never connects
+  // dead and silent (Hany, 2026-11-19).
+  const [callError, setCallError] = useState<string | null>(null);
   const activeCallRef = useRef<CallState | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -374,7 +377,16 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const initiateCall = (partner: CallPartnerInfo, type: 'audio' | 'video') => {
+  const initiateCall = async (partner: CallPartnerInfo, type: 'audio' | 'video') => {
+    // Open our camera/mic FIRST: if media is unavailable the call must not
+    // connect silently with nobody hearing or seeing anything.
+    const stream = await startLocalStream(type, 'user');
+    if (!stream) {
+      setCallError(
+        'Camera or microphone unavailable — please allow camera & microphone access for OrthodoxConnect and try again.\nالكاميرا أو الميكروفون غير متاحين — يرجى السماح بالوصول من إعدادات التطبيق ثم المحاولة مرة أخرى.'
+      );
+      return;
+    }
     const callId = 'call-' + Date.now();
     const newCall: CallState = {
       id: callId,
@@ -388,9 +400,6 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setCallState(newCall);
-
-    // Open our camera/mic right away so media is ready for WebRTC
-    startLocalStream(type, 'user');
 
     // Play outgoing ringback tone
     soundSynth.playOutgoingRing();
@@ -418,13 +427,21 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, NO_ANSWER_TIMEOUT_MS);
   };
 
-  const answerCall = () => {
+  const answerCall = async () => {
     if (!callState) return;
 
     soundSynth.stopIncomingRingtone();
 
-    // Open our camera/mic so we can answer with two-way media
-    startLocalStream(callState.type, 'user');
+    // Open our camera/mic so we can answer with two-way media. If media is
+    // unavailable, decline so the caller stops ringing and show why.
+    const stream = await startLocalStream(callState.type, 'user');
+    if (!stream) {
+      setCallError(
+        'Camera or microphone unavailable — please allow camera & microphone access for OrthodoxConnect and try again.\nالكاميرا أو الميكروفون غير متاحين — يرجى السماح بالوصول من إعدادات التطبيق ثم المحاولة مرة أخرى.'
+      );
+      declineCall();
+      return;
+    }
 
     // Broadcast ACCEPT_CALL
     callSignaling.sendSignal({
@@ -527,6 +544,20 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
           callState={callState}
           onEndCall={endCall}
         />
+      )}
+
+      {/* 3. Camera/mic unavailable — show the real reason, never a dead call. */}
+      {callError && (
+        <div className="fixed inset-x-4 top-4 z-[200] p-4 rounded-2xl bg-[#1c1611] border-2 border-amber-500 text-amber-200 shadow-2xl font-serif text-sm" style={{ whiteSpace: 'pre-line' }}>
+          <p>{callError}</p>
+          <button
+            type="button"
+            onClick={() => setCallError(null)}
+            className="mt-3 px-4 py-2 rounded-xl bg-amber-500 text-stone-950 font-bold text-xs cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
       )}
     </CallContext.Provider>
   );

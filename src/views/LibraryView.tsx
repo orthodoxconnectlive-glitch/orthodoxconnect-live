@@ -5,6 +5,7 @@ import { Search, BookOpen, Download, Plus, X, Upload, Link as LinkIcon, FileText
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch, API_BASE_URL } from '../lib/api';
+import { isNativeApp } from '../utils/nativePush';
 import {
   useReactions,
   useLongPress,
@@ -653,7 +654,9 @@ function BookReactButton({ book, profile, language }: { book: Book; profile: any
                 <a
                   href={bibleBooks[0].file_url}
                   onClick={() => recordBookRead(bibleBooks[0].id)}
-                  download
+                  {...(isNativeApp()
+                    ? { target: '_blank', rel: 'noopener noreferrer' }
+                    : { download: true })}
                   className="px-5 py-2.5 rounded-full border border-[#d4a24e]/60 text-[#e8d5ae] text-sm font-serif font-bold flex items-center gap-2 hover:bg-[#d4a24e]/10 transition-all"
                 >
                   <Download className="w-4 h-4" />

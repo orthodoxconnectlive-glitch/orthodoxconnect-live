@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { useAuth } from './AuthContext';
 import { callSignaling, CallSignalPayload } from '../utils/callSignaling';
 import { groupCallsApi } from '../lib/api';
+import { isNativeApp } from '../utils/nativePush';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 export interface GroupParticipant {
   userId: string;
@@ -457,15 +460,33 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) recordChunksRef.current.push(e.data);
       };
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const blob = new Blob(recordChunksRef.current, { type: mime.split(';')[0] });
         const ext = mime.includes('mp4') ? 'mp4' : 'webm';
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
         const d = new Date();
         const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+        const filename = `bible-study-${stamp}.${ext}`;
+        // The Android WebView has no DownloadListener, so the old a.click()
+        // download did nothing in the app — share the recording instead.
+        if (isNativeApp()) {
+          try {
+            const base64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve((reader.result as string).split(',')[1]);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            const saved = await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Cache });
+            await Share.share({ title: 'Bible Study Recording', text: filename, files: [saved.uri], dialogTitle: 'Save recording' });
+          } catch {
+            /* user dismissed the sheet */
+          }
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
         a.href = url;
-        a.download = `bible-study-${stamp}.${ext}`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);

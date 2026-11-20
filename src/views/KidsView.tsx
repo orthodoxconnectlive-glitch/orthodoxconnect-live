@@ -716,9 +716,11 @@ const [videos, setVideos] = useState<Post[]>([]);
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {books.map((b) => (
-              <button
+              <a
                 key={b.id}
-                onClick={() => window.open(b.file_url, '_blank', 'noopener')}
+                href={b.file_url}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="rounded-3xl overflow-hidden border-2 border-(--ln-gold) dark:border-[#8b6b4a] bg-(--bg-card) dark:bg-[#1c1611] shadow-md text-left rtl:text-right cursor-pointer"
               >
                 <div className="aspect-[3/4] bg-(--bg-soft) dark:bg-[#282019] flex items-center justify-center overflow-hidden">
@@ -741,7 +743,7 @@ const [videos, setVideos] = useState<Post[]>([]);
                     {ar ? b.author_ar || b.author_en : b.author_en || b.author_ar}
                   </p>
                 </div>
-              </button>
+              </a>
             ))}
           </div>
         )}

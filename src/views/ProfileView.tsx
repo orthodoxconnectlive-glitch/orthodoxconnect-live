@@ -11,6 +11,7 @@ import { ReportContentModal } from '../components/ReportContentModal';
 import { addNotification } from '../utils/notifications';
 import { getFollowingCount, isFollowingUser, toggleFollowUserServer } from '../utils/follows';
 import { testPushNotification, diagnosePush } from '../utils/pushClient';
+import { isNativeApp } from '../utils/nativePush';
 
 export interface UserProfileData {
   id?: string;
@@ -337,6 +338,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <LogOut className="w-4 h-4" />
                 <span>Logout</span>
               </button>
+              {/* Web Push test buttons — hidden in the app: they test the old
+                  Web Push path, which does not exist in the WebView. */}
+              {!isNativeApp() && (
+              <>
               <button
                 onClick={async () => {
                   setPushTesting(true);
@@ -379,6 +384,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </button>
               {diagMsg && (
                 <div className="text-xs font-serif mt-1 text-(--tx-strong) dark:text-[#f5ebd9]" style={{ whiteSpace: 'pre-line' }}>{diagMsg}</div>
+              )}
+              </>
               )}
             </div>
           ) : (            <div className="flex items-center gap-3 shrink-0">

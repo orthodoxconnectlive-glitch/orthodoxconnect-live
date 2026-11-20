@@ -7,6 +7,7 @@ import { GroupCallProvider } from './context/GroupCallContext';
 import { GlobalNotificationToast } from './components/GlobalNotificationToast';
 import { Navbar } from './components/Navbar';
 import { NotificationPrompt } from './components/NotificationPrompt';
+import { isNativeApp } from './utils/nativePush';
 // NEW: notification auto-refresh (adjust path if your service lives elsewhere)
 import { loadNotifications, markNotificationAsRead } from './utils/notifications';
 import { syncFollowsFromServer } from './utils/follows';
@@ -584,11 +585,12 @@ function AppContent() {
         onOpenChurch={handleOpenChurch}
       />
 
-      {/* Notification enable prompt */}
-      <NotificationPrompt />
+      {/* Notification enable prompt — web only: in the app there is no Web
+          Push subscription to enable, so the banner can never work. */}
+      {!isNativeApp() && <NotificationPrompt />}
 
       {/* Main Container Layout */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         {currentView === 'feed' ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left Sidebar */}

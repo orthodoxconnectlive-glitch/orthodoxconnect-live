@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { isNativeApp } from '../utils/nativePush';
 import {
   Play,
   Pause,
@@ -174,6 +175,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({
   // poster + spinner stay on top, so the user never stares at a black frame
   // while YouTube/Bunny warms up.
   const [iframeReady, setIframeReady] = useState<boolean>(false);
+  // In the app, requestFullscreen does nothing (Capacitor hides the custom
+  // view immediately), so fullscreen is an in-app overlay instead.
+  const [nativeFullscreen, setNativeFullscreen] = useState<boolean>(false);
   // Warm-up: the next card's player loads hidden + muted so a swipe does not
   // start from a cold iframe. The next player always stays muted; only the
   // active player follows the global mute setting.
@@ -243,6 +247,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({
 
   const handleToggleFullscreen = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isNativeApp()) {
+      setNativeFullscreen((v) => !v);
+      return;
+    }
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
       containerRef.current.requestFullscreen().catch((err) => {
@@ -311,7 +319,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({
       id={`orthodox-reel-${video.id}`}
       data-video-id={video.id}
       onClick={handleScreenClick}
-      className="w-full h-full relative overflow-hidden bg-black select-none flex items-center justify-center snap-start snap-always"
+      className={`w-full h-full relative overflow-hidden bg-black select-none flex items-center justify-center snap-start snap-always ${nativeFullscreen ? 'fixed inset-0 z-[100]' : ''}`}
     >
       {/* Fallback Ambient Background: Blurred backdrop (active/next only, so
           the other 48 cards do not compete with the playing video for

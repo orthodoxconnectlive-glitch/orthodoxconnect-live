@@ -9,6 +9,7 @@ import { closePeerConnection } from '../lib/whip';
 import { uploadVideoToBunnyStream, BUNNY_LIBRARY_ID } from '../utils/storage';
 import { savePost } from '../utils/posts';
 import { useTheme } from '../context/ThemeContext';
+import { shareContent } from '../utils/share';
 import { useAuth } from '../context/AuthContext';
 
 interface LiveStreamItem {
@@ -842,13 +843,13 @@ export const LiveBroadcastView: React.FC<LiveBroadcastViewProps> = ({ focusStrea
     showToast(t('candleLitNotice'));
   };
 
-  const handleShareStream = () => {
+  const handleShareStream = async () => {
     const shareUrl = `https://orthodoxconnect.live/live/${encodeURIComponent(activeStreamId)}`;
     const shareText = language === 'ar' ? 'شاهد البث المباشر على أورثوذكس كونكت' : 'Watch this live broadcast on OrthodoxConnect';
-    if (navigator.share) {
-      navigator.share({ title: 'OrthodoxConnect Live', text: shareText, url: shareUrl }).catch(() => {});
-    } else if (navigator.clipboard) {
-      navigator.clipboard.writeText(shareUrl);
+    // One share path for web + native (Hany, 2026-11-19): the Android WebView
+    // has no navigator.share, so the app used to only copy the link.
+    const result = await shareContent({ title: 'OrthodoxConnect Live', text: shareText, url: shareUrl });
+    if (result === 'copied') {
       showToast(language === 'ar' ? 'تم نسخ رابط البث المباشر!' : 'Live stream link copied to clipboard!');
     }
   };

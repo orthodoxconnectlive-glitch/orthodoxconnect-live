@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { liveStreamsApi } from '../lib/api';
 import { whipPublish, closePeerConnection } from '../lib/whip';
 import { addNotification } from '../utils/notifications';
+import { isNativeApp } from '../utils/nativePush';
 
 export interface StreamData {
   title: string;
@@ -185,8 +186,12 @@ export const GoLiveModal: React.FC<GoLiveModalProps> = ({
       setCameraError(
         err?.message ||
           (language === 'ar'
-            ? 'تم رفض إذن الوصول إلى الكاميرا أو الميكروفون. يرجى السماح بالوصول في إعدادات المتصفح.'
-            : 'Camera or microphone permission was denied. Please allow camera access in your browser.')
+            ? isNativeApp()
+              ? 'تم رفض إذن الوصول إلى الكاميرا أو الميكروفون. يرجى السماح بالوصول من إعدادات التطبيق على هاتفك.'
+              : 'تم رفض إذن الوصول إلى الكاميرا أو الميكروفون. يرجى السماح بالوصول في إعدادات المتصفح.'
+            : isNativeApp()
+              ? 'Camera or microphone permission was denied. Please allow camera access in your phone’s app settings.'
+              : 'Camera or microphone permission was denied. Please allow camera access in your browser.')
       );
     }
   };

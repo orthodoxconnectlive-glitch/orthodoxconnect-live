@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { loadCopticReaderLibrary } from '../data/copticReader';
+import { shareContent } from '../utils/share';
 import { useSpeech, detectSpeechLang, type SpeechItem } from '../hooks/useSpeech';
 import type {
   CRBlock,
@@ -316,29 +317,10 @@ export const CopticReader: React.FC<{ onClose: () => void; initialBookId?: strin
   };
 
   const doShare = async (title: string, text: string) => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text });
-      } catch {
-        /* user dismissed the share sheet */
-      }
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand('copy');
-      } catch {
-        /* noop */
-      }
-      document.body.removeChild(ta);
-    }
-    showToast(lang === 'ar' ? 'تم نسخ النص' : 'Text copied');
+    // One share path for web + native (Hany, 2026-11-19): the Android WebView
+    // has no navigator.share, so the app used to only copy the text.
+    const result = await shareContent({ title, text });
+    if (result === 'copied') showToast(lang === 'ar' ? 'تم نسخ النص' : 'Text copied');
   };
 
   const blockShareLines = (b: CRBlock): string[] => {

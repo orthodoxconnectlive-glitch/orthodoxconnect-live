@@ -4,6 +4,7 @@ import { X, Copy, Check, Share2, MessageCircle, QrCode } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { authHeader, API_BASE_URL } from '../lib/api';
+import { shareContent } from '../utils/share';
 
 interface InviteModalProps {
   isOpen: boolean;
@@ -44,38 +45,27 @@ export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => 
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleWhatsApp = () => {
-    const text = encodeURIComponent(
-      language === 'ar'
-        ? `المسيح في وسطنا! انضم إليّ على شبكة أورثوذكس كونكت للتواصل الأرثوذكسي: ${referralUrl}`
-        : `Christ is in our Midst! Join me on OrthodoxConnect—the fellowship network for Orthodox Christians: ${referralUrl}`
-    );
-    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
-  };
-
-  const handleSMS = () => {
-    const text = encodeURIComponent(
-      language === 'ar'
-        ? `انضم إليّ على شبكة أورثوذكس كونكت: ${referralUrl}`
-        : `Join me on OrthodoxConnect fellowship network: ${referralUrl}`
-    );
-    window.open(`sms:?body=${text}`, '_blank');
-  };
+  // WhatsApp / SMS open in the system browser / messaging app: window.open
+  // does nothing in the Android WebView (Capacitor implements no
+  // onCreateWindow), so these are plain links, not buttons (Hany, 2026-11-19).
+  const whatsappText = encodeURIComponent(
+    language === 'ar'
+      ? `المسيح في وسطنا! انضم إليّ على شبكة أورثوذكس كونكت للتواصل الأرثوذكسي: ${referralUrl}`
+      : `Christ is in our Midst! Join me on OrthodoxConnect—the fellowship network for Orthodox Christians: ${referralUrl}`
+  );
+  const smsText = encodeURIComponent(
+    language === 'ar'
+      ? `انضم إليّ على شبكة أورثوذكس كونكت: ${referralUrl}`
+      : `Join me on OrthodoxConnect fellowship network: ${referralUrl}`
+  );
 
   const handleNativeShare = async () => {
     const text =
       language === 'ar'
         ? `🤝 سلام الرب يكون معنا! أدعوك للانضمام إلى أرثوذكس كونكت — بيت واحد لكل حياتك الروحية: قداسات بث مباشر، ترانيم وعظات، ٢٤٤ كتاب أرثوذكسي، دليل الكنائس، والتقويم الكنسي — مجاني للأبد! ${referralUrl}`
         : `🤝 May the Lord's peace be with us! I invite you to join OrthodoxConnect — one home for your whole Orthodox life: live liturgies, hymns & sermons, 244 Orthodox books, church directory, and church calendar — free forever! ${referralUrl}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'OrthodoxConnect', text, url: referralUrl });
-      } catch (e) {
-        // User cancelled the share sheet — nothing to do.
-      }
-    } else {
-      handleCopy();
-    }
+    const result = await shareContent({ title: 'OrthodoxConnect', text, url: referralUrl });
+    if (result === 'copied') handleCopy();
   };
 
   return (
@@ -138,21 +128,23 @@ export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose }) => 
           </button>
 
           <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={handleWhatsApp}
+            <a
+              href={`https://api.whatsapp.com/send?text=${whatsappText}`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
             >
               <MessageCircle className="w-4 h-4" />
               <span>واتساب</span>
-            </button>
+            </a>
 
-            <button
-              onClick={handleSMS}
+            <a
+              href={`sms:?body=${smsText}`}
               className="py-2.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 border border-amber-500/30 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
               <Share2 className="w-4 h-4" />
               <span>{language === 'ar' ? 'رسالة نصية / مشاركة' : 'SMS / Share'}</span>
-            </button>
+            </a>
           </div>
         </div>
       </div>

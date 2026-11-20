@@ -9,7 +9,7 @@
 // push. Returned by /api/fcm-tokens/status so anyone can tell WHICH worker
 // build is actually live — deploys lag, and three "fixes" were misjudged
 // because a test ran on the previous build. Never guess the deploy again.
-const WORKER_BUILD = 'fcm-log-v2';
+const WORKER_BUILD = 'fcm-log-v3';
 
 import {
   getTodayCommemoration,
@@ -4235,6 +4235,7 @@ export default {
           // jumping to the outer catch before FCM ever ran. The 201 still
           // returned, so nothing looked broken. FCM now runs in its OWN
           // block, independent of Web Push, and the table self-creates.
+          let fcmPushOutcome: any = null;
           if (env.DB && receiverId) {
             const strippedReceiver = String(receiverId).replace(/^auth-/, '');
             const preview = content
@@ -4264,19 +4265,29 @@ export default {
             } catch (e) { console.warn('[push] chat message web push failed:', (e as any)?.message || e); }
             // Native FCM (2026-11-01, restored 2026-11-15): same message, straight to the
             // native app even when closed. Fully independent of Web Push above.
+            // The push outcome is returned in the 201 response (Hany, 2026-11-20)
+            // so the SENDER can see what the server did — no phone needed.
+            const fcmPush: any = { attempted: 0, sent: 0, failed: 0, detail: '' };
             try {
               const fcmRows: any = await env.DB.prepare('SELECT token FROM fcm_tokens WHERE user_id = ? OR user_id = ?').bind(receiverId, strippedReceiver).all().catch(() => ({ results: [] }));
               const fcmList = ((fcmRows && fcmRows.results) || []) as any[];
-              if (fcmList.length === 0) { await logFcmSend(env, receiverId, 'no-tokens', '0 tokens in fcm_tokens'); }
+              fcmPush.attempted = fcmList.length;
+              if (fcmList.length === 0) { fcmPush.detail = 'no-tokens'; await logFcmSend(env, receiverId, 'no-tokens', '0 tokens in fcm_tokens'); }
               for (const r of fcmList) {
-                if (r && r.token) await sendFcmPush(env, String(r.token), pushPayload, receiverId);
+                if (r && r.token) {
+                  const ok = await sendFcmPush(env, String(r.token), pushPayload, receiverId);
+                  if (ok) fcmPush.sent++; else { fcmPush.failed++; if (!fcmPush.detail) fcmPush.detail = 'send failed (see Last send from server)'; }
+                }
               }
-            } catch (e) { console.warn('[push] FCM message push failed:', (e as any)?.message || e); await logFcmSend(env, receiverId, 'error', String((e as any)?.message || e).slice(0, 200)); }
+            } catch (e) { console.warn('[push] FCM message push failed:', (e as any)?.message || e); fcmPush.detail = String((e as any)?.message || e).slice(0, 200); await logFcmSend(env, receiverId, 'error', fcmPush.detail); }
+            fcmPushOutcome = fcmPush;
           }
 
           return jsonResponse({
             success: true,
             message: { id, sender_id: senderId, sender_name: senderName, receiver_id: receiverId, content, image_url: imageUrl, video_url: videoUrl, audio_url: audioUrl, created_at: createdAt },
+            push: fcmPushOutcome,
+            workerBuild: WORKER_BUILD,
           }, 201);
         }
         // Mark messages as read: PATCH /api/messages with { reader_id, partner_id }

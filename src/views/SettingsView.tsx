@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Bell,
   Church,
@@ -55,6 +55,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
   // notifications: permission, token received, server holds a token.
   const [pushDiag, setPushDiag] = useState<PushDiagnostics | null>(null);
   const [pushChecking, setPushChecking] = useState(false);
+  // Which JS bundle is this app actually running? Read from the entry
+  // <script> tag (Hany, 2026-11-20): after three rounds of "did the fix
+  // reach the phone?", the next screenshot proves the build from this line.
+  const pushBundleHash = useMemo(() => {
+    try {
+      const scripts = Array.from(document.querySelectorAll('script[src]'));
+      const entry = scripts.map((s) => (s as HTMLScriptElement).src).find((src) => src.includes('/assets/index-'));
+      const m = entry && entry.match(/index-([A-Za-z0-9_-]+)\.js/);
+      return m ? m[1] : 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  }, []);
   useEffect(() => {
     if (openSection !== 'push' || !isNativeApp()) return;
     let alive = true;
@@ -651,6 +664,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
                 >
                   {pushChecking ? (ar ? 'جاري التحقق…' : 'Checking…') : (ar ? 'تحقق مرة أخرى' : 'Check again')}
                 </button>
+                <p className="mt-2 text-center text-[10px] text-(--tx-soft)">{ar ? 'نسخة التطبيق' : 'App build'} {pushBundleHash}</p>
               </div>
             </div>
           )}

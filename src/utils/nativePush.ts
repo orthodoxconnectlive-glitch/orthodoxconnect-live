@@ -61,6 +61,14 @@ const diag: PushDiagnostics = {
 let listenersAttached = false;
 let pushModule: any = null;
 
+/** Race a promise against a timer: a native-bridge call must never hang the UI forever. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_resolve, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ]);
+}
+
 async function loadPushModule(): Promise<any | null> {
   if (pushModule) return pushModule;
   try {
@@ -74,11 +82,14 @@ async function loadPushModule(): Promise<any | null> {
 }
 
 async function postFcmToken(userId: string, token: string, platform: string): Promise<boolean> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
   try {
     const res = await fetch(`${API_BASE_URL}/api/fcm-tokens`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify({ user_id: userId, token, platform }),
+      signal: ctrl.signal,
     });
     diag.tokenPostStatus = res.status;
     diag.tokenPostAt = Date.now();
@@ -92,6 +103,8 @@ async function postFcmToken(userId: string, token: string, platform: string): Pr
     diag.lastError = 'Could not reach the server to send the token';
     console.warn('[native-push] token registration failed:', e);
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -105,9 +118,12 @@ export function getPushDiagnostics(): PushDiagnostics {
  * Returns null when the check itself failed (shown as "Couldn't check").
  */
 export async function fetchPushServerStatus(): Promise<{ registered: boolean; count: number } | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
     const res = await fetch(`${API_BASE_URL}/api/fcm-tokens/status`, {
       headers: { ...authHeader() },
+      signal: ctrl.signal,
     });
     const data: any = await res.json().catch(() => ({}));
     if (!res.ok || !data || typeof data.registered !== 'boolean') return null;
@@ -117,6 +133,8 @@ export async function fetchPushServerStatus(): Promise<{ registered: boolean; co
     return { registered: diag.serverRegistered, count: diag.serverTokenCount ?? 0 };
   } catch (e) {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -130,7 +148,7 @@ export async function loadPushDiagnostics(): Promise<PushDiagnostics> {
   try {
     const PushNotifications = await loadPushModule();
     if (PushNotifications && typeof PushNotifications.checkPermissions === 'function') {
-      const perm = await PushNotifications.checkPermissions().catch(() => null);
+      const perm = await withTimeout(PushNotifications.checkPermissions(), 8000).catch(() => null);
       if (perm && typeof perm.receive === 'string') {
         diag.permission = perm.receive === 'granted' ? 'granted' : perm.receive === 'denied' ? 'denied' : 'prompt';
       }
@@ -154,7 +172,14 @@ export async function registerNativePush(userId: string): Promise<boolean> {
     diag.isNative = true;
     const PushNotifications = await loadPushModule();
     if (!PushNotifications) return false;
-    const perm = await PushNotifications.requestPermissions();
+    let perm: any;
+    try {
+      perm = await withTimeout(PushNotifications.requestPermissions(), 8000);
+    } catch (e) {
+      diag.lastError = 'Phone did not answer the permission check';
+      console.warn('[native-push] requestPermissions timed out');
+      return false;
+    }
     diag.permission = perm && perm.receive === 'granted' ? 'granted' : 'denied';
     if (perm.receive !== 'granted') {
       diag.lastError = 'Notification permission not allowed on this phone';
@@ -190,7 +215,13 @@ export async function registerNativePush(userId: string): Promise<boolean> {
         } catch (e) {}
       });
     }
-    await PushNotifications.register();
+    try {
+      await withTimeout(PushNotifications.register(), 8000);
+    } catch (e) {
+      diag.lastError = 'Phone did not answer registration';
+      console.warn('[native-push] register() timed out');
+      return false;
+    }
     // Retry once if no token arrived within 10s (listeners are attached,
     // so the retry's event will be caught).
     setTimeout(() => {
@@ -213,6 +244,15 @@ export async function registerNativePush(userId: string): Promise<boolean> {
  */
 export async function refreshPushDiagnostics(userId: string): Promise<PushDiagnostics> {
   if (!isNativeApp() || !userId) return getPushDiagnostics();
+  // Hard outer limit: the button must never stick on "Checking..." — worst
+  // case the lines report what is known so far plus the timeout as the problem.
+  return withTimeout(refreshPushDiagnosticsInner(userId), 18000).catch(() => {
+    diag.lastError = diag.lastError || 'Check timed out — phone or server did not answer';
+    return getPushDiagnostics();
+  });
+}
+
+async function refreshPushDiagnosticsInner(userId: string): Promise<PushDiagnostics> {
   const startedAt = Date.now();
   await registerNativePush(userId);
   // Wait for the async token event (already true if a previous login got one).

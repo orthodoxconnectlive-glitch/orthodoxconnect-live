@@ -50,6 +50,8 @@ export interface PushDiagnostics {
   serverRegistered: boolean | null;
   serverTokenCount: number | null;
   serverCheckedAt: number | null;
+  /** Last server-side FCM send attempt for this user (from /api/fcm-tokens/status). */
+  serverLastSend: { status: string; detail: string; at: string } | null;
   /** Which step the last check reached — the next screenshot names the stuck step. */
   stage: string;
 }
@@ -65,6 +67,7 @@ const diag: PushDiagnostics = {
   serverRegistered: null,
   serverTokenCount: null,
   serverCheckedAt: null,
+  serverLastSend: null,
   stage: 'not checked yet',
 };
 
@@ -163,7 +166,7 @@ export function getPushDiagnostics(): PushDiagnostics {
  * Ask the server whether it holds any FCM token for this signed-in user.
  * Returns null when the check itself failed (shown as "Couldn't check").
  */
-export async function fetchPushServerStatus(): Promise<{ registered: boolean; count: number } | null> {
+export async function fetchPushServerStatus(): Promise<{ registered: boolean; count: number; lastSend: { status: string; detail: string; at: string } | null } | null> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
@@ -176,7 +179,8 @@ export async function fetchPushServerStatus(): Promise<{ registered: boolean; co
     diag.serverRegistered = !!data.registered;
     diag.serverTokenCount = typeof data.count === 'number' ? data.count : null;
     diag.serverCheckedAt = Date.now();
-    return { registered: diag.serverRegistered, count: diag.serverTokenCount ?? 0 };
+    diag.serverLastSend = data.lastSend && typeof data.lastSend.status === 'string' ? { status: data.lastSend.status, detail: String(data.lastSend.detail || ''), at: String(data.lastSend.at || '') } : null;
+    return { registered: diag.serverRegistered, count: diag.serverTokenCount ?? 0, lastSend: diag.serverLastSend };
   } catch (e) {
     return null;
   } finally {

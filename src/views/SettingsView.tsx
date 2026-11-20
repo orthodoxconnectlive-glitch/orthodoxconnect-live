@@ -641,6 +641,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
                       {!pushDiag ? '…' : pushDiag.serverRegistered === null ? (ar ? 'تعذّر التحقق' : "Couldn't check") : pushDiag.serverRegistered ? `${ar ? 'نعم ✓' : 'Yes ✓'} (${pushDiag.serverTokenCount ?? 1})` : (ar ? 'لا ✗' : 'No ✗')}
                     </span>
                   </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-(--tx-soft) shrink-0">{ar ? 'آخر إرسال من الخادم' : 'Last send from server'}</span>
+                    <span className={`font-medium text-right break-words ${!pushDiag || !pushDiag.serverLastSend ? 'text-(--tx-soft)' : pushDiag.serverLastSend.status === 'sent' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {!pushDiag ? '…' : !pushDiag.serverLastSend ? (ar ? 'لا يوجد إرسال بعد' : 'No send yet') : pushDiag.serverLastSend.status === 'sent' ? (ar ? 'تم الإرسال ✓' : 'Sent ✓') : `${pushDiag.serverLastSend.status}${pushDiag.serverLastSend.detail ? ` — ${pushDiag.serverLastSend.detail.slice(0, 120)}` : ''}`}
+                    </span>
+                  </div>
                   {pushDiag && pushDiag.lastError && (
                     <div className="flex items-start justify-between gap-3 pt-1">
                       <span className="text-(--tx-soft) shrink-0">{ar ? 'آخر مشكلة' : 'Last problem'}</span>

@@ -1030,17 +1030,32 @@ async function sendWebPush(env: Env, sub: { endpoint: string; p256dh: string; au
 // Web Push delivery to the browser registration was declared failed
 // 2026-10-31, so the native app uses Firebase Cloud Messaging directly:
 // FCM talks straight to the app even when it is closed, no browser SW.
+// FCM send log (Hany, 2026-11-20): every server-side FCM send attempt is
+// recorded in D1 so the phone can show what the SERVER did — the worker
+// logs are the only other place this lives, and they need a dashboard
+// sign-in. Table is created inline (like fcm_tokens in the POST handler)
+// because ensureD1Tables' fast path skips slow-path migrations on a
+// fully-migrated database. Never throws: logging must never break a send.
+async function logFcmSend(env: Env, recipientId: string, status: string, detail: string): Promise<void> {
+  try {
+    if (!env.DB) return;
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS fcm_send_log ( id TEXT PRIMARY KEY, recipient_id TEXT NOT NULL, status TEXT NOT NULL, detail TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')) )`).run();
+    const id = (globalThis as any).crypto?.randomUUID ? (globalThis as any).crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+    await env.DB.prepare('INSERT INTO fcm_send_log (id, recipient_id, status, detail, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, String(recipientId || ''), String(status || ''), String(detail || '').slice(0, 200), new Date().toISOString()).run();
+  } catch (e) { /* logging is best-effort only */ }
+}
+
 // Gated on env.FCM_SERVICE_ACCOUNT_JSON (a Firebase service-account JSON,
 // set as a Runtime secret in the Cloudflare dashboard, never in the repo). Without it, this returns
 // false and message sending is unaffected (Web Push still runs first).
 // FCM HTTP v1: OAuth2 JWT (RS256) -> access token -> messages:send.
-async function sendFcmPush(env: Env, fcmToken: string, payload: any): Promise<boolean> {
+async function sendFcmPush(env: Env, fcmToken: string, payload: any, recipientId?: string): Promise<boolean> {
   try {
     const saRaw = String((env as any).FCM_SERVICE_ACCOUNT_JSON || '').trim();
-    if (!saRaw || !fcmToken) return false;
+    if (!saRaw || !fcmToken) { await logFcmSend(env, recipientId || '', 'no-service-account', !saRaw ? 'FCM_SERVICE_ACCOUNT_JSON missing' : 'no token'); return false; }
     let sa: any;
-    try { sa = JSON.parse(saRaw); } catch (e) { console.warn('[fcm] bad service account JSON'); return false; }
-    if (!sa.project_id || !sa.client_email || !sa.private_key) return false;
+    try { sa = JSON.parse(saRaw); } catch (e) { console.warn('[fcm] bad service account JSON'); await logFcmSend(env, recipientId || '', 'bad-service-account', 'service account JSON does not parse'); return false; }
+    if (!sa.project_id || !sa.client_email || !sa.private_key) { await logFcmSend(env, recipientId || '', 'bad-service-account', 'service account missing project_id, client_email or private_key'); return false; }
     const now = Math.floor(Date.now() / 1000);
     const enc = new TextEncoder();
     const headerB64 = b64uEncode(enc.encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
@@ -1051,19 +1066,22 @@ async function sendFcmPush(env: Env, fcmToken: string, payload: any): Promise<bo
     const sig = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', privKey, enc.encode(headerB64 + '.' + claimsB64)));
     const jwt = headerB64 + '.' + claimsB64 + '.' + b64uEncode(sig);
     const tokRes = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + encodeURIComponent(jwt) });
-    if (!tokRes.ok) { console.warn('[fcm] token exchange failed:', tokRes.status); return false; }
+    if (!tokRes.ok) { console.warn('[fcm] token exchange failed:', tokRes.status); await logFcmSend(env, recipientId || '', 'exchange-failed', 'HTTP ' + tokRes.status); return false; }
     const tokJson: any = await tokRes.json().catch(() => ({}));
-    if (!tokJson.access_token) return false;
+    if (!tokJson.access_token) { await logFcmSend(env, recipientId || '', 'exchange-failed', 'no access_token'); return false; }
     const msgRes = await fetch('https://fcm.googleapis.com/v1/projects/' + encodeURIComponent(sa.project_id) + '/messages:send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tokJson.access_token }, body: JSON.stringify({ message: { token: fcmToken, android: { priority: 'high' }, notification: { title: payload.title || 'OrthodoxConnect', body: payload.body || '' }, data: { url: String((payload.data && payload.data.url) || '/'), type: 'message', senderId: String((payload.data && payload.data.senderId) || '') } } }) });
     if (!msgRes.ok) {
       const body = await msgRes.text().catch(() => '');
       console.warn('[fcm] send failed:', msgRes.status, body.slice(0, 200));
+      await logFcmSend(env, recipientId || '', 'send-failed-' + msgRes.status, body.slice(0, 200));
       if (msgRes.status === 404) { try { await env.DB.prepare('DELETE FROM fcm_tokens WHERE token = ?').bind(fcmToken).run(); } catch (e) {} }
       return false;
     }
+    await logFcmSend(env, recipientId || '', 'sent', '');
     return true;
   } catch (e) {
     console.warn('[fcm] send failed:', (e as any)?.message || e);
+    await logFcmSend(env, recipientId || '', 'error', String((e as any)?.message || e).slice(0, 200));
     return false;
   }
 }
@@ -3191,7 +3209,15 @@ export default {
         const strippedS = String(authS.id).replace(/^auth-/, '');
         const row: any = await env.DB.prepare('SELECT COUNT(*) as n FROM fcm_tokens WHERE user_id = ? OR user_id = ?').bind(authS.id, strippedS).first().catch(() => null);
         const count = Number((row && row.n) || 0);
-        return jsonResponse({ success: true, registered: count > 0, count });
+        // Last server-side FCM send attempt for this user (Hany, 2026-11-20):
+        // the phone shows it so the server's half of a failed delivery is
+        // visible without the Cloudflare dashboard. Null when no send logged.
+        let lastSend: any = null;
+        try {
+          const lr: any = await env.DB.prepare('SELECT status, detail, created_at FROM fcm_send_log WHERE recipient_id = ? OR recipient_id = ? ORDER BY created_at DESC LIMIT 1').bind(authS.id, strippedS).first().catch(() => null);
+          if (lr) lastSend = { status: String(lr.status || ''), detail: String(lr.detail || ''), at: String(lr.created_at || '') };
+        } catch (e) { /* table missing until the first logged send */ }
+        return jsonResponse({ success: true, registered: count > 0, count, lastSend });
       }
 
       if (url.pathname === '/api/fcm-tokens' && env.DB) {
@@ -4232,7 +4258,7 @@ export default {
                 try {
                   const fcmRows: any = await env.DB.prepare('SELECT token FROM fcm_tokens WHERE user_id = ? OR user_id = ?').bind(receiverId, strippedReceiver).all().catch(() => ({ results: [] }));
                   for (const r of ((fcmRows && fcmRows.results) || []) as any[]) {
-                    if (r && r.token) await sendFcmPush(env, String(r.token), pushPayload);
+                    if (r && r.token) await sendFcmPush(env, String(r.token), pushPayload, receiverId);
                   }
                 } catch (e) { console.warn('[push] FCM message push failed:', (e as any)?.message || e); }
               }

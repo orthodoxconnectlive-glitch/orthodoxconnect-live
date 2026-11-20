@@ -25,6 +25,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiFetch, churchesApi } from '../lib/api';
 import { AdminGroupMessages } from '../components/AdminGroupMessages';
 import { ReportContentModal } from '../components/ReportContentModal';
+import { isNativeApp, loadPushDiagnostics, refreshPushDiagnostics, type PushDiagnostics } from '../utils/nativePush';
 import { US_COPTIC_CHURCHES } from '../data/usCopticChurches';
 import { EGYPT_COPTIC_CHURCHES } from '../data/egyptCopticChurches';
 import { COPTIC_CHURCHES } from '../data/copticChurches';
@@ -34,7 +35,7 @@ interface SettingsViewProps {
   onOpenAdminTab?: (tab: 'reports' | 'audit') => void;
 }
 
-type SectionId = 'church' | 'app' | 'mod' | 'safety';
+type SectionId = 'church' | 'app' | 'mod' | 'safety' | 'push';
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAdminTab }) => {
   const { t, language, setLanguage, theme, setTheme } = useTheme();
@@ -48,6 +49,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
 
   // ---- Safety reporting (visible to everyone) ----
   const [reportOpen, setReportOpen] = useState(false);
+
+  // ---- Push diagnostics (native app only, Hany 2026-11-20) ----
+  // Shows on the phone whether this device registered for closed-app
+  // notifications: permission, token received, server holds a token.
+  const [pushDiag, setPushDiag] = useState<PushDiagnostics | null>(null);
+  const [pushChecking, setPushChecking] = useState(false);
+  useEffect(() => {
+    if (openSection !== 'push' || !isNativeApp()) return;
+    let alive = true;
+    loadPushDiagnostics().then((d) => { if (alive) setPushDiag(d); }).catch(() => {});
+    return () => { alive = false; };
+  }, [openSection]);
 
   // ---- Church settings state ----
   const [churchImporting, setChurchImporting] = useState(false);
@@ -578,6 +591,70 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onNavigate, onOpenAd
             </a>
           </div>
         </div>
+      )}
+
+      {/* ============ NOTIFICATIONS — push diagnostics (native app only) ============ */}
+      {isNativeApp() && (
+        <>
+          <SectionHeader id="push" icon={<Bell className="w-6 h-6" />} title={ar ? 'الإشعارات' : 'Notifications'} />
+          {openSection === 'push' && (
+            <div className="space-y-4 pl-1">
+              <div className="p-4 rounded-3xl bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) dark:border-[#8b6b4a] shadow-lg">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-(--ac-gold)/15 flex items-center justify-center shrink-0">
+                    <Bell className="w-6 h-6 text-(--ac-bright-tx)" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-serif font-bold text-base text-(--tx-head)">{ar ? 'حالة الإشعارات' : 'Push status'}</p>
+                    <p className="text-xs text-(--tx-soft) mt-0.5">{ar ? 'هل يصل هاتفك إشعار والبرنامج مغلق؟ هذه الأسطر تقول الحقيقة.' : 'Will your phone buzz with the app closed? These lines tell the truth.'}</p>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-(--tx-soft)">{ar ? 'إذن الإشعارات' : 'Permission'}</span>
+                    <span className={`font-serif font-bold ${!pushDiag ? 'text-(--tx-soft)' : pushDiag.permission === 'granted' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {!pushDiag ? '…' : pushDiag.permission === 'granted' ? (ar ? 'مسموح ✓' : 'Allowed ✓') : pushDiag.permission === 'denied' ? (ar ? 'غير مسموح ✗' : 'Not allowed ✗') : (ar ? 'غير معروف' : 'Unknown')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-(--tx-soft)">{ar ? 'هاتفك سجّل' : 'This phone registered'}</span>
+                    <span className={`font-serif font-bold ${!pushDiag ? 'text-(--tx-soft)' : pushDiag.tokenReceived ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {!pushDiag ? '…' : pushDiag.tokenReceived ? `${ar ? 'نعم ✓' : 'Yes ✓'}${pushDiag.tokenReceivedAt ? ` · ${new Date(pushDiag.tokenReceivedAt).toLocaleString()}` : ''}` : (ar ? 'لا ✗' : 'No ✗')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-(--tx-soft)">{ar ? 'الخادم لديه رمزك' : 'Server has your token'}</span>
+                    <span className={`font-serif font-bold ${!pushDiag || pushDiag.serverRegistered === null ? 'text-(--tx-soft)' : pushDiag.serverRegistered ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {!pushDiag ? '…' : pushDiag.serverRegistered === null ? (ar ? 'تعذّر التحقق' : "Couldn't check") : pushDiag.serverRegistered ? `${ar ? 'نعم ✓' : 'Yes ✓'} (${pushDiag.serverTokenCount ?? 1})` : (ar ? 'لا ✗' : 'No ✗')}
+                    </span>
+                  </div>
+                  {pushDiag && pushDiag.lastError && (
+                    <div className="flex items-start justify-between gap-3 pt-1">
+                      <span className="text-(--tx-soft) shrink-0">{ar ? 'آخر مشكلة' : 'Last problem'}</span>
+                      <span className="font-medium text-red-600 dark:text-red-400 text-right break-words">{pushDiag.lastError}</span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!profile?.id || pushChecking) return;
+                    setPushChecking(true);
+                    try {
+                      const d = await refreshPushDiagnostics(profile.id);
+                      setPushDiag(d);
+                    } finally {
+                      setPushChecking(false);
+                    }
+                  }}
+                  disabled={pushChecking || !profile?.id}
+                  className="mt-4 w-full px-5 py-2.5 rounded-xl bg-(--ac-bright) hover:opacity-90 text-white font-serif font-bold text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {pushChecking ? (ar ? 'جاري التحقق…' : 'Checking…') : (ar ? 'تحقق مرة أخرى' : 'Check again')}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* ============ CHURCH SETTINGS (admin) ============ */}

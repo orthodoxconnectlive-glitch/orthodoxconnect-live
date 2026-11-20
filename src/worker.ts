@@ -3182,6 +3182,18 @@ export default {
       // Native FCM tokens (2026-11-01): register/delete, authenticated, own user only.
       // Self-healing CREATE TABLE: ensureD1Tables fast-path skips migrations on
       // fully-migrated databases, so this endpoint creates the table itself.
+      // Push diagnostics: GET /api/fcm-tokens/status — does THIS signed-in user
+      // have any FCM token stored? Authenticated; returns only a count, never
+      // token values. Powers the Settings → Notifications check (Hany, 2026-11-20).
+      if (url.pathname === '/api/fcm-tokens/status' && request.method === 'GET' && env.DB) {
+        const authS = await getAuthIdentity(request, env);
+        if (!authS.id) return jsonResponse({ success: false, error: 'Authentication required.' }, 401);
+        const strippedS = String(authS.id).replace(/^auth-/, '');
+        const row: any = await env.DB.prepare('SELECT COUNT(*) as n FROM fcm_tokens WHERE user_id = ? OR user_id = ?').bind(authS.id, strippedS).first().catch(() => null);
+        const count = Number((row && row.n) || 0);
+        return jsonResponse({ success: true, registered: count > 0, count });
+      }
+
       if (url.pathname === '/api/fcm-tokens' && env.DB) {
         if (request.method === 'POST') {
           const body: any = await request.json().catch(() => ({}));

@@ -5,6 +5,12 @@
  * Live Streams, Moderation Reports, Notifications, Bunny Stream, and Books Library.
  */
 
+// Worker build tag (Hany, 2026-11-20): bump this string on every worker-logic
+// push. Returned by /api/fcm-tokens/status so anyone can tell WHICH worker
+// build is actually live — deploys lag, and three "fixes" were misjudged
+// because a test ran on the previous build. Never guess the deploy again.
+const WORKER_BUILD = 'fcm-log-v2';
+
 import {
   getTodayCommemoration,
   getFastingInfo,
@@ -3217,7 +3223,7 @@ export default {
           const lr: any = await env.DB.prepare('SELECT status, detail, created_at FROM fcm_send_log WHERE recipient_id = ? OR recipient_id = ? ORDER BY created_at DESC LIMIT 1').bind(authS.id, strippedS).first().catch(() => null);
           if (lr) lastSend = { status: String(lr.status || ''), detail: String(lr.detail || ''), at: String(lr.created_at || '') };
         } catch (e) { /* table missing until the first logged send */ }
-        return jsonResponse({ success: true, registered: count > 0, count, lastSend });
+        return jsonResponse({ success: true, registered: count > 0, count, lastSend, workerBuild: WORKER_BUILD });
       }
 
       if (url.pathname === '/api/fcm-tokens' && env.DB) {

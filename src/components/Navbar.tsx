@@ -280,7 +280,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               title={language === 'en' ? 'التحويل إلى اللغة العربية' : 'Switch to English'}
             >
               <Globe className="w-4 h-4 text-(--ac-bronze-tx) dark:text-(--ac-bright-tx)" />
-              <span>{language === 'en' ? 'عربي' : 'EN'}</span>
+              <span>{language === 'en' ? 'ع' : 'E'}</span>
             </button>
 
             {/* Mobile Search Toggle */}
@@ -608,7 +608,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         language === 'en' ? 'bg-(--ac-gold) text-white' : 'text-(--tx-mute)'
                       }`}
                     >
-                      EN
+                      E
                     </button>
                     <button
                       onClick={() => setLanguage('ar')}
@@ -616,7 +616,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         language === 'ar' ? 'bg-(--ac-gold) text-white' : 'text-(--tx-mute)'
                       }`}
                     >
-                      عربي
+                      ع
                     </button>
                   </div>
                 </div>

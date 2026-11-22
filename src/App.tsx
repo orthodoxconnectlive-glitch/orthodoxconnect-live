@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, Suspense, lazy } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { MediaProvider } from './context/MediaContext';
@@ -8,6 +8,7 @@ import { GlobalNotificationToast } from './components/GlobalNotificationToast';
 import { Navbar } from './components/Navbar';
 import { NotificationPrompt } from './components/NotificationPrompt';
 import { isNativeApp } from './utils/nativePush';
+import { App as CapApp } from '@capacitor/app';
 // NEW: notification auto-refresh (adjust path if your service lives elsewhere)
 import { loadNotifications, markNotificationAsRead } from './utils/notifications';
 import { syncFollowsFromServer } from './utils/follows';
@@ -503,6 +504,38 @@ function AppContent() {
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  // Native Android back button (Capacitor @capacitor/app): without this
+  // listener the phone back button never reaches the web page at all — the
+  // app just closes, no matter how much history the page pushed (Hany's
+  // video 2026-11-22). Registering any backButton listener opts out of
+  // Capacitor's default handling entirely, so the root case must exit the
+  // app explicitly. The listener is registered once; it reads the open
+  // modals through a ref updated after every render.
+  const openModalsRef = useRef({ invite: false, editProfile: false, candle: false, theme: false });
+  useEffect(() => {
+    openModalsRef.current = {
+      invite: isInviteOpen,
+      editProfile: isEditProfileOpen,
+      candle: candleOpen,
+      theme: showThemePicker,
+    };
+  });
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    const handlePromise = CapApp.addListener('backButton', ({ canGoBack }) => {
+      const m = openModalsRef.current;
+      // Close the topmost open modal first (render order: Invite, Edit
+      // Profile, Candle, Theme Picker — last rendered is on top).
+      if (m.theme) { setShowThemePicker(false); return; }
+      if (m.candle) { setCandleOpen(false); return; }
+      if (m.editProfile) { setIsEditProfileOpen(false); return; }
+      if (m.invite) { setIsInviteOpen(false); return; }
+      if (canGoBack) window.history.back();
+      else void CapApp.exitApp();
+    });
+    return () => { void handlePromise.then((h) => h.remove()); };
   }, []);
 
   // Consume the Settings -> admin tab deep link after the admin view mounts,

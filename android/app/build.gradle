@@ -10,7 +10,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // v13 retry: cloud run 44749680644 failed on transient Maven
         // resolution (kotlin-stdlib-jdk8 etc. not found); same build re-run.
-        versionCode 13
+        versionCode 14
         versionName "1.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -43,6 +43,7 @@ dependencies {
     implementation project(':capacitor-share')
     implementation project(':capacitor-filesystem')
     implementation project(':capacitor-status-bar')
+    implementation project(':capacitor-app')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
 }

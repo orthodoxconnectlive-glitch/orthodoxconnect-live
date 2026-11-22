@@ -399,7 +399,42 @@ function AppContent() {
     };
   }, []);
 
+  // --- Android back button: Facebook-style history ---------------------------
+  // Every screen change pushes a snapshot of the screen being left, so the
+  // phone back button walks back through visited screens to the main page
+  // instead of closing the app. At the root (feed, no snapshot) back exits,
+  // exactly like Facebook.
+  const screenSnapshot = () => ({
+    view: currentView,
+    profile: viewedUserProfile ?? null,
+    church: selectedChurchId,
+    contact: activeMessengerContactId ?? null,
+    post: focusPostId,
+  });
+
+  const pushScreenHistory = () => {
+    try {
+      window.history.pushState(screenSnapshot(), '', window.location.href);
+    } catch (e) {}
+  };
+
+  // In-app back arrows use the same history, so the phone back button and the
+  // on-screen back arrow never disagree. Falls back to the given view when
+  // the screen was opened by a deep link (no history entry to pop to).
+  const goBackTo = (fallbackView: string) => {
+    try {
+      if (window.history.state && typeof window.history.state === 'object') {
+        window.history.back();
+        return;
+      }
+    } catch (e) {}
+    setCurrentView(fallbackView);
+  };
+
   const handleOpenMessengerWithUser = (contactId?: string) => {
+    if (contactId !== activeMessengerContactId || currentView !== 'messages') {
+      pushScreenHistory();
+    }
     setActiveMessengerContactId(contactId);
     try {
       if (contactId) localStorage.setItem('orthodox_active_contact_id', contactId);
@@ -408,11 +443,17 @@ function AppContent() {
   };
 
   const handleSelectUser = (userData: UserProfileData) => {
+    if (viewedUserProfile?.id !== userData.id || currentView !== 'profile') {
+      pushScreenHistory();
+    }
     setViewedUserProfile(userData);
     setCurrentView('profile');
   };
 
   const handleOpenChurch = (churchId: string) => {
+    if (selectedChurchId !== churchId || currentView !== 'churchProfile') {
+      pushScreenHistory();
+    }
     setSelectedChurchId(churchId);
     setCurrentView('churchProfile');
   };
@@ -432,25 +473,31 @@ function AppContent() {
     // Keep the target post only when heading to the feed; anything else clears it.
     setFocusPostId(view === 'feed' && postId ? postId : null);
     // Push a history entry so the Android back button walks back through
-    // visited tabs instead of closing the app.
-    if (view !== currentView) {
-      try {
-        window.history.pushState({ view }, '', window.location.href);
-      } catch (e) {}
+    // visited screens instead of closing the app. A focused post counts as a
+    // screen change too, even when already on the feed.
+    const nextPostId = view === 'feed' && postId ? postId : null;
+    if (view !== currentView || nextPostId !== focusPostId) {
+      pushScreenHistory();
     }
     setCurrentView(view);
   };
 
-  // Android / browser back button: restore the previous tab from history.
-  // Falls back to the feed when there is no recorded view.
+  // Android / browser back button: restore the previous screen from history.
+  // Falls back to the feed when there is no recorded screen.
   useEffect(() => {
     const onPopState = (e: PopStateEvent) => {
-      const view = (e.state as any)?.view;
-      if (view && typeof view === 'string') {
-        setViewedUserProfile(null);
-        setFocusPostId(null);
-        setCurrentView(view);
+      const s = (e.state as any) || {};
+      if (s.view && typeof s.view === 'string') {
+        setViewedUserProfile(s.profile ?? null);
+        setSelectedChurchId(s.church ?? null);
+        setActiveMessengerContactId(s.contact ?? undefined);
+        setFocusPostId(s.post ?? null);
+        setCurrentView(s.view);
       } else {
+        setViewedUserProfile(null);
+        setSelectedChurchId(null);
+        setActiveMessengerContactId(undefined);
+        setFocusPostId(null);
         setCurrentView('feed');
       }
     };
@@ -519,7 +566,7 @@ function AppContent() {
           <ProfileView
             onOpenEditProfile={() => setIsEditProfileOpen(true)}
             viewedUser={viewedUserProfile}
-            onBack={() => setCurrentView('feed')}
+            onBack={() => goBackTo('feed')}
             onOpenMessengerWithUser={handleOpenMessengerWithUser}
           />
         );
@@ -531,7 +578,7 @@ function AppContent() {
         return <ChurchesView onOpenChurch={handleOpenChurch} />;
       case 'churchProfile':
         return selectedChurchId ? (
-          <ChurchProfileView churchId={selectedChurchId} onBack={() => setCurrentView('churches')} />
+          <ChurchProfileView churchId={selectedChurchId} onBack={() => goBackTo('churches')} />
         ) : (
           <ChurchesView onOpenChurch={handleOpenChurch} />
         );

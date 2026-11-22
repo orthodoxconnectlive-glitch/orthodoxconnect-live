@@ -510,9 +510,11 @@ function AppContent() {
   // listener the phone back button never reaches the web page at all — the
   // app just closes, no matter how much history the page pushed (Hany's
   // video 2026-11-22). Registering any backButton listener opts out of
-  // Capacitor's default handling entirely, so the root case must exit the
-  // app explicitly. The listener is registered once; it reads the open
-  // modals through a ref updated after every render.
+  // Capacitor's default handling entirely. Hany 2026-11-22: back ALWAYS
+  // goes to the main page, never closes the app — no matter which screen
+  // it was pressed from. So there is no exit path at all. The
+  // listener is registered once; it reads the open modals through a ref
+  // updated after every render.
   const openModalsRef = useRef({ invite: false, editProfile: false, candle: false, theme: false });
   useEffect(() => {
     openModalsRef.current = {
@@ -524,7 +526,7 @@ function AppContent() {
   });
   useEffect(() => {
     if (!isNativeApp()) return;
-    const handlePromise = CapApp.addListener('backButton', ({ canGoBack }) => {
+    const handlePromise = CapApp.addListener('backButton', () => {
       const m = openModalsRef.current;
       // Close the topmost open modal first (render order: Invite, Edit
       // Profile, Candle, Theme Picker — last rendered is on top).
@@ -532,8 +534,12 @@ function AppContent() {
       if (m.candle) { setCandleOpen(false); return; }
       if (m.editProfile) { setIsEditProfileOpen(false); return; }
       if (m.invite) { setIsInviteOpen(false); return; }
-      if (canGoBack) window.history.back();
-      else void CapApp.exitApp();
+      // Always go to the main page — never close the app (Hany 2026-11-22).
+      setCurrentView('feed');
+      setViewedUserProfile(null);
+      setSelectedChurchId(null);
+      setActiveMessengerContactId(null);
+      setFocusPostId(null);
     });
     return () => { void handlePromise.then((h) => h.remove()); };
   }, []);

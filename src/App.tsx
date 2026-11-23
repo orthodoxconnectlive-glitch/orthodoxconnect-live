@@ -510,12 +510,13 @@ function AppContent() {
   // listener the phone back button never reaches the web page at all — the
   // app just closes, no matter how much history the page pushed (Hany's
   // video 2026-11-22). Registering any backButton listener opts out of
-  // Capacitor's default handling entirely. Hany 2026-11-22: back ALWAYS
-  // goes to the main page, never closes the app — no matter which screen
-  // it was pressed from. So there is no exit path at all. The
-  // listener is registered once; it reads the open modals through a ref
-  // updated after every render.
+  // Capacitor's default handling entirely. Hany 2026-11-23: first press
+  // goes to the main page; a second press while already on the main page
+  // closes the app. The listener is registered once; it reads the open
+  // modals and the current screen through refs updated after every render.
   const openModalsRef = useRef({ invite: false, editProfile: false, candle: false, theme: false });
+  // True while the plain main page (feed, nothing focused) is showing.
+  const onMainPageRef = useRef(false);
   useEffect(() => {
     openModalsRef.current = {
       invite: isInviteOpen,
@@ -523,6 +524,13 @@ function AppContent() {
       candle: candleOpen,
       theme: showThemePicker,
     };
+    onMainPageRef.current =
+      currentView === 'feed' &&
+      !viewedUserProfile &&
+      !selectedChurchId &&
+      !activeMessengerContactId &&
+      !focusPostId &&
+      !focusSynaxKey;
   });
   useEffect(() => {
     if (!isNativeApp()) return;
@@ -534,12 +542,15 @@ function AppContent() {
       if (m.candle) { setCandleOpen(false); return; }
       if (m.editProfile) { setIsEditProfileOpen(false); return; }
       if (m.invite) { setIsInviteOpen(false); return; }
-      // Always go to the main page — never close the app (Hany 2026-11-22).
+      // Second press while already on the main page closes the app
+      // (Hany 2026-11-23). Otherwise go to the main page.
+      if (onMainPageRef.current) { void CapApp.exitApp(); return; }
       setCurrentView('feed');
       setViewedUserProfile(null);
       setSelectedChurchId(null);
       setActiveMessengerContactId(null);
       setFocusPostId(null);
+      setFocusSynaxKey(null);
     });
     return () => { void handlePromise.then((h) => h.remove()); };
   }, []);

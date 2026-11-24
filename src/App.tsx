@@ -574,6 +574,7 @@ function AppContent() {
             onOpenCalendar={() => handleNavigate('calendar')}
             onOpenChurch={handleOpenChurch}
             onOpenLive={() => handleNavigate('live')}
+            onOpenInvite={() => setIsInviteOpen(true)}
             focusPostId={focusPostId}
             onFocusPostConsumed={() => setFocusPostId(null)}
             focusSynaxKey={focusSynaxKey}
@@ -653,7 +654,7 @@ function AppContent() {
       case 'familyCases':
         return <FamilyCasesView />;
       default:
-        return <FeedView onSelectUser={handleSelectUser} />;
+        return <FeedView onSelectUser={handleSelectUser} onOpenInvite={() => setIsInviteOpen(true)} />;
     }
   };
 

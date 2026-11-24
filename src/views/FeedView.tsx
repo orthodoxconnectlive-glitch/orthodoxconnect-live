@@ -12,6 +12,7 @@ import {
   X,
   Upload,
   ChevronRight,
+  UserPlus,
 } from 'lucide-react';
 import { Post, PostComment } from '../types';
 import {
@@ -93,6 +94,8 @@ interface FeedViewProps {
   onOpenChurch?: (churchId: string) => void;
   /** Open the live broadcast view (tapped LIVE NOW on a live post). */
   onOpenLive?: () => void;
+  /** Open the invite modal (tapped "Invite your contact" on the feed). */
+  onOpenInvite?: () => void;
 }
 
 const PAGE_SIZE = 50;
@@ -107,6 +110,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
   onFocusSynaxConsumed,
   onOpenChurch,
   onOpenLive,
+  onOpenInvite,
 }) => {
   const authContext = useAuth() as any;
   const profile = authContext?.profile;
@@ -1020,6 +1024,28 @@ export const FeedView: React.FC<FeedViewProps> = ({
           {t('followingFeed')} ({filteredPosts.length})
         </button>
       </div>
+
+      {/* Invite your contact — shown at the top of the feed (both tabs) */}
+      {onOpenInvite && (
+        <button
+          type="button"
+          onClick={onOpenInvite}
+          className="w-full flex items-center gap-3 bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) p-3 rounded-2xl shadow-md text-left rtl:text-right hover:border-amber-500 transition-colors cursor-pointer"
+        >
+          <span className="w-10 h-10 shrink-0 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500">
+            <UserPlus className="w-5 h-5" />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block font-serif font-bold text-sm text-(--tx-strong) dark:text-[#f5ebd9]">
+              {t('inviteYourContact')}
+            </span>
+            <span className="block text-[11px] text-(--tx-mute) dark:text-[#a89379] mt-0.5">
+              {t('inviteYourContactSub')}
+            </span>
+          </span>
+          <ChevronRight className="w-5 h-5 shrink-0 text-(--ac-bronze-tx) rtl:rotate-180" />
+        </button>
+      )}
 
       <div className="space-y-4">
         {loading && posts.length === 0 ? (

@@ -168,7 +168,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const [hasMore, setHasMore] = useState<boolean>(true);
   const [page, setPage] = useState<number>(1);
   const [feedError, setFeedError] = useState<string | null>(null);
-  const [feedTab, setFeedTab] = useState<'all' | 'following'>('all');
   const [followedMap, setFollowedMap] = useState<Record<string, boolean>>(() => {
     const initialPosts = getLocalSavedPosts();
     const fMap: Record<string, boolean> = {};
@@ -295,7 +294,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         } catch (e) {}
       });
     };
-  }, [feedTab]);
+  }, []);
 
   const handleLoadMore = async () => {
     if (loadingMore || !hasMore || isFetchingRef.current) return;
@@ -648,15 +647,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
   const isKidsOnlyPost = (p: Post) =>
     KIDSONLY_RE.test(`${p.text || ''} ${(p as any).content || ''}`);
 
-  const filteredPosts =
-    feedTab === 'all'
-      ? posts.filter((p) => !isKidsOnlyPost(p))
-      : posts.filter(
-          (p) =>
-            !isKidsOnlyPost(p) &&
-            (followedMap[p.authorName] ||
-              (profile?.full_name && p.authorName.toLowerCase() === profile.full_name.toLowerCase()))
-        );
+  const filteredPosts = posts.filter((p) => !isKidsOnlyPost(p));
 
   // Jump to a specific post when opened from a notification (like/comment).
   // PostCard renders with id={`post-card-${post.id}`}, so we can scroll to it.
@@ -1002,30 +993,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </form>
       </div>
 
-      <div className="flex items-center justify-between bg-(--bg-card) dark:bg-[#1c1611] border-2 border-(--ln-gold) p-1.5 rounded-2xl shadow-md font-serif text-xs">
-        <button
-          onClick={() => setFeedTab('all')}
-          className={`flex-1 py-2 rounded-xl font-bold uppercase tracking-wider transition-all cursor-pointer text-center ${
-            feedTab === 'all'
-              ? 'bg-(--chip-dark) text-(--ac-gold-tx) shadow-md border border-(--ln-gold)'
-              : 'text-(--tx-mute) hover:text-(--tx-strong) dark:text-[#a89379]'
-          }`}
-        >
-          {t('allParishFeed')} ({filteredPosts.length})
-        </button>
-        <button
-          onClick={() => setFeedTab('following')}
-          className={`flex-1 py-2 rounded-xl font-bold uppercase tracking-wider transition-all cursor-pointer text-center ${
-            feedTab === 'following'
-              ? 'bg-(--chip-dark) text-(--ac-gold-tx) shadow-md border border-(--ln-gold)'
-              : 'text-(--tx-mute) hover:text-(--tx-strong) dark:text-[#a89379]'
-          }`}
-        >
-          {t('followingFeed')} ({filteredPosts.length})
-        </button>
-      </div>
-
-      {/* Invite your contact — shown at the top of the feed (both tabs) */}
+      {/* Invite your contact — shown at the top of the feed */}
       {onOpenInvite && (
         <button
           type="button"
@@ -1059,13 +1027,9 @@ export const FeedView: React.FC<FeedViewProps> = ({
           <div className="p-8 text-center bg-(--bg-card) dark:bg-[#1c1611] rounded-3xl border-2 border-(--ln-gold) text-(--tx-mute) text-xs font-serif uppercase space-y-3 shadow-md">
             <Church className="w-8 h-8 mx-auto text-(--ac-bronze-tx)" />
             <p className="font-bold text-(--tx-strong) dark:text-[#f5ebd9] text-sm">
-              {feedTab === 'following'
-                ? (language === 'ar'
-                    ? 'أنت لا تتابع أي شخص لديه منشورات نشطة بعد.'
-                    : "You aren't following anyone with active posts yet.")
-                : (language === 'ar'
-                    ? 'لا توجد منشورات في خلاصة الرعية.'
-                    : 'No posts found in the parish feed.')}
+              {language === 'ar'
+                ? 'لا توجد منشورات في خلاصة الرعية.'
+                : 'No posts found in the parish feed.'}
             </p>
           </div>
         ) : (
@@ -1104,8 +1068,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
               />
             ))}
 
-            {feedTab === 'all' && (
-              <div className="flex justify-center pt-4 pb-8">
+            <div className="flex justify-center pt-4 pb-8">
                 {hasMore ? (
                   <button
                     type="button"
@@ -1131,7 +1094,6 @@ export const FeedView: React.FC<FeedViewProps> = ({
                   </div>
                 )}
               </div>
-            )}
           </>
         )}
       </div>

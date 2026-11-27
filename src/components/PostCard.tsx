@@ -775,7 +775,7 @@ export const PostCard: React.FC<PostCardProps> = ({
     <div
       id={`post-card-${post.id}`}
       ref={cardRef}
-      className="p-4 sm:p-5 rounded-2xl bg-[#fffdfa] dark:bg-[#1f1914] border border-(--ln-gold)/40 shadow-md hover:shadow-lg transition-all duration-300 relative overflow-hidden"
+      className="px-4 sm:px-5 py-4 bg-[#fffdfa] dark:bg-[#1f1914] relative overflow-hidden"
     >
       {/* Reshare Header Banner */}
       {post.isReshared && (
@@ -1020,7 +1020,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Video Media */}
       {parsedEmbed ? (
-        <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-(--ln-gold)/40 mb-3.5">
+        <div className="-mx-4 sm:-mx-5 w-full aspect-video overflow-hidden bg-black mb-3.5">
           {parsedEmbed.type === 'youtube' || parsedEmbed.type === 'vimeo' || parsedEmbed.type === 'facebook' ? (
             <iframe
               src={parsedEmbed.embedUrl}
@@ -1041,7 +1041,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           )}
         </div>
       ) : cleanVideoId ? (
-        <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black shadow-lg border border-(--ln-gold)/40 mb-3.5 flex items-center justify-center">
+        <div className="relative -mx-4 sm:-mx-5 w-full aspect-video overflow-hidden bg-black mb-3.5 flex items-center justify-center">
           {videoUnavailable ? (
             <div className="absolute inset-0 bg-stone-950 flex flex-col items-center justify-center z-10 p-4 text-center">
               <p className="text-2xl mb-2">🎬</p>
@@ -1097,13 +1097,13 @@ export const PostCard: React.FC<PostCardProps> = ({
           type="button"
           onClick={() => setLightboxIdx(0)}
           aria-label="View photo"
-          className="rounded-2xl overflow-hidden mb-3.5 border-2 border-(--ln-gold)/40 bg-(--chip-dark)/10 w-full max-h-[500px] flex items-center justify-center shadow-inner cursor-pointer"
+          className="-mx-4 sm:-mx-5 overflow-hidden mb-3.5 bg-(--chip-dark)/10 w-full max-h-[500px] flex items-center justify-center cursor-pointer"
         >
           <img
             src={postImage}
             alt="Post media"
             loading="lazy"
-            className="w-full h-auto max-h-[500px] object-cover rounded-2xl"
+            className="w-full h-auto max-h-[500px] object-cover"
             onError={(e) => {
               (e.target as HTMLElement).style.display = 'none';
             }}
@@ -1113,13 +1113,13 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Photo Gallery (multi-photo posts) */}
       {galleryUrls.length > 1 && (!cleanVideoId && !parsedEmbed || rawPost.show_image_with_video) && (
-        <div className="grid grid-cols-2 gap-1.5 mb-3.5">
+        <div className="-mx-4 sm:-mx-5 grid grid-cols-2 gap-1.5 mb-3.5">
           {galleryUrls.slice(0, 4).map((src, i) => (
             <button
               key={i}
               type="button"
               onClick={() => setLightboxIdx(i)}
-              className={`relative overflow-hidden rounded-2xl border-2 border-(--ln-gold)/40 bg-(--chip-dark)/10 cursor-pointer ${
+              className={`relative overflow-hidden bg-(--chip-dark)/10 cursor-pointer ${
                 galleryUrls.length === 3 && i === 0 ? 'col-span-2 h-64' : 'h-44'
               }`}
             >

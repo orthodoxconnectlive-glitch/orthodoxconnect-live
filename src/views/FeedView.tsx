@@ -1015,7 +1015,7 @@ export const FeedView: React.FC<FeedViewProps> = ({
         </button>
       )}
 
-      <div className="space-y-4">
+      <div className="-mx-4 sm:-mx-6 lg:mx-0 divide-y divide-(--ln-bright)/20">
         {loading && posts.length === 0 ? (
           <div className="p-8 text-center bg-(--bg-card) dark:bg-[#1c1611] rounded-3xl border-2 border-(--ln-gold)">
             <Sparkles className="w-8 h-8 mx-auto text-(--ac-bronze-tx) animate-spin mb-2" />

@@ -1020,7 +1020,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Video Media */}
       {parsedEmbed ? (
-        <div className="-mx-4 sm:-mx-5 w-full aspect-video overflow-hidden bg-black mb-3.5">
+        <div className="-mx-4 sm:-mx-5 aspect-video overflow-hidden bg-black mb-3.5">
           {parsedEmbed.type === 'youtube' || parsedEmbed.type === 'vimeo' || parsedEmbed.type === 'facebook' ? (
             <iframe
               src={parsedEmbed.embedUrl}
@@ -1041,7 +1041,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           )}
         </div>
       ) : cleanVideoId ? (
-        <div className="relative -mx-4 sm:-mx-5 w-full aspect-video overflow-hidden bg-black mb-3.5 flex items-center justify-center">
+        <div className="relative -mx-4 sm:-mx-5 aspect-video overflow-hidden bg-black mb-3.5 flex items-center justify-center">
           {videoUnavailable ? (
             <div className="absolute inset-0 bg-stone-950 flex flex-col items-center justify-center z-10 p-4 text-center">
               <p className="text-2xl mb-2">🎬</p>
@@ -1097,7 +1097,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           type="button"
           onClick={() => setLightboxIdx(0)}
           aria-label="View photo"
-          className="-mx-4 sm:-mx-5 overflow-hidden mb-3.5 bg-(--chip-dark)/10 w-full max-h-[500px] flex items-center justify-center cursor-pointer"
+          className="-mx-4 sm:-mx-5 overflow-hidden mb-3.5 bg-(--chip-dark)/10 max-h-[500px] flex items-center justify-center cursor-pointer"
         >
           <img
             src={postImage}

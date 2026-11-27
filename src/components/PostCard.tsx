@@ -1020,7 +1020,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Video Media */}
       {parsedEmbed ? (
-        <div className="-mx-4 sm:-mx-5 aspect-video overflow-hidden bg-black mb-3.5">
+        <div className="-mx-4 sm:-mx-5 w-[calc(100%+2rem)] sm:w-[calc(100%+2.5rem)] aspect-video overflow-hidden bg-black mb-3.5">
           {parsedEmbed.type === 'youtube' || parsedEmbed.type === 'vimeo' || parsedEmbed.type === 'facebook' ? (
             <iframe
               src={parsedEmbed.embedUrl}
@@ -1041,7 +1041,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           )}
         </div>
       ) : cleanVideoId ? (
-        <div className="relative -mx-4 sm:-mx-5 aspect-video overflow-hidden bg-black mb-3.5 flex items-center justify-center">
+        <div className="relative -mx-4 sm:-mx-5 w-[calc(100%+2rem)] sm:w-[calc(100%+2.5rem)] aspect-video overflow-hidden bg-black mb-3.5 flex items-center justify-center">
           {videoUnavailable ? (
             <div className="absolute inset-0 bg-stone-950 flex flex-col items-center justify-center z-10 p-4 text-center">
               <p className="text-2xl mb-2">🎬</p>
@@ -1097,7 +1097,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           type="button"
           onClick={() => setLightboxIdx(0)}
           aria-label="View photo"
-          className="-mx-4 sm:-mx-5 overflow-hidden mb-3.5 bg-(--chip-dark)/10 max-h-[500px] flex items-center justify-center cursor-pointer"
+          className="-mx-4 sm:-mx-5 w-[calc(100%+2rem)] sm:w-[calc(100%+2.5rem)] overflow-hidden mb-3.5 bg-(--chip-dark)/10 max-h-[500px] flex items-center justify-center cursor-pointer"
         >
           <img
             src={postImage}
@@ -1113,7 +1113,7 @@ export const PostCard: React.FC<PostCardProps> = ({
 
       {/* Photo Gallery (multi-photo posts) */}
       {galleryUrls.length > 1 && (!cleanVideoId && !parsedEmbed || rawPost.show_image_with_video) && (
-        <div className="-mx-4 sm:-mx-5 grid grid-cols-2 gap-1.5 mb-3.5">
+        <div className="-mx-4 sm:-mx-5 w-[calc(100%+2rem)] sm:w-[calc(100%+2.5rem)] grid grid-cols-2 gap-1.5 mb-3.5">
           {galleryUrls.slice(0, 4).map((src, i) => (
             <button
               key={i}

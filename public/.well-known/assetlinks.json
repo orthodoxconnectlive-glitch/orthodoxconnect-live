@@ -1,11 +1,14 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "orthodoxconnect.live",
       "sha256_cert_fingerprints": [
-        "B8:A7:CB:2E:CD:E6:C4:B3:BA:50:06:E5:DB:4D:29:07:3E:2D:C7:F7:2A:3B:AA:F3:D2:5B:4D:25:D7:DF:8E:71"
+        "B8:A7:CB:2E:CD:E6:C4:B3:BA:50:06:E5:DB:4D:29:07:3E:2D:C7:F7:2A:3B:AA:F3:D2:5B:4D:25:D7:DF:8E:71",
+        "B4:0B:B7:43:1B:DE:7A:46:3F:C1:1F:80:57:14:C3:E7:60:7A:29:7F:FB:60:8C:A7:BA:C9:5F:A6:C3:60:87:0D"
       ]
     }
   }
